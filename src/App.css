@@ -1,0 +1,39 @@
+.placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 100vh;
+  padding: 24px;
+  text-align: center;
+}
+
+.message {
+  font-size: 1.2rem;
+  color: var(--text-h, #444);
+}
+
+.db-status {
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.db-status--ok {
+  color: #1a7f37;
+}
+
+.db-status--ng {
+  color: #cf222e;
+}
+
+.db-status--checking {
+  color: #666;
+}
+
+.db-error {
+  font-size: 0.8rem;
+  color: #cf222e;
+  max-width: 480px;
+  word-break: break-word;
+}
