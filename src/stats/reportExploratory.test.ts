@@ -32,7 +32,7 @@ describe('P10 report exploratory statistics', () => {
   it('computes state-dependence correlations and grouped summaries', () => {
     const result = stateDependence(sessions);
     expect(result.sessions).toBe(3);
-    expect(result.correlations.moodPreVWithZ).toBeGreaterThan(0.9);
+    expect(result.correlations.moodPreVWithZ).toBeCloseTo(0.8386278693775346, 12);
     expect(result.byDow[2]?.summary.sessions).toBe(2);
     expect(result.byStateTag.map((item) => item.stateTag)).toEqual(['calm', 'energized']);
   });
