@@ -1,0 +1,31 @@
+name: P11 patch iOS bundle id once
+
+on:
+  push:
+    branches:
+      - p11-release-hardening
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: p11-release-hardening
+      - name: Patch Xcode bundle id and remove helper
+        shell: bash
+        run: |
+          set -euo pipefail
+          sed -i 's/com\.example\.intentiondice/com.sunpotflower4460.intentiondice/g' ios/App/App.xcodeproj/project.pbxproj
+          test "$(grep -c 'PRODUCT_BUNDLE_IDENTIFIER = com.sunpotflower4460.intentiondice;' ios/App/App.xcodeproj/project.pbxproj)" -eq 2
+          ! grep -q 'com.example.intentiondice' ios/App/App.xcodeproj/project.pbxproj
+          git rm .github/workflows/p11-ios-id-once.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add ios/App/App.xcodeproj/project.pbxproj
+          git commit -m 'P11: align Xcode bundle identifier'
+          git push origin HEAD:p11-release-hardening
