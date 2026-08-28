@@ -7,6 +7,7 @@ import { RngService } from '../src/rng/service';
 import { SeededTestRngProvider } from '../src/rng/testing/seeded';
 import { SessionFlowService } from '../src/session/service';
 import type { Clock } from '../src/session/types';
+import { WishRegistryService, type WishClock } from '../src/wish';
 
 class SimulationClock implements Clock {
   private readonly timestamps = [
@@ -17,13 +18,27 @@ class SimulationClock implements Clock {
 
   now(): string {
     const timestamp = this.timestamps.shift();
-    if (!timestamp) throw new Error('simulation clock exhausted');
+    if (!timestamp) throw new Error('simulation session clock exhausted');
+    return timestamp;
+  }
+}
+
+class WishSimulationClock implements WishClock {
+  private readonly timestamps = [
+    '2026-09-01T01:11:00.000Z',
+    '2026-09-01T01:11:01.000Z',
+    '2026-09-01T01:12:00.000Z',
+  ];
+
+  now(): string {
+    const timestamp = this.timestamps.shift();
+    if (!timestamp) throw new Error('simulation wish clock exhausted');
     return timestamp;
   }
 }
 
 const registration: RegistrationInput = {
-  experimentId: 'simulate-p4',
+  experimentId: 'simulate-p7',
   startDate: '2026-09-01',
   bitsPerDraw: 1024,
   sessionsPerDay: 1,
@@ -57,6 +72,21 @@ const result = await sessions.runSession({
   startedAt: '2026-09-01T01:00:00.000Z',
 });
 
+const wishes = new WishRegistryService(
+  ledger,
+  { getAssignmentBit: async () => ({ bit: 1 as const, source: 'local' as const }) },
+  new WishSimulationClock(),
+  () => 'simulate-wish-1',
+);
+const registeredWish = await wishes.registerWish({
+  text: '9月中に探していた本が手に入る',
+  deadline: '2026-09-29',
+  likelihood: 2,
+  influence: 'mixed',
+});
+const wishMoment = await wishes.projectWishMoment('2026-09-01');
+await wishes.recordWishMoment('2026-09-01', wishMoment.wishes.map((wish) => wish.wishId), 30);
+
 const entries = await ledger.list();
 const verification = await verifyChain(entries);
 if (!verification.ok) {
@@ -64,6 +94,12 @@ if (!verification.ok) {
 }
 if (result.predictionEntry.seq >= result.sessionEntry.seq) {
   throw new Error('simulation prediction ordering failed');
+}
+if (registeredWish.assignmentEntry.seq !== registeredWish.wishEntry.seq + 1) {
+  throw new Error('simulation wish assignment ordering failed');
+}
+if (wishMoment.wishes.some((wish) => wish.wishId !== 'simulate-wish-1')) {
+  throw new Error('simulation wish moment projection leaked an unexpected wish');
 }
 
 console.log(
@@ -80,7 +116,12 @@ console.log(
       hits: result.payload.hits,
       nBits: result.payload.nBits,
       z: result.payload.z,
-      headHash: result.sessionEntry.entryHash,
+      wishSeq: registeredWish.wishEntry.seq,
+      assignmentSeq: registeredWish.assignmentEntry.seq,
+      assignmentArm: registeredWish.assignment.arm,
+      assignmentSource: registeredWish.assignment.rngSource,
+      wishMomentCount: wishMoment.wishes.length,
+      headHash: entries.at(-1)!.entryHash,
     },
     null,
     2,
