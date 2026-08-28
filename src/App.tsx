@@ -39,6 +39,7 @@ function parseRegistration(payloadJson: string): RegistrationPayload {
 function App() {
   const [state, setState] = useState<AppState>({ kind: 'loading' });
   const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
   const [experimentId, setExperimentId] = useState('');
   const [startDate, setStartDate] = useState('');
   const [bitsPerDraw, setBitsPerDraw] = useState<BitsPerDraw>(1024);
@@ -92,6 +93,7 @@ function App() {
   async function submitRegistration(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     setSubmitting(true);
+    setFormError(null);
     try {
       const input: RegistrationInput = {
         experimentId,
@@ -114,7 +116,7 @@ function App() {
       const result = await new RegistrationService(ledger).register(input, new Date().toISOString());
       setState({ kind: 'registered', payload: result.payload, genesisHash: result.genesisHash });
     } catch (error) {
-      setState({ kind: 'error', message: error instanceof Error ? error.message : String(error) });
+      setFormError(error instanceof Error ? error.message : String(error));
     } finally {
       setSubmitting(false);
     }
@@ -199,6 +201,7 @@ function App() {
           <span>陰性証拠: BF₁₀ &lt; 1/{Math.round(1 / DEFAULT_DECISION_RULE.bfNeg)}</span>
         </section>
 
+        {formError && <p className="error-text" role="alert">{formError}</p>}
         <label className="lock-confirm"><input required type="checkbox" />365日schedule・target seed・判定ルールを固定し、この実験IDでは変更しないことを確認しました。</label>
         <button className="lock-button" disabled={submitting} type="submit">{submitting ? '固定しています…' : 'この条件で実験をロック'}</button>
       </form>
