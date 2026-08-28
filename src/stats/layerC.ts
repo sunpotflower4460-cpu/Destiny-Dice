@@ -1,4 +1,5 @@
 import type { DecisionRule } from '../registration/types';
+import { EXPLORATORY_WARNING } from './exploratory';
 import type { ConfirmatoryLabel } from './layerA';
 import { wilsonInterval95, type ConfidenceInterval } from './inference';
 import { logGamma } from './math';
@@ -62,6 +63,11 @@ export type InterimLayerCResult = {
   primaryOutcomePolicy: 'realized_vs_all_other_judged';
   comparison: LayerCComparisonSummary;
   sensitivityExcludingUndecidable: LayerCComparisonSummary;
+};
+
+export type ExploratoryLayerCResult = {
+  analysisKind: 'exploratory';
+  warning: typeof EXPLORATORY_WARNING;
   strata: {
     likelihood: LayerCStratumSummary[];
     influence: LayerCStratumSummary[];
@@ -238,6 +244,16 @@ export function analyzeInterimLayerC(observations: readonly LayerCWishObservatio
     primaryOutcomePolicy: 'realized_vs_all_other_judged',
     comparison: summarizeLayerCComparison(observations),
     sensitivityExcludingUndecidable: summarizeLayerCComparison(sensitivityRows),
+  };
+}
+
+export function analyzeExploratoryLayerC(
+  observations: readonly LayerCWishObservation[],
+): ExploratoryLayerCResult {
+  validateObservations(observations);
+  return {
+    analysisKind: 'exploratory',
+    warning: EXPLORATORY_WARNING,
     strata: {
       likelihood: LAYER_C_LIKELIHOODS.map((likelihood) =>
         stratum(observations, `likelihood-${likelihood}`, `起きやすさ ${likelihood}`, (item) => item.likelihood === likelihood),
