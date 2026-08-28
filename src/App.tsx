@@ -1,11 +1,4 @@
 import { type FormEvent, useEffect, useState } from 'react';
-import {
-  ExperimentDashboard,
-  buildLayerADashboardModel,
-  buildLayerCDashboardModel,
-  type LayerADashboardModel,
-  type LayerCDashboardModel,
-} from './dashboard';
 import { getApplicationLedgerService } from './ledger/appService';
 import { verifyChain } from './ledger/verify';
 import {
@@ -17,6 +10,7 @@ import {
   type RegistrationPayload,
   type SessionsPerDay,
 } from './registration';
+import { ExperimentRuntime } from './runtime/ExperimentRuntime';
 import './App.css';
 
 type AppState =
@@ -26,8 +20,6 @@ type AppState =
       kind: 'registered';
       payload: RegistrationPayload;
       genesisHash: string;
-      dashboard: LayerADashboardModel;
-      layerC: LayerCDashboardModel | null;
     }
   | { kind: 'error'; message: string };
 
@@ -86,8 +78,6 @@ function App() {
           kind: 'registered',
           payload,
           genesisHash: genesis.entryHash,
-          dashboard: buildLayerADashboardModel(entries, payload),
-          layerC: buildLayerCDashboardModel(entries, payload),
         });
       })
       .catch((error: unknown) => {
@@ -130,13 +120,10 @@ function App() {
       };
       const ledger = await getApplicationLedgerService();
       const result = await new RegistrationService(ledger).register(input, new Date().toISOString());
-      const entries = await ledger.list();
       setState({
         kind: 'registered',
         payload: result.payload,
         genesisHash: result.genesisHash,
-        dashboard: buildLayerADashboardModel(entries, result.payload),
-        layerC: buildLayerCDashboardModel(entries, result.payload),
       });
     } catch (error) {
       setFormError(error instanceof Error ? error.message : String(error));
@@ -162,14 +149,7 @@ function App() {
   }
 
   if (state.kind === 'registered') {
-    return (
-      <ExperimentDashboard
-        registration={state.payload}
-        genesisHash={state.genesisHash}
-        model={state.dashboard}
-        layerCModel={state.layerC}
-      />
-    );
+    return <ExperimentRuntime registration={state.payload} genesisHash={state.genesisHash} />;
   }
 
   return (
