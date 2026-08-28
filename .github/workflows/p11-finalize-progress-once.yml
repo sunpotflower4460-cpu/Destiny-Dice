@@ -16,7 +16,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: p11-release-hardening
-      - name: Append final P11 evidence
+      - name: Record P11 evidence and self-delete
         shell: bash
         run: |
           cat >> PROGRESS.md <<'EOF'
@@ -26,58 +26,44 @@ jobs:
 ## P11: Public Anchoring / Release Hardening (2026-08-28)
 
 ### 完了したこと
-- production bundle identifierを `com.sunpotflower4460.intentiondice` に確定し、Capacitor設定とiOS Xcode projectの識別子を一致させた。
-- App Store提出用の1024x1024 RGB / no-alpha App Iconとsplash assetsへ置換した。
-- `ITSAppUsesNonExemptEncryption = false` をiOS Info.plistへ固定し、独自の非免除暗号を提供しない現在の実装境界を提出設定へ反映した。
-- Fastlane / GitHub Actionsによる手動TestFlight release経路を追加し、Xcode 26+をrelease gateとして固定した。
-- 通常PR向けに `macos-26` / Xcode 26+ のiOS native smokeを追加し、Web build -> Capacitor sync -> Simulator runtime -> `App.xcworkspace` iOS Simulator buildを署名なしで検証するようにした。
-- App Store向け日本語metadata、privacy文書、submission checklist、release checkを追加した。
-- optionalな週次public anchoringを実装した。外部へ送るのは `genesisHash / headHash / headSeq / protocolVersion` のみで、wish本文、mood、prediction、raw RNG bits、registration payload等は送らない。
-- anchoring失敗・endpoint未設定・オフラインは実験、RNG取得、ledger append、UIを停止させない。ローカルchainの意味は引き続き **tamper-evident** であり、tamper-proofとは表現しない。
-- Cloudflare Workerに `POST /anchors` / `GET /anchors/<genesisHash>`、server-side `receivedAt`、duplicate idempotency、strict request key validationを実装した。余分な本文フィールド等を含むrequestは拒否する。
-- Worker strict typecheck / unit testsと手動deploy workflowを追加した。
-- `pnpm release-check` を追加し、仮bundle ID残存、危険なstore表現、App Iconのsize/alpha、Xcode 26 gate、Worker公開GET等を機械検証するようにした。
-- 外部資格情報のready/missingだけを確認する一時workflowを1回実行し、値を表示せず状態だけ確認した後、そのworkflow自体を自動削除した。
+- production bundle identifierを `com.sunpotflower4460.intentiondice` に確定し、Capacitor / Xcode / fastlaneで統一した。
+- App Store用1024x1024 RGB / no-alpha icon、splash、`ITSAppUsesNonExemptEncryption = false`、日本語metadata / privacy / submission checklistを整備した。
+- Fastlane + GitHub Actionsの手動TestFlight経路、`macos-26` / Xcode 26+ unsigned iOS Simulator smoke、`pnpm release-check`を追加した。
+- optional週次public anchoringを実装。外部送信は `genesisHash / headHash / headSeq / protocolVersion` のみで、wish本文、mood、prediction、raw RNG bits等は送信しない。失敗/未設定/オフラインでも実験をblockしない。
+- Cloudflare Workerにstrictな `POST /anchors` / `GET /anchors/<genesisHash>`、server `receivedAt`、duplicate idempotency、extra-field rejectionと手動deploy workflowを実装した。
+- chainの意味は最後まで **tamper-evident** とし、tamper-proofとは表現しない。
 
 ### 完了基準の結果
-- Linux CI: run `33167978274` — **success**。typecheck / tests / simulation / report golden / build / append-only guard / release-checkを通過。
-- test suite: **36 test files / 157 tests passed**。
-- 365日offline simulation: **1456 ledger entries / networkRequests: 0 / verifyChain success**。
-- P10 null report golden SHA-256は変更なし。Layer A/C positive fixtureとexport -> report byte-identical再現性も維持。
-- iOS native smoke: run `33167978311`, job `98837863198` — **success**。Xcode 26+ validation、Web build、Capacitor sync、Simulator runtime、`App.xcworkspace` iOS Simulator buildの全step成功。
-- external readiness probe: run `33167975160`, job `98837853344` — **success**。値は出力せず状態のみ判定。
-- PR #14 review threads: **0**。submitted reviews: **0**。Codex/Cursor review botは利用上限、CodeRabbitは自動review条件未達で実レビューなし。
-- `f8ad80b181c975217abe4d5e8b47c0779648cadf` から `b4dbc2209a15bf0e2c21cc432b5ea2b28755f0a2` の差分は一時readiness workflow 1ファイルの削除のみで、製品コード変更なし。
-- 最新headでCI/native smokeが `action_required` / jobs 0となったのは、一時workflow削除をgithub-actions botがpushしたことに対するGitHub Actions承認gateであり、compile/test failureではない。製品コード同一headの直前runは上記のとおりgreen。
+- Linux CI run `33167978274`: **success**。typecheck / tests / 365日simulation / P10 golden / build / append-only guard / release-check green。
+- tests: **36 files / 157 tests passed**。
+- offline 365日simulation: **1456 ledger entries / networkRequests: 0 / verifyChain success**。
+- iOS native smoke run `33167978311`, job `98837863198`: **success**。Xcode 26+ validation -> Web build -> Capacitor sync -> Simulator runtime -> `App.xcworkspace` Simulator buildの全step成功。
+- external readiness probe run `33167975160`, job `98837853344`: **success**。secret値は出さずpresenceのみ確認。
+- PR #14: unresolved review threads **0** / submitted reviews **0**。Codex/Cursorは利用上限、CodeRabbitは自動review条件未達でblocking reviewなし。
+- readiness helper削除後の差分はhelper 1ファイル削除のみで製品コード変更なし。bot push後の `action_required / jobs 0` はworkflow approval gateでありcompile/test failureではない。
 
 ### 外部release readiness
-- Apple release credentials: **missing**。
-- Cloudflare release credentials: **missing**。
-- ANU production endpoint: **missing**。
-- public notary endpoint: **missing**。
-- したがって、このP11ではTestFlightへの実uploadとCloudflare Workerの実deployは未実施。コード・workflow・native buildは提出可能な境界まで検証済みで、外部資格情報/endpoint設定後に手動release/deploy workflowを実行する運用blockerとして分離する。
-- 資格情報未設定でもlocal fallback/source記録と実験台帳は動作し、ANUやpublic anchoringが成功したと偽装しない。
+- Apple release credentials: **missing**
+- Cloudflare release credentials: **missing**
+- ANU production endpoint: **missing**
+- public notary endpoint: **missing**
+- よって実TestFlight uploadとWorker実deployは未実施。release/deploy経路とnative buildは検証済みで、外部資格情報/endpoint投入後の手動operationとして分離する。未実施を公開済みとは扱わない。
 
 ### 最終不変条件セルフチェック
 1. ledger append-only — ✅
 2. prediction commit before measured RNG — ✅
-3. target scheduleはmeasured Layer A RNGと独立 — ✅
+3. target scheduleとmeasured Layer A RNGの独立 — ✅
 4. fallback sourceを隠さない — ✅
-5. final confirmatory / exploratory境界を維持 — ✅
-6. P10 golden / frozen stats semanticsを変更しない — ✅
-7. sealed wish本文を外部anchorへ送らない — ✅
-8. external anchor failureを実験blockingにしない — ✅
-9. tamper-evidentをtamper-proofと誇張しない — ✅
-10. 本番bundle ID / iOS native build / store submission gateを機械検証 — ✅
+5. confirmatory / exploratory境界とP10 goldenを維持 — ✅
+6. sealed wish本文をexternal anchorへ送らない — ✅
+7. anchor failureをexperiment blockingにしない — ✅
+8. tamper-evidentをtamper-proofと誇張しない — ✅
+9. production bundle ID / Xcode 26 native build / store submission gate — ✅
 
 ### Release申し送り
-- リポジトリ実装フェーズは **P0 -> Gate 0 -> P1 -> P2 -> P3 -> P4a -> P4 -> P5 -> P6 -> P7 -> P8 -> P9 -> P10 -> P11** まで完了。
-- 実配布時に必要なのはApple release credentials、Cloudflare release credentials、ANU production endpoint、public notary endpointの設定と、GitHub Actionsの手動release/deploy dispatch。
-- 実TestFlight / Worker deploymentの成功は外部資格情報投入後のrelease operationとして別途記録し、未実施の状態を「公開済み」とは扱わない。
+- repository implementationは **P0 -> Gate 0 -> P1 -> P2 -> P3 -> P4a -> P4 -> P5 -> P6 -> P7 -> P8 -> P9 -> P10 -> P11** まで完了。
+- 残るのはApple / Cloudflare資格情報、ANU production endpoint、public notary endpointの設定と、手動release/deploy実行のみ。
 EOF
-      - name: Commit progress and remove helper
-        shell: bash
-        run: |
           git rm .github/workflows/p11-finalize-progress-once.yml
           git add PROGRESS.md
           git config user.name 'github-actions[bot]'
