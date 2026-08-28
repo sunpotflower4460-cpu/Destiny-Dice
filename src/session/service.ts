@@ -127,8 +127,9 @@ export class SessionFlowService {
    * seqInDay is persisted as 1..sessionsPerDay; UI may display it directly.
    */
   async prepareSession(experimentDate: string, seqInDay: number): Promise<SessionPlan> {
+    const plan = await this.resolvePlan(experimentDate, seqInDay, true);
     await this.ensureDailyControl(experimentDate);
-    return this.resolvePlan(experimentDate, seqInDay, true);
+    return plan;
   }
 
   ensureDailyControl(experimentDate: string): Promise<StoredLedgerEntry> {
@@ -158,7 +159,6 @@ export class SessionFlowService {
 
     const plan = await this.resolvePlan(draft.experimentDate, draft.seqInDay, true);
     await this.assertDailyControlCommitted(plan.experimentDate);
-    await this.assertSessionNotAlreadyCommitted(plan.experimentDate, plan.seqInDay);
 
     const ritual = buildRitualRecord(plan.condition, draft.ritual);
     const context = buildContext(draft.context);
@@ -214,10 +214,15 @@ export class SessionFlowService {
 
   private async ensureDailyControlInside(experimentDate: string): Promise<StoredLedgerEntry> {
     const entries = await this.ledger.list();
+    const registration = await this.loadRegistration(entries);
+    const projection = await projectCurrentSchedule(registration, experimentDate);
+    if (!projection) {
+      throw new RangeError('experimentDate is outside the frozen experiment window');
+    }
+
     const existing = entries.find((entry) => parseControl(entry)?.date === experimentDate);
     if (existing) return existing;
 
-    const registration = await this.loadRegistration(entries);
     const random = await this.rng.getBits(registration.bitsPerDraw);
     if (random.nBits !== registration.bitsPerDraw) {
       throw new Error(`control RNG returned ${random.nBits} bits; expected ${registration.bitsPerDraw}`);
