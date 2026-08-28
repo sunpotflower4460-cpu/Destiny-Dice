@@ -51,7 +51,7 @@ function formatter(timeZone: string): Intl.DateTimeFormat {
 
 export function zonedParts(instant: string | Date, timeZone: string): ZonedParts {
   const parts = formatter(timeZone).formatToParts(parseInstant(instant));
-  const values = new Map(parts.map((part) => [part.type, part.value]));
+  const values = new Map<string, string>(parts.map((part) => [part.type, part.value]));
   const number = (name: string): number => {
     const value = Number(values.get(name));
     if (!Number.isInteger(value)) throw new Error(`Intl formatter did not return ${name}`);
@@ -76,10 +76,9 @@ export function addCalendarDays(isoDate: string, days: number): string {
   if (!Number.isInteger(days)) throw new RangeError('days must be an integer');
   const timestamp = Date.parse(`${isoDate}T00:00:00.000Z`);
   if (!Number.isFinite(timestamp)) throw new RangeError('isoDate must be a real calendar date');
-  const result = new Date(timestamp + days * 86_400_000).toISOString().slice(0, 10);
-  const roundTrip = days === 0 ? result : isoDate;
-  if (days === 0 && roundTrip !== isoDate) throw new RangeError('isoDate must be a real calendar date');
-  return result;
+  const normalized = new Date(timestamp).toISOString().slice(0, 10);
+  if (normalized !== isoDate) throw new RangeError('isoDate must be a real calendar date');
+  return new Date(timestamp + days * 86_400_000).toISOString().slice(0, 10);
 }
 
 export function resolveExperimentDate(
@@ -117,6 +116,7 @@ export function zonedDateTimeToInstant(
   timeZone: string,
 ): string {
   if (!ISO_DATE.test(isoDate)) throw new RangeError('isoDate must be YYYY-MM-DD');
+  addCalendarDays(isoDate, 0);
   const { hour, minute } = parseClockTime(clockTime);
   validateTimeZone(timeZone);
   const [year, month, day] = isoDate.split('-').map(Number) as [number, number, number];
