@@ -26,22 +26,32 @@ export function buildAnchorPayload(
   const head = entries.at(-1);
   if (!head) throw new Error('cannot anchor an empty ledger');
   if (!HASH_RE.test(genesisHash)) throw new Error('invalid genesis hash');
-  if (!HASH_RE.test(head.entry_hash)) throw new Error('invalid ledger head hash');
+  if (!HASH_RE.test(head.entryHash)) throw new Error('invalid ledger head hash');
   return {
     genesisHash,
-    headHash: head.entry_hash,
+    headHash: head.entryHash,
     headSeq: head.seq,
     protocolVersion,
   };
 }
 
 export class WeeklyNotaryService {
+  private readonly endpoint: string | null;
+  private readonly attempts: NotaryAttemptStore;
+  private readonly fetchImpl: NotaryFetch;
+  private readonly timeoutMs: number;
+
   constructor(
-    private readonly endpoint: string | null,
-    private readonly attempts: NotaryAttemptStore,
-    private readonly fetchImpl: NotaryFetch = fetch,
-    private readonly timeoutMs = 5_000,
-  ) {}
+    endpoint: string | null,
+    attempts: NotaryAttemptStore,
+    fetchImpl: NotaryFetch = fetch,
+    timeoutMs = 5_000,
+  ) {
+    this.endpoint = endpoint;
+    this.attempts = attempts;
+    this.fetchImpl = fetchImpl;
+    this.timeoutMs = timeoutMs;
+  }
 
   async publishIfDue(input: {
     registration: RegistrationPayload;
