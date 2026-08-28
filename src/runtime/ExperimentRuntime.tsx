@@ -21,6 +21,7 @@ import type { LedgerService } from '../ledger/service';
 import type { StoredLedgerEntry } from '../ledger/types';
 import { projectCurrentSchedule } from '../registration/projection';
 import type { RegistrationPayload } from '../registration/types';
+import { FinalReportPanel } from '../report';
 import { getApplicationRngConfiguration, getApplicationRngService } from '../rng/appService';
 import {
   SessionFlow,
@@ -409,12 +410,21 @@ export function ExperimentRuntime({
       )}
 
       {tab === 'records' && (
-        <ExperimentDashboard
-          registration={registration}
-          genesisHash={genesisHash}
-          model={snapshot.dashboard}
-          layerCModel={snapshot.layerC}
-        />
+        <>
+          <ExperimentDashboard
+            registration={registration}
+            genesisHash={genesisHash}
+            model={snapshot.dashboard}
+            layerCModel={snapshot.layerC}
+          />
+          {experimentEnded && (
+            <FinalReportPanel
+              entries={snapshot.entries}
+              registration={registration}
+              currentExperimentDate={snapshot.currentExperimentDate}
+            />
+          )}
+        </>
       )}
     </main>
   );
