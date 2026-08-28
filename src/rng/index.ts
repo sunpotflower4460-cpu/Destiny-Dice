@@ -6,7 +6,7 @@ export {
   DEFAULT_RANDOM_ORG_ENDPOINT,
   type RandomOrgProviderOptions,
 } from './providers/randomOrg';
-export { LocalCryptoRngProvider, type CryptoLike } from './providers/local';
+export { LocalCryptoRngProvider, type RandomFill } from './providers/local';
 export {
   RNG_SOURCES,
   RngExhaustedError,
