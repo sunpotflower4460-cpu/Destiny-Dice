@@ -196,6 +196,42 @@ describe('P7 WishRegistryService', () => {
     expect(service.primaryOutcomeFor('realized')).toBe('realized');
   });
 
+  it('serializes concurrent judgments so a wish can receive only one judgment entry', async () => {
+    const { ledger } = await setup();
+    const service = new WishRegistryService(
+      ledger,
+      new QueueAssignmentRng([{ bit: 1, source: 'anu' }]),
+      new SequenceClock(),
+      () => 'judgment-race',
+    );
+    await service.registerWish({ text: '二重判定を防ぐ願い', deadline: '2026-09-05', likelihood: 2, influence: 'mixed' });
+
+    const outcomes = await Promise.allSettled([
+      service.judgeWish('judgment-race', '2026-09-05', 'not_realized'),
+      service.judgeWish('judgment-race', '2026-09-05', 'undecidable'),
+    ]);
+    expect(outcomes.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
+    expect(outcomes.filter((result) => result.status === 'rejected')).toHaveLength(1);
+    expect((await ledger.list()).filter((entry) => entry.type === 'judgment')).toHaveLength(1);
+  });
+
+  it('rejects semantically malformed judgment entries when rebuilding the ledger projection', async () => {
+    const { ledger } = await setup();
+    const service = new WishRegistryService(
+      ledger,
+      new QueueAssignmentRng([{ bit: 1, source: 'anu' }]),
+      new SequenceClock(),
+      () => 'malformed-judgment',
+    );
+    await service.registerWish({ text: '不正判定を検知する願い', deadline: '2026-09-05', likelihood: 2, influence: 'mixed' });
+    await ledger.append(
+      'judgment',
+      { wishId: 'malformed-judgment', outcome: 'realized', judgedAt: '2026-09-05T00:00:00.000Z' },
+      '2026-09-05T00:00:00.000Z',
+    );
+    expect(() => buildWishLedgerRecords(await ledger.list())).rejects.toThrow('realized judgment must include pathway');
+  });
+
   it('rejects Layer C writes when the experiment registered Layer C disabled', async () => {
     const { ledger } = await setup(false);
     const service = new WishRegistryService(
