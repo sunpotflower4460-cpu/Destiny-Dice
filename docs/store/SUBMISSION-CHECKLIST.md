@@ -10,18 +10,32 @@
 ## 2. Apple build environment
 2026-04-28以降のApp Store Connect upload要件に合わせ、release workflowはXcode 26+ / iOS 26 SDK+を必須とする。`ios-smoke.yml`も同じXcode majorを検証する。
 
-## 3. GitHub Actions secrets
+## 3. GitHub Actions secrets / signing assets
 TestFlight workflowに以下を登録する。
+
+### App Store Connect upload authentication
 - `APPLE_TEAM_ID`
 - `APP_STORE_CONNECT_KEY_ID`
 - `APP_STORE_CONNECT_ISSUER_ID`
-- `APP_STORE_CONNECT_KEY_CONTENT`（.p8本文）
+- `APP_STORE_CONNECT_KEY_CONTENT`（Team API Keyの`.p8`本文）
+
+### iOS archive signing
+- `IOS_DISTRIBUTION_CERTIFICATE_P12_BASE64`
+  - `Apple Distribution` certificateとそのprivate keyを含む`.p12`をbase64化した1行文字列。
+- `IOS_DISTRIBUTION_CERTIFICATE_PASSWORD`
+  - 上記`.p12`のexport password。
+- `IOS_PROVISIONING_PROFILE_BASE64`
+  - `com.sunpotflower4460.intentiondice` 用のApp Store distribution `.mobileprovision`をbase64化した1行文字列。
+
+GitHub-hosted macOS runnerには配布証明書/private key/provisioning profileが最初から存在しない。release workflowはこれらを一時keychainへimportし、profileのTeam IDとbundle IDを検証してからFastlaneを実行する。FastlaneはRelease configurationだけmanual signingへ切り替え、明示したApp Store profileでarchive/exportする。
+
+秘密鍵、`.p8`、`.p12`、`.mobileprovision`、passwordをrepositoryへcommitしない。
 
 任意のproduction endpointはGitHub Actions Variablesで管理する。
 - `VITE_ANU_RNG_ENDPOINT`
 - `VITE_NOTARY_ENDPOINT`
 
-秘密鍵・API key本文をrepositoryへcommitしない。
+`VITE_ANU_RNG_ENDPOINT`は`length=<bytes>&type=uint8`を受け取り、`{ data: number[] }`を返すANU-compatible endpointを指定する。ANU未設定/失敗時はfrozen policyどおりfallback sourceを記録する。
 
 ## 4. Native smoke before upload
 - `pnpm typecheck`
@@ -42,11 +56,14 @@ TestFlight workflowに以下を登録する。
   - share/download操作
 
 ## 5. TestFlight
-1. GitHub Actions `iOS TestFlight release` を手動実行。
-2. `macos-26`上でXcode 26+確認、Capacitor sync、archive/sign/uploadが成功すること。
-3. App Store Connectでbuild processing完了を確認。
-4. internal testerへ配布し、実機smokeを再実行。
-5. crash / notification / SQLite persistenceを確認。
+1. Apple Developer / App Store Connect側で、Bundle ID、`Apple Distribution` certificate、App Store provisioning profile、App recordを用意する。
+2. §3の7 secretsと必要なVariablesをGitHubへ登録する。
+3. GitHub Actions `iOS TestFlight release` を手動実行。
+4. workflowがprofileのTeam ID / application identifierを検証し、一時keychainへcertificate/private keyをimportできることを確認。
+5. `macos-26`上でXcode 26+確認、Capacitor sync、manual-sign archive/export、uploadが成功すること。
+6. App Store Connectでbuild processing完了を確認。
+7. internal testerへ配布し、実機smokeを再実行。
+8. crash / notification / SQLite persistenceを確認。
 
 ## 6. Store metadata / review safety
 - `docs/store/METADATA_JA.md` を基準に入力。
@@ -74,6 +91,8 @@ Cloudflareを使う場合、GitHub secretsを設定:
 - `GET /anchors/<genesisHash>`で同じhash / seq / server `receivedAt`が閲覧できる
 - POSTへ余計な`wishText`等を加えると400になる
 を確認する。
+
+このWorkerは現在public anchor専用で、ANU RNG proxy endpointではない。`VITE_ANU_RNG_ENDPOINT`は別途ANU-compatible endpointを指定する。
 
 Worker未デプロイ・endpoint未設定でもアプリ本体は動作し、公証は自動スキップする。
 

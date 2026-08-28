@@ -1,7 +1,10 @@
-# P11 release pipeline. TestFlight upload is intentionally manual/tag-triggered
-# from .github/workflows/ios-release.yml and requires App Store Connect secrets.
+# P11 release pipeline. TestFlight upload is intentionally manual from
+# .github/workflows/ios-release.yml and requires App Store Connect plus
+# explicit distribution signing assets installed by the workflow.
 
 default_platform(:ios)
+
+APP_IDENTIFIER = 'com.sunpotflower4460.intentiondice'
 
 platform :ios do
   desc 'Build web assets and synchronize Capacitor/CocoaPods iOS project'
@@ -29,6 +32,25 @@ platform :ios do
     build_web
     api_key = connect_api_key
     team_id = ENV.fetch('APPLE_TEAM_ID')
+    profile_name = ENV.fetch('IOS_PROVISIONING_PROFILE_NAME')
+    profile_uuid = ENV.fetch('IOS_PROVISIONING_PROFILE_UUID')
+
+    # The hosted runner starts without a distribution identity/profile. The
+    # workflow installs those assets into a temporary keychain and exports the
+    # profile metadata. Make Release signing explicit so upload authentication
+    # and archive signing are separate, reproducible concerns.
+    update_code_signing_settings(
+      use_automatic_signing: false,
+      path: 'ios/App/App.xcodeproj',
+      team_id: team_id,
+      targets: ['App'],
+      build_configurations: ['Release'],
+      code_sign_identity: 'Apple Distribution',
+      profile_name: profile_name,
+      profile_uuid: profile_uuid,
+      bundle_identifier: APP_IDENTIFIER,
+      sdk: 'iphoneos*',
+    )
 
     increment_build_number(
       xcodeproj: 'ios/App/App.xcodeproj',
@@ -39,7 +61,13 @@ platform :ios do
       workspace: 'ios/App/App.xcworkspace',
       scheme: 'App',
       export_method: 'app-store',
-      xcargs: "-allowProvisioningUpdates DEVELOPMENT_TEAM=#{team_id}",
+      export_options: {
+        signingStyle: 'manual',
+        teamID: team_id,
+        provisioningProfiles: {
+          APP_IDENTIFIER => profile_name,
+        },
+      },
     )
 
     upload_to_testflight(

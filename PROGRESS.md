@@ -797,3 +797,45 @@ CocoaPods未インストールの場合は `sudo gem install cocoapods` の上�
 ### Release申し送り
 - repository implementationは **P0 -> Gate 0 -> P1 -> P2 -> P3 -> P4a -> P4 -> P5 -> P6 -> P7 -> P8 -> P9 -> P10 -> P11** まで完了。
 - 残るのはApple / Cloudflare資格情報、ANU production endpoint、public notary endpointの設定と、手動release/deploy実行のみ。
+---
+
+## P11: TestFlight Signing Hotfix (2026-08-28)
+
+### 完了したこと
+- P11 merge後のrelease再点検で、App Store Connect upload認証はある一方、GitHub-hosted macOS runnerへApple Distribution certificate/private keyとApp Store provisioning profileを投入する経路が無く、実archive signingが再現可能ではないことを検出した。
+- `iOS TestFlight release`へdistribution `.p12` + password + App Store `.mobileprovision`のfail-fast gate、ephemeral keychain import、profile Team ID / production bundle ID検証を追加した。
+- Fastlane `ios beta`はReleaseだけmanual signingへ切り替え、production bundle IDからsupplied App Store profileを明示mappingする。App Store Connect API keyはupload認証、P12/profileはcode signingと役割を分離した。
+- workflow終了時はprovisioning profileとtemporary keychainをcleanupする。
+- `pnpm release-check`へsigning secrets名、temporary keychain、profile検証、manual signing、cleanupの静的guardを追加した。
+- `docs/store/SUBMISSION-CHECKLIST.md`を7 Apple secrets構成へ同期し、既存Cloudflare Workerはpublic anchor専用でANU RNG proxyではないことを明記した。
+- 実配布作業はIssue #16 `Release Operations: configure production credentials and ship TestFlight`へ集約した。
+
+### 完了基準の結果
+- Linux CI run `33172253210`, job `98852003037`: **success**。
+- `pnpm typecheck` / `pnpm worker:typecheck`: green。
+- `pnpm test`: green — **36 test files / 157 tests passed**。
+- 365日offline null simulation: green — **1456 ledger entries / networkRequests: 0**。
+- P10 null report golden SHA-256 `1ec5f22034d18546ac20e2b8c64b5ea1dcab5e7faf4e903e7e7c58182f398381` を維持。
+- Layer A / Layer C positive fixtures、`pnpm build`、append-only ledger guard: green。
+- `pnpm release-check`: green — `testFlightSigning: explicit P12 + App Store provisioning profile`。
+- iOS native smoke run `33172253191`, job `98852002975`: **success**。Xcode 26+ / Web build / Capacitor sync / `bundle exec fastlane lanes` / unsigned `App.xcworkspace` Simulator buildの全step成功。
+- PR #15 review threads 0 / submitted reviews 0。Codex/Cursorは利用上限、CodeRabbitは自動review条件未達で実レビューなし。
+
+### 不変条件セルフチェック
+1. protocol / stats / registration semanticsを変更しない — ✅
+2. ledger append-only、prediction-before-RNG、target independenceを変更しない — ✅
+3. fallback sourceを隠さずP10 golden / confirmatory-exploratory境界を維持 — ✅
+4. signing secrets/private keysをrepositoryへcommitしない — ✅
+5. signing assetsをephemeral runnerからcleanupする — ✅
+6. TestFlight未uploadをupload済みと表現しない — ✅
+
+### Release申し送り
+- 実TestFlight uploadは未実施。Apple側のApp record、Distribution certificate/private key、App Store profile、App Store Connect Team API Keyを用意し、Issue #16の7 GitHub secrets設定後に`iOS TestFlight release`を手動dispatchする。
+- ANU production endpoint、Cloudflare credentials、public notary endpointも外部release operation。未設定時はfallback/skipを正直に記録し、ANU・公証成功と偽装しない。
+- 現GitHub connectorではrepository Secrets/Variables設定や`workflow_dispatch`開始はできないため、Issue #16の人手チェックポイントとして残す。
+
+### 触ったファイル
+- `.github/workflows/ios-release.yml`
+- `fastlane/Fastfile`
+- `scripts/release-check.ts`
+- `docs/store/SUBMISSION-CHECKLIST.md`

@@ -40,11 +40,32 @@ requireCondition(infoPlist.includes('<key>ITSAppUsesNonExemptEncryption</key>\n\
 const appfile = text('fastlane/Appfile');
 requireCondition(appfile.includes(`app_identifier('${BUNDLE_ID}')`), 'fastlane Appfile bundle id mismatch');
 
+const fastfile = text('fastlane/Fastfile');
+requireCondition(fastfile.includes(`APP_IDENTIFIER = '${BUNDLE_ID}'`), 'fastlane release bundle id mismatch');
+requireCondition(fastfile.includes('update_code_signing_settings('), 'TestFlight lane must make Release signing explicit');
+requireCondition(fastfile.includes("use_automatic_signing: false"), 'TestFlight lane must disable automatic signing for Release');
+requireCondition(fastfile.includes("profile_name = ENV.fetch('IOS_PROVISIONING_PROFILE_NAME')"), 'TestFlight lane must require installed provisioning profile name');
+requireCondition(fastfile.includes("profile_uuid = ENV.fetch('IOS_PROVISIONING_PROFILE_UUID')"), 'TestFlight lane must require installed provisioning profile UUID');
+requireCondition(fastfile.includes("signingStyle: 'manual'"), 'TestFlight export must use manual signing');
+requireCondition(fastfile.includes('APP_IDENTIFIER => profile_name'), 'TestFlight export must map bundle id to provisioning profile');
+
 const smoke = text('.github/workflows/ios-smoke.yml');
 const release = text('.github/workflows/ios-release.yml');
 requireCondition(smoke.includes('runs-on: macos-26') && smoke.includes('test "$major" -ge 26'), 'iOS smoke must enforce Xcode 26+ on macos-26');
 requireCondition(release.includes('runs-on: macos-26') && release.includes('workflow_dispatch'), 'TestFlight release must be manual on macos-26');
 requireCondition(release.includes('bundle exec fastlane ios beta'), 'TestFlight release is not wired to fastlane beta');
+for (const signingSecret of [
+  'IOS_DISTRIBUTION_CERTIFICATE_P12_BASE64',
+  'IOS_DISTRIBUTION_CERTIFICATE_PASSWORD',
+  'IOS_PROVISIONING_PROFILE_BASE64',
+]) {
+  requireCondition(release.includes(`secrets.${signingSecret}`), `TestFlight workflow is missing signing secret ${signingSecret}`);
+}
+requireCondition(release.includes('security create-keychain'), 'TestFlight workflow must create an ephemeral signing keychain');
+requireCondition(release.includes('security import "$CERT_PATH"'), 'TestFlight workflow must import the distribution certificate');
+requireCondition(release.includes('security cms -D -i "$PROFILE_PATH"'), 'TestFlight workflow must inspect the provisioning profile');
+requireCondition(release.includes("*'.com.sunpotflower4460.intentiondice'"), 'TestFlight workflow must reject provisioning profiles for another bundle id');
+requireCondition(release.includes('security delete-keychain "$IOS_KEYCHAIN_PATH"'), 'TestFlight workflow must clean up the temporary signing keychain');
 
 const metadata = text('docs/store/METADATA_JA.md');
 for (const forbidden of ['超常現象を証明した', '絶対に引き寄せ', '改竄不能']) {
@@ -74,5 +95,6 @@ console.log(JSON.stringify({
   marketingVersion: '1.0',
   appIcon: `${icon.width}x${icon.height} RGB/no-alpha`,
   xcodeGate: '26+',
+  testFlightSigning: 'explicit P12 + App Store provisioning profile',
   publicAnchor: 'GET /anchors/<genesisHash>',
 }, null, 2));
