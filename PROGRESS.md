@@ -472,3 +472,62 @@ CocoaPods未インストールの場合は `sudo gem install cocoapods` の上�
 - 新規: `src/stats/exploratory.test.ts`
 - 更新: `src/stats/index.ts`
 - 更新: `PROGRESS.md`
+
+---
+
+## P6: Dashboard A (2026-08-28)
+
+### 完了したこと
+- `src/dashboard/` を新設し、append-only ledgerをsource of truthとしてP5 `analyzeInterimLayerA()`へ投影する `buildLayerADashboardModel()` を実装した。Dashboard側からSQLiteやP5 final confirmatory APIを直接呼ぶ経路は作っていない。
+- 登録済み画面を「ホーム / ラボ」の2タブへ置換。ホームは統計を追わせない禅的な画面にし、実験ID・期間・固定timezone/day boundaryと折りたたみ監査情報だけを表示する。数字はユーザーがラボを開いた時だけ表示する。
+- ラボに5条件カードを実装。各カードはANU + ritual-valid primary sampleのみを使い、hit率の隣に偶然50%、hitsの隣に期待hits=nBits/2、zの隣に偶然中心0、Wilson 95% CIの隣に50%基準、BF10の隣に中立点1を表示する。
+- interim境界を構造的に維持し、Dashboard model/cardには `rawP` / `holmAdjustedP` を持たせない。画面にも「p値は最終日まで非表示」と明記した。
+- source stripでANU主要セッション数、fallback記録数、ritual無効数を分離表示。fallback sessionは主要カードへ代入しない一方、履歴・QC・ミラクルログから隠さない。
+- P5 `cumulativeDeviationSeries()`を使ったCanvasグラフを実装し、ANU+valid sessionの累積偏差と凍結済み95%偶然包絡線 `±0.98√bits`、偶然中心0を描画する。
+- machine control QCをoverall + `anu` / `randomorg` / `local` source別に表示し、それぞれ偶然50%を併記する。
+- ritual-valid sessionの `z >= +3` をミラクルログとして表示し、実際のRNG source、fallback/主要sample区分、hitsと偶然期待hitsを併記する。ミラクル件数の正直メーターは同じritual-valid session数 × 片側z>=3帰無確率を分母として表示する。
+- 365日カレンダーを実装。登録scheduleから未来条件を埋めず、実際にsessionが記録された日のcondition/source/共鳴/ミラクルだけを表示する。空欄は「未記録または未来」とし、未来scheduleの漏洩を防いだ。
+- Dashboard projectionは表示前にsession/controlのrecorded zがP4a `zScore()`と一致すること、日付が登録期間内であること、session conditionが登録scheduleと一致すること、`seqInDay`が登録範囲内であること、session slot/control dateが重複していないことを検証する。
+- `App.tsx` は起動時に従来どおり `verifyChain()` を通した後だけdashboardを構築する。登録直後もledgerを再読込して同じprojection経路を使う。
+- P9責務のfrozen timezone + dayBoundaryHourからcurrent experimentDateを解決するclock、P4 SessionFlowのruntime mountingは先行実装していない。
+
+### 完了基準の結果（実行結果）
+- GitHub Actions CI run `33136947408` / job `98738916123`: **green / success**（表示母数修正・semantic guard追加後のP6 implementation head）。
+- `pnpm typecheck`: green（`tsc -b --noEmit`、errorなし）。
+- `pnpm test`: green（Vitest 4.1.10、**24 test files / 103 tests passed**）。
+- P6 dashboard projection: **7 tests passed** — interim-only境界、fallback miracle visibility、future schedule非漏洩、source別control QC、recorded z整合、期間外session拒否、登録schedule不一致拒否。
+- 365日render snapshot/signature: green — 365 calendar cells、5 condition cards、Canvasあり、chance expectation表示あり、`rawP`/`holmAdjustedP`漏洩なし、mixed ANU/local source counts、365日末日までSSR成功。
+- `pnpm simulate`: green / network access 0。既存P4 tracer bulletは `registration -> control -> prediction -> session`、`predictionSeq=3 < sessionSeq=4`、`hits=511 / nBits=1024 / z=-0.0625`、`verifyChain()`成功を維持。
+- `pnpm build`: green（Vite 8.1.4 production build成功、56 modules transformed。既知の`jeep-sqlite` crypto externalization warningのみ継続）。
+- ledger append-only guard: green — `OK: no forbidden ledger DELETE/UPDATE paths found.`
+- P6で外部RNG/APIアクセスは追加していない。テスト/SSR fixtureは完全決定的。
+
+### UI検証上の注意
+- 365日fixtureをReact `renderToStaticMarkup()`でLab全体へ流し、DOM構造・365セル・5カード・Canvas・chance表示・no-peek境界が崩れないことをsnapshot signatureで確認した。production buildもgreen。
+- 本セッションでは実ブラウザのクリック/Canvas描画ピクセル確認およびiOSシミュレータ確認は未実施。P6のUI構造はSSR + buildで検証し、P9のexperimentDate resolver + SessionFlow runtime統合時にWeb/iOSの実操作をまとめて再確認する。
+
+### 手動レビューで修正した点
+- 初版ではsource stripの「ANU主要セッション」がritual-invalid ANUも含む総ANU件数だった。`primarySessions = ANU + ritual valid`をmodelへ明示し、ラベルと母数を一致させた。
+- 初版のミラクル偶然期待件数は全sessionを分母にしていた一方、ログはritual-validのみだった。期待値も同じvalid session分母へ揃えた。
+- 表示前projectionを強化し、期間外session/control、登録scheduleと異なるcondition、重複session slot/control date、recorded z不一致を黙って表示しないようにした。
+- 外部自動review botはCodex/Cursor利用上限、CodeRabbit自動review条件未達のため実質利用できず、CI + 365日render snapshot + 手動diff reviewをmerge判断の根拠とした。
+
+### 要確定・申し送り（P7へ）
+- 次は **P7 願いレジストリ（Layer C）のみ**。P8のFisher/BF/Layer C dashboard統計、P9時計・通知、P10最終レポートへ先回りしない。
+- P7は `wish -> assignment` を必ず連続順序で追記し、wish登録後に人間が割付を選ぶ余地を作らない。assignment sourceは実際の`anu/randomorg/local`を保存する。
+- wish→assignment間のクラッシュ回復をProtocol Freeze §12どおりidempotentに実装する。assignment済みwishへの二重割付は禁止する。
+- sealed armのwish本文はdeadline前のnormal UI projectionへ返さない。Reactで隠すだけではなくdomain/application projectionで境界を強制する。
+- withdrawnは削除ではなくjudgment/追記として扱い、P8 primary outcomeではnot realizedに数える規則を壊さない。
+- P6 Dashboard Aのinterim-only統計境界、未来condition schedule非漏洩、ANU primary/fallback表示はP7で変更しない。
+- P4 SessionFlowのApp runtime mountingとfrozen experimentDate resolverは引き続きP9まで保留する。
+- `capacitor.config.ts` の本番bundle idは引き続きP11まで要確定。
+
+### 触ったファイル
+- 新規: `src/dashboard/model.ts`
+- 新規: `src/dashboard/model.test.ts`
+- 新規: `src/dashboard/ExperimentDashboard.tsx`
+- 新規: `src/dashboard/ExperimentDashboard.snapshot.test.tsx`
+- 新規: `src/dashboard/dashboard.css`
+- 新規: `src/dashboard/index.ts`
+- 更新: `src/App.tsx`
+- 更新: `PROGRESS.md`
