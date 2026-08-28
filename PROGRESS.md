@@ -598,3 +598,69 @@ CocoaPods未インストールの場合は `sudo gem install cocoapods` の上�
 - 更新: `src/session/SessionFlow.tsx`
 - 更新: `scripts/simulate.ts`
 - 更新: `PROGRESS.md`
+
+---
+
+## P8: Stats Engine C + Dashboard Integration (2026-08-28)
+
+### 完了したこと
+- `src/stats/layerC.ts` を追加し、Layer CのFisher両側正確検定、DESIGN.mdで凍結された2×2 Bayes factor、群別実現率・Wilson 95% CI・risk differenceをUI非依存の純関数として実装した。
+- 2×2 BFは `B(1+y1,1+n1-y1) * B(1+y2,1+n2-y2) / B(1+y1+y2,1+n1+n2-y1-y2)` をそのまま実装し、golden `n1=n2=2, y1=2, y2=0 -> BF10=10/3` で固定した。
+- Fisher両側は固定周辺度数のhypergeometric supportをlog-gammaで計算し、観測表以下の確率を持つ表を合計するprobability-based two-sided定義で実装した。空のarmでは比較p値を`null`にする。
+- `analyzeInterimLayerC()` と `analyzeFinalLayerC()` を型から分離した。interim戻り値にはFisher p値フィールド自体を持たせず、final APIだけが `fisherTwoSidedP` と事前登録済み判定ラベルを返す。
+- Layer C主要outcomeはProtocol Freezeどおり `realized=成功`, `not_realized / withdrawn / undecidable=未実現`。副次感度分析だけは`undecidable`を除外し、withdrawnは未実現のまま維持する。
+- final陽性判定は Fisher両側 `p < pThresh` + `BF10 > bfPos` に加え、実践群実現率が封印群より高い方向であることを要求し、強い逆方向差を「実践で改善」と誤ラベルしない。
+- final Layer C resultに evidence grade `★★` と `randomized_non_blinded_self_judgment` limitationを明示した。
+- 探索として起きやすさ3層・影響可能性3層のpractice/sealed集計と、実現願いの経路（自分の行動 / 他人 / 偶然の出会い / 不明）分布を返す。UIでは既存`EXPLORATORY_WARNING`を併記する。
+- `src/dashboard/layerCModel.ts` を追加し、P7のstrict wish ledger projectionから集計値だけを生成する。wish本文はpractice/sealedを問わずdashboard modelへ持ち出さず、sealed本文のvisibility boundaryを維持した。
+- dashboard modelは全wish / assigned / judged / awaiting judgment / unassigned件数、assignment source別practice/sealed件数、主要比較、副次感度分析、層別、経路分布を返す。unassigned wishはpractice/sealed統計へ入れない。
+- ラボ画面へLayer Cカードを統合し、明示的に **「封印群があなたのベースライン。」** と表示。practice/sealed実現率、95% CI、未実現、withdrawn、undecidable、差、BF10中立点1、割付RNG sourceを隣接表示する。
+- Layer Cラボには **「Fisher p値は最終解析まで非表示」** を表示し、途中画面からconfirmatory frequentist p値を覗く経路を作っていない。
+- `App.tsx` の登録済みdashboard構築にLayer C modelを追加。事前登録画面の判定ルール文言も `Layer A = Holm補正後p`, `Layer C = Fisher両側p` と区別し、genesisに既に保存される同じthresholdの意味をUIでも正しく説明するよう修正した。
+- `scripts/simulate.ts` をP8まで拡張し、practice/sealed各1願いの登録・隣接assignment・wish momentでsealed除外・deadline judgment・chain verify・interim Layer C集計まで完全offlineで接続した。
+- P9責務のfrozen timezone/dayBoundaryHourからcurrent experimentDateを解決するclock、通知、継続UX、P4/P7 runtime flow mountingは先行実装していない。P10最終レポート用の「実験終了時点で締切到来済みwishだけを最終分母にするcutoff projection」もP8では発明せず、final stats APIはcallerからeligible observationsを受け取る。
+
+### 完了基準の結果（実行結果）
+- P8実装head CI run `33156826119` / job `98801483931`: **green / success**（P8統計・dashboard・tracerを含む）。判定ルールUI文言補正後のrun `33157015733` も **green / success**。
+- `pnpm typecheck`: green（`tsc -b --noEmit`、errorなし）。
+- `pnpm test`: green（Vitest 4.1.10、**27 test files / 123 tests passed**）。
+- P8 Layer C stats: **7 tests passed** — BF `10/3` golden、Fisher既知例2件、空arm、withdrawn/undecidable primary policy＋secondary sensitivity、層別/経路、interim p値非公開、final方向判定、malformed realized/pathway拒否。
+- P8 Layer C dashboard projection: **3 tests passed** — source/arm/判定件数集計、wish本文非漏洩、Layer C disabled、judgment-before-assignment不正拒否。
+- P8 SSR integration: green — 「封印群があなたのベースライン」、BF、Fisher非表示badge、層別、経路、fallback sourceをrenderし、practice/sealed wish本文と`fisherTwoSidedP`を途中UI/modelへ漏らさないことを確認。
+- Fisher known: `(n1,y1,n2,y2)=(2,2,2,0) -> 1/3`、`(10,1,14,11) -> 0.0027594561852200836` 一致。
+- `pnpm simulate`: green / network access 0。entry typeは `registration -> control -> prediction -> session -> wish -> assignment -> wish -> assignment -> wishmoment -> judgment -> judgment`。`predictionSeq=3 < sessionSeq=4`、practice `wishSeq=5 -> assignmentSeq=6`、sealed `wishSeq=7 -> assignmentSeq=8`、wishMomentCount=1、practice realization rate=1、sealed=0、interim BF10≈1.5、`verifyChain()`成功。
+- `pnpm build`: green（Vite 8.1.4 production build成功、59 modules transformed。既知の`jeep-sqlite` crypto externalization warningのみ継続）。
+- ledger append-only guard: green — `OK: no forbidden ledger DELETE/UPDATE paths found.`
+- P8テスト/シミュレーションの外部ANU/RANDOM.ORGアクセスは0件。
+
+### UI検証上の注意
+- Layer Cラボ統合はReact `renderToStaticMarkup()`によるSSR integration testとproduction buildで検証した。途中Fisher p値非公開、baseline文言、exploratory warning、source表示、wish本文非漏洩を機械検証している。
+- 本セッションでは実ブラウザ操作・iOSシミュレータ確認は未実施。P9のexperimentDate resolver + notifications + P4/P7 runtime mounting時に、ホーム→セッション→願いタイム→ラボまでの実操作をWeb/iOSでまとめて再確認する。
+
+### 手動レビューで修正した点
+- 初回P8 CIはコードではなくtest fixtureの期待エラー文言だけが不一致だった。P7 projectionが既に `judgment requires a prior assignment` と先に拒否するため、P8テストをその既存境界へ合わせた。修正後は27 files / 123 testsすべてgreen。
+- 事前登録画面の既存「Holm補正後p」表記はLayer Aだけには正しいが、P8導入後はLayer CのFisherルールを説明できていなかったため、A=Holm / C=Fisherを分離表示した。
+- final陽性判定にpractice > sealedの方向条件を明示し、BF/Fisherが強くても逆方向差をpractice改善として扱わないようにした。
+- dashboard projectionとSSR fixtureでsealed本文だけでなくpractice本文も統計モデルへ不要に持ち出さないことを確認し、Layer C統計UIをaggregate-only境界にした。
+
+### 要確定・申し送り（P9へ）
+- 次は **P9 通知・継続UXのみ**。P10最終レポート、P11公証/申請へ先回りしない。
+- P9でregistrationに固定されたIANA `timeZone` + `dayBoundaryHour`からcurrent experimentDateを解決し、端末timezone変更・旅行でも実験日境界を変えない。
+- P9でP4 `SessionFlow` とP7 `WishRegistryPanel` / `WishMoment`を実App runtimeへmountする。P4のprediction-before-RNG順序、P7のsealed projection、P8のinterim no-p境界を変えない。
+- 毎日リマインダー・願い締切通知・やさしいストリーク（罰なし）を実装し、03:00等の境界時刻のunit testとdeadline notification scheduling testを固定する。
+- production RNG endpoint/auth/application wiringもruntime統合時に確認するが、source偽装やfallback隠蔽はしない。
+- P10で最終Layer C confirmatoryを呼ぶ際は、実験終了までにdeadline到来済みの割付wishだけを主要分母へ投影し、deadline未到来件数を別表示する。P8 `analyzeFinalLayerC()` 自体の統計式は変更しない。
+- `capacitor.config.ts` の本番bundle idは引き続きP11まで要確定。
+
+### 触ったファイル
+- 新規: `src/stats/layerC.ts`
+- 新規: `src/stats/layerC.test.ts`
+- 新規: `src/dashboard/layerCModel.ts`
+- 新規: `src/dashboard/layerCModel.test.ts`
+- 新規: `src/dashboard/layerCIntegration.test.tsx`
+- 更新: `src/stats/index.ts`
+- 更新: `src/dashboard/index.ts`
+- 更新: `src/dashboard/ExperimentDashboard.tsx`
+- 更新: `src/App.tsx`
+- 更新: `scripts/simulate.ts`
+- 更新: `PROGRESS.md`
