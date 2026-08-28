@@ -126,7 +126,7 @@ function SourceSummary({ model }: { model: LayerADashboardModel }) {
   return (
     <section className="source-strip" aria-label="乱数ソース内訳">
       <div>
-        <strong>{model.sourceCounts.anu.sessions}</strong>
+        <strong>{model.primarySessions}</strong>
         <span>ANU主要セッション</span>
       </div>
       <div>
@@ -215,13 +215,12 @@ function ControlPanel({ model }: { model: LayerADashboardModel }) {
 }
 
 function MiracleLog({ model }: { model: LayerADashboardModel }) {
-  const totalSessions = Object.values(model.sourceCounts).reduce((sum, source) => sum + source.sessions, 0);
-  const expected = totalSessions * MIRACLE_NULL_RATE;
+  const expected = model.validSessions * MIRACLE_NULL_RATE;
   return (
     <section className="lab-section" aria-labelledby="miracle-heading">
       <div className="section-heading">
         <div><p className="eyebrow">MIRACLE LOG</p><h2 id="miracle-heading">的方向 z ≥ +3 の日</h2></div>
-        <p>{model.miracles.length}件 <span className="chance-copy">／ 偶然なら同じsession数で約 {expected.toFixed(2)}件</span></p>
+        <p>{model.miracles.length}件 <span className="chance-copy">／ 偶然なら同じ有効session数で約 {expected.toFixed(2)}件</span></p>
       </div>
       {model.miracles.length === 0 ? <p className="empty-state">まだミラクル基準を越えた記録はありません。ゼロもそのまま記録です。</p> : (
         <div className="miracle-list">
