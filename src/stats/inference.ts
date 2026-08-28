@@ -67,7 +67,9 @@ export function oneSampleBayesFactor10(hits: number, nBits: number): number {
 
 /**
  * Holm step-down adjusted p-values, returned in the caller's original order.
- * Null entries are preserved and excluded from the family size.
+ * Null means the registered hypothesis had no analyzable data. It remains null
+ * in output but still counts toward the pre-registered family size, equivalent
+ * to placing a p=1 hypothesis at the end of the Holm ordering.
  */
 export function holmAdjust(pValues: readonly (number | null)[]): (number | null)[] {
   const indexed = pValues.flatMap((value, index) => {
@@ -81,11 +83,11 @@ export function holmAdjust(pValues: readonly (number | null)[]): (number | null)
   indexed.sort((a, b) => a.value - b.value || a.index - b.index);
   const adjusted = new Array<number | null>(pValues.length).fill(null);
   let runningMax = 0;
-  const m = indexed.length;
+  const familySize = pValues.length;
 
   for (let rank = 0; rank < indexed.length; rank += 1) {
     const item = indexed[rank]!;
-    const candidate = Math.min(1, (m - rank) * item.value);
+    const candidate = Math.min(1, (familySize - rank) * item.value);
     runningMax = Math.max(runningMax, candidate);
     adjusted[item.index] = runningMax;
   }
