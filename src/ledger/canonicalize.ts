@@ -20,6 +20,14 @@ function isPlainObject(value: object): value is Record<string, unknown> {
   return prototype === Object.prototype || prototype === null;
 }
 
+function stringifyJsonScalar(value: string | number): string {
+  const serialized = JSON.stringify(value);
+  if (serialized === undefined) {
+    throw new TypeError('Value cannot be represented in JSON');
+  }
+  return serialized;
+}
+
 function serialize(value: unknown, stack: WeakSet<object>): string {
   if (value === null) {
     return 'null';
@@ -28,13 +36,13 @@ function serialize(value: unknown, stack: WeakSet<object>): string {
   switch (typeof value) {
     case 'string': {
       assertValidUnicode(value, 'JSON string');
-      return JSON.stringify(value);
+      return stringifyJsonScalar(value);
     }
     case 'number': {
       if (!Number.isFinite(value)) {
         throw new TypeError('JCS does not allow NaN or Infinity');
       }
-      return JSON.stringify(value);
+      return stringifyJsonScalar(value);
     }
     case 'boolean':
       return value ? 'true' : 'false';
@@ -72,7 +80,7 @@ function serialize(value: unknown, stack: WeakSet<object>): string {
     const members: string[] = [];
     for (const key of keys) {
       assertValidUnicode(key, 'JSON object key');
-      members.push(`${JSON.stringify(key)}:${serialize(value[key], stack)}`);
+      members.push(`${stringifyJsonScalar(key)}:${serialize(value[key], stack)}`);
     }
     return `{${members.join(',')}}`;
   } finally {
