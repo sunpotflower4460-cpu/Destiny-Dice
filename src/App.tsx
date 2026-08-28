@@ -209,7 +209,8 @@ function App() {
 
         <section className="decision-box">
           <strong>確証判定ルールも同時に固定</strong>
-          <span>陽性: Holm補正後 p &lt; {DEFAULT_DECISION_RULE.pThresh} かつ BF₁₀ &gt; {DEFAULT_DECISION_RULE.bfPos}</span>
+          <span>Layer A陽性: Holm補正後 p &lt; {DEFAULT_DECISION_RULE.pThresh} かつ BF₁₀ &gt; {DEFAULT_DECISION_RULE.bfPos}</span>
+          <span>Layer C陽性: Fisher両側 p &lt; {DEFAULT_DECISION_RULE.pThresh} かつ BF₁₀ &gt; {DEFAULT_DECISION_RULE.bfPos}</span>
           <span>陰性証拠: BF₁₀ &lt; 1/{Math.round(1 / DEFAULT_DECISION_RULE.bfNeg)}</span>
         </section>
 
