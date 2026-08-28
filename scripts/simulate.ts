@@ -7,7 +7,8 @@ import { RngService } from '../src/rng/service';
 import { SeededTestRngProvider } from '../src/rng/testing/seeded';
 import { SessionFlowService } from '../src/session/service';
 import type { Clock } from '../src/session/types';
-import { WishRegistryService, type WishClock } from '../src/wish';
+import { WishRegistryService } from '../src/wish/service';
+import type { WishClock } from '../src/wish/types';
 
 class SimulationClock implements Clock {
   private readonly timestamps = [
