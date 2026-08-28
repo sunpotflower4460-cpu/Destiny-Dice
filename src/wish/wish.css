@@ -26,7 +26,8 @@
 
 .wish-heading h2,
 .wish-list h3,
-.wish-due h3 {
+.wish-due h3,
+.wish-moment h3 {
   margin: 0;
 }
 
@@ -194,6 +195,42 @@
   width: 100%;
   font-size: 0.82rem;
   font-weight: 800;
+}
+
+.wish-moment {
+  display: grid;
+  gap: 16px;
+  padding: 8px 0;
+}
+
+.wish-moment-timer {
+  width: fit-content;
+  margin: 0;
+  padding: 7px 11px;
+  border-radius: 999px;
+  background: #edf3ef;
+  color: #365245;
+  font-size: 0.78rem;
+  font-weight: 850;
+}
+
+.wish-moment-cards {
+  display: grid;
+  gap: 10px;
+}
+
+.wish-moment-cards article {
+  display: grid;
+  gap: 5px;
+  padding: 18px;
+  border: 1px solid rgba(31, 45, 39, 0.09);
+  border-radius: 16px;
+  background: linear-gradient(180deg, #fcfdfb 0%, #f0f5f1 100%);
+}
+
+.wish-moment-cards article span {
+  color: #6a7870;
+  font-size: 0.78rem;
 }
 
 @media (max-width: 640px) {
