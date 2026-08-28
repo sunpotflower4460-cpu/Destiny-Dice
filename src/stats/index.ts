@@ -54,3 +54,28 @@ export {
   type QuarterlySummary,
   type QuarterlyTrendResult,
 } from './exploratory';
+
+export {
+  LAYER_C_ARMS,
+  LAYER_C_INFLUENCES,
+  LAYER_C_LIKELIHOODS,
+  LAYER_C_OUTCOMES,
+  LAYER_C_PATHWAYS,
+  analyzeFinalLayerC,
+  analyzeInterimLayerC,
+  fisherExactTwoSided,
+  summarizeLayerCComparison,
+  twoGroupBayesFactor10,
+  type FinalLayerCResult,
+  type InterimLayerCResult,
+  type LayerCArm,
+  type LayerCArmSummary,
+  type LayerCComparisonSummary,
+  type LayerCInfluence,
+  type LayerCLikelihood,
+  type LayerCOutcome,
+  type LayerCPathway,
+  type LayerCPathwaySummary,
+  type LayerCStratumSummary,
+  type LayerCWishObservation,
+} from './layerC';
