@@ -1,16 +1,24 @@
 import type { RngProvider } from '../types';
 
-export type CryptoLike = {
-  getRandomValues<T extends ArrayBufferView>(array: T): T;
-};
+export type RandomFill = (array: Uint8Array) => void;
 
 export class LocalCryptoRngProvider implements RngProvider {
   readonly source = 'local' as const;
+  private readonly fillRandomValues: RandomFill;
 
-  constructor(private readonly cryptoApi: CryptoLike = globalThis.crypto) {
-    if (!cryptoApi?.getRandomValues) {
+  constructor(fillRandomValues?: RandomFill) {
+    if (fillRandomValues) {
+      this.fillRandomValues = fillRandomValues;
+      return;
+    }
+
+    if (!globalThis.crypto?.getRandomValues) {
       throw new Error('crypto.getRandomValues is unavailable');
     }
+
+    this.fillRandomValues = (array) => {
+      globalThis.crypto.getRandomValues(array);
+    };
   }
 
   async getBytes(byteLength: number): Promise<Uint8Array> {
@@ -22,7 +30,7 @@ export class LocalCryptoRngProvider implements RngProvider {
     const output = new Uint8Array(byteLength);
     const maxChunk = 65_536;
     for (let offset = 0; offset < output.length; offset += maxChunk) {
-      this.cryptoApi.getRandomValues(output.subarray(offset, Math.min(offset + maxChunk, output.length)));
+      this.fillRandomValues(output.subarray(offset, Math.min(offset + maxChunk, output.length)));
     }
     return output;
   }
