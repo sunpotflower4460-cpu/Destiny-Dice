@@ -1,0 +1,144 @@
+.session-flow {
+  display: grid;
+  gap: 1.25rem;
+  padding: 1.5rem;
+  border: 1px solid rgba(127, 140, 160, 0.22);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: 0 20px 60px rgba(30, 41, 59, 0.08);
+}
+
+.session-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.session-eyebrow {
+  margin: 0 0 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  opacity: 0.58;
+}
+
+.session-header h2,
+.session-step h3 {
+  margin: 0;
+}
+
+.target-badge {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 88px;
+  padding: 0.7rem 0.9rem;
+  border-radius: 18px;
+  background: #111827;
+  color: white;
+  text-align: center;
+}
+
+.target-badge span {
+  font-size: 0.65rem;
+  letter-spacing: 0.12em;
+  opacity: 0.7;
+}
+
+.target-badge strong {
+  font-size: 1.1rem;
+}
+
+.session-step {
+  display: grid;
+  gap: 1rem;
+}
+
+.session-step label,
+.mood-controls {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.mood-controls {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.session-step input[type='text'],
+.session-step input:not([type]),
+.session-step textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.8rem 0.9rem;
+  border: 1px solid rgba(100, 116, 139, 0.3);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.92);
+  font: inherit;
+}
+
+.session-step button {
+  justify-self: start;
+}
+
+.ritual-timer {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.ritual-timer strong {
+  font-size: 1.55rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.quiet-note {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.9rem;
+}
+
+.valid-note {
+  margin: 0;
+  color: #166534;
+  font-size: 0.9rem;
+  font-weight: 650;
+}
+
+.draw-step,
+.result-step {
+  text-align: center;
+  justify-items: center;
+}
+
+.hold-button {
+  min-width: min(100%, 280px);
+  min-height: 74px;
+  border-radius: 999px;
+  touch-action: none;
+  user-select: none;
+}
+
+.hold-button.is-holding {
+  transform: scale(0.98);
+}
+
+.session-error {
+  margin: 0;
+  color: #b91c1c;
+}
+
+.result-z {
+  margin: 0;
+  font-size: 2rem;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+}
+
+.signal-label {
+  margin: 0;
+  padding: 0.45rem 0.8rem;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  font-weight: 700;
+}
