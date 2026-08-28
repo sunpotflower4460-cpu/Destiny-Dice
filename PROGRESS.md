@@ -71,3 +71,62 @@ CocoaPods未インストールの場合は `sudo gem install cocoapods` の上�
 - 新規: `scripts/simulate.ts`
 - 新規: `public/favicon.svg`, `public/icons.svg`, `public/assets/sql-wasm.wasm`
 - 新規: `ios/`（`npx cap add ios` で生成されたネイティブプロジェクト一式。`Pods` と `App/public` は `.gitignore` で除外）
+
+---
+
+## Gate 0: Protocol Freeze v2.1 (2026-08-28)
+
+### 完了したこと
+- `PROTOCOL_FREEZE.md` を新規作成し、P1着手前に曖昧だった科学仕様・暗号仕様・時間仕様をv2.1として固定した。
+- Layer A主要確証解析は `rngSource='anu'` の量子セッションのみとし、`randomorg` / `local` fallbackはledgerから消さずQC・感度分析・探索に残す方針を固定した。
+- Layer Cのrandomizationは `anu -> randomorg -> local` fallbackでもRCTとして有効とし、実際のsourceを必ず記録・表示する方針を固定した。
+- targetDirを測定対象bitstreamから独立させ、登録時の独立seed + SHA-256 counter streamで決定的に生成する方式を固定した。
+- condition schedule / target scheduleの決定性とクロスプラットフォーム再現性のため、`Math.random()` を禁止し、SHA-256 counter expansion + rejection sampling / Fisher-Yatesを採用する設計を固定した。
+- 実験timezoneをIANA timezoneとして登録時に固定し、03:00等のdayBoundaryHourを端末timezone変更や旅行で変化させないルールを固定した。
+- daily controlを「1 experiment-dayにつき最大1件」のidempotent処理として固定した。
+- Layer Bのpre/postを抽選結果revealの前に完了させ、ritualそのものの短期変化と抽選結果への感情反応を混ぜない順序へ修正した。
+- prediction commitをUIではなくapplication/domain層でRNG取得前に強制するルールを固定した。
+- ledger hashを RFC 8785 / JCS canonicalization + SHA-256 で定義し、`prevHash/type/payload/createdAt` をcanonical objectとしてhashする方式を固定した。
+- genesisの`prev_hash`を64桁の0、最初のregistration entry hashを`genesisHash`と定義した。
+- ledger appendをsingle-writer serialization queue経由に限定し、直接INSERTを禁止する設計を固定した。
+- ローカルhash chainは「tamper-evident（改竄検知可能）」であり、外部anchorなしに「完全改竄不能」とは表現しないことを固定した。
+- RegistrationPayload v2.1に protocol/canonicalization/schedule/target/rng/stats/app version と frozen timezone / target seed を含めることを固定した。
+- Layer Cの`withdrawn` / `undecidable`を主要解析ではnot realizedとして扱い、`undecidable`除外版は副次感度分析に限定するルールを固定した。
+- wish→assignment間クラッシュの回復とassignment idempotency、sealed wishのdomain-level visibility boundaryを固定した。
+- P4が必要とするbits→hits→zの依存逆転を解消するため、P3とP4の間に小さな純関数フェーズ `P4a Stats Core` を追加した。
+- Reactの実装基準を、実際に導入済みのReact 19系に合わせることを明文化した（Capacitorはv6据え置き）。
+- `AGENTS.md` をv2.1へ更新し、DESIGN.mdとProtocol Freezeが衝突した場合の優先順位、不変ルール、フェーズ順を実装担当に強制した。
+- `README.md` をv2.1の現在地・実装順へ更新した。
+- `.github/workflows/ci.yml` を追加し、`pnpm install --frozen-lockfile` → typecheck → test → build → ledger mutation grep guard をPR品質ゲートとして自動化した。
+
+### 完了基準の結果（実行結果）
+- ローカルcloneによる検証: 作業環境の外部DNS制限により `Could not resolve host: github.com` でclone前に停止。これはリポジトリコードの失敗ではないため、同一PR merge refをGitHub Actionsで検証した。
+- GitHub Actions CI run `33131030852` / job `98720340523`: **green / success**。
+- `pnpm install --frozen-lockfile`: green。lockfileはup-to-date、174 packages導入。
+- `pnpm typecheck`: green（`tsc -b --noEmit`、errorなし）。
+- `pnpm test`: green（Vitest 4.1.10、1 test file / 2 tests passed）。
+- `pnpm build`: green（`tsc -b && vite build`、Vite 8.1.4、production build成功）。既知の `jeep-sqlite` → Node `crypto` browser externalization warningはP0時と同様に残るがbuild failureではない。
+- ledger append-only guard: green — `OK: no forbidden ledger DELETE/UPDATE paths found.`
+- Runtime source (`src/`, `scripts/`, package/lockfile) の変更: **なし**。Gate 0はprotocol/docs/CIのみ。
+
+### 外部サービス確認
+- ANU公式legacy QRNG documentationは、旧サービスを縮小しANU Quantum Numbers/AWS側へ移行する旨を案内している。P1では旧endpoint/70秒前提をdomainへハードコードしない。
+- RANDOM.ORG HTTP interfaceはIP単位のbit quotaを持つため、P1ではquota exhaustionを通常のfallback条件として扱い、テストで実サービスを叩かない。
+
+### 要確定・申し送り（P1へ）
+- P1は **RNG moduleのみ**。ledger appendやUIには着手しない。
+- ANU providerはlegacy endpointに固定せず、endpoint/auth/timeout/retry/quotaをadapter/configとして注入可能にする。
+- `RandomResult` は少なくとも `bitsHex`, `nBits`, `source` を返し、sourceを絶対に偽装しない。
+- production fallback順は `anu -> randomorg -> local`。unit testはfetch mockのみで3 provider分岐、invalid payload、timeout、network failure、fallbackを決定的に検証する。
+- test/simulateは外部APIを一切呼ばない。
+- ANU無料枠などの運用上のquotaは変化し得るため、科学プロトコルではなくprovider operational configとして扱う。
+- `capacitor.config.ts` の本番bundle idは引き続きP11まで要確定。
+
+### 触ったファイル
+- 新規: `PROTOCOL_FREEZE.md`
+- 新規: `.github/workflows/ci.yml`
+- 更新: `AGENTS.md`
+- 更新: `README.md`
+- 更新: `PROGRESS.md`
+- **未変更**: `DESIGN.md`（v2.0本体は履歴として保持し、v2.1 normative addendumが上書きする方式）
+- **未変更**: runtime implementation (`src/`, `scripts/`, `package.json`, `pnpm-lock.yaml`)
