@@ -30,7 +30,7 @@ export const DEFAULT_DECISION_RULE: DecisionRule = {
 
 export type LayerCRegistration = JsonObject & {
   enabled: boolean;
-  defaultDeadlineDays: number;
+  defaultDeadlineDays: 14 | 28 | 90;
   withdrawalPolicy: 'count_as_fail';
   decisionRuleC: DecisionRule;
   notarize: boolean;
