@@ -3,7 +3,7 @@ import { AnuRngProvider } from './anu';
 
 describe('AnuRngProvider', () => {
   it('requests uint8 bytes from the configured endpoint without real network access', async () => {
-    const fetchFn = vi.fn(async () =>
+    const fetchFn = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) =>
       new Response(JSON.stringify({ data: [0, 127, 255] }), {
         status: 200,
         headers: { 'content-type': 'application/json' },
@@ -22,7 +22,7 @@ describe('AnuRngProvider', () => {
   });
 
   it('rejects malformed byte payloads so the service can fall back', async () => {
-    const fetchFn = vi.fn(async () =>
+    const fetchFn = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) =>
       new Response(JSON.stringify({ data: [0, 999] }), {
         status: 200,
         headers: { 'content-type': 'application/json' },
@@ -34,7 +34,9 @@ describe('AnuRngProvider', () => {
   });
 
   it('surfaces HTTP failures instead of disguising them as quantum data', async () => {
-    const fetchFn = vi.fn(async () => new Response('unavailable', { status: 503 }));
+    const fetchFn = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) =>
+      new Response('unavailable', { status: 503 }),
+    );
     const provider = new AnuRngProvider({ endpoint: 'https://example.test/anu', fetchFn });
 
     await expect(provider.getBytes(1)).rejects.toThrow('HTTP 503');
