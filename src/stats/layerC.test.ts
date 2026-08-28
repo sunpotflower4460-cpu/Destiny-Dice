@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_DECISION_RULE } from '../registration/types';
+import { EXPLORATORY_WARNING } from './exploratory';
 import {
+  analyzeExploratoryLayerC,
   analyzeFinalLayerC,
   analyzeInterimLayerC,
   fisherExactTwoSided,
@@ -56,7 +58,7 @@ describe('P8 Layer C outcome policy and exploration', () => {
     expect(interim.sensitivityExcludingUndecidable.sealed).toMatchObject({ n: 2, realized: 1, notRealized: 1, undecidable: 0 });
   });
 
-  it('returns frozen likelihood/influence strata and realized-pathway distributions without confirmatory p-values', () => {
+  it('keeps likelihood/influence strata and pathways in a separately tagged exploratory result', () => {
     const observations: LayerCWishObservation[] = [
       wish('practice', 'realized', { likelihood: 1, influence: 'self', pathway: 'own_action' }),
       wish('practice', 'realized', { likelihood: 3, influence: 'external', pathway: 'other_person' }),
@@ -66,17 +68,22 @@ describe('P8 Layer C outcome policy and exploration', () => {
     ];
 
     const interim = analyzeInterimLayerC(observations);
-    expect(interim.strata.likelihood).toHaveLength(3);
-    expect(interim.strata.influence).toHaveLength(3);
-    expect(interim.strata.likelihood[0]?.comparison.practice.realizationRate).toBe(1);
-    expect(interim.strata.likelihood[2]?.comparison.practice).toMatchObject({ n: 2, realized: 1 });
-    expect(interim.pathways).toEqual([
+    const exploratory = analyzeExploratoryLayerC(observations);
+    expect('strata' in interim).toBe(false);
+    expect('pathways' in interim).toBe(false);
+    expect('fisherTwoSidedP' in interim).toBe(false);
+    expect(exploratory.analysisKind).toBe('exploratory');
+    expect(exploratory.warning).toBe(EXPLORATORY_WARNING);
+    expect(exploratory.strata.likelihood).toHaveLength(3);
+    expect(exploratory.strata.influence).toHaveLength(3);
+    expect(exploratory.strata.likelihood[0]?.comparison.practice.realizationRate).toBe(1);
+    expect(exploratory.strata.likelihood[2]?.comparison.practice).toMatchObject({ n: 2, realized: 1 });
+    expect(exploratory.pathways).toEqual([
       { pathway: 'own_action', practice: 1, sealed: 0, total: 1, practiceShare: 0.5, sealedShare: 0 },
       { pathway: 'other_person', practice: 1, sealed: 0, total: 1, practiceShare: 0.5, sealedShare: 0 },
       { pathway: 'chance_encounter', practice: 0, sealed: 1, total: 1, practiceShare: 0, sealedShare: 1 },
       { pathway: 'unknown', practice: 0, sealed: 0, total: 0, practiceShare: 0, sealedShare: 0 },
     ]);
-    expect('fisherTwoSidedP' in interim).toBe(false);
   });
 
   it('applies the frozen positive rule only when practice realization is higher', () => {
