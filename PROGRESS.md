@@ -778,10 +778,10 @@ CocoaPods未インストールの場合は `sudo gem install cocoapods` の上�
 
 ### 外部release readiness
 - Apple release credentials: **missing**
-- Cloudflare release crdentials: **missing**
+- Cloudflare release credentials: **missing**
 - ANU production endpoint: **missing**
 - public notary endpoint: **missing**
-- ゆって誥FTestFlight uploadとWorker実deployは未実施。release/deploy経路とnative buildは検証済みで、外部資格情報/endpoint投入後の手動operationとして分離する。未実施を公開済みとは扱わない。
+- よって実TestFlight uploadとWorker実deployは未実施。release/deploy経路とnative buildは検証済みで、外部資格情報/endpoint投入後の手動operationとして分離する。未実施を公開済みとは扱わない。
 
 ### 最終不変条件セルフチェック
 1. ledger append-only — ✅
