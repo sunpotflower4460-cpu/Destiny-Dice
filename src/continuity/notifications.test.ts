@@ -60,7 +60,7 @@ describe('P9 local notification scheduling', () => {
   it('keeps only the nearest platform-safe pending notifications and prioritizes a deadline at equal time', () => {
     const plans = planLocalNotifications({
       registration,
-      now: '2026-09-01T00:00:00.000Z',
+      now: '2026-08-31T00:00:00.000Z',
       wishes: [{ wishId: 'due', deadline: '2026-09-01', assigned: true, judged: false }],
       dailyReminderTime: '03:00',
       maxPending: 2,
@@ -68,5 +68,6 @@ describe('P9 local notification scheduling', () => {
     expect(plans).toHaveLength(2);
     expect(plans[0]?.kind).toBe('wish_deadline');
     expect(plans[1]?.kind).toBe('daily_reminder');
+    expect(plans[0]?.at).toBe(plans[1]?.at);
   });
 });
