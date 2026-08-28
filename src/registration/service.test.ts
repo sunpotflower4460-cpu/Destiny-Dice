@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { computeLedgerEntryHash } from '../ledger/hash';
 import { LedgerService } from '../ledger/service';
 import { MemoryLedgerStore } from '../ledger/memoryStore';
+import { GENESIS_PREV_HASH } from '../ledger/types';
 import { verifyChain } from '../ledger/verify';
 import { RegistrationService } from './service';
 import type { RegistrationInput, RegistrationPayload } from './types';
@@ -19,13 +21,15 @@ const input: RegistrationInput = {
   layerC: { enabled: true, defaultDeadlineDays: 28, notarize: false },
 };
 
+const CREATED_AT = '2026-08-28T02:00:00.000Z';
+
 describe('RegistrationService', () => {
   it('writes one frozen registration genesis containing protocol provenance', async () => {
     const store = new MemoryLedgerStore();
     const ledger = new LedgerService(store);
     const service = new RegistrationService(ledger);
 
-    const result = await service.register(input, '2026-08-28T02:00:00.000Z');
+    const result = await service.register(input, CREATED_AT);
     expect(result.seq).toBe(1);
     expect(result.genesisHash).toMatch(/^[0-9a-f]{64}$/);
 
@@ -49,9 +53,35 @@ describe('RegistrationService', () => {
     expect(payload.layerC.decisionRuleC).toEqual(payload.decisionRuleA);
   });
 
+  it('commits predictions, decision rule, and Layer C settings into the genesis hash', async () => {
+    const result = await new RegistrationService(new LedgerService(new MemoryLedgerStore())).register(input, CREATED_AT);
+    const predictionChanged: RegistrationPayload = {
+      ...result.payload,
+      predictionByCondition: ['changed', ...result.payload.predictionByCondition.slice(1)],
+    };
+    const decisionChanged: RegistrationPayload = {
+      ...result.payload,
+      decisionRuleA: { ...result.payload.decisionRuleA, pThresh: 0.02 },
+    };
+    const layerCChanged: RegistrationPayload = {
+      ...result.payload,
+      layerC: { ...result.payload.layerC, enabled: false },
+    };
+
+    for (const payload of [predictionChanged, decisionChanged, layerCChanged]) {
+      const hash = await computeLedgerEntryHash({
+        type: 'registration',
+        payload,
+        createdAt: CREATED_AT,
+        prevHash: GENESIS_PREV_HASH,
+      });
+      expect(hash).not.toBe(result.genesisHash);
+    }
+  });
+
   it('cannot register twice on the same ledger', async () => {
     const service = new RegistrationService(new LedgerService(new MemoryLedgerStore()));
-    await service.register(input, '2026-08-28T02:00:00.000Z');
+    await service.register(input, CREATED_AT);
     await expect(service.register(input, '2026-08-28T02:01:00.000Z')).rejects.toThrow(
       'only one genesis registration',
     );
