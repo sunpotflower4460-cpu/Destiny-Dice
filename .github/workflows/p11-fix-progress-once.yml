@@ -1,0 +1,22 @@
+name: P11 fix progress once
+
+on:
+  push:
+    branches:
+      - p11-release-hardening
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: p11-release-hardening
+      - name: Fix final progress text and self-delete
+        shell: bash
+        run: >-
+          sed -i 's/Cloudflare release crdentials/Cloudflare release credentials/; s/ゆって誥FTestFlight upload/よって実TestFlight upload/' PROGRESS.md && git rm .github/workflows/p11-fix-progress-once.yml && git add PROGRESS.md && git config user.name 'github-actions[bot]' && git config user.email '41898282+github-actions[bot]@users.noreply.github.com' && git commit -m 'P11: fix final progress text' && git push origin HEAD:p11-release-hardening
