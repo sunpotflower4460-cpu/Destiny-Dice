@@ -26,7 +26,7 @@ import type {
   WishRegistryProjection,
 } from './types';
 
-type WishLedger = Pick<LedgerService, 'append' | 'appendWithFollowUp' | 'appendConditionally' | 'list'>;
+type WishLedger = Pick<LedgerService, 'appendWithFollowUp' | 'appendConditionally' | 'list'>;
 type WishRng = Pick<RngService, 'getAssignmentBit'>;
 
 export const ASSIGNMENT_ARM_BY_BIT = {
@@ -179,21 +179,30 @@ export class WishRegistryService {
     if (!Number.isInteger(seconds) || seconds < 30 || seconds > 60) {
       throw new RangeError('wish moment seconds must be an integer from 30 through 60');
     }
-    const projection = projectWishMoment(await this.ledger.list(), currentExperimentDate);
-    const expectedIds = projection.wishes.map((wish) => wish.wishId);
-    if (!sameIds(wishIdsShown, expectedIds)) {
-      throw new Error('wish moment must show exactly the currently eligible practice wishes');
-    }
-    if (expectedIds.length === 0) {
-      throw new Error('wish moment cannot be recorded when no practice wishes are eligible');
-    }
-    const createdAt = this.clock.now();
-    const payload: WishMomentPayload = {
-      date: currentExperimentDate,
-      wishIdsShown: [...expectedIds],
-      seconds,
-    };
-    return this.ledger.append('wishmoment', payload, createdAt);
+
+    const appended = await this.ledger.appendConditionally(
+      (entries) => {
+        const expectedIds = projectWishMoment(entries, currentExperimentDate).wishes.map((wish) => wish.wishId);
+        if (expectedIds.length === 0) {
+          throw new Error('wish moment cannot be recorded when no practice wishes are eligible');
+        }
+        if (!sameIds(wishIdsShown, expectedIds)) {
+          throw new Error('wish moment must show exactly the currently eligible practice wishes');
+        }
+        return true;
+      },
+      async () => {
+        const createdAt = this.clock.now();
+        const payload: WishMomentPayload = {
+          date: currentExperimentDate,
+          wishIdsShown: [...wishIdsShown],
+          seconds,
+        };
+        return { type: 'wishmoment', payload, createdAt };
+      },
+    );
+    if (!appended) throw new Error('wish moment append was unexpectedly skipped');
+    return appended;
   }
 
   async judgeWish(
@@ -208,41 +217,56 @@ export class WishRegistryService {
     validateJudgment(outcome, pathway);
     if (note !== undefined && note.trim().length === 0) throw new TypeError('judgment note must be non-empty when present');
 
-    const entries = await this.ledger.list();
-    const record = buildWishLedgerRecords(entries).find((candidate) => candidate.wish.wishId === wishId);
-    if (!record) throw new Error(`wish not found: ${wishId}`);
-    if (!record.assignment) throw new Error('wish must be assigned before judgment');
-    if (record.judgment) throw new Error('wish already has a judgment');
-    if (record.wish.deadline > currentExperimentDate) throw new Error('wish cannot be judged before its deadline');
-
-    const judgedAt = this.clock.now();
-    const payload: JudgmentPayload = {
-      wishId,
-      outcome,
-      ...(pathway === undefined ? {} : { pathway }),
-      ...(note === undefined ? {} : { note }),
-      judgedAt,
-    };
-    return this.ledger.append('judgment', payload, judgedAt);
+    const appended = await this.ledger.appendConditionally(
+      (entries) => {
+        const record = buildWishLedgerRecords(entries).find((candidate) => candidate.wish.wishId === wishId);
+        if (!record) throw new Error(`wish not found: ${wishId}`);
+        if (!record.assignment) throw new Error('wish must be assigned before judgment');
+        if (record.judgment) throw new Error('wish already has a judgment');
+        if (record.wish.deadline > currentExperimentDate) throw new Error('wish cannot be judged before its deadline');
+        return true;
+      },
+      async () => {
+        const judgedAt = this.clock.now();
+        const payload: JudgmentPayload = {
+          wishId,
+          outcome,
+          ...(pathway === undefined ? {} : { pathway }),
+          ...(note === undefined ? {} : { note }),
+          judgedAt,
+        };
+        return { type: 'judgment', payload, createdAt: judgedAt };
+      },
+    );
+    if (!appended) throw new Error('judgment append was unexpectedly skipped');
+    return appended;
   }
 
   async withdrawWish(wishId: string, note?: string): Promise<StoredLedgerEntry> {
     validateWishId(wishId);
     if (note !== undefined && note.trim().length === 0) throw new TypeError('withdrawal note must be non-empty when present');
-    const entries = await this.ledger.list();
-    const record = buildWishLedgerRecords(entries).find((candidate) => candidate.wish.wishId === wishId);
-    if (!record) throw new Error(`wish not found: ${wishId}`);
-    if (!record.assignment) throw new Error('wish must be assigned before withdrawal');
-    if (record.judgment) throw new Error('wish already has a judgment');
 
-    const judgedAt = this.clock.now();
-    const payload: JudgmentPayload = {
-      wishId,
-      outcome: 'withdrawn',
-      ...(note === undefined ? {} : { note }),
-      judgedAt,
-    };
-    return this.ledger.append('judgment', payload, judgedAt);
+    const appended = await this.ledger.appendConditionally(
+      (entries) => {
+        const record = buildWishLedgerRecords(entries).find((candidate) => candidate.wish.wishId === wishId);
+        if (!record) throw new Error(`wish not found: ${wishId}`);
+        if (!record.assignment) throw new Error('wish must be assigned before withdrawal');
+        if (record.judgment) throw new Error('wish already has a judgment');
+        return true;
+      },
+      async () => {
+        const judgedAt = this.clock.now();
+        const payload: JudgmentPayload = {
+          wishId,
+          outcome: 'withdrawn',
+          ...(note === undefined ? {} : { note }),
+          judgedAt,
+        };
+        return { type: 'judgment', payload, createdAt: judgedAt };
+      },
+    );
+    if (!appended) throw new Error('withdrawal append was unexpectedly skipped');
+    return appended;
   }
 
   primaryOutcomeFor(outcome: WishOutcome): PrimaryWishOutcome {
