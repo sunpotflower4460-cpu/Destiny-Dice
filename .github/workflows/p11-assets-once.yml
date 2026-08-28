@@ -1,0 +1,89 @@
+name: P11 generate release assets once
+
+on:
+  push:
+    branches:
+      - p11-release-hardening
+
+permissions:
+  contents: write
+
+jobs:
+  assets:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: p11-release-hardening
+
+      - name: Generate RGB app icon and splash
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --quiet pillow
+          python3 - <<'PY'
+          from pathlib import Path
+          from PIL import Image, ImageDraw
+
+          bg_icon = (245, 247, 243)
+          bg_splash = (249, 247, 241)
+          sage = (78, 107, 95)
+          light = (190, 204, 197)
+          dark = (32, 64, 51)
+          white = (255, 255, 255)
+
+          def motif(size, background, scale=1.0):
+              im = Image.new('RGB', (size, size), background)
+              d = ImageDraw.Draw(im)
+              cx = cy = size // 2
+              outer = int(size * 0.325 * scale)
+              mid = int(size * 0.255 * scale)
+              die = int(size * 0.39 * scale)
+              # quiet outer orbit
+              d.ellipse((cx-outer, cy-outer, cx+outer, cy+outer), outline=light, width=max(5, int(size*.011*scale)))
+              # broken inner orbit, leaving a deliberate gap
+              box=(cx-mid, cy-mid, cx+mid, cy+mid)
+              d.arc(box, 205, 350, fill=sage, width=max(8, int(size*.018*scale)))
+              d.arc(box, 10, 150, fill=sage, width=max(8, int(size*.018*scale)))
+              dot=max(8, int(size*.014*scale))
+              for x,y in [(cx-outer+int(size*.11*scale), cy-outer+int(size*.145*scale)),
+                          (cx+outer-int(size*.065*scale), cy-outer+int(size*.19*scale)),
+                          (cx, cy+outer-int(size*.035*scale))]:
+                  d.ellipse((x-dot,y-dot,x+dot,y+dot), fill=sage)
+              r=die//2
+              radius=int(size*.075*scale)
+              d.rounded_rectangle((cx-r,cy-r,cx+r,cy+r), radius=radius, fill=white, outline=(207,216,211), width=max(4,int(size*.006*scale)))
+              pip=max(10,int(size*.031*scale))
+              off=int(die*.25)
+              for x,y in [(cx-off,cy-off),(cx+off,cy-off),(cx,cy),(cx-off,cy+off),(cx+off,cy+off)]:
+                  d.ellipse((x-pip,y-pip,x+pip,y+pip), fill=dark)
+              return im
+
+          icon = motif(1024, bg_icon, 1.0)
+          icon_path = Path('ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png')
+          icon.save(icon_path, format='PNG', optimize=True)
+
+          splash = motif(2732, bg_splash, 0.72)
+          splash_dir = Path('ios/App/App/Assets.xcassets/Splash.imageset')
+          for name in ['splash-2732x2732.png','splash-2732x2732-1.png','splash-2732x2732-2.png']:
+              splash.save(splash_dir / name, format='PNG', optimize=True)
+          PY
+          python3 - <<'PY'
+          from PIL import Image
+          i=Image.open('ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png')
+          s=Image.open('ios/App/App/Assets.xcassets/Splash.imageset/splash-2732x2732.png')
+          assert i.size==(1024,1024) and i.mode=='RGB'
+          assert s.size==(2732,2732) and s.mode=='RGB'
+          PY
+
+      - name: Commit assets and remove helper
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm .github/workflows/p11-assets-once.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add ios/App/App/Assets.xcassets
+          git commit -m 'P11: add release icon and splash assets'
+          git push origin HEAD:p11-release-hardening
