@@ -18,8 +18,9 @@ describe('fetchWithTimeout', () => {
     );
 
     const pending = fetchWithTimeout(fetchFn, 'https://example.test/stalled', {}, 250);
-    await vi.advanceTimersByTimeAsync(250);
+    const rejection = expect(pending).rejects.toMatchObject({ name: 'AbortError' });
 
-    await expect(pending).rejects.toMatchObject({ name: 'AbortError' });
+    await vi.advanceTimersByTimeAsync(250);
+    await rejection;
   });
 });
