@@ -1,12 +1,12 @@
 import { AnuRngProvider, type AnuProviderOptions } from './providers/anu';
-import { LocalCryptoRngProvider, type CryptoLike } from './providers/local';
+import { LocalCryptoRngProvider, type RandomFill } from './providers/local';
 import { RandomOrgRngProvider, type RandomOrgProviderOptions } from './providers/randomOrg';
 import { RngService } from './service';
 
 export type ProductionRngOptions = {
   anu: AnuProviderOptions;
   randomOrg?: RandomOrgProviderOptions;
-  localCrypto?: CryptoLike;
+  localRandomFill?: RandomFill;
 };
 
 /**
@@ -17,6 +17,6 @@ export function createProductionRngService(options: ProductionRngOptions): RngSe
   return new RngService([
     new AnuRngProvider(options.anu),
     new RandomOrgRngProvider(options.randomOrg),
-    new LocalCryptoRngProvider(options.localCrypto),
+    new LocalCryptoRngProvider(options.localRandomFill),
   ]);
 }
