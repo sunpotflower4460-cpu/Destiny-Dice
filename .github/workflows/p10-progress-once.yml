@@ -18,58 +18,12 @@ jobs:
           ref: p10-final-report
       - name: Append P10 completion and remove helper
         shell: bash
+        env:
+          P10_PROGRESS_B64: LS0tCiMjIFAxMDogRmluYWwgUmVwb3J0ICgyMDI2LTA4LTI4KQoKIyMjIOWujOS6huOBl+OBn+OBk+OBqAotIGFwcGVuZC1vbmx5IGxlZGdlciBleHBvcnTjgpIgYHZlcmlmeUNoYWluKClgIOOBp+aknOiovOOBl+OBpuOBi+OCieacgOe1guODrOODneODvOODiOOBuOaKleW9seOBmeOCiyBgc3JjL3JlcG9ydC9gIHBpcGVsaW5l44KS5a6f6KOF44GX44Gf44CCCi0gcmVnaXN0cmF0aW9uIGdlbmVzaXPjga5wcm90b2NvbCAvIGNhbm9uaWNhbGl6YXRpb24gLyBSTkcgLyBhbmFseXNpcyAvIHN0YXRzIHZlcnNpb27jgagzNjXml6VzY2hlZHVsZeOCkuaknOiovOOBl+OAgeWjiuOCjOOBn2V4cG9ydOOCkuacgOe1gue1seioiOOBuOa1geOBleOBquOBhOOAggotIExheWVyIEHmnIDntYLnorroqLzjga/ml6LlrZhQNSBgYW5hbHl6ZUZpbmFsTGF5ZXJBKClgIOOCkuWGjeWIqeeUqOOBl+OAgeS4u+imgXNhbXBsZeOCkiBgcm5nU291cmNlPSdhbnUnICYmIHJpdHVhbFZhbGlkYCDjga7jgb/jgavlm7rlrprjgIJmYWxsYmFja+OBr+mZpOWklueQhueUseODu3NvdXJjZeaDheWgseOBqOOBl+OBpuaui+OBmeOAggotIExheWVyIEPmnIDntYLnorroqLzjga/lrp/pqJPntYLkuobjgb7jgafjgatkZWFkbGluZeWIsOadpea4iOOBv+OBruWJsuS7mOa4iOOBv3dpc2jjgaDjgZHjgpLkuLvopoHliIbmr43jgavmipXlvbHjgZfjgIFkZWFkbGluZeacquWIsOadpeODu3VuYXNzaWduZWTjgpLliKXku7bmlbDjgafkv53mjIHjgZnjgovjgILntbHoqIjlvI/jga/ml6LlrZhQOCBgYW5hbHl6ZUZpbmFsTGF5ZXJDKClgIOOCkuWGjeWIqeeUqOOBmeOCi+OAggotIOacgOe1gk1hcmtkb3du44KS44CMMS4g56K66Ki844OR44O844OI44CN44Go44CMMi4g5o6i57Si44OR44O844OI44CN44Gr5piO56K65YiG6Zui44GX44CB5o6i57Si5YCk44KEd2FybmluZ+OBjOeiuuiovOWIpOWumuOBuOa3t+WFpeOBl+OBquOBhOani+mAoOOBq+OBl+OBn+OAggotIFAxMOaOoue0ouOBqOOBl+OBpkxheWVyIEIgcml0dWFs5YmN5b6M44Gu5rCX5YiGL+OCqOODjeODq+OCruODvOW3ruOAgeeKtuaFi+S+neWtmOOAgeODn+ODqeOCr+ODq+aXpXByb2ZpbGXjgpLntJTplqLmlbDov73liqDjgILml6LlrZhQNS9QOOOBrmRvc2UtcmVzcG9uc2UgLyB0cmVuZCAvIHBhdGh3YXnnrYnjgoLmjqLntKLjg5Hjg7zjg4jjgbjntbHlkIjjgZfjgZ/jgIIKLSB2MSBzY2hlbWHjgavlrZjlnKjjgZfjgarjgYQgYHJlYWxpemVkQXRgIOOBr+aOqOWumuOBm+OBmuOAjOa4rOWumuS4jeiDveOAjeOBqOaYjuiomOOBl+OAgeiHqueUseaWh3ByZWRpY3Rpb27jga7mhI/lkbPliKTlrprjgoLlvozku5jjgZHjgZvjgZrkv53nlZnjgZfjgZ/jgIIKLSBgcG5wbSB2ZXJpZnktZXhwb3J0IDxleHBlcmltZW50Lmpzb24+YCDjgaggYHBucG0gZ2VuZXJhdGUtcmVwb3J0IDxleHBlcmltZW50Lmpzb24+IFtvdXRwdXQubWRdYCDjgpLov73liqDjgIJDTEnjgajjgqLjg5fjg6rjga/lkIzjgZhjaGFpbiB2ZXJpZmljYXRpb24gLyBwcm9qZWN0aW9uIC8gc3RhdHMgLyBNYXJrZG93biByZW5kZXJlcuOCkuWFseacieOBmeOCi+OAggotIGBGaW5hbFJlcG9ydFBhbmVsYCDjgpLjgIzoqJjpjLLjg7vjg6njg5zjgI3jgbjov73liqDjgZfjgIEzNjXml6XntYLkuoblvozjgaDjgZHmnIDntYLjg6zjg53jg7zjg4jjgpLnlJ/miJDjg7vooajnpLrjg7vlhbHmnIkv5L+d5a2Y44Gn44GN44KL44KI44GG44Gr44GX44Gf44CC57WC5LqG5YmN44GvY29tcG9uZW506Ieq5L2T44GMZmluYWzntbHoqIjjgpLnlJ/miJDjgZfjgarjgYRTU1IgZ2F0ZeOCkuWbuuWumuOBl+OBn+OAggotIGBzY3JpcHRzL3NpbXVsYXRlLnRzYCDjgpLlrozlhahvZmZsaW5l44GuMzY15pelLzEyMOmhmOOBhHN5bnRoZXRpYyBzaW11bGF0aW9u44G45ouh5by144GX44CB5Ye65Yqb44GrIGBzeW50aGV0aWM6IHRydWVgIOOBqCBgbmV0d29ya1JlcXVlc3RzOiAwYCDjgpLmmI7npLrjgILlrp9BTlXlj5blvpfjgajoqqToqo3jgZXjgZvjgarjgYTjgIIKLSBDSeOBq251bGzlubRnb2xkZW4gaGFzaOOAgWV4cG9ydOaknOiovOKGkk1hcmtkb3duIGJ5dGUtaWRlbnRpY2Fs5YaN55Sf5oiQ44CBTGF5ZXIgQemZveaAp2ZpeHR1cmXjgIFMYXllciBD6Zm95oCnZml4dHVyZeOCkuW/hemgiOOCsuODvOODiOOBqOOBl+OBpui/veWKoOOBl+OBn+OAggoKIyMjIOWujOS6huWfuua6luOBrue1kOaenAotIGBwbnBtIHR5cGVjaGVja2A6IGdyZWVuCi0gYHBucG0gdGVzdGA6IGdyZWVuIOKAlCAqKjM1IHRlc3QgZmlsZXMgLyAxNTEgdGVzdHMgcGFzc2VkKioKLSBudWxsIDM2NeaXpSArIDEyMOmhmOOBhHNpbXVsYXRpb246IGdyZWVuIOKAlCAqKjE0NTYgbGVkZ2VyIGVudHJpZXMqKiAvIGBuZXR3b3JrUmVxdWVzdHM6IDBgIC8gYHZlcmlmeUNoYWluKClgIHN1Y2Nlc3MKLSBudWxsIHJlcG9ydCBnb2xkZW4gU0hBLTI1NjogYDFlYzVmMjIwMzRkMTg1NDZhYzIwZTJiOGM2NGI1ZWExZGNhYjVlN2ZhZjRlOTAzZTdlN2M1ODE4MmYzOTgzODFgCi0gZXhwb3J0IHZlcmlmaWNhdGlvbiDihpIgcmVwb3J0IHJlZ2VuZXJhdGlvbjogZ3JlZW4g4oCUIGdlbmVyYXRlZCBNYXJrZG93buOBjHNpbXVsYXRpb27lh7rlipvjgahieXRlLWlkZW50aWNhbAotIExheWVyIEEgcG9zaXRpdmUgZml4dHVyZSBgLS1lZmZlY3QgMC4wMSAtLWNvbmRpdGlvbiAyYDogZ3JlZW4g4oCUIGNvbmRpdGlvbiBpbmRleCAy44Gu44G/IGBwb3NpdGl2ZV9wcmVfcmVnaXN0ZXJlZF9yZXN1bHRgCi0gTGF5ZXIgQyBwb3NpdGl2ZSBmaXh0dXJlIGAtLXdpc2gtZWZmZWN0IDAuMjVgOiBncmVlbiDigJQgcHJhY3RpY2XiiYgwLjYyNzEgLyBzZWFsZWTiiYgwLjI0NTkgLyBGaXNoZXIgcOKJiDAuMDAwMDQxMTA2NyAvIEJGMTDiiYgxNzIwLjE4IC8gYHBvc2l0aXZlX3ByZV9yZWdpc3RlcmVkX3Jlc3VsdGAKLSBgcG5wbSBidWlsZGA6IGdyZWVuCi0gbGVkZ2VyIGFwcGVuZC1vbmx5IGd1YXJkOiBncmVlbgotIFAxMOWun+ijhWhlYWQgQ0kgcnVuIGAzMzE2NTE2MzEwOGAgLyBqb2IgYDk4ODI4NzA3ODY3YDogc3VjY2VzcwoKIyMjIOS4jeWkieadoeS7tuOCu+ODq+ODleODgeOCp+ODg+OCrwoxLiBmaW5hbCBw5YCk44Gv5a6f6aiT57WC5LqG5b6M44GuRmluYWwgUmVwb3J044Gg44GRIOKAlCDinIUKMi4gY29uZmlybWF0b3J5IC8gZXhwbG9yYXRvcnnjgpLmp4vpgKDnmoTjgavliIbpm6Ig4oCUIOKchQozLiBMYXllciBBIHByaW1hcnnjga9BTlUgKyByaXR1YWwtdmFsaWTjga7jgb8g4oCUIOKchQo0LiBMYXllciBDIHByaW1hcnnjga/lrp/pqJPntYLkuobjgb7jgafjgatkZWFkbGluZeWIsOadpea4iOOBv+OBruOBvyDigJQg4pyFCjUuIGZyb3plbiBQNS9QOOe1seioiEFQSeOCkuWGjeWun+ijheOBm+OBmuWGjeWIqeeUqCDigJQg4pyFCjYuIGV4cG9ydOOBr2NoYWlu5qSc6Ki85b6M44Gg44GR6Kej5p6QIOKAlCDinIUKNy4gZmFsbGJhY2svc291cmNl44KS6Zqg44GV44Gq44GEIOKAlCDinIUKOC4g5qyg5ris44O75pyq5Yiw5p2l44O7dW5hc3NpZ25lZOOCkumDveWQiOOCiOOBj+ijnOWujOOBl+OBquOBhCDigJQg4pyFCjkuIGxlZGdlciBhcHBlbmQtb25seSDigJQg4pyFCjEwLiB0YW1wZXItcHJvb2bjgajjga/ooajnj77jgZvjgZp0YW1wZXItZXZpZGVudOOCkue2reaMgSDigJQg4pyFCgojIyMg5qyh44OV44Kn44O844K644G444Gu55Sz44GX6YCB44KKCi0g5YeN57WQ6aCG5bqP44Gp44GK44KK5qyh44GvICoqUDExIOWFrOiovOODu+aPkOWHuiAvIFJlbGVhc2UgSGFyZGVuaW5n44Gu44G/KirjgIIKLSBgY2FwYWNpdG9yLmNvbmZpZy50c2Ag44Gu5LuuYnVuZGxlIGlkIGBjb20uZXhhbXBsZS5pbnRlbnRpb25kaWNlYCDjgpLmraPlvI/lgKTjgbjnorrlrprjgZfjgIFpT1Mgc2lnbmluZyAvIEFwcCBTdG9yZeaPkOWHuua6luWCmSAvIOWun+apn3Ntb2tl44KS6KGM44GG44CCCi0g5aSW6YOo5YWs6Ki844KS5pyJ5Yq55YyW44GZ44KL5aC05ZCI44KC44Ot44O844Kr44OrY2hhaW7jgpLjgIzlrozlhajmlLnnq4TkuI3og73jgI3jgajjga/ooajnj77jgZvjgZrjgIFhbmNob3Llr77osaFoYXNo44O75pmC5Yi744O7cHJvdmlkZXLjgpLnm6Pmn7vlj6/og73jgavoqJjpjLLjgZnjgovjgIIKLSBQMTDjgaflm7rlrprjgZfjgZ9udWxsIHJlcG9ydCBnb2xkZW7jgIFBL0MgcG9zaXRpdmUgc2ltdWxhdGlvbuOAgWNvbmZpcm1hdG9yeS9leHBsb3JhdG9yeeWig+eVjOOAgUNMSeWGjeePvuaAp+OCklAxMeOBp+WjiuOBleOBquOBhOOAggo=
         run: |
           set -euo pipefail
           if ! grep -q '^## P10: Final Report' PROGRESS.md; then
-            cat >> PROGRESS.md <<'EOF'
-
----
-
-## P10: Final Report (2026-08-28)
-
-### 完了したこと
-- append-only ledger exportを `verifyChain()` で検証してから最終レポートへ投影する `src/report/` pipelineを実装した。
-- registration genesisのprotocol / canonicalization / RNG / analysis / stats versionと365日scheduleを検証し、壊れたexportを最終統計へ流さない。
-- Layer A最終確証は既存P5 `analyzeFinalLayerA()` を再利用し、主要sampleを `rngSource='anu' && ritualValid` のみに固定。fallbackは除外理由・source情報として残す。
-- Layer C最終確証は実験終了までにdeadline到来済みの割付済みwishだけを主要分母に投影し、deadline未到来・unassignedを別件数で保持する。統計式は既存P8 `analyzeFinalLayerC()` を再利用する。
-- 最終Markdownを「1. 確証パート」と「2. 探索パート」に明確分離し、探索値やwarningが確証判定へ混入しない構造にした。
-- P10探索としてLayer B ritual前後の気分/エネルギー差、状態依存、ミラクル日profileを純関数追加。既存P5/P8のdose-response / trend / pathway等も探索パートへ統合した。
-- v1 schemaに存在しない `realizedAt` は推定せず「測定不能」と明記し、自由文predictionの意味判定も後付けせず保留した。
-- `pnpm verify-export <experiment.json>` と `pnpm generate-report <experiment.json> [output.md]` を追加。CLIとアプリは同じchain verification / projection / stats / Markdown rendererを共有する。
-- `FinalReportPanel` を「記録・ラボ」へ追加し、365日終了後だけ最終レポートを生成・表示・共有/保存できるようにした。終了前はcomponent自体がfinal統計を生成しないSSR gateを固定した。
-- `scripts/simulate.ts` を完全offlineの365日/120願いsynthetic simulationへ拡張し、出力に `synthetic: true` と `networkRequests: 0` を明示。実ANU取得と誤認させない。
-- CIにnull年golden hash、export検証→Markdown byte-identical再生成、Layer A陽性fixture、Layer C陽性fixtureを必須ゲートとして追加した。
-
-### 完了基準の結果
-- `pnpm typecheck`: green
-- `pnpm test`: green — **35 test files / 151 tests passed**
-- null 365日 + 120願いsimulation: green — **1456 ledger entries** / `networkRequests: 0` / `verifyChain()` success
-- null report golden SHA-256: `1ec5f22034d18546ac20e2b8c64b5ea1dcab5e7faf4e903e7e7c58182f398381`
-- export verification → report regeneration: green — generated Markdownがsimulation出力とbyte-identical
-- Layer A positive fixture `--effect 0.01 --condition 2`: green — condition index 2のみ `positive_pre_registered_result`
-- Layer C positive fixture `--wish-effect 0.25`: green — practice≈0.6271 / sealed≈0.2459 / Fisher p≈0.0000411067 / BF10≈1720.18 / `positive_pre_registered_result`
-- `pnpm build`: green
-- ledger append-only guard: green
-- P10実装head CI run `33165163108` / job `98828707867`: success
-
-### 不変条件セルフチェック
-1. final p値は実験終了後のFinal Reportだけ — ✅
-2. confirmatory / exploratoryを構造的に分離 — ✅
-3. Layer A primaryはANU + ritual-validのみ — ✅
-4. Layer C primaryは実験終了までにdeadline到来済みのみ — ✅
-5. frozen P5/P8統計APIを再実装せず再利用 — ✅
-6. exportはchain検証後だけ解析 — ✅
-7. fallback/sourceを隠さない — ✅
-8. 欠測・未到来・unassignedを都合よく補完しない — ✅
-9. ledger append-only — ✅
-10. tamper-proofとは表現せずtamper-evidentを維持 — ✅
-
-### 次フェーズへの申し送り
-- 凍結順序どおり次は **P11 公証・提出 / Release Hardeningのみ**。
-- `capacitor.config.ts` の仮bundle id `com.example.intentiondice` を正式値へ確定し、iOS signing / App Store提出準備 / 実機smokeを行う。
-- 外部公証を有効化する場合もローカルchainを「完全改竄不能」とは表現せず、anchor対象hash・時刻・providerを監査可能に記録する。
-- P10で固定したnull report golden、A/C positive simulation、confirmatory/exploratory境界、CLI再現性をP11で壊さない。
-EOF
+            printf '%s' "$P10_PROGRESS_B64" | base64 -d >> PROGRESS.md
           fi
           git rm .github/workflows/p10-progress-once.yml
           git config user.name "github-actions[bot]"
