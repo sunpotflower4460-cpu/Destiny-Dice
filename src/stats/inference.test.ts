@@ -20,8 +20,8 @@ describe('P5 inference', () => {
     expect(holmAdjust([0.01, 0.04, 0.03, 0.002])).toEqual([0.03, 0.06, 0.06, 0.008]);
   });
 
-  it('excludes null p-values from the Holm family and preserves them', () => {
-    expect(holmAdjust([0.01, null, 0.04])).toEqual([0.02, null, 0.04]);
+  it('preserves null outputs while keeping missing hypotheses in the Holm family size', () => {
+    expect(holmAdjust([0.01, null, 0.04])).toEqual([0.03, null, 0.08]);
   });
 
   it('uses the P4a z statistic for the two-sided normal approximation', () => {
