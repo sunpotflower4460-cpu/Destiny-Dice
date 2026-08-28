@@ -1,0 +1,85 @@
+name: P9 progress append once
+
+on:
+  push:
+    branches:
+      - p9-notifications-continuity-ux
+
+permissions:
+  contents: write
+
+jobs:
+  append:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: p9-notifications-continuity-ux
+      - name: Append P9 completion and remove helper
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! grep -q '^## P9: Notifications / Continuity UX' PROGRESS.md; then
+            cat >> PROGRESS.md <<'EOF'
+
+---
+
+## P9: Notifications / Continuity UX (2026-08-28)
+
+### 完了したこと
+- 登録時に固定した IANA `timeZone` と `dayBoundaryHour` から `experimentDate` を導出する `src/continuity/time.ts` を実装。端末timezone変更や旅行に依存せず、03:00境界の直前/直後、DSTを含むwall-clock→instant変換をテストした。
+- `systemContext()` でセッション時刻・曜日・探索用月相を同じ凍結timezone基準から生成し、P4で先送りしていたP9の時間責務をruntimeへ接続した。
+- 登録後の `App` を `ExperimentRuntime` へ切り替え、`今日 / 願い / 記録・ラボ` のruntime shellから P4 `SessionFlow`、P7 `WishRegistryPanel` / `WishMoment`、P6/P8 dashboardへ到達できるようにした。
+- ledgerから当日の完了済み `seqInDay` を読み、最初の未完了sessionだけを再開するcontinuity projectionを実装。欠測日や抜けたexperiment dayを後から生成・補完しない。
+- session開始前のdaily controlは既存 `SessionFlowService.prepareSession()` に任せ、1 experiment-dayにつき最大1件というGate 0のidempotencyを維持した。
+- session実行は既存 `SessionFlowService.runSession()` のみを通し、prediction commit確認後にだけ測定RNGを取得する不変条件をUI下で維持した。
+- application runtimeで共有するRNG singletonを追加。`VITE_ANU_RNG_ENDPOINT` 設定時は `anu -> randomorg -> local`、未設定時は `randomorg -> local` とし、fallbackをquantumと表示せず実際の `rngSource` をledgerへ残す。
+- `@capacitor/local-notifications@6.1.3` を追加し、iOS Podfileにも `CapacitorLocalNotifications` を接続した。
+- 毎日リマインダーと願い締切通知の純粋plannerを実装。凍結timezoneで絶対時刻へ変換し、iOSのpending上限を考慮して直近64件に制限した。
+- OS通知permissionはアプリ起動時に自動requestせず、ユーザーが `通知をONにする` を押した明示操作時だけrequestする境界を実装した。
+- 通知同期は Intention Dice 予約ID帯 `10000..10063` だけを置換し、他アプリ/他用途のpending local notificationをcancelしない。
+- sealed wishの本文を通知層へ渡さず、wish ID / deadline / assignment・judgment状態だけから締切通知を組み立てるprivacy boundaryを実装した。
+- `deriveGentleStreak()` を追加し、記録済み日数・直近run・今日完了を表示。`penaltyApplied: false` を固定し、休んだ日があっても実験失格や罰にはしない。
+- multi-session dayでは `SessionFlow` 完了後にruntimeをrefreshし、次の未完了registered sessionへ進む `onFinish` 接続を追加した。
+- `LayerCRegistration.defaultDeadlineDays` を凍結UI選択肢 `14 | 28 | 90` と同じ型へ狭め、登録済み値と願いUIの型境界を一致させた（ledger JSONの意味は変更なし）。
+
+### 完了基準の結果
+- `pnpm typecheck`: green
+- `pnpm test`: green — **32 test files / 142 tests passed**
+  - P9: experiment-date / 03:00 / DST tests
+  - P9: daily reminder / wish deadline scheduling tests
+  - P9: permission explicitness / reserved-ID replacement tests
+  - P9: session resume / sealed-safe deadline candidate tests
+  - P9: gentle streak / no-penalty tests
+- `pnpm simulate`: green — `networkRequests: 0`; registration → control → prediction → session → wish/assignment → wishmoment → judgment の既存tracerを維持
+- `pnpm build`: green
+- append-only ledger guard: green — forbidden `DELETE/UPDATE` pathなし
+- GitHub Actions: run `33163189418`, job `98822313469` green
+- PR #12 review threads: completion記録時点で未解決0件
+
+### 不変条件セルフチェック
+1. frozen timezone / experiment-day boundaryをdevice timezoneから分離 — ✅
+2. 1日1controlのidempotency — ✅ 既存P4 service経由
+3. prediction commit before measured RNG — ✅ 既存P4 service経由、UIから測定RNG直呼びなし
+4. fallback sourceを隠さない — ✅ ANU未設定時のUI注記＋実source ledger記録
+5. 欠測を補完しない — ✅ 最初の未完了`seqInDay`のみ再開、過去日backfillなし
+6. sealed wishを通常/通知UIへ漏らさない — ✅ notification boundaryに本文なし
+7. ledger append-only — ✅ CI guard green
+8. continuity UXで罰を導入しない — ✅ `penaltyApplied: false`
+9. P10の最終確証レポートをP9へ混入させない — ✅
+
+### Native/UI確認の制約
+- CI実行環境はUbuntuのため、Xcode/iOS simulator上での実通知deliveryはこのフェーズ内では直接実行できない。Capacitor v6 dependency、TypeScript adapter、iOS Pod wiring、production web build、および通知planner/permission境界はCIで検証済み。
+- iOS実機/Simulatorで「permission prompt → 日次通知 → 締切通知」のdelivery smoke checkはrelease環境で実施する。これは科学プロトコル/アプリロジックの未実装ではなくnative release smoke checkとして扱う。
+
+### 次フェーズへの申し送り
+- 凍結順序どおり次は **P10 Final Report**。P9で生成したruntime/ledgerデータを使うが、最終確証判定・最終PDF/レポート生成はP10まで開始しない。
+EOF
+          fi
+          rm -f .github/workflows/p9-progress-once.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add PROGRESS.md .github/workflows/p9-progress-once.yml
+          git commit -m "P9 record notifications and continuity completion"
+          git push origin HEAD:p9-notifications-continuity-ux
