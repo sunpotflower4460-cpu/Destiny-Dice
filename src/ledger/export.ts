@@ -11,36 +11,34 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
+function requireString(value: unknown, label: string): string {
+  if (typeof value !== 'string') {
+    throw new TypeError(`${label} must be a string`);
+  }
+  return value;
+}
+
 function parseEntryObject(value: unknown, index: number): StoredLedgerEntry {
   if (!isRecord(value)) {
     throw new TypeError(`Ledger JSON entry ${index} must be an object`);
   }
 
-  const { seq, type, payloadJson, createdAt, prevHash, entryHash } = value;
+  const seq = value.seq;
+  const type = value.type;
   if (!Number.isSafeInteger(seq) || (seq as number) <= 0) {
     throw new TypeError(`Ledger JSON entry ${index} has invalid seq`);
   }
   if (typeof type !== 'string' || !isLedgerEntryType(type)) {
     throw new TypeError(`Ledger JSON entry ${index} has invalid type`);
   }
-  for (const [name, field] of [
-    ['payloadJson', payloadJson],
-    ['createdAt', createdAt],
-    ['prevHash', prevHash],
-    ['entryHash', entryHash],
-  ] as const) {
-    if (typeof field !== 'string') {
-      throw new TypeError(`Ledger JSON entry ${index} has invalid ${name}`);
-    }
-  }
 
   return {
     seq: seq as number,
     type,
-    payloadJson,
-    createdAt,
-    prevHash,
-    entryHash,
+    payloadJson: requireString(value.payloadJson, `Ledger JSON entry ${index} payloadJson`),
+    createdAt: requireString(value.createdAt, `Ledger JSON entry ${index} createdAt`),
+    prevHash: requireString(value.prevHash, `Ledger JSON entry ${index} prevHash`),
+    entryHash: requireString(value.entryHash, `Ledger JSON entry ${index} entryHash`),
   };
 }
 
