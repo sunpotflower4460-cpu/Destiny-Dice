@@ -1,8 +1,7 @@
-export type Sha256Digest = (bytes: Uint8Array) => Promise<Uint8Array>;
+export type Sha256Digest = (bytes: Uint8Array<ArrayBuffer>) => Promise<Uint8Array<ArrayBuffer>>;
 
-export async function webCryptoSha256(bytes: Uint8Array): Promise<Uint8Array> {
-  const input = Uint8Array.from(bytes).buffer;
-  const digest = await crypto.subtle.digest('SHA-256', input);
+export async function webCryptoSha256(bytes: Uint8Array<ArrayBuffer>): Promise<Uint8Array<ArrayBuffer>> {
+  const digest = await crypto.subtle.digest('SHA-256', bytes.buffer);
   return new Uint8Array(digest);
 }
 
@@ -12,7 +11,7 @@ export class Sha256CounterStream {
   private readonly digest: Sha256Digest;
   private readonly encoder = new TextEncoder();
   private counter = 0;
-  private block = new Uint8Array(0);
+  private block: Uint8Array<ArrayBuffer> = new Uint8Array(0);
   private byteIndex = 0;
   private bitByte: number | null = null;
   private bitIndex = 8;
@@ -27,7 +26,7 @@ export class Sha256CounterStream {
 
   async nextByte(): Promise<number> {
     if (this.byteIndex >= this.block.length) {
-      const material = this.encoder.encode(`${this.domain}:${this.seed}:${this.counter}`);
+      const material = new Uint8Array(this.encoder.encode(`${this.domain}:${this.seed}:${this.counter}`));
       this.counter += 1;
       this.block = await this.digest(material);
       if (this.block.length !== 32) {
