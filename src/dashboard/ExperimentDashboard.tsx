@@ -4,7 +4,7 @@ import type { CumulativeDeviationPoint } from '../stats';
 import type { LayerADashboardModel } from './model';
 import './dashboard.css';
 
-type DashboardTab = 'home' | 'lab';
+export type DashboardTab = 'home' | 'lab';
 
 const SOURCE_LABELS = {
   anu: 'ANU quantum',
@@ -93,7 +93,7 @@ function CumulativeDeviationCanvas({ points }: { points: readonly CumulativeDevi
     context.fillStyle = '#66756d';
     context.font = '12px system-ui, sans-serif';
     context.textAlign = 'left';
-    context.fillText(`0 = 偶然中心`, left, height - 10);
+    context.fillText('0 = 偶然中心', left, height - 10);
     context.textAlign = 'right';
     context.fillText(`${maxBits.toLocaleString()} bits`, width - right, height - 10);
   }, [points]);
@@ -293,12 +293,14 @@ export function ExperimentDashboard({
   registration,
   genesisHash,
   model,
+  initialTab = 'home',
 }: {
   registration: RegistrationPayload;
   genesisHash: string;
   model: LayerADashboardModel;
+  initialTab?: DashboardTab;
 }) {
-  const [tab, setTab] = useState<DashboardTab>('home');
+  const [tab, setTab] = useState<DashboardTab>(initialTab);
   return (
     <main className="dashboard-shell">
       <nav className="dashboard-tabs" aria-label="メインナビゲーション">
