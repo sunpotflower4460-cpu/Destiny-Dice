@@ -315,3 +315,42 @@ CocoaPods未インストールの場合は `sudo gem install cocoapods` の上�
 - 更新: `src/App.tsx`
 - 更新: `src/App.css`
 - 更新: `PROGRESS.md`
+
+---
+
+## P4a: Stats Core (2026-08-28)
+
+### 完了したこと
+- `src/stats/` を新設し、P4が必要とする `bitsHex -> validation/decoding -> hits -> z` をUI非依存の純関数として実装した。
+- `decodeBits()` はhex長・hex文字・`nBits`整合性を厳密検証し、無効入力を補正せず例外にする。
+- `countHits()` はtarget=1(HIGH)なら1の数、target=0(LOW)なら0の数を同じraw bitstreamから対称に算出する。
+- `zScore()` は凍結した0.5 nullに対して `z = (hits - nBits/2) / sqrt(nBits/4)` を唯一の計算経路として実装した。
+- `cumulativeDeviation()` は `hits - nBits/2` を返す最小primitiveとして実装した。
+- `summarizeBitstream()` をP4向けの単一入口として用意し、`nBits / hits / z / cumulativeDeviation`を一貫した経路で生成する。
+- bit sequenceの再現性のためhex→bit展開はbyte内MSB-firstで固定。hit数/zはbit順に依存しない。
+- P5責務のCI・p値・Holm・Bayes factor・calibration・trend等は先行実装していない。
+
+### 完了基準の結果（実行結果）
+- GitHub Actions CI run `33133595869` / job `98728517746`: **green / success**。
+- `pnpm typecheck`: green（`tsc -b --noEmit`、errorなし）。
+- `pnpm test`: green（Vitest 4.1.10、**18 test files / 68 tests passed**）。
+- Stats Core専用: `src/stats/core.test.ts` **18 tests passed**。
+- golden z examples: `(hits,nBits)=(512,1024)->0`, `(544,1024)->+2`, `(480,1024)->-2`。
+- target symmetry: `f1` / 8bit で HIGH hits=5, LOW hits=3。
+- malformed bitstream / invalid nBits / invalid hits / invalid target rejection: green。
+- `pnpm build`: green（Vite 8.1.4 production build成功。既知の`jeep-sqlite` crypto externalization warningのみ継続）。
+- ledger append-only guard: green — `OK: no forbidden ledger DELETE/UPDATE paths found.`
+- `src/stats/` はDOM / React / Capacitor / ledger / network依存なしの純関数のみ。
+
+### 要確定・申し送り（P4へ）
+- P4 session recordingは `summarizeBitstream(bitsHex, nBits, targetDir)` を使い、hits/zを別実装しない。
+- daily controlはtargetを持たないため、1の数を0.5と比較する。P4でcontrol用の呼び出しは`countHits(..., 1)`または同じcore primitiveに統一し、別の統計式を作らない。
+- P4のapplication/domain層で `prediction` がledgerへcommit済みであることを確認してからRNG取得を許可し、`predictionSeq < session.seq`を成立させる。
+- P5でCI/p/Holm/BF等を追加しても、P4aで固定したhits/z定義は`stats-plan-v1`の意味として黙って変更しない。
+- `pnpm simulate` は引き続きP0 stub。P4の擬似1日E2EでMemoryLedgerStore + seeded RNG + Stats Coreをつなぐ候補とする。
+
+### 触ったファイル
+- 新規: `src/stats/core.ts`
+- 新規: `src/stats/core.test.ts`
+- 新規: `src/stats/index.ts`
+- 更新: `PROGRESS.md`
