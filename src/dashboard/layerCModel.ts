@@ -4,8 +4,9 @@ import { RNG_SOURCES, type RngSource } from '../rng/types';
 import {
   analyzeExploratoryLayerC,
   analyzeInterimLayerC,
-  type ExploratoryLayerCResult,
   type LayerCComparisonSummary,
+  type LayerCPathwaySummary,
+  type LayerCStratumSummary,
   type LayerCWishObservation,
 } from '../stats';
 import { assertIsoDate, buildWishLedgerRecords } from '../wish/projection';
@@ -30,7 +31,13 @@ export type LayerCDashboardModel = {
   assignmentSourceCounts: Record<RngSource, AssignmentSourceArmCount>;
   comparison: LayerCComparisonSummary;
   sensitivityExcludingUndecidable: LayerCComparisonSummary;
-  exploratory: ExploratoryLayerCResult;
+  exploratoryAnalysisKind: 'exploratory';
+  exploratoryWarning: string;
+  strata: {
+    likelihood: LayerCStratumSummary[];
+    influence: LayerCStratumSummary[];
+  };
+  pathways: LayerCPathwaySummary[];
 };
 
 const DAY_MS = 86_400_000;
@@ -120,6 +127,9 @@ export function buildLayerCDashboardModel(
     ) as Record<RngSource, AssignmentSourceArmCount>,
     comparison: interim.comparison,
     sensitivityExcludingUndecidable: interim.sensitivityExcludingUndecidable,
-    exploratory,
+    exploratoryAnalysisKind: exploratory.analysisKind,
+    exploratoryWarning: exploratory.warning,
+    strata: exploratory.strata,
+    pathways: exploratory.pathways,
   };
 }
