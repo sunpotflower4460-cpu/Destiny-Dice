@@ -1,0 +1,44 @@
+name: P11 wire notary once
+
+on:
+  push:
+    branches:
+      - p11-release-hardening
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: p11-release-hardening
+      - name: Wire optional weekly anchor and remove helper
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('src/runtime/ExperimentRuntime.tsx')
+          text = path.read_text()
+          old_import = "import { getApplicationLedgerService } from '../ledger/appService';\n"
+          new_import = old_import + "import { getApplicationNotaryService } from '../notary';\n"
+          if "getApplicationNotaryService" not in text:
+              text = text.replace(old_import, new_import, 1)
+          needle = "      setSnapshot(next);\n\n      if (options?.syncNotifications !== false) {"
+          replacement = "      setSnapshot(next);\n\n      // Optional external anchoring is deliberately non-blocking. The notary\n      // receives only genesis/head hashes + seq/protocol; experiment content\n      // never leaves through this path. Offline failures wait until next week.\n      void getApplicationNotaryService().publishIfDue({\n        registration,\n        currentExperimentDate,\n        entries,\n        genesisHash,\n      });\n\n      if (options?.syncNotifications !== false) {"
+          if needle not in text:
+              raise SystemExit('runtime insertion point not found')
+          text = text.replace(needle, replacement, 1)
+          path.write_text(text)
+          PY
+          grep -q "getApplicationNotaryService" src/runtime/ExperimentRuntime.tsx
+          git rm .github/workflows/p11-wire-notary-once.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/runtime/ExperimentRuntime.tsx
+          git commit -m 'P11: wire optional weekly notarization'
+          git push origin HEAD:p11-release-hardening
