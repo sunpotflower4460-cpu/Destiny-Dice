@@ -17,7 +17,7 @@ describe('SqliteLedgerStore', () => {
     const query = vi.fn(async (statement: string) => ({
       values: statement.includes('LIMIT 1') ? [row] : [row],
     }));
-    const run = vi.fn(async () => ({
+    const run = vi.fn(async (_statement: string, _values?: unknown[]) => ({
       changes: { changes: 1, lastId: 2, values: [] },
     }));
     const db = { query, run } as unknown as SQLiteDBConnection;
