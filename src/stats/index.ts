@@ -7,3 +7,49 @@ export {
   type Bit,
   type SessionStats,
 } from './core';
+
+export {
+  holmAdjust,
+  oneSampleBayesFactor10,
+  twoSidedBinomialNormalApproxP,
+  wilsonInterval95,
+  type ConfidenceInterval,
+} from './inference';
+
+export {
+  CHANCE_HIT_RATE,
+  CONDITIONS,
+  analyzeControlQc,
+  analyzeFinalLayerA,
+  analyzeInterimLayerA,
+  countSources,
+  cumulativeDeviationSeries,
+  summarizeObservations,
+  type BinomialSummary,
+  type ConfirmatoryLabel,
+  type ControlQcResult,
+  type CumulativeDeviationPoint,
+  type FinalConditionResult,
+  type FinalLayerAResult,
+  type InterimConditionSummary,
+  type InterimLayerAResult,
+  type LayerAControlObservation,
+  type LayerASessionObservation,
+  type SourceCount,
+  type SourceCounts,
+} from './layerA';
+
+export {
+  EXPLORATORY_WARNING,
+  doseResponse,
+  predictionCalibration,
+  quarterlyTrend,
+  type CalibrationBin,
+  type ConditionDurationTrend,
+  type ConditionSessionTrend,
+  type DoseGroup,
+  type DoseResponseResult,
+  type PredictionCalibrationResult,
+  type QuarterlySummary,
+  type QuarterlyTrendResult,
+} from './exploratory';
