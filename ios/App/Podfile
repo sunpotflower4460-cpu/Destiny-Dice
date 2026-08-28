@@ -12,6 +12,7 @@ def capacitor_pods
   pod 'Capacitor', :path => '../../node_modules/.pnpm/@capacitor+ios@6.2.1_@capacitor+core@6.2.1/node_modules/@capacitor/ios'
   pod 'CapacitorCordova', :path => '../../node_modules/.pnpm/@capacitor+ios@6.2.1_@capacitor+core@6.2.1/node_modules/@capacitor/ios'
   pod 'CapacitorCommunitySqlite', :path => '../../node_modules/.pnpm/@capacitor-community+sqlite@6.0.2_@capacitor+core@6.2.1/node_modules/@capacitor-community/sqlite'
+  pod 'CapacitorLocalNotifications', :path => '../../node_modules/.pnpm/@capacitor+local-notifications@6.1.3_@capacitor+core@6.2.1/node_modules/@capacitor/local-notifications'
 end
 
 target 'App' do
