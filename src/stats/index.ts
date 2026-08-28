@@ -19,6 +19,7 @@ export {
 export {
   CHANCE_HIT_RATE,
   CONDITIONS,
+  LAYER_A_HOLM_FAMILY_SIZE,
   analyzeControlQc,
   analyzeFinalLayerA,
   analyzeInterimLayerA,
