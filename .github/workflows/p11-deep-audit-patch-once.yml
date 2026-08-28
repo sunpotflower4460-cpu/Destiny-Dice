@@ -1,0 +1,740 @@
+name: P11 deep integrity audit patch once
+
+on:
+  push:
+    branches:
+      - p11-deep-integrity-audit-hotfix
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.event.head_commit.message == 'P11: stage deep integrity audit patch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: p11-deep-integrity-audit-hotfix
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+          run_install: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Apply narrowly-scoped integrity fixes
+        shell: bash
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+
+          def replace_once(path: str, old: str, new: str) -> None:
+              p = Path(path)
+              text = p.read_text()
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{path}: expected exactly one match, got {count}')
+              p.write_text(text.replace(old, new, 1))
+
+          # 1) Serialize the whole measured-session transaction within one service.
+          replace_once(
+              'src/session/service.ts',
+              "  private controlTail: Promise<void> = Promise.resolve();\n",
+              "  private controlTail: Promise<void> = Promise.resolve();\n  private sessionTail: Promise<void> = Promise.resolve();\n",
+          )
+          replace_once(
+              'src/session/service.ts',
+              "  async runSession(draft: SessionDraft): Promise<SessionResult> {\n    validateMood(draft.moodPre, 'moodPre');",
+              "  runSession(draft: SessionDraft): Promise<SessionResult> {\n    const operation = this.sessionTail.then(() => this.runSessionInside(draft));\n    this.sessionTail = operation.then(\n      () => undefined,\n      () => undefined,\n    );\n    return operation;\n  }\n\n  private async runSessionInside(draft: SessionDraft): Promise<SessionResult> {\n    validateMood(draft.moodPre, 'moodPre');",
+          )
+
+          # 2) Enforce Layer C registration window and the frozen 14/28/90-day deadline choices below UI.
+          replace_once(
+              'src/wish/service.ts',
+              "import type { LedgerService } from '../ledger/service';\n",
+              "import { addCalendarDays, resolveExperimentDate } from '../continuity/time';\nimport type { LedgerService } from '../ledger/service';\n",
+          )
+          replace_once(
+              'src/wish/service.ts',
+              "export const ASSIGNMENT_ARM_BY_BIT = {\n  0: 'sealed',\n  1: 'practice',\n} as const;\n",
+              "export const ASSIGNMENT_ARM_BY_BIT = {\n  0: 'sealed',\n  1: 'practice',\n} as const;\n\nconst WISH_DEADLINE_DAYS = [14, 28, 90] as const;\n\nfunction validateWishTiming(registration: RegistrationPayload, createdAt: string, deadline: string): void {\n  const currentExperimentDate = resolveExperimentDate(\n    createdAt,\n    registration.timeZone,\n    registration.dayBoundaryHour,\n  );\n  const finalDate = addCalendarDays(registration.startDate, registration.days - 1);\n  if (currentExperimentDate < registration.startDate || currentExperimentDate > finalDate) {\n    throw new RangeError('wishes can only be registered during the frozen experiment window');\n  }\n  const allowedDeadlines = WISH_DEADLINE_DAYS.map((days) => addCalendarDays(currentExperimentDate, days));\n  if (!allowedDeadlines.includes(deadline)) {\n    throw new RangeError('wish deadline must be exactly 14, 28, or 90 experiment-calendar days after registration');\n  }\n}\n",
+          )
+          replace_once(
+              'src/wish/service.ts',
+              "    const entries = await this.ledger.list();\n    await this.assertLayerCEnabled(entries);\n\n    const wishId = this.createWishId();",
+              "    const entries = await this.ledger.list();\n    const registration = await this.requireLayerCRegistration(entries);\n    const createdAt = this.clock.now();\n    validateWishTiming(registration, createdAt, input.deadline);\n\n    const wishId = this.createWishId();",
+          )
+          replace_once(
+              'src/wish/service.ts',
+              "\n    const createdAt = this.clock.now();\n    const wish: WishPayload = {",
+              "\n    const wish: WishPayload = {",
+          )
+          replace_once(
+              'src/wish/service.ts',
+              "    await this.assertLayerCEnabled(initial);\n",
+              "    await this.requireLayerCRegistration(initial);\n",
+          )
+          replace_once(
+              'src/wish/service.ts',
+              "  private async assertLayerCEnabled(entries?: readonly StoredLedgerEntry[]): Promise<void> {\n    const rows = entries ?? (await this.ledger.list());\n    const genesis = rows[0];\n    if (!genesis) throw new Error('registration genesis is required before Layer C');\n    const registration = parseRegistration(genesis);\n    if (!registration.layerC.enabled) throw new Error('Layer C is disabled for this registered experiment');\n  }",
+              "  private async requireLayerCRegistration(entries?: readonly StoredLedgerEntry[]): Promise<RegistrationPayload> {\n    const rows = entries ?? (await this.ledger.list());\n    const genesis = rows[0];\n    if (!genesis) throw new Error('registration genesis is required before Layer C');\n    const registration = parseRegistration(genesis);\n    if (!registration.layerC.enabled) throw new Error('Layer C is disabled for this registered experiment');\n    return registration;\n  }",
+          )
+
+          # 3) Detect a committed session whose mandatory post-result wish moment has not been recorded yet.
+          replace_once(
+              'src/continuity/runtime.ts',
+              "import { buildWishLedgerRecords } from '../wish/projection';\nimport type { WishDeadlineCandidate } from './notifications';",
+              "import { buildWishLedgerRecords, projectWishMoment } from '../wish/projection';\nimport type { WishMomentProjection } from '../wish/types';\nimport type { WishDeadlineCandidate } from './notifications';",
+          )
+          insert_after = "export function deriveDailySessionProgress(\n  entries: readonly StoredLedgerEntry[],\n  experimentDate: string,\n  sessionsPerDay: SessionsPerDay,\n): DailySessionProgress {"
+          runtime_path = Path('src/continuity/runtime.ts')
+          runtime_text = runtime_path.read_text()
+          marker = "/**\n * Notification scheduling receives only identity/deadline state; wish text is\n * deliberately excluded so sealed content cannot leak into notification payloads.\n */"
+          if runtime_text.count(marker) != 1:
+              raise SystemExit('src/continuity/runtime.ts: notification marker mismatch')
+          recovery_fn = r'''function wishMomentDate(entry: StoredLedgerEntry): string | null {
+  if (entry.type !== 'wishmoment') return null;
+  const parsed: unknown = JSON.parse(entry.payloadJson);
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error(`wishmoment entry ${entry.seq} payload is not an object`);
+  }
+  const date = (parsed as { date?: unknown }).date;
+  if (typeof date !== 'string') throw new Error(`wishmoment entry ${entry.seq} is missing date`);
+  return date;
+}
+
+/**
+ * A measured session is already immutable before the Layer C wish moment runs.
+ * If the app is interrupted in that gap, resume the wish moment before allowing
+ * another session. A later wishmoment for the same experiment date closes the
+ * latest committed session. Zero eligible practice wishes require no record.
+ */
+export function derivePendingWishMoment(
+  entries: readonly StoredLedgerEntry[],
+  experimentDate: string,
+): WishMomentProjection | null {
+  let latestSessionSeq: number | null = null;
+  for (const entry of entries) {
+    const identity = sessionIdentity(entry);
+    if (identity?.date !== experimentDate) continue;
+    if (latestSessionSeq === null || entry.seq > latestSessionSeq) latestSessionSeq = entry.seq;
+  }
+  if (latestSessionSeq === null) return null;
+
+  const closed = entries.some((entry) => (
+    entry.seq > latestSessionSeq! && wishMomentDate(entry) === experimentDate
+  ));
+  if (closed) return null;
+
+  const projection = projectWishMoment(entries, experimentDate);
+  return projection.wishes.length > 0 ? projection : null;
+}
+
+'''
+          runtime_path.write_text(runtime_text.replace(marker, recovery_fn + marker, 1))
+
+          # Wire recovery into runtime before preparing another session; keep active flow on Today tab.
+          replace_once(
+              'src/runtime/ExperimentRuntime.tsx',
+              "import { buildWishDeadlineCandidates, deriveDailySessionProgress, type DailySessionProgress } from '../continuity/runtime';",
+              "import {\n  buildWishDeadlineCandidates,\n  deriveDailySessionProgress,\n  derivePendingWishMoment,\n  type DailySessionProgress,\n} from '../continuity/runtime';",
+          )
+          replace_once(
+              'src/runtime/ExperimentRuntime.tsx',
+              "  createSecureWishId,\n  WishRegistryPanel,",
+              "  createSecureWishId,\n  WishMoment,\n  WishRegistryPanel,",
+          )
+          replace_once(
+              'src/runtime/ExperimentRuntime.tsx',
+              "  type WishPathway,\n  type WishRegistrationInput,",
+              "  type WishPathway,\n  type WishMomentProjection,\n  type WishRegistrationInput,",
+          )
+          replace_once(
+              'src/runtime/ExperimentRuntime.tsx',
+              "  plan: SessionPlan | null;\n  startedAt: string;",
+              "  plan: SessionPlan | null;\n  pendingWishMoment: WishMomentProjection | null;\n  startedAt: string;",
+          )
+          old_refresh = r'''      let entries = await services.ledger.list();
+      const currentSchedule = await projectCurrentSchedule(registration, currentExperimentDate);
+      let progress = deriveDailySessionProgress(entries, currentExperimentDate, registration.sessionsPerDay);
+      let plan: SessionPlan | null = null;
+
+      if (currentSchedule && progress.nextSeqInDay !== null) {
+        plan = await services.session.prepareSession(currentExperimentDate, progress.nextSeqInDay);
+        entries = await services.ledger.list();
+        progress = deriveDailySessionProgress(entries, currentExperimentDate, registration.sessionsPerDay);
+      }
+
+      if (registration.layerC.enabled) {
+        const recovered = await services.wish.recoverUnassignedWishes();
+        if (recovered.length > 0) entries = await services.ledger.list();
+      }
+'''
+          new_refresh = r'''      let entries = await services.ledger.list();
+      const currentSchedule = await projectCurrentSchedule(registration, currentExperimentDate);
+      let progress = deriveDailySessionProgress(entries, currentExperimentDate, registration.sessionsPerDay);
+      let pendingWishMoment = registration.layerC.enabled
+        ? derivePendingWishMoment(entries, currentExperimentDate)
+        : null;
+
+      // Do not mutate Layer C assignment state while recovering the mandatory
+      // post-session wish moment. This keeps the eligible projection stable.
+      if (registration.layerC.enabled && pendingWishMoment === null) {
+        const recovered = await services.wish.recoverUnassignedWishes();
+        if (recovered.length > 0) {
+          entries = await services.ledger.list();
+          progress = deriveDailySessionProgress(entries, currentExperimentDate, registration.sessionsPerDay);
+          pendingWishMoment = derivePendingWishMoment(entries, currentExperimentDate);
+        }
+      }
+
+      let plan: SessionPlan | null = null;
+      if (currentSchedule && progress.nextSeqInDay !== null && pendingWishMoment === null) {
+        plan = await services.session.prepareSession(currentExperimentDate, progress.nextSeqInDay);
+        entries = await services.ledger.list();
+        progress = deriveDailySessionProgress(entries, currentExperimentDate, registration.sessionsPerDay);
+      }
+'''
+          replace_once('src/runtime/ExperimentRuntime.tsx', old_refresh, new_refresh)
+          replace_once(
+              'src/runtime/ExperimentRuntime.tsx',
+              "        plan,\n        startedAt,",
+              "        plan,\n        pendingWishMoment,\n        startedAt,",
+          )
+          replace_once(
+              'src/runtime/ExperimentRuntime.tsx',
+              "  async function recordWishMoment(experimentDate: string, wishIdsShown: readonly string[], seconds: number) {\n    const services = await getServices();\n    await services.wish.recordWishMoment(experimentDate, wishIdsShown, seconds);\n  }",
+              "  async function recordWishMoment(experimentDate: string, wishIdsShown: readonly string[], seconds: number) {\n    const services = await getServices();\n    await services.wish.recordWishMoment(experimentDate, wishIdsShown, seconds);\n  }\n\n  async function completePendingWishMoment(seconds: number): Promise<void> {\n    if (!snapshot?.pendingWishMoment) throw new Error('pending wish moment is not available');\n    await recordWishMoment(\n      snapshot.currentExperimentDate,\n      snapshot.pendingWishMoment.wishes.map((wish) => wish.wishId),\n      seconds,\n    );\n    await refresh();\n  }",
+          )
+          replace_once(
+              'src/runtime/ExperimentRuntime.tsx',
+              "  const anuConfigured = getApplicationRngConfiguration().anuConfigured;\n",
+              "  const anuConfigured = getApplicationRngConfiguration().anuConfigured;\n  const flowLocked = snapshot.plan !== null || snapshot.pendingWishMoment !== null;\n",
+          )
+          replace_once(
+              'src/runtime/ExperimentRuntime.tsx',
+              "        <button className={tab === 'today' ? 'active' : ''} type=\"button\" onClick={() => setTab('today')}>今日</button>",
+              "        <button className={tab === 'today' ? 'active' : ''} type=\"button\" onClick={() => { setTab('today'); void refresh(); }}>今日</button>",
+          )
+          replace_once(
+              'src/runtime/ExperimentRuntime.tsx',
+              "          <button className={tab === 'wishes' ? 'active' : ''} type=\"button\" onClick={() => setTab('wishes')}>",
+              "          <button className={tab === 'wishes' ? 'active' : ''} type=\"button\" disabled={flowLocked} onClick={() => setTab('wishes')}>",
+          )
+          replace_once(
+              'src/runtime/ExperimentRuntime.tsx',
+              "        <button className={tab === 'records' ? 'active' : ''} type=\"button\" onClick={() => setTab('records')}>記録・ラボ</button>",
+              "        <button className={tab === 'records' ? 'active' : ''} type=\"button\" disabled={flowLocked} onClick={() => setTab('records')}>記録・ラボ</button>",
+          )
+          recovery_ui = r'''          {snapshot.pendingWishMoment && (
+            <section className="runtime-card runtime-complete">
+              <p className="eyebrow">RESUME WISH MOMENT</p>
+              <h2>前回の抽選は保存済みです。願いタイムから続きを記録します。</h2>
+              <p>次のセッションへ進む前に、結果後の30〜60秒だけを完了します。抽選結果やpredictionは作り直しません。</p>
+              <WishMoment projection={snapshot.pendingWishMoment} onComplete={completePendingWishMoment} />
+            </section>
+          )}
+
+'''
+          replace_once(
+              'src/runtime/ExperimentRuntime.tsx',
+              "          {snapshot.plan && (\n            <SessionFlow",
+              recovery_ui + "          {snapshot.plan && !snapshot.pendingWishMoment && (\n            <SessionFlow",
+          )
+
+          # 4) Put the final-report availability gate in the public application/CLI path.
+          Path('src/report/availability.ts').write_text(r'''import type { StoredLedgerEntry } from '../ledger/types';
+import type { RegistrationPayload } from '../registration/types';
+import { assertIsoDate } from '../registration/validation';
+import { resolveExperimentDate } from '../continuity/time';
+import { finalExperimentDate } from './ledgerProjection';
+import { buildFinalReportModel } from './model';
+import type { FinalReportModel } from './types';
+
+export function assertFinalReportAvailable(
+  registration: RegistrationPayload,
+  currentExperimentDate: string,
+): void {
+  assertIsoDate(currentExperimentDate, 'currentExperimentDate');
+  const endDate = finalExperimentDate(registration);
+  if (currentExperimentDate <= endDate) {
+    throw new Error(`final report is unavailable until after ${endDate}`);
+  }
+}
+
+export function buildFinalReportModelAt(
+  entries: readonly StoredLedgerEntry[],
+  registration: RegistrationPayload,
+  currentExperimentDate: string,
+): FinalReportModel {
+  assertFinalReportAvailable(registration, currentExperimentDate);
+  return buildFinalReportModel(entries, registration);
+}
+
+export function buildFinalReportModelNow(
+  entries: readonly StoredLedgerEntry[],
+  registration: RegistrationPayload,
+  now: string | Date = new Date(),
+): FinalReportModel {
+  const currentExperimentDate = resolveExperimentDate(
+    now,
+    registration.timeZone,
+    registration.dayBoundaryHour,
+  );
+  return buildFinalReportModelAt(entries, registration, currentExperimentDate);
+}
+''')
+          replace_once(
+              'src/report/index.ts',
+              "export { FINAL_REPORT_LIMITATIONS, buildFinalReportModel } from './model';\n",
+              "export { FINAL_REPORT_LIMITATIONS } from './model';\nexport { assertFinalReportAvailable, buildFinalReportModelAt, buildFinalReportModelNow } from './availability';\n",
+          )
+          replace_once(
+              'src/report/FinalReportPanel.tsx',
+              "import { buildFinalReportModel } from './model';",
+              "import { buildFinalReportModelAt } from './availability';",
+          )
+          replace_once(
+              'src/report/FinalReportPanel.tsx',
+              "    return renderFinalReportMarkdown(buildFinalReportModel(entries, registration));",
+              "    return renderFinalReportMarkdown(buildFinalReportModelAt(entries, registration, currentExperimentDate));",
+          )
+          replace_once(
+              'src/report/FinalReportPanel.tsx',
+              "  }, [entries, experimentEnded, registration]);",
+              "  }, [currentExperimentDate, entries, experimentEnded, registration]);",
+          )
+          replace_once(
+              'scripts/generate-report.ts',
+              "import { buildFinalReportModel, loadVerifiedExperimentExport, renderFinalReportMarkdown } from '../src/report';",
+              "import { buildFinalReportModelNow, loadVerifiedExperimentExport, renderFinalReportMarkdown } from '../src/report';",
+          )
+          replace_once(
+              'scripts/generate-report.ts',
+              "  const report = buildFinalReportModel(verified.entries, verified.registration);",
+              "  const report = buildFinalReportModelNow(verified.entries, verified.registration);",
+          )
+          replace_once(
+              'scripts/simulate.ts',
+              "import { buildFinalReportModel, renderFinalReportMarkdown } from '../src/report';",
+              "import { renderFinalReportMarkdown } from '../src/report';\nimport { buildFinalReportModel } from '../src/report/model';",
+          )
+          Path('scripts/reproduce-synthetic-report.ts').write_text(r'''import { readFileSync, writeFileSync } from 'node:fs';
+import { loadVerifiedExperimentExport, renderFinalReportMarkdown } from '../src/report';
+import { buildFinalReportModel } from '../src/report/model';
+
+const inputPath = process.argv[2];
+const outputPath = process.argv[3];
+if (!inputPath || !outputPath) {
+  console.error('usage: tsx scripts/reproduce-synthetic-report.ts <experiment.json> <output.md>');
+  process.exitCode = 2;
+} else {
+  const verified = await loadVerifiedExperimentExport(readFileSync(inputPath, 'utf8'));
+  const registration = verified.registration;
+  const isFrozenSyntheticFixture =
+    registration.experimentId === 'p10-synthetic-final' &&
+    registration.startDate === '2026-09-01' &&
+    registration.scheduleSeed === 'p10-schedule-seed-v1' &&
+    registration.targetSeed === 'p10-target-seed-v1';
+  if (!isFrozenSyntheticFixture) {
+    throw new Error('synthetic report reproducer only accepts the frozen P10 synthetic fixture');
+  }
+  const markdown = renderFinalReportMarkdown(buildFinalReportModel(verified.entries, registration));
+  writeFileSync(outputPath, markdown, 'utf8');
+  console.log(JSON.stringify({ ok: true, syntheticFixture: true, outputPath }, null, 2));
+}
+''')
+          replace_once(
+              '.github/workflows/ci.yml',
+              "          pnpm generate-report /tmp/experiment.json /tmp/rebuilt-report.md\n          cmp /tmp/sim-report.md /tmp/rebuilt-report.md",
+              "          pnpm exec tsx scripts/reproduce-synthetic-report.ts /tmp/experiment.json /tmp/rebuilt-report.md\n          cmp /tmp/sim-report.md /tmp/rebuilt-report.md",
+          )
+
+          # Regression tests for every discovered integrity gap.
+          Path('src/session/concurrency.audit.test.ts').write_text(r'''import { describe, expect, it } from 'vitest';
+import { MemoryLedgerStore } from '../ledger/memoryStore';
+import { LedgerService } from '../ledger/service';
+import { RegistrationService } from '../registration/service';
+import type { RegistrationInput } from '../registration/types';
+import type { RandomBits } from '../rng/types';
+import { SessionFlowService } from './service';
+import type { Clock, SessionDraft } from './types';
+
+const registrationInput: RegistrationInput = {
+  experimentId: 'p11-session-race',
+  startDate: '2026-09-01',
+  bitsPerDraw: 1024,
+  sessionsPerDay: 1,
+  dayBoundaryHour: 3,
+  affirmationText: '私は落ち着いて今日の的に意図を向ける',
+  predictionByCondition: ['p1', 'p2', 'p3', 'p4', 'p5'],
+  timeZone: 'Asia/Tokyo',
+  scheduleSeed: 'p11-session-race-schedule',
+  targetSeed: 'p11-session-race-target',
+  layerC: { enabled: true, defaultDeadlineDays: 28, notarize: false },
+};
+
+class QueueClock implements Clock {
+  constructor(private readonly values: string[]) {}
+  now(): string {
+    const value = this.values.shift();
+    if (!value) throw new Error('clock exhausted');
+    return value;
+  }
+}
+
+function draw(hexByte: string): RandomBits {
+  return { bitsHex: hexByte.repeat(128), nBits: 1024, source: 'local' };
+}
+
+function draft(): SessionDraft {
+  return {
+    experimentDate: '2026-09-01',
+    seqInDay: 1,
+    moodPre: { v: 5, e: 5 },
+    ritual: { seconds: 600, text: '今日の的が実現した状態を具体的に思い描いて十分な長さで記録する文章です。' },
+    moodPost: { v: 6, e: 6 },
+    confidence: 50,
+    context: { hour: 10, dow: 2, lunarPhase: 0.4 },
+    startedAt: '2026-09-01T01:00:00.000Z',
+  };
+}
+
+describe('P11 deep audit: measured-session concurrency', () => {
+  it('serializes concurrent attempts for the same slot so only one prediction/session and one measured draw commit', async () => {
+    const ledger = new LedgerService(new MemoryLedgerStore());
+    await new RegistrationService(ledger).register(registrationInput, '2026-08-28T00:00:00.000Z');
+
+    let releaseMeasured!: () => void;
+    let markMeasuredStarted!: () => void;
+    const measuredStarted = new Promise<void>((resolve) => { markMeasuredStarted = resolve; });
+    let calls = 0;
+    const rng = {
+      getBits: async (): Promise<RandomBits> => {
+        calls += 1;
+        if (calls === 1) return draw('aa');
+        if (calls === 2) {
+          markMeasuredStarted();
+          await new Promise<void>((resolve) => { releaseMeasured = resolve; });
+          return draw('ff');
+        }
+        throw new Error('unexpected extra RNG acquisition');
+      },
+    };
+    const service = new SessionFlowService(
+      ledger,
+      rng,
+      new QueueClock([
+        '2026-09-01T00:00:00.000Z',
+        '2026-09-01T01:10:00.000Z',
+        '2026-09-01T01:10:01.000Z',
+      ]),
+    );
+    await service.prepareSession('2026-09-01', 1);
+
+    const first = service.runSession(draft());
+    await measuredStarted;
+    const second = service.runSession(draft());
+    await Promise.resolve();
+    expect(calls).toBe(2);
+    releaseMeasured();
+
+    const outcomes = await Promise.allSettled([first, second]);
+    expect(outcomes.filter((item) => item.status === 'fulfilled')).toHaveLength(1);
+    expect(outcomes.filter((item) => item.status === 'rejected')).toHaveLength(1);
+    if (outcomes[1]?.status === 'rejected') {
+      expect(String(outcomes[1].reason)).toContain('already committed');
+    }
+    const entries = await ledger.list();
+    expect(entries.filter((entry) => entry.type === 'prediction')).toHaveLength(1);
+    expect(entries.filter((entry) => entry.type === 'session')).toHaveLength(1);
+    expect(calls).toBe(2);
+  });
+});
+''')
+
+          Path('src/wish/registrationBoundary.audit.test.ts').write_text(r'''import { describe, expect, it } from 'vitest';
+import { MemoryLedgerStore } from '../ledger/memoryStore';
+import { LedgerService } from '../ledger/service';
+import { RegistrationService } from '../registration/service';
+import type { RegistrationInput } from '../registration/types';
+import type { AssignmentBit } from '../rng/types';
+import { WishRegistryService } from './service';
+import type { WishClock } from './types';
+
+const registrationInput: RegistrationInput = {
+  experimentId: 'p11-wish-boundary',
+  startDate: '2026-09-01',
+  bitsPerDraw: 1024,
+  sessionsPerDay: 1,
+  dayBoundaryHour: 3,
+  affirmationText: '私は落ち着いて今日の意図に向き合う',
+  predictionByCondition: ['p1', 'p2', 'p3', 'p4', 'p5'],
+  timeZone: 'Asia/Tokyo',
+  scheduleSeed: 'p11-wish-boundary-schedule',
+  targetSeed: 'p11-wish-boundary-target',
+  layerC: { enabled: true, defaultDeadlineDays: 28, notarize: false },
+};
+
+class TickClock implements WishClock {
+  private tick = 0;
+  constructor(private readonly base: string) {}
+  now(): string {
+    const value = new Date(Date.parse(this.base) + this.tick * 1000).toISOString();
+    this.tick += 1;
+    return value;
+  }
+}
+
+class CountingRng {
+  calls = 0;
+  async getAssignmentBit(): Promise<AssignmentBit> {
+    this.calls += 1;
+    return { bit: 1, source: 'local' };
+  }
+}
+
+async function setup(clockBase: string) {
+  const ledger = new LedgerService(new MemoryLedgerStore());
+  await new RegistrationService(ledger).register(registrationInput, '2026-08-28T00:00:00.000Z');
+  const rng = new CountingRng();
+  let id = 0;
+  const service = new WishRegistryService(ledger, rng, new TickClock(clockBase), () => `boundary-${++id}`);
+  return { ledger, rng, service };
+}
+
+describe('P11 deep audit: wish registration boundaries', () => {
+  it('accepts only the frozen 14/28/90-day deadline choices during the experiment', async () => {
+    const { service, rng } = await setup('2026-09-01T00:00:00.000Z');
+    for (const deadline of ['2026-09-15', '2026-09-29', '2026-11-30']) {
+      await service.registerWish({ text: `deadline ${deadline}`, deadline, likelihood: 2, influence: 'mixed' });
+    }
+    expect(rng.calls).toBe(3);
+  });
+
+  it('rejects an arbitrary deadline before wish append or assignment RNG', async () => {
+    const { ledger, service, rng } = await setup('2026-09-01T00:00:00.000Z');
+    await expect(service.registerWish({
+      text: '29日後という未登録の締切',
+      deadline: '2026-09-30',
+      likelihood: 2,
+      influence: 'mixed',
+    })).rejects.toThrow('14, 28, or 90');
+    expect(rng.calls).toBe(0);
+    expect((await ledger.list()).filter((entry) => entry.type === 'wish')).toHaveLength(0);
+  });
+
+  it('rejects wish registration before the frozen start date', async () => {
+    const { ledger, service, rng } = await setup('2026-08-31T12:00:00.000Z');
+    await expect(service.registerWish({
+      text: '開始前には登録しない願い',
+      deadline: '2026-09-14',
+      likelihood: 2,
+      influence: 'mixed',
+    })).rejects.toThrow('frozen experiment window');
+    expect(rng.calls).toBe(0);
+    expect((await ledger.list()).filter((entry) => entry.type === 'wish')).toHaveLength(0);
+  });
+
+  it('rejects new wish registration after day 365 while keeping later judgments possible elsewhere', async () => {
+    const { ledger, service, rng } = await setup('2027-09-01T03:00:00.000Z');
+    await expect(service.registerWish({
+      text: '実験終了後には新規登録しない願い',
+      deadline: '2027-09-15',
+      likelihood: 2,
+      influence: 'mixed',
+    })).rejects.toThrow('frozen experiment window');
+    expect(rng.calls).toBe(0);
+    expect((await ledger.list()).filter((entry) => entry.type === 'wish')).toHaveLength(0);
+  });
+});
+''')
+
+          Path('src/continuity/wishMomentRecovery.audit.test.ts').write_text(r'''import { describe, expect, it } from 'vitest';
+import type { StoredLedgerEntry } from '../ledger/types';
+import { derivePendingWishMoment } from './runtime';
+
+function entry(seq: number, type: StoredLedgerEntry['type'], payload: object): StoredLedgerEntry {
+  return {
+    seq,
+    type,
+    payloadJson: JSON.stringify(payload),
+    createdAt: '2026-09-01T00:00:00.000Z',
+    prevHash: '0'.repeat(64),
+    entryHash: String(seq).padStart(64, '0'),
+  };
+}
+
+function practiceWishEntries(): StoredLedgerEntry[] {
+  return [
+    entry(1, 'wish', {
+      wishId: 'practice-1',
+      text: '再開時にも表示される実践願い',
+      deadline: '2026-09-29',
+      likelihood: 2,
+      influence: 'mixed',
+      createdAt: '2026-09-01T00:00:00.000Z',
+    }),
+    entry(2, 'assignment', {
+      wishId: 'practice-1',
+      arm: 'practice',
+      rngSource: 'local',
+      bit: 1,
+      committedAt: '2026-09-01T00:00:01.000Z',
+    }),
+  ];
+}
+
+describe('P11 deep audit: wish-moment crash recovery projection', () => {
+  it('requires wish-moment recovery when a session committed but no later wishmoment exists', () => {
+    const entries = [...practiceWishEntries(), entry(3, 'session', { date: '2026-09-01', seqInDay: 1 })];
+    const pending = derivePendingWishMoment(entries, '2026-09-01');
+    expect(pending?.wishes.map((wish) => wish.wishId)).toEqual(['practice-1']);
+  });
+
+  it('closes recovery once a wishmoment for that date is appended after the latest session', () => {
+    const entries = [
+      ...practiceWishEntries(),
+      entry(3, 'session', { date: '2026-09-01', seqInDay: 1 }),
+      entry(4, 'wishmoment', { date: '2026-09-01', wishIdsShown: ['practice-1'], seconds: 30 }),
+    ];
+    expect(derivePendingWishMoment(entries, '2026-09-01')).toBeNull();
+  });
+
+  it('requires a new wishmoment after a later session even if an earlier session had one', () => {
+    const entries = [
+      ...practiceWishEntries(),
+      entry(3, 'session', { date: '2026-09-01', seqInDay: 1 }),
+      entry(4, 'wishmoment', { date: '2026-09-01', wishIdsShown: ['practice-1'], seconds: 30 }),
+      entry(5, 'session', { date: '2026-09-01', seqInDay: 2 }),
+    ];
+    expect(derivePendingWishMoment(entries, '2026-09-01')?.wishes).toHaveLength(1);
+  });
+
+  it('does not invent a wishmoment when no practice wish is eligible', () => {
+    const entries = [
+      entry(1, 'wish', {
+        wishId: 'sealed-1',
+        text: '封印本文',
+        deadline: '2026-09-29',
+        likelihood: 2,
+        influence: 'mixed',
+        createdAt: '2026-09-01T00:00:00.000Z',
+      }),
+      entry(2, 'assignment', {
+        wishId: 'sealed-1',
+        arm: 'sealed',
+        rngSource: 'local',
+        bit: 0,
+        committedAt: '2026-09-01T00:00:01.000Z',
+      }),
+      entry(3, 'session', { date: '2026-09-01', seqInDay: 1 }),
+    ];
+    expect(derivePendingWishMoment(entries, '2026-09-01')).toBeNull();
+  });
+});
+''')
+
+          Path('src/report/availability.audit.test.ts').write_text(r'''import { describe, expect, it } from 'vitest';
+import { MemoryLedgerStore } from '../ledger/memoryStore';
+import { LedgerService } from '../ledger/service';
+import { RegistrationService } from '../registration/service';
+import type { RegistrationInput } from '../registration/types';
+import { assertFinalReportAvailable, buildFinalReportModelNow } from './availability';
+
+const registrationInput: RegistrationInput = {
+  experimentId: 'p11-final-gate',
+  startDate: '2026-09-01',
+  bitsPerDraw: 1024,
+  sessionsPerDay: 1,
+  dayBoundaryHour: 3,
+  affirmationText: '私は落ち着いて今日の的に意図を向ける',
+  predictionByCondition: ['p1', 'p2', 'p3', 'p4', 'p5'],
+  timeZone: 'Asia/Tokyo',
+  scheduleSeed: 'p11-final-gate-schedule',
+  targetSeed: 'p11-final-gate-target',
+  layerC: { enabled: true, defaultDeadlineDays: 28, notarize: false },
+};
+
+describe('P11 deep audit: final-report no-peeking gate', () => {
+  it('blocks through the last frozen experiment date and opens on the next experiment date', async () => {
+    const ledger = new LedgerService(new MemoryLedgerStore());
+    const registered = await new RegistrationService(ledger).register(registrationInput, '2026-08-28T00:00:00.000Z');
+    expect(() => assertFinalReportAvailable(registered.payload, '2027-08-31')).toThrow('unavailable until after 2027-08-31');
+    expect(() => assertFinalReportAvailable(registered.payload, '2027-09-01')).not.toThrow();
+  });
+
+  it('uses the frozen timezone/day boundary when the official now-based path decides availability', async () => {
+    const ledger = new LedgerService(new MemoryLedgerStore());
+    const registered = await new RegistrationService(ledger).register(registrationInput, '2026-08-28T00:00:00.000Z');
+    const entries = await ledger.list();
+    await expect(Promise.resolve().then(() => buildFinalReportModelNow(
+      entries,
+      registered.payload,
+      '2027-08-31T17:59:59.000Z',
+    ))).rejects.toThrow('unavailable until after 2027-08-31');
+    expect(() => buildFinalReportModelNow(
+      entries,
+      registered.payload,
+      '2027-08-31T18:00:00.000Z',
+    )).not.toThrow();
+  });
+});
+''')
+          PY
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Typecheck Worker
+        run: pnpm worker:typecheck
+
+      - name: Test
+        run: pnpm test
+
+      - name: Verify frozen P10 null golden and synthetic report reproduction
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm simulate --days 365 --effect 0 --wish-n 120 --wish-base 0.3 --wish-effect 0 \
+            --export /tmp/experiment.json --report /tmp/sim-report.md | tee /tmp/null-sim.json
+          grep -F '"reportSha256": "1ec5f22034d18546ac20e2b8c64b5ea1dcab5e7faf4e903e7e7c58182f398381"' /tmp/null-sim.json
+          pnpm verify-export /tmp/experiment.json
+          pnpm exec tsx scripts/reproduce-synthetic-report.ts /tmp/experiment.json /tmp/rebuilt-report.md
+          cmp /tmp/sim-report.md /tmp/rebuilt-report.md
+
+      - name: Release and build checks
+        run: |
+          pnpm release-check
+          pnpm build
+
+      - name: Guard append-only ledger
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -RniE --include='*.ts' --include='*.tsx' \
+            'DELETE[[:space:]]+FROM[[:space:]]+ledger|UPDATE[[:space:]]+ledger|ledger.*\.(delete|remove)\(' src scripts; then
+            echo 'Forbidden ledger mutation code detected.' >&2
+            exit 1
+          fi
+
+      - name: Commit verified patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src scripts .github/workflows/ci.yml
+          git diff --cached --check
+          git commit -m 'P11: harden cross-phase integrity boundaries'
+          git push origin HEAD:p11-deep-integrity-audit-hotfix
