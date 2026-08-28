@@ -130,3 +130,62 @@ CocoaPods未インストールの場合は `sudo gem install cocoapods` の上�
 - 更新: `PROGRESS.md`
 - **未変更**: `DESIGN.md`（v2.0本体は履歴として保持し、v2.1 normative addendumが上書きする方式）
 - **未変更**: runtime implementation (`src/`, `scripts/`, `package.json`, `pnpm-lock.yaml`)
+
+---
+
+## P1: RNG module (2026-08-28)
+
+### 完了したこと
+- `src/rng/` を新設し、RNG provider契約と `RngService` を実装した。
+- production fallback順を `ANU -> RANDOM.ORG -> local WebCrypto` として `createProductionRngService()` に固定し、成功時は実際に使われた `source` を必ず返すようにした。
+- Layer A向け `getBits(nBits)` を実装し、byte-alignedなbit数をhexへ変換して `bitsHex / nBits / source` を返すようにした。
+- Layer C向け `getAssignmentBit()` を実装し、均一な1byteの偶奇から0/1を作ることで128値ずつに等分される unbiased assignment を実現した。
+- ANU providerを実装。endpoint / headers / timeout / minInterval / fetch / clock / sleepを注入可能にし、旧legacy endpointや70秒制限をdomainへハードコードしない構造にした。
+- RANDOM.ORG providerを公式HTTP integer interfaceのplain出力に合わせて実装し、HTTP失敗・明示Errorレスポンス・不正payloadをfallback条件として扱うようにした。
+- local providerを `crypto.getRandomValues` ベースで実装。65,536byte上限をchunkingで処理し、fallback時は常に `source='local'` を返す。
+- provider呼び出しを直列化する設定可能な `RateGate` を実装。70秒を設定した場合の挙動もテストしつつ、サービス仕様として固定していない。
+- `fetchWithTimeout()` をAbortControllerで実装し、fake timerによる決定的timeoutテストを追加した。
+- test/simulate用にdeterministic seeded providerを実装。同一seed+同一取得順で同じbyte列を返す。production barrelからは意図的にexportせず、seeded値がANU/RANDOM.ORGとして誤表示される経路を作っていない。
+- 全外部providerテストはmock fetchのみで、ANU / RANDOM.ORGの実サービスは一度も呼んでいない。
+- CIで発見されたTypeScript 6 `erasableSyntaxOnly` / WebCrypto `ArrayBuffer`厳密型の問題をP1内で修正した。
+
+### 完了基準の結果（実行結果）
+- GitHub Actions CI run `33131746143` / job `98722607014`: **green / success**（P1コード＋timeoutテストまで含むPR merge ref）。
+- `pnpm install --frozen-lockfile`: green。
+- `pnpm typecheck`: green（`tsc -b --noEmit`、errorなし）。
+- `pnpm test`: green（Vitest 4.1.10、**8 test files / 20 tests passed**、unhandled errorなし）。
+- provider分岐テスト: ANU成功 / ANU失敗→RANDOM.ORG / ANU+RANDOM.ORG失敗→local / 全provider失敗を検証。
+- provider境界テスト: ANU malformed/HTTP failure、RANDOM.ORG Error/wrong-length、local injected fill、HTTP timeout、rate guardを検証。
+- seeded test mode: same seed + same request sequenceの決定性を検証。
+- `pnpm build`: green（Vite 8.1.4 production build成功）。P0から既知の `jeep-sqlite` crypto externalization warningのみ継続、failureではない。
+- ledger append-only guard: green — `OK: no forbidden ledger DELETE/UPDATE paths found.`
+- 外部APIアクセス: **0件**（テストはfetch mockのみ）。
+
+### 要確定・申し送り（P2へ）
+- ANU production endpoint/authは、現在移行中のANUサービス仕様または将来のqrng-proxyに合わせてapplication wiring時に設定する。P1ではlegacy endpointを埋め込んでいない。
+- ANU endpoint adapterのnormalization contractは `length=<bytes>&type=uint8` + `{ data: number[] }`。新サービスの形式が異なる場合はprovider/proxy adapterだけで正規化し、`RngService`のdomain契約は変えない。
+- RANDOM.ORG direct HTTP利用はWeb/iOSのCORS・ネットワーク環境をintegration時に実機確認する。必要ならproxy経由へ差し替えるが、sourceは引き続き `randomorg` として記録する。
+- Layer A主要確証解析への採否はP5側で `source === 'anu'` を事前固定ルールとしてfilterする。RNG側ではfallbackを隠したりANUへ偽装したりしない。
+- P2 ledgerはRNG provider内部へ結合しない。RNGは値＋sourceを返すだけ、台帳化は上位application/serviceが担当する。
+- seeded providerはtest-onlyのまま維持し、production public APIへ出さない。
+- `capacitor.config.ts` の本番bundle idは引き続きP11まで要確定。
+
+### 触ったファイル
+- 新規: `src/rng/types.ts`
+- 新規: `src/rng/service.ts`
+- 新規: `src/rng/factory.ts`
+- 新規: `src/rng/index.ts`
+- 新規: `src/rng/rateGate.ts`
+- 新規: `src/rng/providers/http.ts`
+- 新規: `src/rng/providers/anu.ts`
+- 新規: `src/rng/providers/randomOrg.ts`
+- 新規: `src/rng/providers/local.ts`
+- 新規: `src/rng/testing/seeded.ts`
+- 新規: `src/rng/service.test.ts`
+- 新規: `src/rng/rateGate.test.ts`
+- 新規: `src/rng/providers/http.test.ts`
+- 新規: `src/rng/providers/anu.test.ts`
+- 新規: `src/rng/providers/randomOrg.test.ts`
+- 新規: `src/rng/providers/local.test.ts`
+- 新規: `src/rng/testing/seeded.test.ts`
+- 更新: `PROGRESS.md`
