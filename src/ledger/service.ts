@@ -27,8 +27,7 @@ export class LedgerService {
   }
 
   append(type: LedgerEntryType, payload: JsonObject, createdAt: string): Promise<StoredLedgerEntry> {
-    const operation = this.enqueueWrite(() => this.appendInsideCriticalSection(type, payload, createdAt));
-    return operation;
+    return this.enqueueWrite(() => this.appendInsideCriticalSection(type, payload, createdAt));
   }
 
   /**
@@ -49,6 +48,23 @@ export class LedgerService {
         followUp.createdAt,
       );
       return { first: committedFirst, followUp: committedFollowUp };
+    });
+  }
+
+  /**
+   * Re-checks a condition against the latest ledger while holding the global
+   * writer slot. The entry factory is not called when the condition is false,
+   * so recovery paths cannot consume randomness for an already-completed write.
+   */
+  appendConditionally(
+    shouldAppend: (entries: readonly StoredLedgerEntry[]) => boolean,
+    entryFactory: () => Promise<LedgerEntryInput>,
+  ): Promise<StoredLedgerEntry | null> {
+    return this.enqueueWrite(async () => {
+      const entries = await this.store.list();
+      if (!shouldAppend(entries)) return null;
+      const entry = await entryFactory();
+      return this.appendInsideCriticalSection(entry.type, entry.payload, entry.createdAt);
     });
   }
 
