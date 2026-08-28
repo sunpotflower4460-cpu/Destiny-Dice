@@ -17,6 +17,7 @@ import {
   type LayerCDashboardModel,
 } from '../dashboard';
 import { getApplicationLedgerService } from '../ledger/appService';
+import { getApplicationNotaryService } from '../notary';
 import type { LedgerService } from '../ledger/service';
 import type { StoredLedgerEntry } from '../ledger/types';
 import { projectCurrentSchedule } from '../registration/projection';
@@ -214,6 +215,16 @@ export function ExperimentRuntime({
         dueJudgments,
       };
       setSnapshot(next);
+
+      // Optional external anchoring is deliberately non-blocking. The notary
+      // receives only genesis/head hashes + seq/protocol; experiment content
+      // never leaves through this path. Offline failures wait until next week.
+      void getApplicationNotaryService().publishIfDue({
+        registration,
+        currentExperimentDate,
+        entries,
+        genesisHash,
+      });
 
       if (options?.syncNotifications !== false) {
         await syncNotificationsFor(entries, startedAt, dailyReminderTime, false);
