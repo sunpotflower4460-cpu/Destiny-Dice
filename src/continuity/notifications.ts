@@ -3,6 +3,11 @@ import { addCalendarDays, parseClockTime, resolveExperimentDate, zonedDateTimeTo
 
 export const MAX_PENDING_LOCAL_NOTIFICATIONS = 64;
 
+export type NotificationRegistration = Pick<
+  RegistrationPayload,
+  'startDate' | 'days' | 'timeZone' | 'dayBoundaryHour'
+>;
+
 export type WishDeadlineCandidate = {
   wishId: string;
   deadline: string;
@@ -20,14 +25,14 @@ export type PlannedNotification = {
 };
 
 export type NotificationScheduleInput = {
-  registration: RegistrationPayload;
+  registration: NotificationRegistration;
   now: string | Date;
   wishes: readonly WishDeadlineCandidate[];
   dailyReminderTime?: string;
   maxPending?: number;
 };
 
-function experimentEndDate(registration: RegistrationPayload): string {
+function experimentEndDate(registration: NotificationRegistration): string {
   if (!Number.isInteger(registration.days) || registration.days <= 0) {
     throw new RangeError('registration days must be a positive integer');
   }
@@ -37,14 +42,14 @@ function experimentEndDate(registration: RegistrationPayload): string {
 function reminderInstantForExperimentDate(
   experimentDate: string,
   reminderTime: string,
-  registration: RegistrationPayload,
+  registration: NotificationRegistration,
 ): string {
   const { hour } = parseClockTime(reminderTime);
   const calendarDate = hour < registration.dayBoundaryHour ? addCalendarDays(experimentDate, 1) : experimentDate;
   return zonedDateTimeToInstant(calendarDate, reminderTime, registration.timeZone);
 }
 
-function deadlineInstant(deadline: string, registration: RegistrationPayload): string {
+function deadlineInstant(deadline: string, registration: NotificationRegistration): string {
   return zonedDateTimeToInstant(
     deadline,
     `${String(registration.dayBoundaryHour).padStart(2, '0')}:00`,
