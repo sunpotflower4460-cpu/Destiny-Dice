@@ -249,3 +249,69 @@ CocoaPods未インストールの場合は `sudo gem install cocoapods` の上�
 - 新規: `src/db/sqliteLedgerStore.test.ts`
 - 更新: `src/db/sqlite.ts`
 - 更新: `PROGRESS.md`
+
+---
+
+## P3: Preregistration (2026-08-28)
+
+### 完了したこと
+- `src/registration/` を新設し、Protocol Freeze v2.1の`RegistrationPayload`、固定version識別子、入力validation、登録serviceを実装した。
+- 365日condition scheduleを`condition-schedule-v1` domain separator + SHA-256 counter stream + rejection sampling付きFisher-Yatesで生成。365日では各条件73回ずつになる。
+- target scheduleは別の`target-schedule-v1` domain separator + 独立`targetSeed`から生成し、Layer Aで測定するRNG bitstreamとは分離した。`sha256-counter-target-v1`ではSHA-256 blockをMSB-firstで消費する仕様を実装・golden vectorで固定した。
+- registration時の`scheduleSeed` / `targetSeed`はWebCrypto `getRandomValues`由来の32-byte seedとして生成し、生成関数はテスト可能なfill注入式にした。
+- `RegistrationService.register()`が365日scheduleを生成し、固定判定ルールA/C、Layer C設定、5条件のprediction、timezone、全provenanceをまとめて`LedgerService.append('registration', ...)`へ渡す。返されたentry hashをgenesis hashとして扱う。
+- `getApplicationLedgerService()`を追加し、アプリ実行中のSQLite ledger writerを1つの`LedgerService`へ集約した。
+- `projectCurrentSchedule()`を実装。normal UIへ返すのは指定されたcurrent experiment dateのconditionと当日session分targetのみで、full future condition/target scheduleをprojectionに含めない。
+- React placeholderをP3 preregistration wizardへ置換。experiment ID、開始日、固定IANA timezone、bits/draw、sessions/day、day boundary、affirmation、5条件prediction、Layer C設定を入力し、判定ルールを確認してgenesisへロックできる。
+- 起動時は既存ledgerを`verifyChain()`してから、未登録ならwizard、登録済みなら編集不能のlocked summary + genesis hashを表示する。
+- 入力validationエラーはwizard内に表示し、台帳/DBの起動エラーと分離した。
+- `predictionByCondition` / `decisionRuleA` / `layerC`のいずれかを変更するとgenesis hashが変わることを明示テストした。
+- schedule/targetのクロスプラットフォーム再現性を守るため、既知seedのcondition先頭15件・target先頭24bitをgolden vectorとして固定した。
+
+### 完了基準の結果（実行結果）
+- GitHub Actions CI run `33133186524` / job `98727111383`: **green / success**。
+- `pnpm typecheck`: green（`tsc -b --noEmit`、errorなし）。
+- `pnpm test`: green（Vitest 4.1.10、**17 test files / 50 tests passed**）。
+- 365日condition balance: `[73, 73, 73, 73, 73]` を検証。
+- same seed -> same condition schedule / same target schedule: green。
+- cross-platform golden vectors: condition 15件 / target 24bit一致。
+- current-day-only projection: full schedule / future target scheduleを返さないことを検証。
+- genesis provenance: protocol/canonicalization/schedule/target/rng/analysis/stats/app version、timezone、targetSeed、scheduleをpayloadに含むことを検証。
+- genesis hash inclusion: prediction / decisionRuleA / Layer C変更でhashが変わることを検証。
+- second registration rejection: green。
+- `verifyChain()` after registration genesis: green。
+- `pnpm build`: green（Vite 8.1.4 production build成功。既知の`jeep-sqlite` crypto externalization warningのみ継続）。
+- ledger append-only guard: green — `OK: no forbidden ledger DELETE/UPDATE paths found.`
+- ローカルWeb実行確認: **未実施**。作業コンテナから`github.com`をDNS解決できず、`git clone`が`Could not resolve host: github.com`でclone前に停止したため。コード失敗ではない。PR merge refはGitHub Actionsで上記すべてgreen。
+
+### 固定した実装識別子
+- `analysisPlanVersion = 'analysis-plan-v2.1'`
+- `statsVersion = 'stats-plan-v1'`
+- `appVersion = '0.0.0'`（現在のpackage versionと一致）
+- これらはP3でgenesisに入るprovenance識別子。既存experimentでは後から変更しない。
+
+### 要確定・申し送り（P4aへ）
+- 次フェーズはProtocol Freezeで追加された **P4a Stats Core** のみ。P4 session UIには先回りしない。
+- P4aは`bitsHex -> bit validation/decoding -> hits -> z`をUI非依存の純関数として実装し、P4の`SessionPayload.hits/z`依存を解消する。
+- target algorithm `sha256-counter-target-v1` のbit順はP3実装で **MSB-first** としてgolden vector固定済み。既存experimentの途中で変更しない。
+- P9まではtimezone + dayBoundaryHourから「現在のexperimentDate」を求めるclock実装を先行しない。P3 projectionは既に算出済みのexperiment date文字列を受け取る。
+- UIの実ブラウザ/iOS動作確認は、GitHubへアクセスできるWeb/macOS実行環境で後続統合時に再確認する。CI production buildはgreen。
+- `analysis-plan-v2.1` / `stats-plan-v1` はv1実験の固定provenance識別子として扱う。統計コード追加時に同じ意味のまま維持し、意味を変える必要が生じた場合は新experiment/versionとして扱う。
+- `capacitor.config.ts` の本番bundle idは引き続きP11まで要確定。
+
+### 触ったファイル
+- 新規: `src/registration/types.ts`
+- 新規: `src/registration/counterStream.ts`
+- 新規: `src/registration/schedule.ts`
+- 新規: `src/registration/seed.ts`
+- 新規: `src/registration/validation.ts`
+- 新規: `src/registration/service.ts`
+- 新規: `src/registration/projection.ts`
+- 新規: `src/registration/index.ts`
+- 新規: `src/registration/schedule.test.ts`
+- 新規: `src/registration/service.test.ts`
+- 新規: `src/registration/projection.test.ts`
+- 新規: `src/ledger/appService.ts`
+- 更新: `src/App.tsx`
+- 更新: `src/App.css`
+- 更新: `PROGRESS.md`
