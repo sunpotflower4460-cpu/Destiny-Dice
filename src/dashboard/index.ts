@@ -7,3 +7,8 @@ export {
   type LayerADashboardModel,
   type MiracleLogItem,
 } from './model';
+export {
+  buildLayerCDashboardModel,
+  type AssignmentSourceArmCount,
+  type LayerCDashboardModel,
+} from './layerCModel';
