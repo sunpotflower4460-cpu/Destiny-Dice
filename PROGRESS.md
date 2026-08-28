@@ -87,7 +87,7 @@ CocoaPods未インストールの場合は `sudo gem install cocoapods` の上�
 - Layer Bのpre/postを抽選結果revealの前に完了させ、ritualそのものの短期変化と抽選結果への感情反応を混ぜない順序へ修正した。
 - prediction commitをUIではなくapplication/domain層でRNG取得前に強制するルールを固定した。
 - ledger hashを RFC 8785 / JCS canonicalization + SHA-256 で定義し、`prevHash/type/payload/createdAt` をcanonical objectとしてhashする方式を固定した。
-- genesisの`prev_hash`を64桁の0、最初のregistration entry hashを`genesisHash`と定義した。
+- genesisの`prev_hash`を64桁0、最初のregistration entry hashを`genesisHash`と定義した。
 - ledger appendをsingle-writer serialization queue経由に限定し、直接INSERTを禁止する設計を固定した。
 - ローカルhash chainは「tamper-evident（改竄検知可能）」であり、外部anchorなしに「完全改竄不能」とは表現しないことを固定した。
 - RegistrationPayload v2.1に protocol/canonicalization/schedule/target/rng/stats/app version と frozen timezone / target seed を含めることを固定した。
@@ -409,4 +409,66 @@ CocoaPods未インストールの場合は `sudo gem install cocoapods` の上�
 - 新規: `src/session/index.ts`
 - 更新: `scripts/simulate.ts`
 - 更新: `.github/workflows/ci.yml`
+- 更新: `PROGRESS.md`
+
+---
+
+## P5: Stats Engine A (2026-08-28)
+
+### 完了したこと
+- P4aで固定した `bitsHex -> hits -> z` の定義は変更せず、その上にLayer Aの統計エンジンを純関数として追加した。
+- `wilsonInterval95()` を95% Wilson score intervalとして実装。DESIGN.mdがCI方式を指定していないため、`stats-plan-v1`の実装詳細として関数名・method名・golden testで固定し、既存experiment中に黙って変更しない。
+- `twoSidedBinomialNormalApproxP()` はP4aのzを使った両側正規近似、continuity correctionなしとして固定した。
+- `oneSampleBayesFactor10()` はBeta(1,1)対立仮説 vs p=0.5点帰無の事前登録式を実装し、DESIGN.mdのBF既知値をgolden test化した。
+- `holmAdjust()` はstep-down Holm補正を実装。Layer Aの事前登録familyは常に5条件で固定し、欠測条件は出力では`null`のままでもfamily sizeから落とさない（Holm順序上のp=1相当）ようにした。
+- `analyzeInterimLayerA()` と `analyzeFinalLayerA()` を型・戻り値から分離。interim APIにはraw p / Holm pのフィールド自体が存在せず、途中覗きでconfirmatory頻度論p値を出す経路を作っていない。
+- 主要確証sampleは `rngSource === 'anu' && ritualValid` のsessionだけ。`randomorg` / `local` fallbackやritual invalidは主要sampleへ代入せず、source counts / exclusions / QC / exploratoryへ残す。
+- final confirmatoryはregistrationのdecisionRuleAを受け取り、5条件について `positive_pre_registered_result` / `negative_evidence` / `inconclusive` の凍結ラベルだけを返す。
+- control QCは全sourceを隠さず集計し、overallに加えて `anu` / `randomorg` / `local` ごとのsummaryも返す。
+- 累積偏差系列 `D_k = cumulativeHits - cumulativeBits/2` と95% chance envelope `±0.98√k` を実装した。
+- 予言校正はconfidence×zのPearson相関と、confidence 0–20 / 21–40 / 41–60 / 61–80 / 81–100 の5帯でhit-rate summaryを返す。
+- 強度勾配は設計記載どおり P1=0（なし） / P2・P3・P4=1（single practice） / P5=2（full combo）を固定し、dose×z相関と条件内ritualSeconds×z相関を返す。
+- 四半期トレンドは登録開始日から365日を4分割し、四半期summaryと条件別session ordinalに対するz slope/correlationを返す。
+- exploratory関数は全て固定の日本語warningを返し、「多重比較を含む探索であり、実証ではなく次の事前登録実験の仮説」と明示する。
+- `src/stats/` はDOM / React / Capacitor / ledger / network依存を持たない純関数のまま維持した。
+
+### 完了基準の結果（実行結果）
+- GitHub Actions CI run `33135691797` / job `98735013918`: **green / success**。
+- `pnpm typecheck`: green（`tsc -b --noEmit`、errorなし）。
+- `pnpm test`: green（Vitest 4.1.10、**23 test files / 96 tests passed**）。
+- P5 inference: **7 tests passed** — BF golden、Holm既知例、欠測を含む5-hypothesis family、z→両側p、Wilson CI、invalid input拒否。
+- P5 Layer A boundary: **5 tests passed** — interim p値非公開、ANU+validのみ、fallback非代替、5-test Holm family、累積偏差、source別control QC。
+- P5 exploratory: **5 tests passed** — calibration golden、fallback exploratory inclusion、dose ordering、quarterly/session trend、実験期間外date拒否。
+- BF golden: `n=8,y=8 -> 28.444444...` / `n=8,y=4 -> 0.406349...` 一致。
+- Holm golden: `[0.01, 0.04, 0.03, 0.002] -> [0.03, 0.06, 0.06, 0.008]` 一致。欠測fixture `[0.01,null,0.04] -> [0.03,null,0.08]` でfamily sizeを3のまま維持することを確認。
+- Wilson golden: `512/1024 -> [0.469432844260..., 0.530567155739...]` 一致。
+- calibration golden: confidence `[10,30,50,70,90]` と hit rates `[0.5,0.625,0.75,0.875,1]`、confidence×z correlation=1を確認。
+- `pnpm simulate`: green / network access 0。P4 tracer bulletは `registration -> control -> prediction -> session`、`predictionSeq=3 < sessionSeq=4`、`hits=511 / nBits=1024 / z=-0.0625`、`verifyChain()`成功のまま維持。
+- `pnpm build`: green（Vite 8.1.4 production build成功。既知の`jeep-sqlite` crypto externalization warningのみ継続）。
+- ledger append-only guard: green — `OK: no forbidden ledger DELETE/UPDATE paths found.`
+
+### 手動レビューで修正した点
+- 初版のHolm実装は`null`条件をfamily sizeから除外していたため、欠測条件があると補正が事前登録の5検定より緩くなる問題を手動差分レビューで発見した。P5内で修正し、欠測は結果`null`のままでも事前登録した5仮説familyを維持するよう固定した。
+- control QCもoverallだけではsource混在を見落とし得るため、source countsに加えてsource別summaryを返すようP5内で強化した。
+- PRの外部自動レビューはCodex/Cursor利用上限、CodeRabbitの自動review条件未達により実行されなかったため、merge判断はCI + golden tests + 手動diff reviewで行う。
+
+### 要確定・申し送り（P6へ）
+- 次は **P6 Dashboard Aのみ**。P7願い、P8 Layer C統計、P9時計、P10最終レポートへ先回りしない。
+- P6の途中経過カードは必ず `analyzeInterimLayerA()` を使い、実験途中に `analyzeFinalLayerA()` を呼ばない。final confirmatory APIはP10最終レポート用として扱う。
+- 条件カード・グラフではhit rateだけでなく、必ずchance expectation 0.5 / expected hitsを隣接表示する。
+- 主要カードはANU+validのみを基準にしつつ、source countsとfallback件数を隠さない。
+- exploratory表示を入れる場合は `EXPLORATORY_WARNING` を同じ画面に明示し、探索パターンを「実証」ラベルへ昇格させない。
+- P6でledgerから`LayerASessionObservation`へprojectionする際はledgerをsource of truthとし、stats側へledger/SQLite依存を持ち込まない。confidenceはprediction entryとの`predictionSeq` joinで取得する。
+- P4 `SessionFlow` のApp runtime mountingは引き続きP9のexperimentDate resolver統合時。P6で暫定clockを発明しない。
+- `capacitor.config.ts` の本番bundle idは引き続きP11まで要確定。
+
+### 触ったファイル
+- 新規: `src/stats/math.ts`
+- 新規: `src/stats/inference.ts`
+- 新規: `src/stats/layerA.ts`
+- 新規: `src/stats/exploratory.ts`
+- 新規: `src/stats/inference.test.ts`
+- 新規: `src/stats/layerA.test.ts`
+- 新規: `src/stats/exploratory.test.ts`
+- 更新: `src/stats/index.ts`
 - 更新: `PROGRESS.md`
