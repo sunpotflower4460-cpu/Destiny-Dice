@@ -338,7 +338,7 @@ function LayerCPanel({ model }: { model: LayerCDashboardModel }) {
       </div>
 
       <section className="source-strip" aria-label="Layer C比較要約">
-        <div><strong>{formatSignedPercent(primary.riskDifference)}</strong><span>実践 − 封印</span></div>
+        <div><strong>{formatSignedPercent(primary.riskDifference)}</strong><span>実践 − 封印</span><small>偶然なら 0pp</small></div>
         <div><strong>{formatNumber(primary.bf10, 2)}</strong><span>BF₁₀</span></div>
         <div><strong>1</strong><span>BFの中立点</span></div>
         <p>途中経過のBFは表示しますが、確証用Fisher p値と最終判定は実験終了時まで開示しません。</p>
@@ -350,7 +350,7 @@ function LayerCPanel({ model }: { model: LayerCDashboardModel }) {
         <div className="source-qc-grid">
           <div><b>実践群</b><span>{sensitivity.practice.realized}/{sensitivity.practice.n}</span><span>{formatPercent(sensitivity.practice.realizationRate, 1)}</span></div>
           <div><b>封印群</b><span>{sensitivity.sealed.realized}/{sensitivity.sealed.n}</span><span>{formatPercent(sensitivity.sealed.realizationRate, 1)}</span></div>
-          <div><b>差</b><span>{formatSignedPercent(sensitivity.riskDifference)}</span><span>BF₁₀ {formatNumber(sensitivity.bf10, 2)}</span></div>
+          <div><b>差</b><span>{formatSignedPercent(sensitivity.riskDifference)}</span><span>偶然なら 0pp / BF₁₀ {formatNumber(sensitivity.bf10, 2)}</span></div>
         </div>
       </details>
 
@@ -369,11 +369,11 @@ function LayerCPanel({ model }: { model: LayerCDashboardModel }) {
         <p className="quiet-note">{EXPLORATORY_WARNING}</p>
         <div className="source-qc-grid">
           {model.strata.likelihood.map((item, index) => (
-            <div key={item.key}><b>{LIKELIHOOD_LABELS[index]}</b><span>実践 {formatPercent(item.comparison.practice.realizationRate, 1)} / 封印 {formatPercent(item.comparison.sealed.realizationRate, 1)}</span><span>差 {formatSignedPercent(item.comparison.riskDifference)}</span></div>
+            <div key={item.key}><b>{LIKELIHOOD_LABELS[index]}</b><span>実践 {formatPercent(item.comparison.practice.realizationRate, 1)} / 封印 {formatPercent(item.comparison.sealed.realizationRate, 1)}</span><span>差 {formatSignedPercent(item.comparison.riskDifference)}（偶然なら 0pp）</span></div>
           ))}
           {model.strata.influence.map((item) => {
             const key = item.key.replace('influence-', '') as keyof typeof INFLUENCE_LABELS;
-            return <div key={item.key}><b>{INFLUENCE_LABELS[key]}</b><span>実践 {formatPercent(item.comparison.practice.realizationRate, 1)} / 封印 {formatPercent(item.comparison.sealed.realizationRate, 1)}</span><span>差 {formatSignedPercent(item.comparison.riskDifference)}</span></div>;
+            return <div key={item.key}><b>{INFLUENCE_LABELS[key]}</b><span>実践 {formatPercent(item.comparison.practice.realizationRate, 1)} / 封印 {formatPercent(item.comparison.sealed.realizationRate, 1)}</span><span>差 {formatSignedPercent(item.comparison.riskDifference)}（偶然なら 0pp）</span></div>;
           })}
         </div>
       </section>
