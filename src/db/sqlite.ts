@@ -30,21 +30,33 @@ function ensureWebStore(): Promise<void> {
 
 export type DbInitResult = { ok: true } | { ok: false; error: string };
 
-// P0: DB open → ledger テーブル作成まで。書き込み関数はここでは作らない。
+/**
+ * Returns the initialized application database connection.
+ * Ledger INSERTs are intentionally not exposed here; P2 writes go through
+ * SqliteLedgerStore -> LedgerService so the single-writer hash chain invariant
+ * cannot be bypassed by normal application code.
+ */
+export async function getDatabaseConnection(): Promise<SQLiteDBConnection> {
+  if (Capacitor.getPlatform() === 'web') {
+    await ensureWebStore();
+  }
+
+  const isConn = await sqlite.isConnection(DB_NAME, false);
+  const db: SQLiteDBConnection = isConn.result
+    ? await sqlite.retrieveConnection(DB_NAME, false)
+    : await sqlite.createConnection(DB_NAME, false, 'no-encryption', 1, false);
+
+  const isOpen = await db.isDBOpen();
+  if (!isOpen.result) {
+    await db.open();
+  }
+  await db.execute(CREATE_LEDGER_TABLE_SQL);
+  return db;
+}
+
 export async function initDatabase(): Promise<DbInitResult> {
   try {
-    if (Capacitor.getPlatform() === 'web') {
-      await ensureWebStore();
-    }
-
-    const isConn = await sqlite.isConnection(DB_NAME, false);
-    const db: SQLiteDBConnection = isConn.result
-      ? await sqlite.retrieveConnection(DB_NAME, false)
-      : await sqlite.createConnection(DB_NAME, false, 'no-encryption', 1, false);
-
-    await db.open();
-    await db.execute(CREATE_LEDGER_TABLE_SQL);
-
+    await getDatabaseConnection();
     return { ok: true };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) };

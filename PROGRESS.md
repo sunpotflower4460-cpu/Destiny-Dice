@@ -189,3 +189,63 @@ CocoaPods未インストールの場合は `sudo gem install cocoapods` の上�
 - 新規: `src/rng/providers/local.test.ts`
 - 新規: `src/rng/testing/seeded.test.ts`
 - 更新: `PROGRESS.md`
+
+---
+
+## P2: Ledger (2026-08-28)
+
+### 完了したこと
+- `src/ledger/` を新設し、`LedgerStore` port / `LedgerService` / `MemoryLedgerStore` / `verifyChain()` / JSON・CSV export/importを実装した。
+- RFC 8785 / JCS canonicalizationを1か所に集約。`payload_json` はwriterが生成したcanonical JSONをそのまま保存し、verify側も同じcanonicalizerを共有する。
+- hash対象をProtocol Freeze v2.1どおり `createdAt / payload / prevHash / type` のlogical objectとし、WebCrypto SHA-256 → lowercase hexで`entry_hash`を生成する。
+- genesis `prev_hash`は64桁0、先頭は`registration`のみ。2件目の`registration`は禁止した。
+- `LedgerService` にsingle-writer Promise queueを実装し、並列appendが同じheadを読むforkを防止。失敗したappend後もqueueは継続する。
+- `verifyChain()` はseq連続性、genesis、prevHashリンク、payload parse/JCS一致、entry hash再計算を検証する。
+- Protocol Freezeが要求する改竄fixture（payload/type/createdAt/prevHash/途中削除/未連結挿入/並べ替え/genesis異常/noncanonical payload）を個別テスト化した。
+- JSON/CSV export/importは`StoredLedgerEntry`をlossless roundtripし、payload内のraw bitsを削らない。
+- SQLite adapter `SqliteLedgerStore` はSELECT/INSERTのみ。`LedgerStore` interfaceにはupdate/delete経路を存在させていない。
+- `src/db/sqlite.ts` は初期化済みDB接続を返せるよう整理し、通常のledger writeは`SqliteLedgerStore -> LedgerService`へ限定する設計を明記した。
+- `SQLiteDBConnection` の `query` / `run` / `changes.lastId` 契約は公式repositoryのAPI docsでも確認した。
+
+### 完了基準の結果（実行結果）
+- GitHub Actions CI run `33132484517` / job `98724947292`: **green / success**（P2実装・tamper fixtures・export roundtripを含むPR merge ref）。
+- `pnpm typecheck`: green（`tsc -b --noEmit`、errorなし）。
+- `pnpm test`: green（Vitest 4.1.10、**14 test files / 42 tests passed**）。
+- P2 tamper fixtures: 要求された9ケースすべてで破損検出を確認。
+- 全8 ledger entry typeのappend: green。
+- concurrent append single-writer test: green。
+- JSON export/import roundtrip: green。CSV export/import roundtrip: green。raw bitstring保持を確認。
+- `pnpm build`: green（Vite 8.1.4 production build成功。既知の`jeep-sqlite` crypto externalization warningのみ継続）。
+- ledger append-only guard: green — `OK: no forbidden ledger DELETE/UPDATE paths found.`
+
+### セキュリティ・意味上の注意
+- このchainは **tamper-evident（改竄検知可能）**。ローカル履歴全体を攻撃者が完全に再生成するケースまでは、外部anchorなしでは排除できない。
+- `verifyChain()` は完全なexperiment export（seq=1のgenesisから）を前提とする。途中区間だけを独立検証するAPIはP2では作っていない。
+- payloadはJSON data modelに限定。`undefined` / `NaN` / `Infinity` / cycle / sparse array / unpaired surrogate等はwriterで拒否する。
+
+### 申し送り（P3へ）
+- P3 registrationは `LedgerService.append('registration', payload, createdAt)` でgenesisを書き、返された`entryHash`を`genesisHash`として扱う。
+- `RegistrationPayload` v2.1の追加provenance（`protocolVersion` / `canonicalizationVersion` / `scheduleAlgorithmVersion` / `targetAlgorithmVersion` / `targetSeed` / `timeZone` / `rngPolicyVersion` / `analysisPlanVersion` / `statsVersion` / `appVersion` / `buildId?`）を必ずpayloadへ含める。
+- schedule/target生成はP3の責務。P2 canonicalizer/hashを再実装せず、必ずledger public APIを使う。
+- P3の日付・時刻はfrozen IANA timezone設計に従うが、P2は`createdAt`のexact stringを受け取ってhashするだけで時計仕様を発明しない。
+- `pnpm simulate` tracer bulletのledger接続は後続phaseで`MemoryLedgerStore`を利用できる。P2ではsimulateのP0 stubを先行変更していない。
+- `capacitor.config.ts` の本番bundle idは引き続きP11まで要確定。
+
+### 触ったファイル
+- 新規: `src/ledger/types.ts`
+- 新規: `src/ledger/canonicalize.ts`
+- 新規: `src/ledger/hash.ts`
+- 新規: `src/ledger/memoryStore.ts`
+- 新規: `src/ledger/service.ts`
+- 新規: `src/ledger/verify.ts`
+- 新規: `src/ledger/export.ts`
+- 新規: `src/ledger/index.ts`
+- 新規: `src/ledger/canonicalize.test.ts`
+- 新規: `src/ledger/hash.test.ts`
+- 新規: `src/ledger/service.test.ts`
+- 新規: `src/ledger/verify.test.ts`
+- 新規: `src/ledger/export.test.ts`
+- 新規: `src/db/sqliteLedgerStore.ts`
+- 新規: `src/db/sqliteLedgerStore.test.ts`
+- 更新: `src/db/sqlite.ts`
+- 更新: `PROGRESS.md`
