@@ -1,0 +1,210 @@
+.runtime-shell {
+  min-height: 100vh;
+  padding: 20px clamp(16px, 4vw, 48px) 64px;
+  background: radial-gradient(circle at top, #f5faf7 0, #eef3f0 38%, #e8edeb 100%);
+  color: #1f2d27;
+}
+
+.runtime-tabs {
+  position: sticky;
+  top: 12px;
+  z-index: 5;
+  display: flex;
+  gap: 8px;
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 auto 24px;
+  padding: 6px;
+  overflow-x: auto;
+  border: 1px solid rgba(54, 79, 68, 0.14);
+  border-radius: 999px;
+  background: rgba(250, 252, 251, 0.9);
+  box-shadow: 0 10px 28px rgba(37, 55, 47, 0.08);
+  backdrop-filter: blur(14px);
+}
+
+.runtime-tabs button {
+  min-width: 88px;
+  padding: 10px 16px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #5d6c65;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.runtime-tabs button.active {
+  background: #203f35;
+  color: #fff;
+}
+
+.runtime-today,
+.runtime-shell > .wish-registry,
+.runtime-shell > .dashboard-shell {
+  width: min(100%, 1040px);
+  margin: 0 auto;
+}
+
+.runtime-hero {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  margin: 12px 0 24px;
+}
+
+.runtime-hero h1,
+.runtime-card h1,
+.runtime-card h2 {
+  margin-top: 4px;
+}
+
+.runtime-hero > div:first-child > p:last-child {
+  color: #68766f;
+}
+
+.runtime-streak {
+  display: grid;
+  min-width: 210px;
+  padding: 18px 20px;
+  border: 1px solid rgba(54, 79, 68, 0.14);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.75);
+  box-shadow: 0 12px 34px rgba(37, 55, 47, 0.07);
+}
+
+.runtime-streak strong {
+  font-size: clamp(2rem, 5vw, 3.4rem);
+  line-height: 1;
+}
+
+.runtime-streak span {
+  margin-top: 5px;
+  font-weight: 700;
+}
+
+.runtime-streak small {
+  margin-top: 10px;
+  color: #68766f;
+  line-height: 1.55;
+}
+
+.runtime-card {
+  margin: 18px 0;
+  padding: clamp(18px, 3vw, 28px);
+  border: 1px solid rgba(54, 79, 68, 0.14);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: 0 14px 38px rgba(37, 55, 47, 0.07);
+}
+
+.notification-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 18px 28px;
+  align-items: center;
+}
+
+.notification-card > .quiet-note {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+.notification-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.notification-controls label {
+  display: grid;
+  gap: 6px;
+  color: #68766f;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.notification-controls select,
+.notification-controls button,
+.runtime-card button {
+  min-height: 42px;
+  padding: 9px 14px;
+  border: 1px solid rgba(54, 79, 68, 0.18);
+  border-radius: 12px;
+  background: #fff;
+  color: #203f35;
+  font: inherit;
+}
+
+.notification-controls button,
+.runtime-card button {
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.notification-controls button:disabled,
+.runtime-card button:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.runtime-source-note {
+  border-color: rgba(155, 119, 49, 0.22);
+  background: rgba(255, 250, 236, 0.88);
+}
+
+.runtime-source-note strong {
+  color: #6c572b;
+}
+
+.runtime-complete {
+  text-align: center;
+  background: rgba(239, 248, 243, 0.9);
+}
+
+.runtime-error {
+  width: min(100%, 720px);
+  margin: 12vh auto 0;
+}
+
+.runtime-refreshing {
+  margin-top: 16px;
+  color: #68766f;
+  text-align: center;
+  font-size: 0.9rem;
+}
+
+@media (max-width: 720px) {
+  .runtime-shell {
+    padding-inline: 14px;
+  }
+
+  .runtime-tabs {
+    top: 8px;
+    width: 100%;
+  }
+
+  .runtime-tabs button {
+    flex: 1;
+    min-width: max-content;
+  }
+
+  .runtime-hero {
+    display: grid;
+  }
+
+  .runtime-streak {
+    min-width: 0;
+  }
+
+  .notification-card {
+    grid-template-columns: 1fr;
+  }
+
+  .notification-controls {
+    justify-content: flex-start;
+  }
+}

@@ -664,3 +664,50 @@ CocoaPods未インストールの場合は `sudo gem install cocoapods` の上�
 - 更新: `src/App.tsx`
 - 更新: `scripts/simulate.ts`
 - 更新: `PROGRESS.md`
+
+
+---
+
+## P9: Notifications / Continuity UX (2026-08-28)
+
+### 完了したこと
+- 登録時に固定した IANA `timeZone` と `dayBoundaryHour` から `experimentDate` を導出する `src/continuity/time.ts` を実装。端末timezone変更や旅行に依存せず、03:00境界の直前/直後とDSTをテストした。
+- `systemContext()` でセッション時刻・曜日・探索用月相を凍結timezone基準から生成し、P4で保留していたP9の時間責務をruntimeへ接続した。
+- 登録後の `App` を `ExperimentRuntime` へ切り替え、`今日 / 願い / 記録・ラボ` からP4 `SessionFlow`、P7 `WishRegistryPanel` / `WishMoment`、P6/P8 dashboardへ到達できるようにした。
+- ledgerから当日の完了済み `seqInDay` を読み、最初の未完了sessionだけを再開するcontinuity projectionを実装。欠測日や過去experiment dayを後から生成・補完しない。
+- daily controlは既存 `SessionFlowService.prepareSession()`、session実行は `runSession()` のみを通し、1日1controlとprediction-before-measured-RNGの不変条件をUI下で維持した。
+- application RNG singletonを追加。`VITE_ANU_RNG_ENDPOINT` 設定時は `anu -> randomorg -> local`、未設定時は `randomorg -> local` とし、fallbackをquantumと表示せず実際の `rngSource` をledgerへ残す。
+- `@capacitor/local-notifications@6.1.3` とiOS Pod wiringを追加した。
+- 毎日リマインダーと願い締切通知のplannerを実装。凍結timezoneで絶対時刻へ変換し、pending上限を考慮して直近64件へ制限した。
+- OS通知permissionは起動時に自動requestせず、ユーザーが `通知をONにする` を押した時だけrequestする。
+- 通知同期はIntention Dice予約ID帯 `10000..10063` だけを置換し、他用途のpending local notificationをcancelしない。
+- sealed wish本文を通知層へ渡さず、wish ID / deadline / assignment・judgment状態だけから締切通知を組み立てるprivacy boundaryを実装した。
+- `deriveGentleStreak()` を追加し、記録済み日数・直近run・今日完了を表示。`penaltyApplied: false` を固定し、休んだ日があっても実験失格や罰にはしない。
+- multi-session dayでは `SessionFlow` 完了後にruntimeをrefreshし、次の未完了registered sessionへ進む `onFinish` 接続を追加した。
+- `LayerCRegistration.defaultDeadlineDays` を凍結UI選択肢 `14 | 28 | 90` と同じ型へ狭めた。
+
+### 完了基準の結果
+- `pnpm typecheck`: green
+- `pnpm test`: green — **32 test files / 142 tests passed**
+- `pnpm simulate`: green — `networkRequests: 0`、既存offline tracerとchain verificationを維持
+- `pnpm build`: green
+- append-only ledger guard: green
+- feature integration CI: run `33163189418` / job `98822313469` green
+
+### 不変条件セルフチェック
+1. frozen timezone / experiment-day boundaryをdevice timezoneから分離 — ✅
+2. 1日1controlのidempotency — ✅
+3. prediction commit before measured RNG — ✅
+4. fallback sourceを隠さない — ✅
+5. 欠測を補完しない — ✅
+6. sealed wishを通知へ漏らさない — ✅
+7. ledger append-only — ✅
+8. continuity UXで罰を導入しない — ✅
+9. P10最終確証レポートをP9へ混入させない — ✅
+
+### Native/UI確認の制約
+- CIはUbuntuのためXcode/iOS simulator上の実通知deliveryは直接実行できない。Capacitor v6 dependency、TypeScript adapter、iOS Pod wiring、production build、通知planner/permission境界はCIで検証済み。
+- iOS実機/Simulatorのpermission prompt・日次通知・締切通知deliveryはrelease環境のsmoke checkとして実施する。
+
+### 次フェーズへの申し送り
+- 凍結順序どおり次は **P10 Final Report**。P9で生成したruntime/ledgerデータを使うが、最終確証判定・最終レポート生成はP10まで開始しない。
