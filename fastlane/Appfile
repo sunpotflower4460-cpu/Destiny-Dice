@@ -1,0 +1,5 @@
+# Intention Dice production identity. Account/team values stay in CI secrets.
+app_identifier('com.sunpotflower4460.intentiondice')
+apple_id(ENV['APPLE_ID']) if ENV['APPLE_ID']
+team_id(ENV['APPLE_TEAM_ID']) if ENV['APPLE_TEAM_ID']
+itc_team_id(ENV['APP_STORE_CONNECT_TEAM_ID']) if ENV['APP_STORE_CONNECT_TEAM_ID']
