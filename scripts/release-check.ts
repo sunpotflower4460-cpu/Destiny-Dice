@@ -34,6 +34,9 @@ requireCondition(occurrences(project, `PRODUCT_BUNDLE_IDENTIFIER = ${BUNDLE_ID};
 requireCondition(!project.includes('com.example.intentiondice'), 'placeholder Xcode bundle id remains');
 requireCondition(occurrences(project, 'MARKETING_VERSION = 1.0;') === 2, 'expected iOS marketing version 1.0 in Debug/Release');
 
+const infoPlist = text('ios/App/App/Info.plist');
+requireCondition(infoPlist.includes('<key>ITSAppUsesNonExemptEncryption</key>\n\t<false/>'), 'iOS export-compliance encryption flag is not fixed to false');
+
 const appfile = text('fastlane/Appfile');
 requireCondition(appfile.includes(`app_identifier('${BUNDLE_ID}')`), 'fastlane Appfile bundle id mismatch');
 
