@@ -354,3 +354,59 @@ CocoaPods未インストールの場合は `sudo gem install cocoapods` の上�
 - 新規: `src/stats/core.test.ts`
 - 新規: `src/stats/index.ts`
 - 更新: `PROGRESS.md`
+
+---
+
+## P4: Session Flow (Layer A/B) (2026-08-28)
+
+### 完了したこと
+- `src/session/` を新設し、daily control、当日session plan、prediction-before-RNG、session appendをapplication serviceとして実装した。
+- registration genesisをledgerのsource of truthとして読み、P3のcurrent-day projectionからcondition/targetを毎回再導出する。`seqInDay`は1..`sessionsPerDay`として保存・照合する。
+- `prepareSession()`は実験期間内・未実施slotであることを内部検証し、daily controlをcommitしてから当日planを返す。control生成はPromise queueで直列化し、同一serviceへの並列prepareでも1日最大1件に保つ。
+- `ensureDailyControl()`単体でも実験期間外の日付をRNG取得前に拒否する。controlのbit統計はP4a `summarizeBitstream(bitsHex, nBits, 1)`だけを使い、1の数を0.5と比較する。
+- `runSession()`はmoodPre / ritual / moodPost / confidence / contextを結果取得前に確定し、predictionをappendした後、ledgerを再読込して同じdate / seqInDay / condition / targetDirのcommit済みentryであることを照合してからだけmeasured RNGを呼ぶ。
+- session payloadに実際の`rngSource`、raw `bitsHex`、P4a由来hits/z、`predictionSeq`、ritual、mood pre/post、context、started/completed timestampを保存し、`predictionSeq < session.seq`をassertする。
+- 同一experiment date + seqInDayの二重sessionはmeasured RNG取得前に拒否する。
+- ritual complianceをP1=60秒待機、P2=30文字以上、P3=300秒、P4=180秒、P5=30文字以上+480秒として実装し、無効な値を黙って補正しない。
+- `SessionFlow` React componentを追加し、`moodPre -> ritual -> moodPost -> prediction -> 3秒長押し -> result`の順序をUIでも一致させた。結果はhits/zと同時に「偶然なら50% / 期待nBits/2 hits」、実際のRNG sourceを表示し、途中の頻度論p値は表示しない。
+- P9責務のtimezone + `dayBoundaryHour`からcurrent experiment dateを求めるclockは先行実装せず、P4 service/componentは解決済み`experimentDate`を注入で受け取る。
+- `scripts/simulate.ts`をP0 stubから1日分のoffline tracer bulletへ更新し、MemoryLedgerStore + deterministic seeded RNG + P3 registration + P4 flow + `verifyChain()`をネットワークなしで接続した。
+- CIへ`pnpm simulate`を正式追加した。初回CIでtest-only providerのクラス名取り違えを検出し、`SeededTestRngProvider`へ修正。production barrelへtest providerを露出する回避は行っていない。
+
+### 完了基準の結果（実行結果）
+- GitHub Actions CI run `33134552935` / job `98731498431`: **green / success**。
+- `pnpm typecheck`: green（`tsc -b --noEmit`、errorなし）。
+- `pnpm test`: green（Vitest 4.1.10、**20 test files / 79 tests passed**）。
+- P4 session service: **6 tests passed** — control→prediction→session、prediction commit前のmeasured RNG禁止、prediction append失敗時RNG不使用、daily control並列idempotency、期間外control拒否、同日同seq二重session拒否。
+- P4 ritual: **5 tests passed** — P1〜P5のfrozen compliance条件と不正秒数拒否。
+- `pnpm simulate`: green / network access 0。entry typeは `registration -> control -> prediction -> session`、`predictionSeq=3 < sessionSeq=4`、`rngSource='local'`、`hits=511 / nBits=1024 / z=-0.0625`、`verifyChain()`成功。
+- `pnpm build`: green（Vite 8.1.4 production build成功。既知の`jeep-sqlite` crypto externalization warningのみ継続）。
+- ledger append-only guard: green — `OK: no forbidden ledger DELETE/UPDATE paths found.`
+- P4で外部ANU/RANDOM.ORGを呼ぶテスト/シミュレーションは0件。seeded test providerはtest/simulate内部のみ。
+
+### UI検証上の注意
+- P4の`SessionFlow` component自体はtypecheck/production buildを通過しているが、`App.tsx`への実日付runtime wiringは行っていない。理由はProtocol Freeze/P3申し送りどおり、frozen timezone + `dayBoundaryHour`からcurrent experiment dateを算出する責務がP9に固定されているため。
+- したがってP4ではprotocol順序をcomponent + service + pseudo-E2Eで固定し、端末時計からの実日付接続とWeb/iOSでの実画面動作確認はP9 integration時に行う。P4内で暫定的な端末timezoneロジックを発明していない。
+
+### 要確定・申し送り（P5へ）
+- 次は **P5 統計エンジンAのみ**。P4 session UIやP7願い、P9時計へ先回りしない。
+- P5はP4aで固定した`bits -> hits -> z`定義を変更せず、CI / 二項p / Holm / one-sample BF / cumulative deviation series / control QC / prediction calibration / dose-response / quarterly trendを純関数として追加する。
+- Layer A主要確証sampleはProtocol Freezeどおり`rngSource === 'anu'`のvalid sessionだけに絞る。`randomorg`/`local`はledgerから消さずsource counts/QC/sensitivity/exploratoryへ残す。
+- interim APIにはconfirmatory frequentist p-valueを出さず、最終confirmatory APIと構造的に分離する。
+- production ANU endpoint/auth/application wiringは依然として運用設定が必要。P4はRNG service注入に留め、テスト/CIでは外部APIを使っていない。
+- prediction append後〜RNG/session append前のプロセスクラッシュではpredictionだけが残り得る。Protocol FreezeはP4のorphan prediction recovery規則を定義していないため、P4では勝手な再利用/削除を実装していない。ledger上は監査可能なまま保持される。
+- `SessionFlow`のApp runtime mountingはP9のexperimentDate resolverと統合する際、P4のservice順序を変えずに行う。
+- `capacitor.config.ts` の本番bundle idは引き続きP11まで要確定。
+
+### 触ったファイル
+- 新規: `src/session/types.ts`
+- 新規: `src/session/ritual.ts`
+- 新規: `src/session/service.ts`
+- 新規: `src/session/ritual.test.ts`
+- 新規: `src/session/service.test.ts`
+- 新規: `src/session/SessionFlow.tsx`
+- 新規: `src/session/SessionFlow.css`
+- 新規: `src/session/index.ts`
+- 更新: `scripts/simulate.ts`
+- 更新: `.github/workflows/ci.yml`
+- 更新: `PROGRESS.md`

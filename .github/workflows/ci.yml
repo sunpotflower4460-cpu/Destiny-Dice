@@ -41,6 +41,9 @@ jobs:
       - name: Test
         run: pnpm test
 
+      - name: Simulate offline P4 flow
+        run: pnpm simulate
+
       - name: Build
         run: pnpm build
 
