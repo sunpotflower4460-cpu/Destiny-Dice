@@ -63,13 +63,7 @@ describe('P7 WishRegistryService', () => {
     const rng = new QueueAssignmentRng([{ bit: 1, source: 'anu' }]);
     const service = new WishRegistryService(ledger, rng, new SequenceClock(), () => 'wish-1');
 
-    const result = await service.registerWish({
-      text: '9月中に探していた本が手に入る',
-      deadline: '2026-09-30',
-      likelihood: 2,
-      influence: 'mixed',
-    });
-
+    const result = await service.registerWish({ text: '9月中に探していた本が手に入る', deadline: '2026-09-30', likelihood: 2, influence: 'mixed' });
     expect(result.assignment).toMatchObject({ wishId: 'wish-1', bit: 1, arm: 'practice', rngSource: 'anu' });
     expect(result.assignmentEntry.seq).toBe(result.wishEntry.seq + 1);
     const entries = await ledger.list();
@@ -79,19 +73,9 @@ describe('P7 WishRegistryService', () => {
 
   it('leaves a failed post-wish assignment recoverable and recovery is idempotent', async () => {
     const { ledger } = await setup();
-    const rng = new QueueAssignmentRng([
-      new Error('temporary assignment failure'),
-      { bit: 0, source: 'local' },
-    ]);
+    const rng = new QueueAssignmentRng([new Error('temporary assignment failure'), { bit: 0, source: 'local' }]);
     const service = new WishRegistryService(ledger, rng, new SequenceClock(), () => 'wish-crash');
-
-    await expect(service.registerWish({
-      text: '今月、友人から連絡が来る',
-      deadline: '2026-09-30',
-      likelihood: 2,
-      influence: 'external',
-    })).rejects.toThrow('temporary assignment failure');
-
+    await expect(service.registerWish({ text: '今月、友人から連絡が来る', deadline: '2026-09-30', likelihood: 2, influence: 'external' })).rejects.toThrow('temporary assignment failure');
     expect((await ledger.list()).map((entry) => entry.type)).toEqual(['registration', 'wish']);
     const firstRecovery = await service.recoverUnassignedWishes();
     const secondRecovery = await service.recoverUnassignedWishes();
@@ -108,20 +92,9 @@ describe('P7 WishRegistryService', () => {
     let markStarted!: () => void;
     let calls = 0;
     const started = new Promise<void>((resolve) => { markStarted = resolve; });
-    const rng = {
-      getAssignmentBit: async () => {
-        calls += 1;
-        markStarted();
-        return new Promise<AssignmentBit>((resolve) => { release = resolve; });
-      },
-    };
+    const rng = { getAssignmentBit: async () => { calls += 1; markStarted(); return new Promise<AssignmentBit>((resolve) => { release = resolve; }); } };
     const service = new WishRegistryService(ledger, rng, new SequenceClock(), () => 'race-wish');
-    const registration = service.registerWish({
-      text: '復旧競合を検証する願い',
-      deadline: '2026-09-30',
-      likelihood: 2,
-      influence: 'mixed',
-    });
+    const registration = service.registerWish({ text: '復旧競合を検証する願い', deadline: '2026-09-30', likelihood: 2, influence: 'mixed' });
     await started;
     const recovery = service.recoverUnassignedWishes();
     release({ bit: 1, source: 'anu' });
@@ -133,43 +106,29 @@ describe('P7 WishRegistryService', () => {
 
   it('never returns sealed text to normal registry or wish moment before deadline, but reveals it when due', async () => {
     const { ledger } = await setup();
-    const rng = new QueueAssignmentRng([
-      { bit: 1, source: 'anu' },
-      { bit: 0, source: 'randomorg' },
-    ]);
+    const rng = new QueueAssignmentRng([{ bit: 1, source: 'anu' }, { bit: 0, source: 'randomorg' }]);
     let id = 0;
     const service = new WishRegistryService(ledger, rng, new SequenceClock(), () => `wish-${++id}`);
     await service.registerWish({ text: '実践側の願い', deadline: '2026-09-15', likelihood: 1, influence: 'self' });
     await service.registerWish({ text: '絶対に事前表示してはいけない封印本文', deadline: '2026-09-15', likelihood: 3, influence: 'external' });
-
     const before = projectNormalWishRegistry(await ledger.list(), '2026-09-10');
     const moment = projectWishMoment(await ledger.list(), '2026-09-10');
     expect(before.practice.map((wish) => wish.text)).toEqual(['実践側の願い']);
     expect(before.sealedCount).toBe(1);
     expect(JSON.stringify(before)).not.toContain('絶対に事前表示してはいけない封印本文');
     expect(JSON.stringify(moment)).not.toContain('絶対に事前表示してはいけない封印本文');
-
     const due = projectDueJudgments(await ledger.list(), '2026-09-15');
-    expect(due.map((wish) => [wish.text, wish.arm])).toEqual([
-      ['実践側の願い', 'practice'],
-      ['絶対に事前表示してはいけない封印本文', 'sealed'],
-    ]);
+    expect(due.map((wish) => [wish.text, wish.arm])).toEqual([['実践側の願い', 'practice'], ['絶対に事前表示してはいけない封印本文', 'sealed']]);
   });
 
   it('records wish moment only for the complete eligible practice projection', async () => {
     const { ledger } = await setup();
-    const rng = new QueueAssignmentRng([
-      { bit: 1, source: 'anu' },
-      { bit: 0, source: 'anu' },
-    ]);
+    const rng = new QueueAssignmentRng([{ bit: 1, source: 'anu' }, { bit: 0, source: 'anu' }]);
     let id = 0;
     const service = new WishRegistryService(ledger, rng, new SequenceClock(), () => `moment-${++id}`);
     await service.registerWish({ text: '見せる願い', deadline: '2026-10-01', likelihood: 2, influence: 'mixed' });
     await service.registerWish({ text: '封印する願い', deadline: '2026-10-01', likelihood: 2, influence: 'mixed' });
-
-    await expect(service.recordWishMoment('2026-09-10', ['moment-1', 'moment-2'], 30)).rejects.toThrow(
-      'exactly the currently eligible practice wishes',
-    );
+    await expect(service.recordWishMoment('2026-09-10', ['moment-1', 'moment-2'], 30)).rejects.toThrow('exactly the currently eligible practice wishes');
     const entry = await service.recordWishMoment('2026-09-10', ['moment-1'], 30);
     expect(entry.type).toBe('wishmoment');
     expect(JSON.parse(entry.payloadJson)).toEqual({ date: '2026-09-10', seconds: 30, wishIdsShown: ['moment-1'] });
@@ -177,15 +136,11 @@ describe('P7 WishRegistryService', () => {
 
   it('creates deadline judgments, requires realized pathway, and treats withdrawn as not realized', async () => {
     const { ledger } = await setup();
-    const rng = new QueueAssignmentRng([
-      { bit: 1, source: 'anu' },
-      { bit: 1, source: 'anu' },
-    ]);
+    const rng = new QueueAssignmentRng([{ bit: 1, source: 'anu' }, { bit: 1, source: 'anu' }]);
     let id = 0;
     const service = new WishRegistryService(ledger, rng, new SequenceClock(), () => `judge-${++id}`);
     await service.registerWish({ text: '判定する願い', deadline: '2026-09-05', likelihood: 2, influence: 'self' });
     await service.registerWish({ text: '取り下げる願い', deadline: '2026-10-05', likelihood: 2, influence: 'self' });
-
     await expect(service.judgeWish('judge-1', '2026-09-05', 'realized')).rejects.toThrow('requires a pathway');
     const judgment = await service.judgeWish('judge-1', '2026-09-05', 'realized', 'own_action');
     const withdrawal = await service.withdrawWish('judge-2');
@@ -198,14 +153,8 @@ describe('P7 WishRegistryService', () => {
 
   it('serializes concurrent judgments so a wish can receive only one judgment entry', async () => {
     const { ledger } = await setup();
-    const service = new WishRegistryService(
-      ledger,
-      new QueueAssignmentRng([{ bit: 1, source: 'anu' }]),
-      new SequenceClock(),
-      () => 'judgment-race',
-    );
+    const service = new WishRegistryService(ledger, new QueueAssignmentRng([{ bit: 1, source: 'anu' }]), new SequenceClock(), () => 'judgment-race');
     await service.registerWish({ text: '二重判定を防ぐ願い', deadline: '2026-09-05', likelihood: 2, influence: 'mixed' });
-
     const outcomes = await Promise.allSettled([
       service.judgeWish('judgment-race', '2026-09-05', 'not_realized'),
       service.judgeWish('judgment-race', '2026-09-05', 'undecidable'),
@@ -217,35 +166,17 @@ describe('P7 WishRegistryService', () => {
 
   it('rejects semantically malformed judgment entries when rebuilding the ledger projection', async () => {
     const { ledger } = await setup();
-    const service = new WishRegistryService(
-      ledger,
-      new QueueAssignmentRng([{ bit: 1, source: 'anu' }]),
-      new SequenceClock(),
-      () => 'malformed-judgment',
-    );
+    const service = new WishRegistryService(ledger, new QueueAssignmentRng([{ bit: 1, source: 'anu' }]), new SequenceClock(), () => 'malformed-judgment');
     await service.registerWish({ text: '不正判定を検知する願い', deadline: '2026-09-05', likelihood: 2, influence: 'mixed' });
-    await ledger.append(
-      'judgment',
-      { wishId: 'malformed-judgment', outcome: 'realized', judgedAt: '2026-09-05T00:00:00.000Z' },
-      '2026-09-05T00:00:00.000Z',
-    );
-    expect(() => buildWishLedgerRecords(await ledger.list())).rejects.toThrow('realized judgment must include pathway');
+    await ledger.append('judgment', { wishId: 'malformed-judgment', outcome: 'realized', judgedAt: '2026-09-05T00:00:00.000Z' }, '2026-09-05T00:00:00.000Z');
+    const entries = await ledger.list();
+    expect(() => buildWishLedgerRecords(entries)).toThrow('realized judgment must include pathway');
   });
 
   it('rejects Layer C writes when the experiment registered Layer C disabled', async () => {
     const { ledger } = await setup(false);
-    const service = new WishRegistryService(
-      ledger,
-      new QueueAssignmentRng([{ bit: 1, source: 'anu' }]),
-      new SequenceClock(),
-      () => 'disabled-wish',
-    );
-    await expect(service.registerWish({
-      text: '登録不可',
-      deadline: '2026-09-30',
-      likelihood: 2,
-      influence: 'mixed',
-    })).rejects.toThrow('Layer C is disabled');
+    const service = new WishRegistryService(ledger, new QueueAssignmentRng([{ bit: 1, source: 'anu' }]), new SequenceClock(), () => 'disabled-wish');
+    await expect(service.registerWish({ text: '登録不可', deadline: '2026-09-30', likelihood: 2, influence: 'mixed' })).rejects.toThrow('Layer C is disabled');
   });
 
   it('holds the ledger single-writer slot across assignment RNG so unrelated appends cannot interleave', async () => {
@@ -253,26 +184,14 @@ describe('P7 WishRegistryService', () => {
     let release!: (value: AssignmentBit) => void;
     let started!: () => void;
     const startedPromise = new Promise<void>((resolve) => { started = resolve; });
-    const rng = {
-      getAssignmentBit: async () => {
-        started();
-        return new Promise<AssignmentBit>((resolve) => { release = resolve; });
-      },
-    };
+    const rng = { getAssignmentBit: async () => { started(); return new Promise<AssignmentBit>((resolve) => { release = resolve; }); } };
     const service = new WishRegistryService(ledger, rng, new SequenceClock(), () => 'locked-wish');
-
-    const registerPromise = service.registerWish({
-      text: '連続appendを検証する願い',
-      deadline: '2026-09-30',
-      likelihood: 2,
-      influence: 'mixed',
-    });
+    const registerPromise = service.registerWish({ text: '連続appendを検証する願い', deadline: '2026-09-30', likelihood: 2, influence: 'mixed' });
     await startedPromise;
     const unrelated = ledger.append('control', { date: '2026-09-01', rngSource: 'local', bitsHex: '00', nBits: 8, hits: 4, z: 0 }, '2026-09-01T00:00:10.000Z');
     release({ bit: 1, source: 'local' });
     await registerPromise;
     await unrelated;
-
     expect((await ledger.list()).map((entry) => entry.type)).toEqual(['registration', 'wish', 'assignment', 'control']);
   });
 });
