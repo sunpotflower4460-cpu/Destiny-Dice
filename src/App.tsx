@@ -1,5 +1,11 @@
 import { type FormEvent, useEffect, useState } from 'react';
-import { ExperimentDashboard, buildLayerADashboardModel, type LayerADashboardModel } from './dashboard';
+import {
+  ExperimentDashboard,
+  buildLayerADashboardModel,
+  buildLayerCDashboardModel,
+  type LayerADashboardModel,
+  type LayerCDashboardModel,
+} from './dashboard';
 import { getApplicationLedgerService } from './ledger/appService';
 import { verifyChain } from './ledger/verify';
 import {
@@ -16,7 +22,13 @@ import './App.css';
 type AppState =
   | { kind: 'loading' }
   | { kind: 'ready' }
-  | { kind: 'registered'; payload: RegistrationPayload; genesisHash: string; dashboard: LayerADashboardModel }
+  | {
+      kind: 'registered';
+      payload: RegistrationPayload;
+      genesisHash: string;
+      dashboard: LayerADashboardModel;
+      layerC: LayerCDashboardModel | null;
+    }
   | { kind: 'error'; message: string };
 
 const CONDITION_LABELS = ['P1 引くだけ', 'P2 意図書き', 'P3 アファメーション', 'P4 祈り', 'P5 フルコンボ'];
@@ -75,6 +87,7 @@ function App() {
           payload,
           genesisHash: genesis.entryHash,
           dashboard: buildLayerADashboardModel(entries, payload),
+          layerC: buildLayerCDashboardModel(entries, payload),
         });
       })
       .catch((error: unknown) => {
@@ -123,6 +136,7 @@ function App() {
         payload: result.payload,
         genesisHash: result.genesisHash,
         dashboard: buildLayerADashboardModel(entries, result.payload),
+        layerC: buildLayerCDashboardModel(entries, result.payload),
       });
     } catch (error) {
       setFormError(error instanceof Error ? error.message : String(error));
@@ -148,7 +162,14 @@ function App() {
   }
 
   if (state.kind === 'registered') {
-    return <ExperimentDashboard registration={state.payload} genesisHash={state.genesisHash} model={state.dashboard} />;
+    return (
+      <ExperimentDashboard
+        registration={state.payload}
+        genesisHash={state.genesisHash}
+        model={state.dashboard}
+        layerCModel={state.layerC}
+      />
+    );
   }
 
   return (
