@@ -1,5 +1,5 @@
 import type { LedgerService } from '../ledger/service';
-import type { JsonObject, StoredLedgerEntry } from '../ledger/types';
+import type { StoredLedgerEntry } from '../ledger/types';
 import type { RegistrationPayload } from '../registration/types';
 import type { RngService } from '../rng/service';
 import {
@@ -26,7 +26,7 @@ import type {
   WishRegistryProjection,
 } from './types';
 
-type WishLedger = Pick<LedgerService, 'append' | 'appendWithFollowUp' | 'list'>;
+type WishLedger = Pick<LedgerService, 'append' | 'appendWithFollowUp' | 'appendConditionally' | 'list'>;
 type WishRng = Pick<RngService, 'getAssignmentBit'>;
 
 export const ASSIGNMENT_ARM_BY_BIT = {
@@ -123,7 +123,7 @@ export class WishRegistryService {
 
     const result = await this.ledger.appendWithFollowUp(
       { type: 'wish', payload: wish, createdAt },
-      async (wishEntry) => {
+      async () => {
         const random = await this.rng.getAssignmentBit();
         const committedAt = this.clock.now();
         const assignment: AssignmentPayload = {
@@ -252,23 +252,31 @@ export class WishRegistryService {
   private async recoverInside(): Promise<StoredLedgerEntry[]> {
     const initial = await this.ledger.list();
     await this.assertLayerCEnabled(initial);
-    const pending = buildWishLedgerRecords(initial).filter((record) => !record.assignment);
+    const pendingIds = buildWishLedgerRecords(initial)
+      .filter((record) => !record.assignment)
+      .map((record) => record.wish.wishId);
     const recovered: StoredLedgerEntry[] = [];
 
-    for (const record of pending) {
-      const latest = await this.ledger.list();
-      const current = buildWishLedgerRecords(latest).find((candidate) => candidate.wish.wishId === record.wish.wishId);
-      if (!current || current.assignment) continue;
-      const random = await this.rng.getAssignmentBit();
-      const committedAt = this.clock.now();
-      const payload: AssignmentPayload = {
-        wishId: current.wish.wishId,
-        arm: ASSIGNMENT_ARM_BY_BIT[random.bit],
-        rngSource: random.source,
-        bit: random.bit,
-        committedAt,
-      };
-      recovered.push(await this.ledger.append('assignment', payload, committedAt));
+    for (const wishId of pendingIds) {
+      const appended = await this.ledger.appendConditionally(
+        (entries) => {
+          const current = buildWishLedgerRecords(entries).find((record) => record.wish.wishId === wishId);
+          return Boolean(current && !current.assignment);
+        },
+        async () => {
+          const random = await this.rng.getAssignmentBit();
+          const committedAt = this.clock.now();
+          const payload: AssignmentPayload = {
+            wishId,
+            arm: ASSIGNMENT_ARM_BY_BIT[random.bit],
+            rngSource: random.source,
+            bit: random.bit,
+            committedAt,
+          };
+          return { type: 'assignment', payload, createdAt: committedAt };
+        },
+      );
+      if (appended) recovered.push(appended);
     }
     return recovered;
   }
