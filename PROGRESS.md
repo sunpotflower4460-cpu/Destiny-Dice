@@ -711,3 +711,48 @@ CocoaPods未インストールの場合は `sudo gem install cocoapods` の上�
 
 ### 次フェーズへの申し送り
 - 凍結順序どおり次は **P10 Final Report**。P9で生成したruntime/ledgerデータを使うが、最終確証判定・最終レポート生成はP10まで開始しない。
+---
+## P10: Final Report (2026-08-28)
+
+### 完了したこと
+- append-only ledger exportを `verifyChain()` で検証してから最終レポートへ投影する `src/report/` pipelineを実装した。
+- registration genesisのprotocol / canonicalization / RNG / analysis / stats versionと365日scheduleを検証し、壊れたexportを最終統計へ流さない。
+- Layer A最終確証は既存P5 `analyzeFinalLayerA()` を再利用し、主要sampleを `rngSource='anu' && ritualValid` のみに固定。fallbackは除外理由・source情報として残す。
+- Layer C最終確証は実験終了までにdeadline到来済みの割付済みwishだけを主要分母に投影し、deadline未到来・unassignedを別件数で保持する。統計式は既存P8 `analyzeFinalLayerC()` を再利用する。
+- 最終Markdownを「1. 確証パート」と「2. 探索パート」に明確分離し、探索値やwarningが確証判定へ混入しない構造にした。
+- P10探索としてLayer B ritual前後の気分/エネルギー差、状態依存、ミラクル日profileを純関数追加。既存P5/P8のdose-response / trend / pathway等も探索パートへ統合した。
+- v1 schemaに存在しない `realizedAt` は推定せず「測定不能」と明記し、自由文predictionの意味判定も後付けせず保留した。
+- `pnpm verify-export <experiment.json>` と `pnpm generate-report <experiment.json> [output.md]` を追加。CLIとアプリは同じchain verification / projection / stats / Markdown rendererを共有する。
+- `FinalReportPanel` を「記録・ラボ」へ追加し、365日終了後だけ最終レポートを生成・表示・共有/保存できるようにした。終了前はcomponent自体がfinal統計を生成しないSSR gateを固定した。
+- `scripts/simulate.ts` を完全offlineの365日/120願いsynthetic simulationへ拡張し、出力に `synthetic: true` と `networkRequests: 0` を明示。実ANU取得と誤認させない。
+- CIにnull年golden hash、export検証→Markdown byte-identical再生成、Layer A陽性fixture、Layer C陽性fixtureを必須ゲートとして追加した。
+
+### 完了基準の結果
+- `pnpm typecheck`: green
+- `pnpm test`: green — **35 test files / 151 tests passed**
+- null 365日 + 120願いsimulation: green — **1456 ledger entries** / `networkRequests: 0` / `verifyChain()` success
+- null report golden SHA-256: `1ec5f22034d18546ac20e2b8c64b5ea1dcab5e7faf4e903e7e7c58182f398381`
+- export verification → report regeneration: green — generated Markdownがsimulation出力とbyte-identical
+- Layer A positive fixture `--effect 0.01 --condition 2`: green — condition index 2のみ `positive_pre_registered_result`
+- Layer C positive fixture `--wish-effect 0.25`: green — practice≈0.6271 / sealed≈0.2459 / Fisher p≈0.0000411067 / BF10≈1720.18 / `positive_pre_registered_result`
+- `pnpm build`: green
+- ledger append-only guard: green
+- P10実装head CI run `33165163108` / job `98828707867`: success
+
+### 不変条件セルフチェック
+1. final p値は実験終了後のFinal Reportだけ — ✅
+2. confirmatory / exploratoryを構造的に分離 — ✅
+3. Layer A primaryはANU + ritual-validのみ — ✅
+4. Layer C primaryは実験終了までにdeadline到来済みのみ — ✅
+5. frozen P5/P8統計APIを再実装せず再利用 — ✅
+6. exportはchain検証後だけ解析 — ✅
+7. fallback/sourceを隠さない — ✅
+8. 欠測・未到来・unassignedを都合よく補完しない — ✅
+9. ledger append-only — ✅
+10. tamper-proofとは表現せずtamper-evidentを維持 — ✅
+
+### 次フェーズへの申し送り
+- 凍結順序どおり次は **P11 公証・提出 / Release Hardeningのみ**。
+- `capacitor.config.ts` の仮bundle id `com.example.intentiondice` を正式値へ確定し、iOS signing / App Store提出準備 / 実機smokeを行う。
+- 外部公証を有効化する場合もローカルchainを「完全改竄不能」とは表現せず、anchor対象hash・時刻・providerを監査可能に記録する。
+- P10で固定したnull report golden、A/C positive simulation、confirmatory/exploratory境界、CLI再現性をP11で壊さない。

@@ -56,6 +56,20 @@ export {
 } from './exploratory';
 
 export {
+  analyzeLayerBMood,
+  meanNormal95,
+  miracleProfile,
+  stateDependence,
+  type LayerBConditionSummary,
+  type LayerBExploratoryResult,
+  type LayerBSessionObservation,
+  type MeanCi95,
+  type MiracleProfileResult,
+  type RichSessionObservation,
+  type StateDependenceResult,
+} from './reportExploratory';
+
+export {
   LAYER_C_ARMS,
   LAYER_C_INFLUENCES,
   LAYER_C_LIKELIHOODS,
