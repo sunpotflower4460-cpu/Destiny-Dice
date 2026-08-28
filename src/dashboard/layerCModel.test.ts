@@ -14,11 +14,18 @@ function entry(seq: number, type: StoredLedgerEntry['type'], payload: Record<str
   };
 }
 
-function wishEntry(seq: number, wishId: string, text: string, likelihood = 2, influence = 'mixed'): StoredLedgerEntry {
+function wishEntry(
+  seq: number,
+  wishId: string,
+  text: string,
+  likelihood = 2,
+  influence = 'mixed',
+  deadline = '2026-09-30',
+): StoredLedgerEntry {
   return entry(seq, 'wish', {
     wishId,
     text,
-    deadline: '2026-09-30',
+    deadline,
     likelihood,
     influence,
     createdAt: '2026-09-01T00:00:00.000Z',
@@ -55,7 +62,11 @@ function judgmentEntry(
 }
 
 function registration(enabled = true): RegistrationPayload {
-  return { layerC: { enabled } } as RegistrationPayload;
+  return {
+    startDate: '2026-09-01',
+    days: 365,
+    layerC: { enabled },
+  } as RegistrationPayload;
 }
 
 describe('P8 Layer C dashboard projection', () => {
@@ -78,12 +89,17 @@ describe('P8 Layer C dashboard projection', () => {
     const model = buildLayerCDashboardModel(entries, registration());
     expect(model).not.toBeNull();
     expect(model).toMatchObject({
+      experimentEndDate: '2027-08-31',
       totalWishes: 5,
       assignedWishes: 4,
       judgedWishes: 3,
+      primaryEligibleJudgedWishes: 3,
+      postExperimentDeadlineWishes: 0,
       awaitingJudgment: 1,
       unassignedWishes: 1,
+      exploratoryAnalysisKind: 'exploratory',
     });
+    expect(model!.exploratoryWarning).toContain('探索的分析');
     expect(model!.comparison.practice).toMatchObject({ n: 2, realized: 1, notRealized: 1, withdrawn: 1 });
     expect(model!.comparison.sealed).toMatchObject({ n: 1, realized: 0, notRealized: 1 });
     expect(model!.assignmentSourceCounts).toEqual({
@@ -94,6 +110,27 @@ describe('P8 Layer C dashboard projection', () => {
     expect(JSON.stringify(model)).not.toContain('締切前UIへ漏らしてはいけない封印本文');
     expect(JSON.stringify(model)).not.toContain('実践願い');
     expect('fisherTwoSidedP' in model!).toBe(false);
+  });
+
+  it('excludes wishes whose deadline is after the frozen experiment end even when already withdrawn', () => {
+    const entries = [
+      wishEntry(1, 'p-ok', 'eligible practice', 2, 'mixed', '2027-08-31'),
+      assignmentEntry(2, 'p-ok', 'practice', 'anu'),
+      judgmentEntry(3, 'p-ok', 'realized', 'own_action'),
+      wishEntry(4, 's-ok', 'eligible sealed', 2, 'mixed', '2027-08-31'),
+      assignmentEntry(5, 's-ok', 'sealed', 'anu'),
+      judgmentEntry(6, 's-ok', 'not_realized'),
+      wishEntry(7, 'p-late', 'post experiment withdrawal', 2, 'mixed', '2027-09-01'),
+      assignmentEntry(8, 'p-late', 'practice', 'local'),
+      judgmentEntry(9, 'p-late', 'withdrawn'),
+    ];
+
+    const model = buildLayerCDashboardModel(entries, registration())!;
+    expect(model.judgedWishes).toBe(3);
+    expect(model.primaryEligibleJudgedWishes).toBe(2);
+    expect(model.postExperimentDeadlineWishes).toBe(1);
+    expect(model.comparison.practice).toMatchObject({ n: 1, realized: 1, withdrawn: 0 });
+    expect(model.comparison.sealed).toMatchObject({ n: 1, realized: 0 });
   });
 
   it('returns null when Layer C was disabled at registration', () => {
