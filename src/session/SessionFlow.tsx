@@ -26,6 +26,8 @@ export type SessionFlowProps = {
   onDraw: (draft: SessionDraft) => Promise<SessionResult>;
   loadWishMoment?: (experimentDate: string) => Promise<WishMomentProjection>;
   recordWishMoment?: (experimentDate: string, wishIdsShown: readonly string[], seconds: number) => Promise<void>;
+  onFinish?: () => void | Promise<void>;
+  finishLabel?: string;
 };
 
 type Stage = 'moodPre' | 'ritual' | 'moodPost' | 'prediction' | 'draw' | 'result' | 'wishMoment' | 'feedback';
@@ -38,6 +40,8 @@ export function SessionFlow({
   onDraw,
   loadWishMoment,
   recordWishMoment,
+  onFinish,
+  finishLabel = '完了',
 }: SessionFlowProps) {
   const [stage, setStage] = useState<Stage>('moodPre');
   const [moodPre, setMoodPre] = useState({ v: 5, e: 5 });
@@ -49,6 +53,7 @@ export function SessionFlow({
   const [prophecyText, setProphecyText] = useState('');
   const [holding, setHolding] = useState(false);
   const [drawing, setDrawing] = useState(false);
+  const [finishing, setFinishing] = useState(false);
   const [result, setResult] = useState<SessionResult | null>(null);
   const [wishMoment, setWishMoment] = useState<WishMomentProjection | null>(null);
   const [loadingWishMoment, setLoadingWishMoment] = useState(false);
@@ -142,6 +147,19 @@ export function SessionFlow({
       seconds,
     );
     setStage('feedback');
+  }
+
+  async function finishSession(): Promise<void> {
+    if (!onFinish || finishing) return;
+    setFinishing(true);
+    setError(null);
+    try {
+      await onFinish();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setFinishing(false);
+    }
   }
 
   return (
@@ -255,6 +273,12 @@ export function SessionFlow({
           {result.payload.z < 3 && Math.abs(result.payload.z) >= 2 && <p className="signal-label">共鳴</p>}
           {Math.abs(result.payload.z) < 2 && <p>今日の記録を台帳へ保存しました。</p>}
           <p className="quiet-note">prediction seq {result.payload.predictionSeq} → session seq {result.sessionEntry.seq}</p>
+          {onFinish && (
+            <button type="button" disabled={finishing} onClick={() => void finishSession()}>
+              {finishing ? '更新中…' : finishLabel}
+            </button>
+          )}
+          {error && <p className="session-error">{error}</p>}
         </div>
       )}
     </section>
