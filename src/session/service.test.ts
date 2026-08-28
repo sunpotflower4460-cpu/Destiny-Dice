@@ -142,6 +142,16 @@ describe('SessionFlowService', () => {
     expect((await ledger.list()).filter((entry) => entry.type === 'control')).toHaveLength(1);
   });
 
+  it('rejects controls outside the frozen experiment window before RNG acquisition', async () => {
+    const ledger = await createRegisteredLedger();
+    const rng = new QueueRng([localDraw('aa'.repeat(128))]);
+    const service = new SessionFlowService(ledger, rng, new QueueClock([]));
+
+    await expect(service.ensureDailyControl('2026-08-31')).rejects.toThrow('outside the frozen experiment window');
+    expect(rng.calls).toEqual([]);
+    expect((await ledger.list()).filter((entry) => entry.type === 'control')).toHaveLength(0);
+  });
+
   it('rejects measured sessions when daily control has not been committed', async () => {
     const ledger = await createRegisteredLedger();
     const rng = new QueueRng([localDraw('ff'.repeat(128))]);
