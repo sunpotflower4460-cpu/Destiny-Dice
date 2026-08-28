@@ -18,6 +18,19 @@ describe('registration schedules', () => {
     }
   });
 
+  it('matches frozen cross-platform golden vectors', async () => {
+    expect((await generateConditionSchedule(15, 'schedule-seed')).slice(0, 15)).toEqual([
+      3, 4, 2, 0, 1,
+      2, 4, 0, 3, 1,
+      2, 3, 4, 0, 1,
+    ]);
+    expect((await generateTargetSchedule(8, 3, 'target-seed')).slice(0, 24)).toEqual([
+      0, 0, 0, 1, 1, 0, 1, 1,
+      0, 0, 1, 0, 1, 1, 0, 1,
+      0, 0, 1, 1, 0, 1, 1, 1,
+    ]);
+  });
+
   it('creates deterministic targets independently from condition generation', async () => {
     const targets = await generateTargetSchedule(365, 3, 'target-seed');
     expect(targets).toHaveLength(1095);
