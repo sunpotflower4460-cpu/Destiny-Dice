@@ -12,10 +12,13 @@ function validateByteLength(byteLength: number): void {
 }
 
 export class RngService {
-  constructor(private readonly providers: readonly RngProvider[]) {
+  private readonly providers: readonly RngProvider[];
+
+  constructor(providers: readonly RngProvider[]) {
     if (providers.length === 0) {
       throw new Error('At least one RNG provider is required');
     }
+    this.providers = providers;
   }
 
   async getBits(nBits: number): Promise<RandomBits> {
