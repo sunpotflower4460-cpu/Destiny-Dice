@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { RegistrationPayload } from '../registration/types';
-import type { CumulativeDeviationPoint } from '../stats';
+import { EXPLORATORY_WARNING, type CumulativeDeviationPoint, type LayerCArmSummary } from '../stats';
+import type { LayerCDashboardModel } from './layerCModel';
 import type { LayerADashboardModel } from './model';
 import './dashboard.css';
 
@@ -12,10 +13,30 @@ const SOURCE_LABELS = {
   local: 'Local crypto',
 } as const;
 
+const PATHWAY_LABELS = {
+  own_action: '自分の行動',
+  other_person: '他人',
+  chance_encounter: '偶然の出会い',
+  unknown: '不明',
+} as const;
+
+const LIKELIHOOD_LABELS = ['よく起きそう', '五分五分', 'めったに'] as const;
+const INFLUENCE_LABELS = {
+  self: '自分で動かせる',
+  mixed: '半々',
+  external: '自分では動かせない',
+} as const;
+
 const MIRACLE_NULL_RATE = 0.0013498980316301;
 
 function formatPercent(value: number | null, digits = 2): string {
   return value === null ? '—' : `${(value * 100).toFixed(digits)}%`;
+}
+
+function formatSignedPercent(value: number | null, digits = 1): string {
+  if (value === null) return '—';
+  const points = value * 100;
+  return `${points >= 0 ? '+' : ''}${points.toFixed(digits)}pp`;
 }
 
 function formatNumber(value: number | null, digits = 2): string {
@@ -268,7 +289,108 @@ function ExperimentCalendar({ model }: { model: LayerADashboardModel }) {
   );
 }
 
-function LabPanel({ model }: { model: LayerADashboardModel }) {
+function LayerCArmCard({ summary, baselineRate }: { summary: LayerCArmSummary; baselineRate: number | null }) {
+  const isBaseline = summary.arm === 'sealed';
+  return (
+    <article className="condition-card">
+      <div className="condition-title"><span>{isBaseline ? 'C0' : 'C1'}</span><h3>{isBaseline ? '封印群（ベースライン）' : '実践群'}</h3></div>
+      {summary.n === 0 ? <p className="empty-state">判定済みの願いはまだありません。</p> : (
+        <>
+          <div className="hero-stat">
+            <strong>{formatPercent(summary.realizationRate, 1)}</strong>
+            <span>実現率</span>
+            <small>{isBaseline ? 'あなたの反実仮想ベースライン' : `封印群ベースライン ${formatPercent(baselineRate, 1)}`}</small>
+          </div>
+          <dl className="stat-grid">
+            <div><dt>実現</dt><dd>{summary.realized}/{summary.n}</dd><small>未実現 {summary.notRealized}</small></div>
+            <div><dt>95% CI</dt><dd>{summary.ci95 ? `${formatPercent(summary.ci95.lower)}–${formatPercent(summary.ci95.upper)}` : '—'}</dd><small>自己判定・非盲検</small></div>
+            <div><dt>取り下げ</dt><dd>{summary.withdrawn}</dd><small>主要解析では未実現</small></div>
+            <div><dt>判定不能</dt><dd>{summary.undecidable}</dd><small>主要解析では未実現</small></div>
+          </dl>
+        </>
+      )}
+    </article>
+  );
+}
+
+function LayerCPanel({ model }: { model: LayerCDashboardModel }) {
+  const primary = model.comparison;
+  const sensitivity = model.sensitivityExcludingUndecidable;
+  return (
+    <section className="lab-section" aria-labelledby="layer-c-heading">
+      <div className="section-heading">
+        <div><p className="eyebrow">LAB / LAYER C</p><h2 id="layer-c-heading">願いのランダム化比較</h2></div>
+        <span className="no-peek-badge">Fisher p値は最終解析まで非表示</span>
+      </div>
+      <p><strong>封印群があなたのベースライン。</strong> 実践した願いと、実践UIから隔離した願いの実現率を同じ物差しで比べます。</p>
+      <p className="quiet-note">証拠等級 ★★ — ランダム化比較ですが、実現判定は非盲検の自己判定です。</p>
+
+      <section className="source-strip" aria-label="Layer C進捗">
+        <div><strong>{model.totalWishes}</strong><span>登録願い</span></div>
+        <div><strong>{model.judgedWishes}</strong><span>判定済み</span></div>
+        <div><strong>{model.awaitingJudgment}</strong><span>未判定・締切前を含む</span></div>
+        <p>未割付 {model.unassignedWishes}件。未割付はpractice/sealed集計へ入りません。</p>
+      </section>
+
+      <div className="condition-grid">
+        <LayerCArmCard summary={primary.practice} baselineRate={primary.sealed.realizationRate} />
+        <LayerCArmCard summary={primary.sealed} baselineRate={primary.sealed.realizationRate} />
+      </div>
+
+      <section className="source-strip" aria-label="Layer C比較要約">
+        <div><strong>{formatSignedPercent(primary.riskDifference)}</strong><span>実践 − 封印</span></div>
+        <div><strong>{formatNumber(primary.bf10, 2)}</strong><span>BF₁₀</span></div>
+        <div><strong>1</strong><span>BFの中立点</span></div>
+        <p>途中経過のBFは表示しますが、確証用Fisher p値と最終判定は実験終了時まで開示しません。</p>
+      </section>
+
+      <details className="audit-details">
+        <summary>副次感度分析：判定不能だけを除外</summary>
+        <p>取り下げは未実現のまま維持し、undecidableだけを除外した副次結果です。主要結果の代わりにはしません。</p>
+        <div className="source-qc-grid">
+          <div><b>実践群</b><span>{sensitivity.practice.realized}/{sensitivity.practice.n}</span><span>{formatPercent(sensitivity.practice.realizationRate, 1)}</span></div>
+          <div><b>封印群</b><span>{sensitivity.sealed.realized}/{sensitivity.sealed.n}</span><span>{formatPercent(sensitivity.sealed.realizationRate, 1)}</span></div>
+          <div><b>差</b><span>{formatSignedPercent(sensitivity.riskDifference)}</span><span>BF₁₀ {formatNumber(sensitivity.bf10, 2)}</span></div>
+        </div>
+      </details>
+
+      <section aria-labelledby="assignment-source-heading">
+        <div className="section-heading"><div><p className="eyebrow">ASSIGNMENT RNG</p><h3 id="assignment-source-heading">割付source</h3></div><p>fallbackもRCTから除外せず、実際のsourceをそのまま表示します。</p></div>
+        <div className="source-qc-grid">
+          {(['anu', 'randomorg', 'local'] as const).map((source) => {
+            const count = model.assignmentSourceCounts[source];
+            return <div key={source}><b>{SOURCE_LABELS[source]}</b><span>{count.total} wishes</span><span>実践 {count.practice} / 封印 {count.sealed}</span></div>;
+          })}
+        </div>
+      </section>
+
+      <section aria-labelledby="layer-c-strata-heading">
+        <div className="section-heading"><div><p className="eyebrow">EXPLORATORY</p><h3 id="layer-c-strata-heading">層別の効きめ</h3></div></div>
+        <p className="quiet-note">{EXPLORATORY_WARNING}</p>
+        <div className="source-qc-grid">
+          {model.strata.likelihood.map((item, index) => (
+            <div key={item.key}><b>{LIKELIHOOD_LABELS[index]}</b><span>実践 {formatPercent(item.comparison.practice.realizationRate, 1)} / 封印 {formatPercent(item.comparison.sealed.realizationRate, 1)}</span><span>差 {formatSignedPercent(item.comparison.riskDifference)}</span></div>
+          ))}
+          {model.strata.influence.map((item) => {
+            const key = item.key.replace('influence-', '') as keyof typeof INFLUENCE_LABELS;
+            return <div key={item.key}><b>{INFLUENCE_LABELS[key]}</b><span>実践 {formatPercent(item.comparison.practice.realizationRate, 1)} / 封印 {formatPercent(item.comparison.sealed.realizationRate, 1)}</span><span>差 {formatSignedPercent(item.comparison.riskDifference)}</span></div>;
+          })}
+        </div>
+      </section>
+
+      <section aria-labelledby="pathways-heading">
+        <div className="section-heading"><div><p className="eyebrow">EXPLORATORY / PATHWAYS</p><h3 id="pathways-heading">実現した願いの経路</h3></div><p>実現例だけの記述分布です。</p></div>
+        <div className="source-qc-grid">
+          {model.pathways.map((item) => (
+            <div key={item.pathway}><b>{PATHWAY_LABELS[item.pathway]}</b><span>実践 {item.practice} ({formatPercent(item.practiceShare, 1)})</span><span>封印 {item.sealed} ({formatPercent(item.sealedShare, 1)})</span></div>
+          ))}
+        </div>
+      </section>
+    </section>
+  );
+}
+
+function LabPanel({ model, layerCModel }: { model: LayerADashboardModel; layerCModel?: LayerCDashboardModel | null }) {
   return (
     <section className="lab-panel" aria-labelledby="lab-heading">
       <header className="lab-hero">
@@ -284,6 +406,7 @@ function LabPanel({ model }: { model: LayerADashboardModel }) {
       <ControlPanel model={model} />
       <MiracleLog model={model} />
       <ExperimentCalendar model={model} />
+      {layerCModel && <LayerCPanel model={layerCModel} />}
     </section>
   );
 }
@@ -292,11 +415,13 @@ export function ExperimentDashboard({
   registration,
   genesisHash,
   model,
+  layerCModel,
   initialTab = 'home',
 }: {
   registration: RegistrationPayload;
   genesisHash: string;
   model: LayerADashboardModel;
+  layerCModel?: LayerCDashboardModel | null;
   initialTab?: DashboardTab;
 }) {
   const [tab, setTab] = useState<DashboardTab>(initialTab);
@@ -308,7 +433,7 @@ export function ExperimentDashboard({
       </nav>
       {tab === 'home'
         ? <HomePanel registration={registration} genesisHash={genesisHash} />
-        : <LabPanel model={model} />}
+        : <LabPanel model={model} layerCModel={layerCModel} />}
     </main>
   );
 }
