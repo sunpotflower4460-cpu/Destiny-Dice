@@ -1,39 +1,210 @@
-.placeholder {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
+.registration-shell {
   min-height: 100vh;
+  padding: 48px 20px;
+  background: linear-gradient(180deg, #f7f5ef 0%, #eef1eb 100%);
+  color: #1e2924;
+}
+
+.registration-card {
+  width: min(760px, 100%);
+  margin: 0 auto;
+  padding: 36px;
+  border: 1px solid rgba(30, 41, 36, 0.12);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 20px 60px rgba(30, 41, 36, 0.08);
+}
+
+.registration-card--locked {
+  max-width: 680px;
+}
+
+.eyebrow {
+  margin: 0 0 8px;
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  color: #526b60;
+}
+
+.registration-card h1 {
+  margin: 0;
+  font-size: clamp(2rem, 5vw, 3.4rem);
+  line-height: 1.08;
+  letter-spacing: -0.045em;
+}
+
+.lead,
+.quiet-note {
+  color: #607067;
+  line-height: 1.7;
+}
+
+fieldset {
+  display: grid;
+  gap: 16px;
+  margin: 30px 0 0;
   padding: 24px;
-  text-align: center;
+  border: 1px solid rgba(30, 41, 36, 0.11);
+  border-radius: 18px;
 }
 
-.message {
-  font-size: 1.2rem;
-  color: var(--text-h, #444);
+legend {
+  padding: 0 8px;
+  font-weight: 800;
 }
 
-.db-status {
-  font-size: 0.95rem;
-  font-weight: 600;
+label {
+  display: grid;
+  gap: 7px;
+  font-size: 0.9rem;
+  font-weight: 700;
 }
 
-.db-status--ok {
-  color: #1a7f37;
+input,
+select,
+textarea {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #cbd3ce;
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: #fff;
+  color: inherit;
+  font: inherit;
 }
 
-.db-status--ng {
-  color: #cf222e;
+textarea {
+  resize: vertical;
 }
 
-.db-status--checking {
-  color: #666;
+input:focus,
+select:focus,
+textarea:focus {
+  outline: 2px solid #778f82;
+  outline-offset: 2px;
 }
 
-.db-error {
-  font-size: 0.8rem;
-  color: #cf222e;
-  max-width: 480px;
-  word-break: break-word;
+.form-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.check-row,
+.lock-confirm {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  line-height: 1.5;
+}
+
+.check-row input,
+.lock-confirm input {
+  width: auto;
+  margin-top: 3px;
+}
+
+.field-help {
+  margin: 0;
+  color: #66756d;
+  font-size: 0.86rem;
+}
+
+.decision-box {
+  display: grid;
+  gap: 8px;
+  margin: 24px 0;
+  padding: 18px;
+  border-radius: 16px;
+  background: #edf2ee;
+  font-size: 0.9rem;
+}
+
+.lock-button {
+  width: 100%;
+  margin-top: 18px;
+  border: 0;
+  border-radius: 14px;
+  padding: 15px 18px;
+  background: #243b31;
+  color: #fff;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.lock-button:disabled {
+  cursor: progress;
+  opacity: 0.6;
+}
+
+.locked-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 28px 0;
+}
+
+.locked-grid div {
+  padding: 14px;
+  border-radius: 14px;
+  background: #f3f5f2;
+}
+
+.locked-grid dt {
+  color: #6a786f;
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.locked-grid dd {
+  margin: 5px 0 0;
+  font-weight: 750;
+}
+
+.hash-box {
+  display: grid;
+  gap: 8px;
+  padding: 18px;
+  border-radius: 14px;
+  background: #1f2d27;
+  color: #f6f6f1;
+}
+
+.hash-box span {
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+
+.hash-box code {
+  overflow-wrap: anywhere;
+  font-size: 0.82rem;
+}
+
+.error-text {
+  padding: 14px;
+  border-radius: 12px;
+  background: #fff0f0;
+  color: #a73333;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 640px) {
+  .registration-shell {
+    padding: 20px 12px;
+  }
+
+  .registration-card {
+    padding: 24px 18px;
+    border-radius: 18px;
+  }
+
+  .form-row,
+  .locked-grid {
+    grid-template-columns: 1fr;
+  }
 }
