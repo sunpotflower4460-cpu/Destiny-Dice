@@ -23,6 +23,7 @@ export const CONDITION_LABELS = [
 ] as const;
 
 const RNG_SOURCES: readonly RngSource[] = ['anu', 'randomorg', 'local'];
+const DAY_MS = 86_400_000;
 
 export type DashboardConditionCard = {
   condition: Condition;
@@ -64,6 +65,8 @@ export type CalendarDay = {
 export type LayerADashboardModel = {
   analysisKind: 'interim';
   primarySample: 'anu_valid_only';
+  primarySessions: number;
+  validSessions: number;
   conditionCards: DashboardConditionCard[];
   sourceCounts: SourceCounts;
   fallbackSessions: number;
@@ -79,6 +82,10 @@ type ParsedSession = LayerASessionObservation & {
   date: string;
   seqInDay: number;
   z: number;
+};
+
+type ParsedControl = LayerAControlObservation & {
+  date: string;
 };
 
 function asObject(value: unknown, label: string): Record<string, unknown> {
@@ -102,6 +109,11 @@ function asFiniteNumber(value: unknown, label: string): number {
 
 function asString(value: unknown, label: string): string {
   if (typeof value !== 'string' || value.length === 0) throw new TypeError(`${label} must be a non-empty string`);
+  return value;
+}
+
+function asBoolean(value: unknown, label: string): boolean {
+  if (typeof value !== 'boolean') throw new TypeError(`${label} must be a boolean`);
   return value;
 }
 
@@ -142,7 +154,7 @@ function parseSession(entry: StoredLedgerEntry): ParsedSession {
     seqInDay: asInteger(payload.seqInDay, 'session seqInDay'),
     condition: asCondition(payload.condition),
     rngSource: asRngSource(payload.rngSource),
-    ritualValid: ritual.valid === true,
+    ritualValid: asBoolean(ritual.valid, 'ritual valid'),
     ritualSeconds: asInteger(ritual.seconds, 'ritual seconds'),
     nBits,
     hits,
@@ -150,7 +162,7 @@ function parseSession(entry: StoredLedgerEntry): ParsedSession {
   };
 }
 
-function parseControl(entry: StoredLedgerEntry): LayerAControlObservation {
+function parseControl(entry: StoredLedgerEntry): ParsedControl {
   const payload = parsePayload(entry);
   const nBits = asInteger(payload.nBits, 'control nBits');
   const hits = asInteger(payload.hits, 'control hits');
@@ -164,10 +176,53 @@ function parseControl(entry: StoredLedgerEntry): LayerAControlObservation {
   };
 }
 
+function parseIsoDate(date: string, label: string): number {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new TypeError(`${label} must be YYYY-MM-DD`);
+  const timestamp = Date.parse(`${date}T00:00:00.000Z`);
+  if (!Number.isFinite(timestamp) || new Date(timestamp).toISOString().slice(0, 10) !== date) {
+    throw new RangeError(`${label} must be a valid calendar date`);
+  }
+  return timestamp;
+}
+
+function experimentDayIndex(registration: RegistrationPayload, date: string, label: string): number {
+  const start = parseIsoDate(registration.startDate, 'registration startDate');
+  const current = parseIsoDate(date, label);
+  const dayIndex = (current - start) / DAY_MS;
+  if (!Number.isInteger(dayIndex) || dayIndex < 0 || dayIndex >= registration.days) {
+    throw new RangeError(`${label} is outside the experiment window`);
+  }
+  return dayIndex;
+}
+
 function isoDateAtOffset(startDate: string, offset: number): string {
-  const timestamp = Date.parse(`${startDate}T00:00:00.000Z`);
-  if (!Number.isFinite(timestamp)) throw new RangeError('registration startDate must be valid');
-  return new Date(timestamp + offset * 86_400_000).toISOString().slice(0, 10);
+  const timestamp = parseIsoDate(startDate, 'registration startDate');
+  return new Date(timestamp + offset * DAY_MS).toISOString().slice(0, 10);
+}
+
+function validateRecordedSchedule(registration: RegistrationPayload, sessions: readonly ParsedSession[]): void {
+  const slots = new Set<string>();
+  for (const session of sessions) {
+    const dayIndex = experimentDayIndex(registration, session.date, 'session date');
+    if (session.seqInDay < 1 || session.seqInDay > registration.sessionsPerDay) {
+      throw new RangeError(`session seqInDay is outside 1..${registration.sessionsPerDay}`);
+    }
+    if (registration.schedule[dayIndex] !== session.condition) {
+      throw new Error(`session condition does not match registered schedule for ${session.date}`);
+    }
+    const slot = `${session.date}:${session.seqInDay}`;
+    if (slots.has(slot)) throw new Error(`duplicate session slot ${slot}`);
+    slots.add(slot);
+  }
+}
+
+function validateControls(registration: RegistrationPayload, controls: readonly ParsedControl[]): void {
+  const dates = new Set<string>();
+  for (const control of controls) {
+    experimentDayIndex(registration, control.date, 'control date');
+    if (dates.has(control.date)) throw new Error(`duplicate control date ${control.date}`);
+    dates.add(control.date);
+  }
 }
 
 function buildCalendar(registration: RegistrationPayload, sessions: readonly ParsedSession[]): CalendarDay[] {
@@ -181,16 +236,14 @@ function buildCalendar(registration: RegistrationPayload, sessions: readonly Par
   return Array.from({ length: registration.days }, (_, dayIndex) => {
     const date = isoDateAtOffset(registration.startDate, dayIndex);
     const rows = byDate.get(date) ?? [];
-    const conditions = new Set(rows.map((row) => row.condition));
-    if (conditions.size > 1) throw new Error(`multiple conditions recorded for ${date}`);
     const condition = rows[0]?.condition ?? null;
     return {
       date,
       recordedSessions: rows.length,
       condition,
       conditionLabel: condition === null ? null : CONDITION_LABELS[condition],
-      resonance: rows.some((row) => Math.abs(row.z) >= 2),
-      miracle: rows.some((row) => row.z >= 3),
+      resonance: rows.some((row) => row.ritualValid && Math.abs(row.z) >= 2),
+      miracle: rows.some((row) => row.ritualValid && row.z >= 3),
       rngSources: RNG_SOURCES.filter((source) => rows.some((row) => row.rngSource === source)),
     };
   });
@@ -202,6 +255,9 @@ export function buildLayerADashboardModel(
 ): LayerADashboardModel {
   const sessions = entries.filter((entry) => entry.type === 'session').map(parseSession);
   const controls = entries.filter((entry) => entry.type === 'control').map(parseControl);
+  validateRecordedSchedule(registration, sessions);
+  validateControls(registration, controls);
+
   const observations: LayerASessionObservation[] = sessions.map((session) => ({
     condition: session.condition,
     rngSource: session.rngSource,
@@ -216,10 +272,13 @@ export function buildLayerADashboardModel(
   const primary = sessions
     .filter((session) => session.rngSource === 'anu' && session.ritualValid)
     .sort((a, b) => a.ledgerSeq - b.ledgerSeq);
+  const validSessions = sessions.filter((session) => session.ritualValid);
 
   return {
     analysisKind: 'interim',
     primarySample: interim.primarySample,
+    primarySessions: primary.length,
+    validSessions: validSessions.length,
     conditionCards: interim.conditions.map((condition) => ({
       condition: condition.condition,
       label: CONDITION_LABELS[condition.condition],
@@ -241,8 +300,8 @@ export function buildLayerADashboardModel(
       hits: session.hits,
     }))),
     controlQc: analyzeControlQc(controls),
-    miracles: sessions
-      .filter((session) => session.ritualValid && session.z >= 3)
+    miracles: validSessions
+      .filter((session) => session.z >= 3)
       .sort((a, b) => a.ledgerSeq - b.ledgerSeq)
       .map((session) => ({
         date: session.date,
