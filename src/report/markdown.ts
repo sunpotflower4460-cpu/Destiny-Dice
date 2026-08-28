@@ -63,7 +63,7 @@ export function renderFinalReportMarkdown(report: FinalReportModel): string {
     lines.push('| 群 | 判定済みn | 実現 | 未実現 | 実現率 | 95%CI |');
     lines.push('|---|---:|---:|---:|---:|---|');
     for (const arm of [c.result.comparison.practice, c.result.comparison.sealed]) {
-      lines.push(`| ${arm.arm === 'practice' ? '実践群' : '封印群（ベースライン）'} | ${arm.n} | ${arm.realized} | ${arm.notRealized} | ${pct(arm.realizationRate)} | ${arm.ci95 ? `${pct(arm.ci95.low)}–${pct(arm.ci95.high)}` : '—'} |`);
+      lines.push(`| ${arm.arm === 'practice' ? '実践群' : '封印群（ベースライン）'} | ${arm.n} | ${arm.realized} | ${arm.notRealized} | ${pct(arm.realizationRate)} | ${arm.ci95 ? `${pct(arm.ci95.lower)}–${pct(arm.ci95.upper)}` : '—'} |`);
     }
     lines.push('');
     lines.push(`- 実践−封印の実現率差: ${pct(c.result.comparison.riskDifference)}`);
