@@ -118,6 +118,12 @@ function parseJudgment(entry: StoredLedgerEntry): JudgmentPayload {
   ) {
     throw new RangeError('judgment pathway is invalid');
   }
+  if (outcome === 'realized' && pathway === undefined) {
+    throw new Error('realized judgment must include pathway');
+  }
+  if (outcome !== 'realized' && pathway !== undefined) {
+    throw new Error('non-realized judgment must not include pathway');
+  }
   return {
     wishId: asNonEmptyString(payload.wishId, 'judgment wishId'),
     outcome: outcome as WishOutcome,
@@ -172,8 +178,9 @@ export function buildWishLedgerRecords(entries: readonly StoredLedgerEntry[]): W
       const judgment = parseJudgment(entry);
       const record = wishes.get(judgment.wishId);
       if (!record) throw new Error(`judgment references missing wish: ${judgment.wishId}`);
+      if (!record.assignment || !record.assignmentEntry) throw new Error('judgment requires a prior assignment');
       if (record.judgment) throw new Error(`duplicate judgment for wish: ${judgment.wishId}`);
-      if (entry.seq <= record.wishEntry.seq) throw new Error('judgment must be appended after wish');
+      if (entry.seq <= record.assignmentEntry.seq) throw new Error('judgment must be appended after assignment');
       record.judgmentEntry = entry;
       record.judgment = judgment;
     }
