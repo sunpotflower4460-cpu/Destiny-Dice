@@ -3,8 +3,9 @@ import { createWorker, type WorkerEnv } from './index';
 
 const GENESIS = 'a'.repeat(64);
 const HEAD = 'b'.repeat(64);
+type AnchorKv = WorkerEnv['ANCHOR_LOG'];
 
-class MemoryKv implements WorkerEnv['ANCHOR_LOG'] {
+class MemoryKv implements AnchorKv {
   private readonly data = new Map<string, string>();
   async get(key: string): Promise<string | null> {
     return this.data.get(key) ?? null;
