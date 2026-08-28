@@ -1,3 +1,4 @@
+import { buildLayerCDashboardModel } from '../src/dashboard/layerCModel';
 import { LedgerService } from '../src/ledger/service';
 import { MemoryLedgerStore } from '../src/ledger/memoryStore';
 import { verifyChain } from '../src/ledger/verify';
@@ -28,7 +29,11 @@ class WishSimulationClock implements WishClock {
   private readonly timestamps = [
     '2026-09-01T01:11:00.000Z',
     '2026-09-01T01:11:01.000Z',
+    '2026-09-01T01:11:02.000Z',
+    '2026-09-01T01:11:03.000Z',
     '2026-09-01T01:12:00.000Z',
+    '2026-09-29T01:00:00.000Z',
+    '2026-09-29T01:00:01.000Z',
   ];
 
   now(): string {
@@ -39,7 +44,7 @@ class WishSimulationClock implements WishClock {
 }
 
 const registration: RegistrationInput = {
-  experimentId: 'simulate-p7',
+  experimentId: 'simulate-p8',
   startDate: '2026-09-01',
   bitsPerDraw: 1024,
   sessionsPerDay: 1,
@@ -53,7 +58,7 @@ const registration: RegistrationInput = {
 };
 
 const ledger = new LedgerService(new MemoryLedgerStore());
-await new RegistrationService(ledger).register(registration, '2026-08-28T02:00:00.000Z');
+const registrationResult = await new RegistrationService(ledger).register(registration, '2026-08-28T02:00:00.000Z');
 
 const rng = new RngService([new SeededTestRngProvider('p4-offline-rng')]);
 const sessions = new SessionFlowService(ledger, rng, new SimulationClock());
@@ -73,20 +78,44 @@ const result = await sessions.runSession({
   startedAt: '2026-09-01T01:00:00.000Z',
 });
 
+const assignmentBits = [1, 0] as const;
+let assignmentIndex = 0;
+const wishIds = ['simulate-wish-practice', 'simulate-wish-sealed'] as const;
+let wishIdIndex = 0;
 const wishes = new WishRegistryService(
   ledger,
-  { getAssignmentBit: async () => ({ bit: 1 as const, source: 'local' as const }) },
+  {
+    getAssignmentBit: async () => {
+      const bit = assignmentBits[assignmentIndex];
+      assignmentIndex += 1;
+      if (bit === undefined) throw new Error('simulation assignment RNG exhausted');
+      return { bit, source: 'local' as const };
+    },
+  },
   new WishSimulationClock(),
-  () => 'simulate-wish-1',
+  () => {
+    const wishId = wishIds[wishIdIndex];
+    wishIdIndex += 1;
+    if (!wishId) throw new Error('simulation wish ID fixture exhausted');
+    return wishId;
+  },
 );
-const registeredWish = await wishes.registerWish({
+const practiceWish = await wishes.registerWish({
   text: '9月中に探していた本が手に入る',
   deadline: '2026-09-29',
   likelihood: 2,
   influence: 'mixed',
 });
+const sealedWish = await wishes.registerWish({
+  text: '9月中に偶然うれしい知らせが届く',
+  deadline: '2026-09-29',
+  likelihood: 2,
+  influence: 'external',
+});
 const wishMoment = await wishes.projectWishMoment('2026-09-01');
 await wishes.recordWishMoment('2026-09-01', wishMoment.wishes.map((wish) => wish.wishId), 30);
+await wishes.judgeWish('simulate-wish-practice', '2026-09-29', 'realized', 'chance_encounter');
+await wishes.judgeWish('simulate-wish-sealed', '2026-09-29', 'not_realized');
 
 const entries = await ledger.list();
 const verification = await verifyChain(entries);
@@ -96,11 +125,23 @@ if (!verification.ok) {
 if (result.predictionEntry.seq >= result.sessionEntry.seq) {
   throw new Error('simulation prediction ordering failed');
 }
-if (registeredWish.assignmentEntry.seq !== registeredWish.wishEntry.seq + 1) {
-  throw new Error('simulation wish assignment ordering failed');
+if (practiceWish.assignmentEntry.seq !== practiceWish.wishEntry.seq + 1) {
+  throw new Error('simulation practice wish assignment ordering failed');
 }
-if (wishMoment.wishes.some((wish) => wish.wishId !== 'simulate-wish-1')) {
-  throw new Error('simulation wish moment projection leaked an unexpected wish');
+if (sealedWish.assignmentEntry.seq !== sealedWish.wishEntry.seq + 1) {
+  throw new Error('simulation sealed wish assignment ordering failed');
+}
+if (wishMoment.wishes.map((wish) => wish.wishId).join(',') !== 'simulate-wish-practice') {
+  throw new Error('simulation wish moment projection violated sealed boundary');
+}
+
+const layerC = buildLayerCDashboardModel(entries, registrationResult.payload);
+if (!layerC) throw new Error('simulation Layer C dashboard unexpectedly disabled');
+if (layerC.comparison.practice.realizationRate !== 1 || layerC.comparison.sealed.realizationRate !== 0) {
+  throw new Error('simulation Layer C realization-rate aggregation failed');
+}
+if ('fisherTwoSidedP' in layerC) {
+  throw new Error('simulation interim Layer C dashboard leaked confirmatory Fisher p-value');
 }
 
 console.log(
@@ -117,11 +158,14 @@ console.log(
       hits: result.payload.hits,
       nBits: result.payload.nBits,
       z: result.payload.z,
-      wishSeq: registeredWish.wishEntry.seq,
-      assignmentSeq: registeredWish.assignmentEntry.seq,
-      assignmentArm: registeredWish.assignment.arm,
-      assignmentSource: registeredWish.assignment.rngSource,
+      practiceWishSeq: practiceWish.wishEntry.seq,
+      practiceAssignmentSeq: practiceWish.assignmentEntry.seq,
+      sealedWishSeq: sealedWish.wishEntry.seq,
+      sealedAssignmentSeq: sealedWish.assignmentEntry.seq,
       wishMomentCount: wishMoment.wishes.length,
+      layerCPracticeRate: layerC.comparison.practice.realizationRate,
+      layerCSealedRate: layerC.comparison.sealed.realizationRate,
+      layerCBf10: layerC.comparison.bf10,
       headHash: entries.at(-1)!.entryHash,
     },
     null,
