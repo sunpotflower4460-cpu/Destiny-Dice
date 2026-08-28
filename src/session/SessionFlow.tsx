@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { WishMoment, type WishMomentProjection } from '../wish';
 import { buildRitualRecord } from './ritual';
 import type { SessionContextInput, SessionDraft, SessionPlan, SessionResult } from './types';
 import './SessionFlow.css';
@@ -23,11 +24,21 @@ export type SessionFlowProps = {
   startedAt: string;
   context: SessionContextInput;
   onDraw: (draft: SessionDraft) => Promise<SessionResult>;
+  loadWishMoment?: (experimentDate: string) => Promise<WishMomentProjection>;
+  recordWishMoment?: (experimentDate: string, wishIdsShown: readonly string[], seconds: number) => Promise<void>;
 };
 
-type Stage = 'moodPre' | 'ritual' | 'moodPost' | 'prediction' | 'draw' | 'result';
+type Stage = 'moodPre' | 'ritual' | 'moodPost' | 'prediction' | 'draw' | 'result' | 'wishMoment' | 'feedback';
 
-export function SessionFlow({ plan, affirmationText, startedAt, context, onDraw }: SessionFlowProps) {
+export function SessionFlow({
+  plan,
+  affirmationText,
+  startedAt,
+  context,
+  onDraw,
+  loadWishMoment,
+  recordWishMoment,
+}: SessionFlowProps) {
   const [stage, setStage] = useState<Stage>('moodPre');
   const [moodPre, setMoodPre] = useState({ v: 5, e: 5 });
   const [moodPost, setMoodPost] = useState({ v: 5, e: 5 });
@@ -39,6 +50,8 @@ export function SessionFlow({ plan, affirmationText, startedAt, context, onDraw 
   const [holding, setHolding] = useState(false);
   const [drawing, setDrawing] = useState(false);
   const [result, setResult] = useState<SessionResult | null>(null);
+  const [wishMoment, setWishMoment] = useState<WishMomentProjection | null>(null);
+  const [loadingWishMoment, setLoadingWishMoment] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -97,6 +110,38 @@ export function SessionFlow({ plan, affirmationText, startedAt, context, onDraw 
     } finally {
       setDrawing(false);
     }
+  }
+
+  async function continueAfterResult(): Promise<void> {
+    if (!loadWishMoment || !recordWishMoment) {
+      setStage('feedback');
+      return;
+    }
+    setLoadingWishMoment(true);
+    setError(null);
+    try {
+      const projection = await loadWishMoment(plan.experimentDate);
+      if (projection.wishes.length === 0) {
+        setStage('feedback');
+        return;
+      }
+      setWishMoment(projection);
+      setStage('wishMoment');
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setLoadingWishMoment(false);
+    }
+  }
+
+  async function completeWishMoment(seconds: number): Promise<void> {
+    if (!wishMoment || !recordWishMoment) throw new Error('wish moment is not available');
+    await recordWishMoment(
+      plan.experimentDate,
+      wishMoment.wishes.map((wish) => wish.wishId),
+      seconds,
+    );
+    setStage('feedback');
   }
 
   return (
@@ -192,8 +237,23 @@ export function SessionFlow({ plan, affirmationText, startedAt, context, onDraw 
           <p className="result-z">z = {result.payload.z.toFixed(3)}</p>
           <p>偶然なら hit率 50%（期待 {Math.round(result.payload.nBits / 2).toLocaleString()} hits）</p>
           <p>RNG source: <strong>{result.payload.rngSource}</strong></p>
+          <button type="button" disabled={loadingWishMoment} onClick={() => void continueAfterResult()}>
+            {loadingWishMoment ? '願いタイムを確認中…' : '次へ'}
+          </button>
+          {error && <p className="session-error">{error}</p>}
+        </div>
+      )}
+
+      {stage === 'wishMoment' && wishMoment && (
+        <div className="session-step"><WishMoment projection={wishMoment} onComplete={completeWishMoment} /></div>
+      )}
+
+      {stage === 'feedback' && result && (
+        <div className="session-step result-step">
+          <p className="session-eyebrow">SESSION COMPLETE</p>
           {result.payload.z >= 3 && <p className="signal-label">ミラクル</p>}
           {result.payload.z < 3 && Math.abs(result.payload.z) >= 2 && <p className="signal-label">共鳴</p>}
+          {Math.abs(result.payload.z) < 2 && <p>今日の記録を台帳へ保存しました。</p>}
           <p className="quiet-note">prediction seq {result.payload.predictionSeq} → session seq {result.sessionEntry.seq}</p>
         </div>
       )}

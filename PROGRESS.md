@@ -531,3 +531,70 @@ CocoaPods未インストールの場合は `sudo gem install cocoapods` の上�
 - 新規: `src/dashboard/index.ts`
 - 更新: `src/App.tsx`
 - 更新: `PROGRESS.md`
+
+---
+
+## P7: Wish Registry (Layer C) (2026-08-28)
+
+### 完了したこと
+- `src/wish/` を新設し、wish / assignment / judgment / wishmoment の型、strict ledger projection、application service、quick registration UI、wish moment UIを実装した。
+- 通常登録は既存single-writerを拡張した `appendWithFollowUp()` のwriter lockを保持したまま `wish commit -> assignment RNG 1bit -> assignment commit` を行う。通常経路ではassignmentがwishの直後のseqになり、別entryが間へ割り込めない。
+- P7の割付bit mappingを **`0 = sealed`, `1 = practice`** として実装・テストで固定した。assignmentには実際の `rngSource`（anu/randomorg/local）とraw bitを保存し、fallbackでもLayer Cの割付として有効に扱う。
+- assignment RNGがwish commit後に失敗した場合はwishを削除・編集せずunassignedのまま残す。`recoverUnassignedWishes()` がresume時に検出し、global writer lock内の `appendConditionally()` で最新ledgerを再確認してからだけRNGを取得・assignmentを追記する。
+- 通常登録とrecoveryが同時に走る競合fixtureでもassignmentは1件のみ、RNG取得も1回のみになるよう固定した。assignment済みwishへの再割付はしない。
+- `projectNormalWishRegistry()` / `projectWishMoment()` はdeadline前のsealed wish本文を戻り値へ一切含めず、sealedは件数だけ返す。Reactで隠すのではなくdomain/application projectionでsealed visibility boundaryを強制した。
+- 締切到来後だけ `projectDueJudgments()` がpractice/sealed両群のwish本文・arm・sourceを判定UIへ返す。unassigned wishはpractice/sealedとして表示しない。
+- judgmentは `realized / not_realized / undecidable`、withdrawalは削除ではなく `judgment(outcome='withdrawn')` の追記として実装。realizedだけpathway必須、非realizedではpathway禁止をserviceとledger projectionの両方で検証する。
+- primary outcome用の固定分類をP7境界として `realized -> realized`, `not_realized / undecidable / withdrawn -> not_realized` と実装した。P8でこの規則を黙って変更しない。
+- judgment / withdrawal / wishmomentも `appendConditionally()` に統一し、最新ledgerをsingle-writer lock内で再検証してから追記する。同一wishへの同時二重judgmentは1件だけ成立する。
+- `recordWishMoment()` は30〜60秒のみ許可し、記録時点のdomain projectionが返すeligible practice wish IDsと完全一致する場合だけwishmomentを追記する。sealed・余分・欠落IDを含む記録は拒否する。
+- `SessionFlow` の順序を `result reveal -> wish moment -> permitted miracle/resonance feedback` に拡張した。wish momentへ渡せるのはP7 projection済みpractice wishだけで、sealed本文を直接渡す型経路を作っていない。
+- `WishRegistryPanel` に願い本文、2週間/1ヶ月/3ヶ月締切、起きやすさ、影響可能性、登録即時割付、practice一覧、sealed件数、締切判定、取り下げUIを実装した。
+- `scripts/simulate.ts` をP7まで伸ばし、Node側ではUI/CSS barrelを通さずservice/typesを直接importして完全offlineで実行できるようにした。
+- P9責務のfrozen timezone + dayBoundaryHourからcurrent experimentDateを解決するclockは先行実装せず、P7 service/UIは解決済みexperimentDate・明示timestampを注入で受け取る。
+
+### 完了基準の結果（実行結果）
+- GitHub Actions CI run `33138385936` / job `98743476775`: **green / success**。
+- `pnpm typecheck`: green（`tsc -b --noEmit`、errorなし）。
+- `pnpm test`: green（Vitest 4.1.10、**25 test files / 113 tests passed**）。
+- P7 WishRegistryService: **10 tests passed** — wish→assignment隣接、bit mapping/source保持、RNG失敗後recovery、recovery idempotency、通常登録との競合時RNG二重消費禁止、sealed本文非漏洩、deadline reveal、wishmoment exact eligibility、judgment/pathway/withdrawal、同時二重judgment拒否、semantic malformed judgment拒否、Layer C disabled guard、writer lock中のinterleaving禁止を検証。
+- `pnpm simulate`: green / network access 0。entry typeは `registration -> control -> prediction -> session -> wish -> assignment -> wishmoment`、`predictionSeq=3 < sessionSeq=4`、`wishSeq=5 -> assignmentSeq=6`、`assignmentArm='practice'`、`assignmentSource='local'`、`wishMomentCount=1`、`verifyChain()`成功。
+- `pnpm build`: green（Vite 8.1.4 production build成功、56 modules transformed。既知の`jeep-sqlite` crypto externalization warningのみ継続）。
+- ledger append-only guard: green — `OK: no forbidden ledger DELETE/UPDATE paths found.`
+- テスト/シミュレーションの外部ANU/RANDOM.ORGアクセスは0件。Layer C RNG fixtureは決定的で、actual source fieldの保存経路だけを検証した。
+
+### UI検証上の注意
+- `WishRegistryPanel` / `WishMoment` / P7拡張後`SessionFlow`はTypeScript strictとproduction buildを通過している。
+- 本セッションでは実ブラウザ操作・iOSシミュレータ確認は未実施。`WishRegistryPanel`とP4/P7 `SessionFlow`の`App.tsx` runtime mountingは、P9のfrozen experimentDate resolverとproduction RNG/application wiringを入れる統合時に行う。P7内で暫定的な端末日付ロジックを発明していない。
+
+### 手動レビューで修正した点
+- 初回P7 test fixtureに存在しない `source: undefined` を期待値へ入れていたテストミスを修正した。
+- 初回P7 simulateは`src/wish/index.ts`からUI/CSSまでNodeへ読み込んで`.css` extension errorになったため、トレーサーバレットは`wish/service.ts` / `wish/types.ts`を直接importするNode-safe境界へ修正した。
+- `list()`がwish単独状態を一瞬観測できる並行resumeを考慮し、recoveryのassignment判定とRNG取得をglobal writer lock内のconditional appendへ移して二重assignment・余分なRNG消費を防いだ。
+- judgment/withdrawal/wishmomentのread→append競合も同じconditional writerへ統一し、同時二重judgmentをテストで固定した。
+- ledger projection側でもrealized pathway必須・非realized pathway禁止・judgmentはassignment後という意味検証を追加し、P8が壊れたLayer C recordを黙って集計しないようにした。
+- 外部自動review botはCodex/Cursor利用上限、CodeRabbit自動review条件未達のため実質利用できず、CI + P7 E2E + offline tracer + 手動diff reviewをmerge判断の根拠とする。
+
+### 要確定・申し送り（P8へ）
+- 次は **P8 統計エンジンC＋ダッシュボード統合のみ**。P9時計/通知、P10最終レポート、P11公証/申請へ先回りしない。
+- P8はP7の`wish -> assignment`順序、`0=sealed / 1=practice` mapping、sealed domain visibility boundary、withdrawn/undecidable primary classificationを変更しない。
+- Layer C主要解析では締切が実験終了までに到来した割付済みwishを対象にし、`withdrawn`/`undecidable`をnot realizedへ数えるProtocol Freeze規則を使う。締切未到来は件数のみで主要分母から外す。
+- Fisher両側＋2×2 BFは`src/stats/`のUI非依存純関数として実装し、DESIGN.md golden `n1=n2=2, y1=2, y2=0 -> BF10=10/3` を必ず固定する。
+- P8 dashboardはpractice vs sealedの実現率を表示するとき、sealed群を「あなたの世界のベースライン」として隣接表示する。締切前sealed本文を統計画面やnormal UIへ漏らさない。
+- P7 UIのApp runtime mountingとfrozen experimentDate resolverは引き続きP9統合まで保留する。
+- `capacitor.config.ts` の本番bundle idは引き続きP11まで要確定。
+
+### 触ったファイル
+- 新規: `src/wish/types.ts`
+- 新規: `src/wish/projection.ts`
+- 新規: `src/wish/service.ts`
+- 新規: `src/wish/service.test.ts`
+- 新規: `src/wish/id.ts`
+- 新規: `src/wish/index.ts`
+- 新規: `src/wish/WishRegistryPanel.tsx`
+- 新規: `src/wish/WishMoment.tsx`
+- 新規: `src/wish/wish.css`
+- 更新: `src/ledger/service.ts`
+- 更新: `src/session/SessionFlow.tsx`
+- 更新: `scripts/simulate.ts`
+- 更新: `PROGRESS.md`
