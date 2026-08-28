@@ -1,4 +1,5 @@
 import { type FormEvent, useEffect, useState } from 'react';
+import { ExperimentDashboard, buildLayerADashboardModel, type LayerADashboardModel } from './dashboard';
 import { getApplicationLedgerService } from './ledger/appService';
 import { verifyChain } from './ledger/verify';
 import {
@@ -15,7 +16,7 @@ import './App.css';
 type AppState =
   | { kind: 'loading' }
   | { kind: 'ready' }
-  | { kind: 'registered'; payload: RegistrationPayload; genesisHash: string }
+  | { kind: 'registered'; payload: RegistrationPayload; genesisHash: string; dashboard: LayerADashboardModel }
   | { kind: 'error'; message: string };
 
 const CONDITION_LABELS = ['P1 引くだけ', 'P2 意図書き', 'P3 アファメーション', 'P4 祈り', 'P5 フルコンボ'];
@@ -68,10 +69,12 @@ function App() {
           return;
         }
         const genesis = entries[0]!;
+        const payload = parseRegistration(genesis.payloadJson);
         setState({
           kind: 'registered',
-          payload: parseRegistration(genesis.payloadJson),
+          payload,
           genesisHash: genesis.entryHash,
+          dashboard: buildLayerADashboardModel(entries, payload),
         });
       })
       .catch((error: unknown) => {
@@ -114,7 +117,13 @@ function App() {
       };
       const ledger = await getApplicationLedgerService();
       const result = await new RegistrationService(ledger).register(input, new Date().toISOString());
-      setState({ kind: 'registered', payload: result.payload, genesisHash: result.genesisHash });
+      const entries = await ledger.list();
+      setState({
+        kind: 'registered',
+        payload: result.payload,
+        genesisHash: result.genesisHash,
+        dashboard: buildLayerADashboardModel(entries, result.payload),
+      });
     } catch (error) {
       setFormError(error instanceof Error ? error.message : String(error));
     } finally {
@@ -139,25 +148,7 @@ function App() {
   }
 
   if (state.kind === 'registered') {
-    return (
-      <main className="registration-shell">
-        <section className="registration-card registration-card--locked">
-          <p className="eyebrow">PREREGISTRATION LOCKED</p>
-          <h1>実験条件を固定しました</h1>
-          <p>この実験IDでは、登録内容を後から編集できません。</p>
-          <dl className="locked-grid">
-            <div><dt>Experiment</dt><dd>{state.payload.experimentId}</dd></div>
-            <div><dt>開始日</dt><dd>{state.payload.startDate}</dd></div>
-            <div><dt>期間</dt><dd>{state.payload.days}日</dd></div>
-            <div><dt>抽選</dt><dd>{state.payload.bitsPerDraw.toLocaleString()} bits × {state.payload.sessionsPerDay}/日</dd></div>
-            <div><dt>日付境界</dt><dd>{state.payload.timeZone} / {String(state.payload.dayBoundaryHour).padStart(2, '0')}:00</dd></div>
-            <div><dt>Protocol</dt><dd>v{state.payload.protocolVersion}</dd></div>
-          </dl>
-          <div className="hash-box"><span>Genesis hash</span><code>{state.genesisHash}</code></div>
-          <p className="quiet-note">未来の条件・targetはここでは表示しません。必要な日だけ、固定済みseedから再現されます。</p>
-        </section>
-      </main>
-    );
+    return <ExperimentDashboard registration={state.payload} genesisHash={state.genesisHash} model={state.dashboard} />;
   }
 
   return (
