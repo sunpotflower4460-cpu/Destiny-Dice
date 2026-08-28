@@ -66,7 +66,7 @@ CocoaPods未インストールの場合は `sudo gem install cocoapods` の上�
 ### 触ったファイル
 - 新規: `AGENTS.md`, `DESIGN.md`, `README.md`（更新）, `PROGRESS.md`, `.gitignore`, `.oxlintrc.json`
 - 新規: `package.json`, `pnpm-lock.yaml`, `tsconfig.json`, `tsconfig.app.json`, `tsconfig.node.json`, `vite.config.ts`, `vitest.config.ts`, `capacitor.config.ts`, `index.html`
-- 新規: `src/main.tsx`, `src/App.tsx`, `src/index.css`
+- 新規: `src/main.tsx`, `src/App.tsx`, `src/App.css`, `src/index.css`
 - 新規: `src/db/schema.ts`, `src/db/sqlite.ts`, `src/db/schema.test.ts`
 - 新規: `scripts/simulate.ts`
 - 新規: `public/favicon.svg`, `public/icons.svg`, `public/assets/sql-wasm.wasm`
