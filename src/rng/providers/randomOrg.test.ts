@@ -3,7 +3,9 @@ import { RandomOrgRngProvider } from './randomOrg';
 
 describe('RandomOrgRngProvider', () => {
   it('requests byte-range integers using the official plain HTTP shape', async () => {
-    const fetchFn = vi.fn(async () => new Response('0\n127\n255\n', { status: 200 }));
+    const fetchFn = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) =>
+      new Response('0\n127\n255\n', { status: 200 }),
+    );
     const provider = new RandomOrgRngProvider({
       endpoint: 'https://example.test/random',
       fetchFn,
@@ -20,14 +22,18 @@ describe('RandomOrgRngProvider', () => {
   });
 
   it('rejects explicit RANDOM.ORG error payloads', async () => {
-    const fetchFn = vi.fn(async () => new Response('Error: quota exceeded\n', { status: 200 }));
+    const fetchFn = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) =>
+      new Response('Error: quota exceeded\n', { status: 200 }),
+    );
     const provider = new RandomOrgRngProvider({ endpoint: 'https://example.test/random', fetchFn });
 
     await expect(provider.getBytes(1)).rejects.toThrow('error response');
   });
 
   it('rejects the wrong number of returned bytes', async () => {
-    const fetchFn = vi.fn(async () => new Response('1\n2\n', { status: 200 }));
+    const fetchFn = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) =>
+      new Response('1\n2\n', { status: 200 }),
+    );
     const provider = new RandomOrgRngProvider({ endpoint: 'https://example.test/random', fetchFn });
 
     await expect(provider.getBytes(3)).rejects.toThrow('exactly 3 integers');
