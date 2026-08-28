@@ -46,6 +46,8 @@ jobs:
           APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
           APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
           APP_STORE_CONNECT_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_KEY_CONTENT }}
+          VITE_ANU_RNG_ENDPOINT: ${{ vars.VITE_ANU_RNG_ENDPOINT }}
+          VITE_NOTARY_ENDPOINT: ${{ vars.VITE_NOTARY_ENDPOINT }}
         run: bundle exec fastlane ios beta
 
       - name: Upload fastlane diagnostics
