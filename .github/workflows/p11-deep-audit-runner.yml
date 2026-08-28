@@ -1,0 +1,88 @@
+name: P11 deep audit runner
+
+on:
+  push:
+    branches:
+      - p11-deep-integrity-audit-hotfix
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: p11-deep-integrity-audit-hotfix
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+          run_install: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Apply extracted patch
+        shell: bash
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          import textwrap
+          source = Path('.github/workflows/p11-deep-audit-patch-once.yml').read_text()
+          body = source.split("python3 <<'PY'\n", 1)[1].split("\n          PY", 1)[0]
+          exec(compile(textwrap.dedent(body), 'p11-deep-audit-patch.py', 'exec'))
+          PY
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Typecheck Worker
+        run: pnpm worker:typecheck
+
+      - name: Test
+        run: pnpm test
+
+      - name: Verify P10 golden and report reproduction
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm simulate --days 365 --effect 0 --wish-n 120 --wish-base 0.3 --wish-effect 0 --export /tmp/experiment.json --report /tmp/sim-report.md | tee /tmp/null-sim.json
+          grep -F '"reportSha256": "1ec5f22034d18546ac20e2b8c64b5ea1dcab5e7faf4e903e7e7c58182f398381"' /tmp/null-sim.json
+          pnpm verify-export /tmp/experiment.json
+          pnpm exec tsx scripts/reproduce-synthetic-report.ts /tmp/experiment.json /tmp/rebuilt-report.md
+          cmp /tmp/sim-report.md /tmp/rebuilt-report.md
+
+      - name: Release and build checks
+        run: |
+          pnpm release-check
+          pnpm build
+
+      - name: Append-only guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -RniE --include='*.ts' --include='*.tsx' 'DELETE[[:space:]]+FROM[[:space:]]+ledger|UPDATE[[:space:]]+ledger|ledger.*\.(delete|remove)\(' src scripts; then
+            echo 'Forbidden ledger mutation code detected.' >&2
+            exit 1
+          fi
+
+      - name: Commit verified patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src scripts .github/workflows/ci.yml
+          git diff --cached --check
+          git commit -m 'P11: harden cross-phase integrity boundaries'
+          git push origin HEAD:p11-deep-integrity-audit-hotfix
