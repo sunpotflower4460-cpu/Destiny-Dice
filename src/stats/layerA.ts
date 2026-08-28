@@ -1,5 +1,5 @@
 import type { Condition, DecisionRule } from '../registration/types';
-import type { RngSource } from '../rng/types';
+import { RNG_SOURCES, type RngSource } from '../rng/types';
 import { cumulativeDeviation, zScore } from './core';
 import {
   holmAdjust,
@@ -11,6 +11,7 @@ import {
 
 export const CONDITIONS = [0, 1, 2, 3, 4] as const satisfies readonly Condition[];
 export const CHANCE_HIT_RATE = 0.5 as const;
+export const LAYER_A_HOLM_FAMILY_SIZE = 5 as const;
 
 export type LayerASessionObservation = {
   condition: Condition;
@@ -79,6 +80,7 @@ export type FinalConditionResult = BinomialSummary & {
 export type FinalLayerAResult = {
   analysisKind: 'final_confirmatory';
   primarySample: 'anu_valid_only';
+  holmFamilySize: typeof LAYER_A_HOLM_FAMILY_SIZE;
   conditions: FinalConditionResult[];
   sourceCounts: SourceCounts;
   exclusions: {
@@ -230,6 +232,7 @@ export function analyzeFinalLayerA(
   return {
     analysisKind: 'final_confirmatory',
     primarySample: 'anu_valid_only',
+    holmFamilySize: LAYER_A_HOLM_FAMILY_SIZE,
     conditions: summaries.map((item, index) => {
       const holmAdjustedP = adjusted[index] ?? null;
       let label: ConfirmatoryLabel = 'inconclusive';
@@ -258,6 +261,7 @@ export function analyzeFinalLayerA(
 
 export type ControlQcResult = BinomialSummary & {
   sourceCounts: SourceCounts;
+  bySource: Record<RngSource, BinomialSummary>;
 };
 
 export function analyzeControlQc(observations: readonly LayerAControlObservation[]): ControlQcResult {
@@ -265,6 +269,12 @@ export function analyzeControlQc(observations: readonly LayerAControlObservation
   return {
     ...summarizeObservations(observations),
     sourceCounts: countSources(observations),
+    bySource: Object.fromEntries(
+      RNG_SOURCES.map((source) => [
+        source,
+        summarizeObservations(observations.filter((item) => item.rngSource === source)),
+      ]),
+    ) as Record<RngSource, BinomialSummary>,
   };
 }
 
