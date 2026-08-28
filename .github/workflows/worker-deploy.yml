@@ -1,0 +1,54 @@
+name: Deploy public anchor Worker
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Require deployment secrets
+        shell: bash
+        env:
+          CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CF_KV: ${{ secrets.CLOUDFLARE_ANCHOR_KV_NAMESPACE_ID }}
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$CF_ACCOUNT"
+          test -n "$CF_KV"
+          test -n "$CF_TOKEN"
+
+      - name: Build temporary Wrangler configuration
+        shell: bash
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_ANCHOR_KV_NAMESPACE_ID: ${{ secrets.CLOUDFLARE_ANCHOR_KV_NAMESPACE_ID }}
+        run: |
+          cat > workers/qrng-proxy/wrangler.toml <<EOF
+          name = "intention-dice-qrng-proxy"
+          main = "src/index.ts"
+          compatibility_date = "2026-08-28"
+          account_id = "$CLOUDFLARE_ACCOUNT_ID"
+
+          [[kv_namespaces]]
+          binding = "ANCHOR_LOG"
+          id = "$CLOUDFLARE_ANCHOR_KV_NAMESPACE_ID"
+          EOF
+
+      - name: Deploy Worker
+        working-directory: workers/qrng-proxy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx --yes wrangler@4 deploy --config wrangler.toml

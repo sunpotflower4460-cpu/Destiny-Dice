@@ -1,0 +1,9 @@
+name = "intention-dice-qrng-proxy"
+main = "src/index.ts"
+compatibility_date = "2026-08-28"
+
+# Copy to wrangler.toml only for local/manual deploy, then replace this
+# placeholder with a real KV namespace ID. Do not commit credentials.
+[[kv_namespaces]]
+binding = "ANCHOR_LOG"
+id = "REPLACE_WITH_KV_NAMESPACE_ID"

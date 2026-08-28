@@ -9,10 +9,12 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "typecheck": "tsc -b --noEmit",
+    "worker:typecheck": "tsc -p workers/qrng-proxy/tsconfig.json --noEmit",
     "test": "vitest run",
     "simulate": "tsx scripts/simulate.ts",
     "verify-export": "tsx scripts/verify-export.ts",
-    "generate-report": "tsx scripts/generate-report.ts"
+    "generate-report": "tsx scripts/generate-report.ts",
+    "release-check": "tsx scripts/release-check.ts"
   },
   "dependencies": {
     "@capacitor-community/sqlite": "6.0.2",

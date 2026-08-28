@@ -38,6 +38,9 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
+      - name: Typecheck public anchor Worker
+        run: pnpm worker:typecheck
+
       - name: Test
         run: pnpm test
 
@@ -62,6 +65,9 @@ jobs:
 
       - name: Simulate Layer C positive fixture
         run: pnpm simulate --days 365 --effect 0 --wish-n 120 --wish-base 0.3 --wish-effect 0.25
+
+      - name: Release readiness checks
+        run: pnpm release-check
 
       - name: Build
         run: pnpm build

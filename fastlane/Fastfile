@@ -1,0 +1,58 @@
+# P11 release pipeline. TestFlight upload is intentionally manual/tag-triggered
+# from .github/workflows/ios-release.yml and requires App Store Connect secrets.
+
+default_platform(:ios)
+
+platform :ios do
+  desc 'Build web assets and synchronize Capacitor/CocoaPods iOS project'
+  lane :build_web do
+    Dir.chdir('..') do
+      sh('pnpm install --frozen-lockfile')
+      sh('pnpm build')
+      sh('npx cap sync ios')
+    end
+  end
+
+  desc 'Authenticate to App Store Connect with API key'
+  private_lane :connect_api_key do
+    app_store_connect_api_key(
+      key_id: ENV.fetch('APP_STORE_CONNECT_KEY_ID'),
+      issuer_id: ENV.fetch('APP_STORE_CONNECT_ISSUER_ID'),
+      key_content: ENV.fetch('APP_STORE_CONNECT_KEY_CONTENT'),
+      is_key_content_base64: false,
+      in_house: false,
+    )
+  end
+
+  desc 'Build, sign and upload an internal TestFlight build'
+  lane :beta do
+    build_web
+    api_key = connect_api_key
+    team_id = ENV.fetch('APPLE_TEAM_ID')
+
+    increment_build_number(
+      xcodeproj: 'ios/App/App.xcodeproj',
+      build_number: ENV['GITHUB_RUN_NUMBER'] || Time.now.strftime('%Y%m%d%H%M'),
+    )
+
+    build_app(
+      workspace: 'ios/App/App.xcworkspace',
+      scheme: 'App',
+      export_method: 'app-store',
+      xcargs: "-allowProvisioningUpdates DEVELOPMENT_TEAM=#{team_id}",
+    )
+
+    upload_to_testflight(
+      api_key: api_key,
+      skip_waiting_for_build_processing: true,
+      distribute_external: false,
+    )
+  end
+
+  desc 'Resolve the CocoaPods workspace and build for an unsigned simulator target'
+  lane :verify_project do
+    build_web
+    sh("xcodebuild -workspace ios/App/App.xcworkspace -scheme App -configuration Debug -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build")
+    UI.success('Intention Dice iOS workspace builds for the simulator.')
+  end
+end

@@ -756,3 +756,44 @@ CocoaPods未インストールの場合は `sudo gem install cocoapods` の上�
 - `capacitor.config.ts` の仮bundle id `com.example.intentiondice` を正式値へ確定し、iOS signing / App Store提出準備 / 実機smokeを行う。
 - 外部公証を有効化する場合もローカルchainを「完全改竄不能」とは表現せず、anchor対象hash・時刻・providerを監査可能に記録する。
 - P10で固定したnull report golden、A/C positive simulation、confirmatory/exploratory境界、CLI再現性をP11で壊さない。
+---
+## P11: Public Anchoring / Release Hardening (2026-08-28)
+
+### 完了したこと
+- production bundle identifierを `com.sunpotflower4460.intentiondice` に確定し、Capacitor / Xcode / fastlaneで統一した。
+- App Store用1024x1024 RGB / no-alpha icon、splash、`ITSAppUsesNonExemptEncryption = false`、日本語metadata / privacy / submission checklistを整備した。
+- Fastlane + GitHub Actionsの手動TestFlight経路、`macos-26` / Xcode 26+ unsigned iOS Simulator smoke、`pnpm release-check`を追加した。
+- optional週次public anchoringを実装。外部送信は `genesisHash / headHash / headSeq / protocolVersion` のみで、wish本文、mood、prediction、raw RNG bits等は送信しない。失敗/未設定/オフラインでも実験をblockしない。
+- Cloudflare Workerにstrictな `POST /anchors` / `GET /anchors/<genesisHash>`、server `receivedAt`、duplicate idempotency、extra-field rejectionと手動deploy workflowを実装した。
+- chainの意味は最後まで **tamper-evident** とし、tamper-proofとは表現しない。
+
+### 完了基準の結果
+- Linux CI run `33167978274`: **success**。typecheck / tests / 365日simulation / P10 golden / build / append-only guard / release-check green。
+- tests: **36 files / 157 tests passed**。
+- offline 365日simulation: **1456 ledger entries / networkRequests: 0 / verifyChain success**。
+- iOS native smoke run `33167978311`, job `98837863198`: **success**。Xcode 26+ validation -> Web build -> Capacitor sync -> Simulator runtime -> `App.xcworkspace` Simulator buildの全step成功。
+- external readiness probe run `33167975160`, job `98837853344`: **success**。secret値は出さずpresenceのみ確認。
+- PR #14: unresolved review threads **0** / submitted reviews **0**。blocking reviewなし。
+- readiness helper削除後の差分はhelper 1ファイル削除のみで製品コード変更なし。bot push後の `action_required / jobs 0` はworkflow approval gateでありcompile/test failureではない。
+
+### 外部release readiness
+- Apple release credentials: **missing**
+- Cloudflare release credentials: **missing**
+- ANU production endpoint: **missing**
+- public notary endpoint: **missing**
+- よって実TestFlight uploadとWorker実deployは未実施。release/deploy経路とnative buildは検証済みで、外部資格情報/endpoint投入後の手動operationとして分離する。未実施を公開済みとは扱わない。
+
+### 最終不変条件セルフチェック
+1. ledger append-only — ✅
+2. prediction commit before measured RNG — ✅
+3. target scheduleとmeasured Layer A RNGの独立 — ✅
+4. fallback sourceを隠さない — ✅
+5. confirmatory / exploratory境界とP10 goldenを維持 — ✅
+6. sealed wish本文をexternal anchorへ送らない — ✅
+7. anchor failureをexperiment blockingにしない — ✅
+8. tamper-evidentをtamper-proofと誇張しない — ✅
+9. production bundle ID / Xcode 26 native build / store submission gate — ✅
+
+### Release申し送り
+- repository implementationは **P0 -> Gate 0 -> P1 -> P2 -> P3 -> P4a -> P4 -> P5 -> P6 -> P7 -> P8 -> P9 -> P10 -> P11** まで完了。
+- 残るのはApple / Cloudflare資格情報、ANU production endpoint、public notary endpointの設定と、手動release/deploy実行のみ。
