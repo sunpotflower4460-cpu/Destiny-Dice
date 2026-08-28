@@ -1,13 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import type { RegistrationPayload } from '../registration/types';
-import { planLocalNotifications } from './notifications';
+import { planLocalNotifications, type NotificationRegistration } from './notifications';
 
 const registration = {
   startDate: '2026-09-01',
-  days: 3,
+  days: 365,
   timeZone: 'Asia/Tokyo',
   dayBoundaryHour: 3,
-} as RegistrationPayload;
+} satisfies NotificationRegistration;
 
 describe('P9 local notification scheduling', () => {
   it('schedules deadline notifications at the frozen experiment-day boundary and never includes wish text', () => {
@@ -36,6 +35,7 @@ describe('P9 local notification scheduling', () => {
       now: '2026-09-01T00:00:00.000Z',
       wishes: [],
       dailyReminderTime: '20:00',
+      maxPending: 3,
     });
 
     expect(plans.map((plan) => plan.at)).toEqual([
@@ -52,13 +52,14 @@ describe('P9 local notification scheduling', () => {
       now: '2026-09-01T00:00:00.000Z',
       wishes: [],
       dailyReminderTime: '01:00',
+      maxPending: 1,
     });
-    expect(plans[0]?.at).toBe('2026-09-01T16:00:00.000Z'); // Sep 2 01:00 JST, still experimentDate Sep 1
+    expect(plans[0]?.at).toBe('2026-09-01T16:00:00.000Z');
   });
 
   it('keeps only the nearest platform-safe pending notifications and prioritizes a deadline at equal time', () => {
     const plans = planLocalNotifications({
-      registration: { ...registration, days: 100 } as RegistrationPayload,
+      registration,
       now: '2026-09-01T00:00:00.000Z',
       wishes: [{ wishId: 'due', deadline: '2026-09-01', assigned: true, judged: false }],
       dailyReminderTime: '03:00',
