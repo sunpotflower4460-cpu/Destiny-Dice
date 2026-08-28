@@ -4,7 +4,7 @@ import { verifyChain } from '../src/ledger/verify';
 import { RegistrationService } from '../src/registration/service';
 import type { RegistrationInput } from '../src/registration/types';
 import { RngService } from '../src/rng/service';
-import { SeededRngProvider } from '../src/rng/testing/seeded';
+import { SeededTestRngProvider } from '../src/rng/testing/seeded';
 import { SessionFlowService } from '../src/session/service';
 import type { Clock } from '../src/session/types';
 
@@ -39,7 +39,7 @@ const registration: RegistrationInput = {
 const ledger = new LedgerService(new MemoryLedgerStore());
 await new RegistrationService(ledger).register(registration, '2026-08-28T02:00:00.000Z');
 
-const rng = new RngService([new SeededRngProvider('p4-offline-rng')]);
+const rng = new RngService([new SeededTestRngProvider('p4-offline-rng')]);
 const sessions = new SessionFlowService(ledger, rng, new SimulationClock());
 const plan = await sessions.prepareSession('2026-09-01', 1);
 const result = await sessions.runSession({
