@@ -20,7 +20,7 @@ const registration: RegistrationPayload = {
   startDate: '2026-09-01',
   days: EXPERIMENT_DAYS,
   bitsPerDraw: 1024,
-  sessionsPerDay: 1,
+  sessionsPerDay: 2,
   dayBoundaryHour: 3,
   affirmationText: 'test affirmation',
   predictionByCondition: ['a', 'b', 'c', 'd', 'e'],
@@ -32,7 +32,7 @@ const registration: RegistrationPayload = {
     decisionRuleC: DEFAULT_DECISION_RULE,
     notarize: false,
   },
-  schedule: Array.from({ length: EXPERIMENT_DAYS }, () => 4),
+  schedule: Array.from({ length: EXPERIMENT_DAYS }, (_, index) => index % 5),
   scheduleSeed: 'schedule-seed',
   analysisPlanVersion: ANALYSIS_PLAN_VERSION,
   protocolVersion: PROTOCOL_VERSION,
@@ -51,7 +51,7 @@ function entry(seq: number, type: StoredLedgerEntry['type'], payload: Record<str
     seq,
     type,
     payloadJson: JSON.stringify(payload),
-    createdAt: `2026-09-01T00:00:0${seq}.000Z`,
+    createdAt: `2026-09-01T00:00:0${Math.min(seq, 9)}.000Z`,
     prevHash: '0'.repeat(64),
     entryHash: `${seq}`.padStart(64, '0'),
   };
@@ -90,6 +90,8 @@ describe('P6 dashboard projection', () => {
 
     expect(model.analysisKind).toBe('interim');
     expect(model.primarySample).toBe('anu_valid_only');
+    expect(model.primarySessions).toBe(1);
+    expect(model.validSessions).toBe(2);
     expect(model.conditionCards[0]).toMatchObject({ sessions: 1, nBits: 1024, hits: 544, expectedHits: 512, z: 2 });
     expect('rawP' in model.conditionCards[0]!).toBe(false);
     expect('holmAdjustedP' in model.conditionCards[0]!).toBe(false);
@@ -139,5 +141,19 @@ describe('P6 dashboard projection', () => {
       entry(1, 'registration', registration),
       entry(2, 'session', sessionPayload({ z: 9 })),
     ], registration)).toThrow('recorded z does not match frozen stats core');
+  });
+
+  it('rejects session records outside the frozen experiment window', () => {
+    expect(() => buildLayerADashboardModel([
+      entry(1, 'registration', registration),
+      entry(2, 'session', sessionPayload({ date: '2027-09-01' })),
+    ], registration)).toThrow('outside the experiment window');
+  });
+
+  it('rejects a recorded condition that disagrees with the preregistered schedule', () => {
+    expect(() => buildLayerADashboardModel([
+      entry(1, 'registration', registration),
+      entry(2, 'session', sessionPayload({ condition: 4 })),
+    ], registration)).toThrow('does not match registered schedule');
   });
 });
