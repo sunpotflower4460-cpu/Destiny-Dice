@@ -16,70 +16,18 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: p9-notifications-continuity-ux
-      - name: Append P9 completion and remove helper
+      - name: Append P9 completion
         shell: bash
+        env:
+          P9_PROGRESS_B64: CgotLS0KCiMjIFA5OiBOb3RpZmljYXRpb25zIC8gQ29udGludWl0eSBVWCAoMjAyNi0wOC0yOCkKCiMjIyDlrozkuobjgZfjgZ/jgZPjgagKLSDnmbvpjLLmmYLjgavlm7rlrprjgZfjgZ8gSUFOQSBgdGltZVpvbmVgIOOBqCBgZGF5Qm91bmRhcnlIb3VyYCDjgYvjgokgYGV4cGVyaW1lbnREYXRlYCDjgpLlsI7lh7rjgZnjgosgYHNyYy9jb250aW51aXR5L3RpbWUudHNgIOOCkuWun+ijheOAguerr+acq3RpbWV6b25l5aSJ5pu044KE5peF6KGM44Gr5L6d5a2Y44Gb44Ga44CBMDM6MDDlooPnlYzjga7nm7TliY0v55u05b6M44GoRFNU44KS44OG44K544OI44GX44Gf44CCCi0gYHN5c3RlbUNvbnRleHQoKWAg44Gn44K744OD44K344On44Oz5pmC5Yi744O75puc5pel44O75o6i57Si55So5pyI55u444KS5YeN57WQdGltZXpvbmXln7rmupbjgYvjgonnlJ/miJDjgZfjgIFQNOOBp+S/neeVmeOBl+OBpuOBhOOBn1A544Gu5pmC6ZaT6LKs5YuZ44KScnVudGltZeOBuOaOpee2muOBl+OBn+OAggotIOeZu+mMsuW+jOOBriBgQXBwYCDjgpIgYEV4cGVyaW1lbnRSdW50aW1lYCDjgbjliIfjgormm7/jgYjjgIFg5LuK5pelIC8g6aGY44GEIC8g6KiY6Yyy44O744Op44OcYCDjgYvjgolQNCBgU2Vzc2lvbkZsb3dg44CBUDcgYFdpc2hSZWdpc3RyeVBhbmVsYCAvIGBXaXNoTW9tZW50YOOAgVA2L1A4IGRhc2hib2FyZOOBuOWIsOmBlOOBp+OBjeOCi+OCiOOBhuOBq+OBl+OBn+OAggotIGxlZGdlcuOBi+OCieW9k+aXpeOBruWujOS6hua4iOOBvyBgc2VxSW5EYXlgIOOCkuiqreOBv+OAgeacgOWIneOBruacquWujOS6hnNlc3Npb27jgaDjgZHjgpLlho3plovjgZnjgotjb250aW51aXR5IHByb2plY3Rpb27jgpLlrp/oo4XjgILmrKDmuKzml6XjgoTpgY7ljrtleHBlcmltZW50IGRheeOCkuW+jOOBi+OCieeUn+aIkOODu+ijnOWujOOBl+OBquOBhOOAggotIGRhaWx5IGNvbnRyb2zjga/ml6LlrZggYFNlc3Npb25GbG93U2VydmljZS5wcmVwYXJlU2Vzc2lvbigpYOOAgXNlc3Npb27lrp/ooYzjga8gYHJ1blNlc3Npb24oKWAg44Gu44G/44KS6YCa44GX44CBMeaXpTFjb250cm9s44GocHJlZGljdGlvbi1iZWZvcmUtbWVhc3VyZWQtUk5H44Gu5LiN5aSJ5p2h5Lu244KSVUnkuIvjgafntq3mjIHjgZfjgZ/jgIIKLSBhcHBsaWNhdGlvbiBSTkcgc2luZ2xldG9u44KS6L+95Yqg44CCYFZJVEVfQU5VX1JOR19FTkRQT0lOVGAg6Kit5a6a5pmC44GvIGBhbnUgLT4gcmFuZG9tb3JnIC0+IGxvY2FsYOOAgeacquioreWumuaZguOBryBgcmFuZG9tb3JnIC0+IGxvY2FsYCDjgajjgZfjgIFmYWxsYmFja+OCknF1YW50dW3jgajooajnpLrjgZvjgZrlrp/pmpvjga4gYHJuZ1NvdXJjZWAg44KSbGVkZ2Vy44G45q6L44GZ44CCCi0gYEBjYXBhY2l0b3IvbG9jYWwtbm90aWZpY2F0aW9uc0A2LjEuM2Ag44GoaU9TIFBvZCB3aXJpbmfjgpLov73liqDjgZfjgZ/jgIIKLSDmr47ml6Xjg6rjg57jgqTjg7Pjg4Djg7zjgajpoZjjgYTnt6DliIfpgJrnn6Xjga5wbGFubmVy44KS5a6f6KOF44CC5YeN57WQdGltZXpvbmXjgafntbblr77mmYLliLvjgbjlpInmj5vjgZfjgIFwZW5kaW5n5LiK6ZmQ44KS6ICD5oWu44GX44Gm55u06L+RNjTku7bjgbjliLbpmZDjgZfjgZ/jgIIKLSBPU+mAmuefpXBlcm1pc3Npb27jga/otbfli5XmmYLjgavoh6rli5VyZXF1ZXN044Gb44Ga44CB44Om44O844K244O844GMIGDpgJrnn6XjgpJPTuOBq+OBmeOCi2Ag44KS5oq844GX44Gf5pmC44Gg44GRcmVxdWVzdOOBmeOCi+OAggotIOmAmuefpeWQjOacn+OBr0ludGVudGlvbiBEaWNl5LqI57SESUTluK8gYDEwMDAwLi4xMDA2M2Ag44Gg44GR44KS572u5o+b44GX44CB5LuW55So6YCU44GucGVuZGluZyBsb2NhbCBub3RpZmljYXRpb27jgpJjYW5jZWzjgZfjgarjgYTjgIIKLSBzZWFsZWQgd2lzaOacrOaWh+OCkumAmuefpeWxpOOBuOa4oeOBleOBmuOAgXdpc2ggSUQgLyBkZWFkbGluZSAvIGFzc2lnbm1lbnTjg7tqdWRnbWVudOeKtuaFi+OBoOOBkeOBi+OCiee3oOWIh+mAmuefpeOCkue1hOOBv+eri+OBpuOCi3ByaXZhY3kgYm91bmRhcnnjgpLlrp/oo4XjgZfjgZ/jgIIKLSBgZGVyaXZlR2VudGxlU3RyZWFrKClgIOOCkui/veWKoOOBl+OAgeiomOmMsua4iOOBv+aXpeaVsOODu+ebtOi/kXJ1buODu+S7iuaXpeWujOS6huOCkuihqOekuuOAgmBwZW5hbHR5QXBwbGllZDogZmFsc2VgIOOCkuWbuuWumuOBl+OAgeS8keOCk+OBoOaXpeOBjOOBguOBo+OBpuOCguWun+mok+WkseagvOOChOe9sOOBq+OBr+OBl+OBquOBhOOAggotIG11bHRpLXNlc3Npb24gZGF544Gn44GvIGBTZXNzaW9uRmxvd2Ag5a6M5LqG5b6M44GrcnVudGltZeOCknJlZnJlc2jjgZfjgIHmrKHjga7mnKrlrozkuoZyZWdpc3RlcmVkIHNlc3Npb27jgbjpgLLjgoAgYG9uRmluaXNoYCDmjqXntprjgpLov73liqDjgZfjgZ/jgIIKLSBgTGF5ZXJDUmVnaXN0cmF0aW9uLmRlZmF1bHREZWFkbGluZURheXNgIOOCkuWHjee1kFVJ6YG45oqe6IKiIGAxNCB8IDI4IHwgOTBgIOOBqOWQjOOBmOWei+OBuOeLreOCgeOBn+OAggoKIyMjIOWujOS6huWfuua6luOBrue1kOaenAotIGBwbnBtIHR5cGVjaGVja2A6IGdyZWVuCi0gYHBucG0gdGVzdGA6IGdyZWVuIOKAlCAqKjMyIHRlc3QgZmlsZXMgLyAxNDIgdGVzdHMgcGFzc2VkKioKLSBgcG5wbSBzaW11bGF0ZWA6IGdyZWVuIOKAlCBgbmV0d29ya1JlcXVlc3RzOiAwYOOAgeaXouWtmG9mZmxpbmUgdHJhY2Vy44GoY2hhaW4gdmVyaWZpY2F0aW9u44KS57at5oyBCi0gYHBucG0gYnVpbGRgOiBncmVlbgotIGFwcGVuZC1vbmx5IGxlZGdlciBndWFyZDogZ3JlZW4KLSBmZWF0dXJlIGludGVncmF0aW9uIENJOiBydW4gYDMzMTYzMTg5NDE4YCAvIGpvYiBgOTg4MjIzMTM0NjlgIGdyZWVuCgojIyMg5LiN5aSJ5p2h5Lu244K744Or44OV44OB44Kn44OD44KvCjEuIGZyb3plbiB0aW1lem9uZSAvIGV4cGVyaW1lbnQtZGF5IGJvdW5kYXJ544KSZGV2aWNlIHRpbWV6b25l44GL44KJ5YiG6ZuiIOKAlCDinIUKMi4gMeaXpTFjb250cm9s44GuaWRlbXBvdGVuY3kg4oCUIOKchQozLiBwcmVkaWN0aW9uIGNvbW1pdCBiZWZvcmUgbWVhc3VyZWQgUk5HIOKAlCDinIUKNC4gZmFsbGJhY2sgc291cmNl44KS6Zqg44GV44Gq44GEIOKAlCDinIUKNS4g5qyg5ris44KS6KOc5a6M44GX44Gq44GEIOKAlCDinIUKNi4gc2VhbGVkIHdpc2jjgpLpgJrnn6XjgbjmvI/jgonjgZXjgarjgYQg4oCUIOKchQo3LiBsZWRnZXIgYXBwZW5kLW9ubHkg4oCUIOKchQo4LiBjb250aW51aXR5IFVY44Gn572w44KS5bCO5YWl44GX44Gq44GEIOKAlCDinIUKOS4gUDEw5pyA57WC56K66Ki844Os44Od44O844OI44KSUDnjgbjmt7flhaXjgZXjgZvjgarjgYQg4oCUIOKchQoKIyMjIE5hdGl2ZS9VSeeiuuiqjeOBruWItue0hAotIENJ44GvVWJ1bnR144Gu44Gf44KBWGNvZGUvaU9TIHNpbXVsYXRvcuS4iuOBruWun+mAmuefpWRlbGl2ZXJ544Gv55u05o6l5a6f6KGM44Gn44GN44Gq44GE44CCQ2FwYWNpdG9yIHY2IGRlcGVuZGVuY3njgIFUeXBlU2NyaXB0IGFkYXB0ZXLjgIFpT1MgUG9kIHdpcmluZ+OAgXByb2R1Y3Rpb24gYnVpbGTjgIHpgJrnn6VwbGFubmVyL3Blcm1pc3Npb27looPnlYzjga9DSeOBp+aknOiovOa4iOOBv+OAggotIGlPU+Wun+apny9TaW11bGF0b3Ljga5wZXJtaXNzaW9uIHByb21wdOODu+aXpeasoemAmuefpeODu+e3oOWIh+mAmuefpWRlbGl2ZXJ544GvcmVsZWFzZeeSsOWig+OBrnNtb2tlIGNoZWNr44Go44GX44Gm5a6f5pa944GZ44KL44CCCgojIyMg5qyh44OV44Kn44O844K644G444Gu55Sz44GX6YCB44KKCi0g5YeN57WQ6aCG5bqP44Gp44GK44KK5qyh44GvICoqUDEwIEZpbmFsIFJlcG9ydCoq44CCUDnjgafnlJ/miJDjgZfjgZ9ydW50aW1lL2xlZGdlcuODh+ODvOOCv+OCkuS9v+OBhuOBjOOAgeacgOe1gueiuuiovOWIpOWumuODu+acgOe1guODrOODneODvOODiOeUn+aIkOOBr1AxMOOBvuOBp+mWi+Wni+OBl+OBquOBhOOAggo=
         run: |
           set -euo pipefail
-          if ! grep -q '^## P9: Notifications / Continuity UX' PROGRESS.md; then
-            cat >> PROGRESS.md <<'EOF'
-
----
-
-## P9: Notifications / Continuity UX (2026-08-28)
-
-### 完了したこと
-- 登録時に固定した IANA `timeZone` と `dayBoundaryHour` から `experimentDate` を導出する `src/continuity/time.ts` を実装。端末timezone変更や旅行に依存せず、03:00境界の直前/直後、DSTを含むwall-clock→instant変換をテストした。
-- `systemContext()` でセッション時刻・曜日・探索用月相を同じ凍結timezone基準から生成し、P4で先送りしていたP9の時間責務をruntimeへ接続した。
-- 登録後の `App` を `ExperimentRuntime` へ切り替え、`今日 / 願い / 記録・ラボ` のruntime shellから P4 `SessionFlow`、P7 `WishRegistryPanel` / `WishMoment`、P6/P8 dashboardへ到達できるようにした。
-- ledgerから当日の完了済み `seqInDay` を読み、最初の未完了sessionだけを再開するcontinuity projectionを実装。欠測日や抜けたexperiment dayを後から生成・補完しない。
-- session開始前のdaily controlは既存 `SessionFlowService.prepareSession()` に任せ、1 experiment-dayにつき最大1件というGate 0のidempotencyを維持した。
-- session実行は既存 `SessionFlowService.runSession()` のみを通し、prediction commit確認後にだけ測定RNGを取得する不変条件をUI下で維持した。
-- application runtimeで共有するRNG singletonを追加。`VITE_ANU_RNG_ENDPOINT` 設定時は `anu -> randomorg -> local`、未設定時は `randomorg -> local` とし、fallbackをquantumと表示せず実際の `rngSource` をledgerへ残す。
-- `@capacitor/local-notifications@6.1.3` を追加し、iOS Podfileにも `CapacitorLocalNotifications` を接続した。
-- 毎日リマインダーと願い締切通知の純粋plannerを実装。凍結timezoneで絶対時刻へ変換し、iOSのpending上限を考慮して直近64件に制限した。
-- OS通知permissionはアプリ起動時に自動requestせず、ユーザーが `通知をONにする` を押した明示操作時だけrequestする境界を実装した。
-- 通知同期は Intention Dice 予約ID帯 `10000..10063` だけを置換し、他アプリ/他用途のpending local notificationをcancelしない。
-- sealed wishの本文を通知層へ渡さず、wish ID / deadline / assignment・judgment状態だけから締切通知を組み立てるprivacy boundaryを実装した。
-- `deriveGentleStreak()` を追加し、記録済み日数・直近run・今日完了を表示。`penaltyApplied: false` を固定し、休んだ日があっても実験失格や罰にはしない。
-- multi-session dayでは `SessionFlow` 完了後にruntimeをrefreshし、次の未完了registered sessionへ進む `onFinish` 接続を追加した。
-- `LayerCRegistration.defaultDeadlineDays` を凍結UI選択肢 `14 | 28 | 90` と同じ型へ狭め、登録済み値と願いUIの型境界を一致させた（ledger JSONの意味は変更なし）。
-
-### 完了基準の結果
-- `pnpm typecheck`: green
-- `pnpm test`: green — **32 test files / 142 tests passed**
-  - P9: experiment-date / 03:00 / DST tests
-  - P9: daily reminder / wish deadline scheduling tests
-  - P9: permission explicitness / reserved-ID replacement tests
-  - P9: session resume / sealed-safe deadline candidate tests
-  - P9: gentle streak / no-penalty tests
-- `pnpm simulate`: green — `networkRequests: 0`; registration → control → prediction → session → wish/assignment → wishmoment → judgment の既存tracerを維持
-- `pnpm build`: green
-- append-only ledger guard: green — forbidden `DELETE/UPDATE` pathなし
-- GitHub Actions: run `33163189418`, job `98822313469` green
-- PR #12 review threads: completion記録時点で未解決0件
-
-### 不変条件セルフチェック
-1. frozen timezone / experiment-day boundaryをdevice timezoneから分離 — ✅
-2. 1日1controlのidempotency — ✅ 既存P4 service経由
-3. prediction commit before measured RNG — ✅ 既存P4 service経由、UIから測定RNG直呼びなし
-4. fallback sourceを隠さない — ✅ ANU未設定時のUI注記＋実source ledger記録
-5. 欠測を補完しない — ✅ 最初の未完了`seqInDay`のみ再開、過去日backfillなし
-6. sealed wishを通常/通知UIへ漏らさない — ✅ notification boundaryに本文なし
-7. ledger append-only — ✅ CI guard green
-8. continuity UXで罰を導入しない — ✅ `penaltyApplied: false`
-9. P10の最終確証レポートをP9へ混入させない — ✅
-
-### Native/UI確認の制約
-- CI実行環境はUbuntuのため、Xcode/iOS simulator上での実通知deliveryはこのフェーズ内では直接実行できない。Capacitor v6 dependency、TypeScript adapter、iOS Pod wiring、production web build、および通知planner/permission境界はCIで検証済み。
-- iOS実機/Simulatorで「permission prompt → 日次通知 → 締切通知」のdelivery smoke checkはrelease環境で実施する。これは科学プロトコル/アプリロジックの未実装ではなくnative release smoke checkとして扱う。
-
-### 次フェーズへの申し送り
-- 凍結順序どおり次は **P10 Final Report**。P9で生成したruntime/ledgerデータを使うが、最終確証判定・最終PDF/レポート生成はP10まで開始しない。
-EOF
+          if grep -q '^## P9: Notifications / Continuity UX' PROGRESS.md; then
+            exit 0
           fi
-          rm -f .github/workflows/p9-progress-once.yml
+          printf '%s' "$P9_PROGRESS_B64" | base64 -d >> PROGRESS.md
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add PROGRESS.md .github/workflows/p9-progress-once.yml
+          git add PROGRESS.md
           git commit -m "P9 record notifications and continuity completion"
           git push origin HEAD:p9-notifications-continuity-ux
