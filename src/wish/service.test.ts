@@ -98,7 +98,36 @@ describe('P7 WishRegistryService', () => {
     expect(firstRecovery).toHaveLength(1);
     expect(secondRecovery).toHaveLength(0);
     expect(rng.calls).toBe(2);
-    expect(buildWishLedgerRecords(await ledger.list())[0]?.assignment).toMatchObject({ arm: 'sealed', source: undefined, rngSource: 'local', bit: 0 });
+    expect(buildWishLedgerRecords(await ledger.list())[0]?.assignment).toMatchObject({ arm: 'sealed', rngSource: 'local', bit: 0 });
+    expect((await ledger.list()).filter((entry) => entry.type === 'assignment')).toHaveLength(1);
+  });
+
+  it('does not double-assign or consume a second RNG value when recovery overlaps normal registration', async () => {
+    const { ledger } = await setup();
+    let release!: (value: AssignmentBit) => void;
+    let markStarted!: () => void;
+    let calls = 0;
+    const started = new Promise<void>((resolve) => { markStarted = resolve; });
+    const rng = {
+      getAssignmentBit: async () => {
+        calls += 1;
+        markStarted();
+        return new Promise<AssignmentBit>((resolve) => { release = resolve; });
+      },
+    };
+    const service = new WishRegistryService(ledger, rng, new SequenceClock(), () => 'race-wish');
+    const registration = service.registerWish({
+      text: '復旧競合を検証する願い',
+      deadline: '2026-09-30',
+      likelihood: 2,
+      influence: 'mixed',
+    });
+    await started;
+    const recovery = service.recoverUnassignedWishes();
+    release({ bit: 1, source: 'anu' });
+    await registration;
+    expect(await recovery).toHaveLength(0);
+    expect(calls).toBe(1);
     expect((await ledger.list()).filter((entry) => entry.type === 'assignment')).toHaveLength(1);
   });
 
