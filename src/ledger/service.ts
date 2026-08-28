@@ -1,11 +1,22 @@
 import { LEDGER_ENTRY_TYPES, type LedgerEntryType } from '../db/schema';
 import { canonicalizeJcs } from './canonicalize';
 import { computeLedgerEntryHash } from './hash';
-import { GENESIS_PREV_HASH, type JsonObject, type LedgerStore, type StoredLedgerEntry } from './types';
+import {
+  GENESIS_PREV_HASH,
+  type JsonObject,
+  type LedgerEntryInput,
+  type LedgerStore,
+  type StoredLedgerEntry,
+} from './types';
 
 function isLedgerEntryType(value: string): value is LedgerEntryType {
   return (LEDGER_ENTRY_TYPES as readonly string[]).includes(value);
 }
+
+export type LockedFollowUpResult = {
+  first: StoredLedgerEntry;
+  followUp: StoredLedgerEntry;
+};
 
 export class LedgerService {
   private readonly store: LedgerStore;
@@ -16,16 +27,42 @@ export class LedgerService {
   }
 
   append(type: LedgerEntryType, payload: JsonObject, createdAt: string): Promise<StoredLedgerEntry> {
-    const operation = this.writeTail.then(() => this.appendInsideCriticalSection(type, payload, createdAt));
-    this.writeTail = operation.then(
-      () => undefined,
-      () => undefined,
-    );
+    const operation = this.enqueueWrite(() => this.appendInsideCriticalSection(type, payload, createdAt));
     return operation;
+  }
+
+  /**
+   * Commits one entry and, while retaining the same single-writer slot, derives
+   * and commits its mandatory follow-up. If the factory fails, the first entry
+   * remains durably committed and the caller can recover it later from ledger.
+   */
+  appendWithFollowUp(
+    first: LedgerEntryInput,
+    followUpFactory: (committedFirst: StoredLedgerEntry) => Promise<LedgerEntryInput>,
+  ): Promise<LockedFollowUpResult> {
+    return this.enqueueWrite(async () => {
+      const committedFirst = await this.appendInsideCriticalSection(first.type, first.payload, first.createdAt);
+      const followUp = await followUpFactory(committedFirst);
+      const committedFollowUp = await this.appendInsideCriticalSection(
+        followUp.type,
+        followUp.payload,
+        followUp.createdAt,
+      );
+      return { first: committedFirst, followUp: committedFollowUp };
+    });
   }
 
   list(): Promise<StoredLedgerEntry[]> {
     return this.store.list();
+  }
+
+  private enqueueWrite<T>(operation: () => Promise<T>): Promise<T> {
+    const result = this.writeTail.then(operation);
+    this.writeTail = result.then(
+      () => undefined,
+      () => undefined,
+    );
+    return result;
   }
 
   private async appendInsideCriticalSection(
