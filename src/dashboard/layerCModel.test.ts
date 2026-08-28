@@ -105,6 +105,6 @@ describe('P8 Layer C dashboard projection', () => {
       wishEntry(1, 'broken', '不正な願い'),
       judgmentEntry(2, 'broken', 'not_realized'),
     ];
-    expect(() => buildLayerCDashboardModel(entries, registration())).toThrow('without assignment');
+    expect(() => buildLayerCDashboardModel(entries, registration())).toThrow('requires a prior assignment');
   });
 });
