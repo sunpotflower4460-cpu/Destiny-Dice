@@ -35,7 +35,7 @@ describe('P5 Layer A boundaries', () => {
     expect(result.exclusions).toEqual({ fallbackSessions: 1, ritualInvalidSessions: 1 });
   });
 
-  it('uses only ANU + ritual-valid sessions for final confirmatory decisions', () => {
+  it('uses only ANU + ritual-valid sessions and keeps the preregistered five-test Holm family', () => {
     const result = analyzeFinalLayerA([
       session({ condition: 0, nBits: 16, hits: 16 }),
       session({ condition: 1, nBits: 4096, hits: 2048 }),
@@ -43,6 +43,7 @@ describe('P5 Layer A boundaries', () => {
       session({ condition: 3, nBits: 16, hits: 16, ritualValid: false }),
     ], DEFAULT_DECISION_RULE);
 
+    expect(result.holmFamilySize).toBe(5);
     expect(result.conditions[0]?.label).toBe('positive_pre_registered_result');
     expect(result.conditions[0]?.holmAdjustedP).not.toBeNull();
     expect(result.conditions[0]!.bf10).toBeGreaterThan(30);
@@ -106,5 +107,8 @@ describe('P5 Layer A boundaries', () => {
       randomorg: { sessions: 0, bits: 0 },
       local: { sessions: 1, bits: 8 },
     });
+    expect(qc.bySource.anu).toMatchObject({ sessions: 1, nBits: 8, hits: 8, hitRate: 1 });
+    expect(qc.bySource.local).toMatchObject({ sessions: 1, nBits: 8, hits: 0, hitRate: 0 });
+    expect(qc.bySource.randomorg).toMatchObject({ sessions: 0, nBits: 0, hitRate: null });
   });
 });
