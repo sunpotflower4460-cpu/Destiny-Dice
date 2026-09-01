@@ -1,8 +1,16 @@
 import { Sha256CounterStream, type Sha256Digest } from './counterStream';
-import type { Condition, SessionsPerDay, TargetDirection } from './types';
+import { TARGET_ALGORITHM_VERSION, type Condition, type SessionsPerDay, type TargetDirection } from './types';
 
 export const CONDITION_DOMAIN = 'condition-schedule-v1';
 export const TARGET_DOMAIN = 'target-schedule-v1';
+
+export function assertTargetAlgorithmVersion(version: string): void {
+  if (version !== TARGET_ALGORITHM_VERSION) {
+    throw new Error(
+      `unsupported targetAlgorithmVersion: ${version}; frozen generator is ${TARGET_ALGORITHM_VERSION}`,
+    );
+  }
+}
 
 export async function generateConditionSchedule(
   days: number,

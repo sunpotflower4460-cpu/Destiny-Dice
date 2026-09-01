@@ -1,6 +1,6 @@
 export { RegistrationService } from './service';
 export { createSecureSeed } from './seed';
-export { generateConditionSchedule, generateTargetSchedule } from './schedule';
+export { assertTargetAlgorithmVersion, generateConditionSchedule, generateTargetSchedule } from './schedule';
 export { projectCurrentSchedule } from './projection';
 export {
   ANALYSIS_PLAN_VERSION,

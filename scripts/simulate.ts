@@ -4,7 +4,7 @@ import { LedgerService } from '../src/ledger/service';
 import { MemoryLedgerStore } from '../src/ledger/memoryStore';
 import { verifyChain } from '../src/ledger/verify';
 import { RegistrationService } from '../src/registration/service';
-import { generateTargetSchedule } from '../src/registration/schedule';
+import { assertTargetAlgorithmVersion, generateTargetSchedule } from '../src/registration/schedule';
 import type { Condition, RegistrationInput, TargetDirection } from '../src/registration/types';
 import { buildFinalReportModel, renderFinalReportMarkdown } from '../src/report';
 import { SeededTestRngProvider } from '../src/rng/testing/seeded';
@@ -102,6 +102,7 @@ async function sha256(text: string): Promise<string> {
 }
 
 async function appendSessions(ledger: LedgerService, registration: Awaited<ReturnType<RegistrationService['register']>>['payload'], options: Options): Promise<void> {
+  assertTargetAlgorithmVersion(registration.targetAlgorithmVersion);
   const targets = await generateTargetSchedule(registration.days, registration.sessionsPerDay, registration.targetSeed);
   for (let dayIndex = 0; dayIndex < options.days; dayIndex += 1) {
     const date = isoDate(dayIndex);

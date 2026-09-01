@@ -182,6 +182,10 @@ describe('SessionFlowService', () => {
         if (args[0] === 'prediction') return Promise.reject(new Error('prediction write failed'));
         return ledger.append(...args);
       },
+      appendConditionally: (
+        shouldAppend: Parameters<LedgerService['appendConditionally']>[0],
+        entryFactory: Parameters<LedgerService['appendConditionally']>[1],
+      ) => ledger.appendConditionally(shouldAppend, entryFactory),
     };
     const failingService = new SessionFlowService(
       rejectingLedger,
@@ -210,5 +214,69 @@ describe('SessionFlowService', () => {
 
     await expect(service.runSession(draft())).rejects.toThrow('already committed');
     expect(rng.calls).toEqual([1024, 1024]);
+  });
+
+  it('serializes concurrent measured sessions to one prediction and one session', async () => {
+    const ledger = await createRegisteredLedger();
+    const rng = new QueueRng([localDraw('aa'.repeat(128)), localDraw('ff'.repeat(128)), localDraw('00'.repeat(128))]);
+    const service = new SessionFlowService(
+      ledger,
+      rng,
+      new QueueClock([
+        '2026-09-01T00:00:00.000Z',
+        '2026-09-01T01:10:00.000Z',
+        '2026-09-01T01:10:01.000Z',
+      ]),
+    );
+    await service.prepareSession('2026-09-01', 1);
+
+    const results = await Promise.allSettled([service.runSession(draft()), service.runSession(draft())]);
+    const fulfilled = results.filter((result) => result.status === 'fulfilled');
+    const rejected = results.filter((result) => result.status === 'rejected');
+    expect(fulfilled).toHaveLength(1);
+    expect(rejected).toHaveLength(1);
+    expect(rejected[0]).toMatchObject({ status: 'rejected' });
+    if (rejected[0]?.status === 'rejected') {
+      expect(String(rejected[0].reason)).toMatch(/already committed/);
+    }
+
+    const types = (await ledger.list()).map((entry) => entry.type);
+    expect(types).toEqual(['registration', 'control', 'prediction', 'session']);
+    expect(rng.calls).toEqual([1024, 1024]);
+  });
+
+  it('reuses a committed prediction if measured RNG fails before the session is appended', async () => {
+    const ledger = await createRegisteredLedger();
+    const draws = [localDraw('aa'.repeat(128)), localDraw('ff'.repeat(128))];
+    const rng = {
+      calls: [] as number[],
+      async getBits(nBits: number) {
+        this.calls.push(nBits);
+        if (this.calls.length === 2) throw new Error('measured rng failed');
+        const draw = draws.shift();
+        if (!draw) throw new Error('rng exhausted');
+        return draw;
+      },
+    };
+    const service = new SessionFlowService(
+      ledger,
+      rng,
+      new QueueClock([
+        '2026-09-01T00:00:00.000Z',
+        '2026-09-01T01:10:00.000Z',
+        '2026-09-01T01:10:01.000Z',
+        '2026-09-01T01:10:02.000Z',
+      ]),
+    );
+    await service.prepareSession('2026-09-01', 1);
+    await expect(service.runSession(draft())).rejects.toThrow('measured rng failed');
+    expect((await ledger.list()).map((entry) => entry.type)).toEqual(['registration', 'control', 'prediction']);
+
+    const result = await service.runSession(draft());
+    const entries = await ledger.list();
+    expect(entries.map((entry) => entry.type)).toEqual(['registration', 'control', 'prediction', 'session']);
+    expect(result.payload.predictionSeq).toBe(entries.find((entry) => entry.type === 'prediction')?.seq);
+    expect(result.payload.rngSource).toBe('local');
+    expect(rng.calls).toEqual([1024, 1024, 1024]);
   });
 });

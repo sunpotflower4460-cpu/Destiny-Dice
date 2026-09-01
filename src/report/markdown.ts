@@ -66,7 +66,7 @@ export function renderFinalReportMarkdown(report: FinalReportModel): string {
       lines.push(`| ${arm.arm === 'practice' ? '実践群' : '封印群（ベースライン）'} | ${arm.n} | ${arm.realized} | ${arm.notRealized} | ${pct(arm.realizationRate)} | ${arm.ci95 ? `${pct(arm.ci95.lower)}–${pct(arm.ci95.upper)}` : '—'} |`);
     }
     lines.push('');
-    lines.push(`- 実践−封印の実現率差: ${pct(c.result.comparison.riskDifference)}`);
+    lines.push(`- 実践−封印の実現率差: ${pct(c.result.comparison.riskDifference)}（偶然なら 0pp）`);
     lines.push(`- Fisher両側p: ${sci(c.result.fisherTwoSidedP)}`);
     lines.push(`- BF10: ${sci(c.result.comparison.bf10)}`);
     lines.push(`- 判定: **${labelJa(c.result.label)}**`);
@@ -89,7 +89,7 @@ export function renderFinalReportMarkdown(report: FinalReportModel): string {
   lines.push('### Layer B — ritual前後の気分・エネルギー');
   lines.push('');
   for (const row of report.exploratory.layerB.conditions) {
-    lines.push(`- ${CONDITION_LABELS[row.condition]}: 気分Δ=${num(row.valenceChange.mean, 2)} / エネルギーΔ=${num(row.energyChange.mean, 2)}（非盲検・プラセボ込み）`);
+    lines.push(`- ${CONDITION_LABELS[row.condition]}: 気分Δ=${num(row.valenceChange.mean, 2)} / エネルギーΔ=${num(row.energyChange.mean, 2)}（偶然なら 0、非盲検・プラセボ込み）`);
   }
   lines.push('');
   lines.push('### 1. 強度勾配（dose-response）');
@@ -119,7 +119,7 @@ export function renderFinalReportMarkdown(report: FinalReportModel): string {
   lines.push('');
   lines.push('### 5. ミラクル日のプロファイル');
   lines.push('');
-  lines.push(`|z|≥2: ${report.exploratory.miracleProfile.resonanceSessions} session / 的方向z≥3: ${report.exploratory.miracleProfile.targetMiracleSessions} session。`);
+  lines.push(`|z|≥2: ${report.exploratory.miracleProfile.resonanceSessions} session（偶然なら年約17回） / 的方向z≥3: ${report.exploratory.miracleProfile.targetMiracleSessions} session（偶然なら年約0.5回）。`);
   lines.push(`平均気分pre=${num(report.exploratory.miracleProfile.averageMoodPreV, 2)}、平均エネルギーpre=${num(report.exploratory.miracleProfile.averageMoodPreE, 2)}、平均時刻=${num(report.exploratory.miracleProfile.averageHour, 2)}。`);
   lines.push('');
   lines.push('### 6. Layer C 経路分解');

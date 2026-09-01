@@ -111,10 +111,14 @@ describe('P10 final report', () => {
     expect(confirmatory).toContain('## 1. 確証パート');
     expect(confirmatory).toContain('Holm補正p');
     expect(confirmatory).toContain('Fisher両側p');
+    expect(confirmatory).toContain('偶然なら 0pp');
     expect(confirmatory).not.toContain('探索的分析です');
     expect(confirmatory).not.toContain('dose-response');
     expect(confirmatory).not.toContain('手応え×z相関');
     expect(exploratory).toContain('探索的分析です');
+    expect(exploratory).toContain('偶然なら年約17回');
+    expect(exploratory).toContain('偶然なら年約0.5回');
+    expect(exploratory).toContain('偶然なら 0、非盲検');
     expect(exploratory).toContain('### 8. 実現までの日数');
     expect(exploratory).toContain('測定不能');
     expect(exploratory).toContain('### 9. 願い文の特徴');

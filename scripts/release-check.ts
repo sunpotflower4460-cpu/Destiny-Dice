@@ -66,6 +66,8 @@ requireCondition(release.includes('security import "$CERT_PATH"'), 'TestFlight w
 requireCondition(release.includes('security cms -D -i "$PROFILE_PATH"'), 'TestFlight workflow must inspect the provisioning profile');
 requireCondition(release.includes("*'.com.sunpotflower4460.intentiondice'"), 'TestFlight workflow must reject provisioning profiles for another bundle id');
 requireCondition(release.includes('security delete-keychain "$IOS_KEYCHAIN_PATH"'), 'TestFlight workflow must clean up the temporary signing keychain');
+requireCondition(release.includes('list-keychains -d user -s "$KEYCHAIN_PATH"'), 'TestFlight workflow must set the ephemeral signing keychain search list');
+requireCondition(release.includes('login.keychain'), 'TestFlight keychain search list must retain the login keychain');
 
 const metadata = text('docs/store/METADATA_JA.md');
 for (const forbidden of ['超常現象を証明した', '絶対に引き寄せ', '改竄不能']) {

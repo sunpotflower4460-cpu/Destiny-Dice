@@ -50,7 +50,7 @@ jobs:
           set -euo pipefail
           pnpm simulate --days 365 --effect 0 --wish-n 120 --wish-base 0.3 --wish-effect 0 \
             --export /tmp/experiment.json --report /tmp/sim-report.md | tee /tmp/null-sim.json
-          grep -F '"reportSha256": "1ec5f22034d18546ac20e2b8c64b5ea1dcab5e7faf4e903e7e7c58182f398381"' /tmp/null-sim.json
+          grep -F '"reportSha256": "5c0d6bea15bf3f86faaf00f8d5ca38b76b3947c34fb148bb7d8809d9ec4792da"' /tmp/null-sim.json
 
       - name: Verify export and reproduce report
         shell: bash

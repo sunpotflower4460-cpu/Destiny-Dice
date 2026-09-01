@@ -3,7 +3,7 @@ import { LedgerService } from '../ledger/service';
 import { MemoryLedgerStore } from '../ledger/memoryStore';
 import { projectCurrentSchedule } from './projection';
 import { RegistrationService } from './service';
-import type { RegistrationInput } from './types';
+import type { RegistrationInput, RegistrationPayload } from './types';
 
 const input: RegistrationInput = {
   experimentId: 'exp-visibility',
@@ -36,6 +36,19 @@ describe('projectCurrentSchedule', () => {
     expect(projection?.targets).toHaveLength(2);
     expect(projection).not.toHaveProperty('schedule');
     expect(projection).not.toHaveProperty('targetSchedule');
+  });
+
+  it('refuses to regenerate targets when frozen targetAlgorithmVersion does not match', async () => {
+    const registration = await new RegistrationService(new LedgerService(new MemoryLedgerStore())).register(
+      input,
+      '2026-08-28T03:00:00.000Z',
+    );
+    const payload = {
+      ...registration.payload,
+      targetAlgorithmVersion: 'not-sha256-counter-target-v1',
+    } as unknown as RegistrationPayload;
+
+    await expect(projectCurrentSchedule(payload, '2026-09-01')).rejects.toThrow('unsupported targetAlgorithmVersion');
   });
 
   it('returns null before start and after the frozen experiment window', async () => {
