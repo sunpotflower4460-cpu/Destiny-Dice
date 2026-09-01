@@ -363,7 +363,7 @@ function LayerCPanel({ model }: { model: LayerCDashboardModel }) {
       </section>
 
       <section aria-labelledby="layer-c-strata-heading">
-        <div className="section-heading"><div><p className="eyebrow">EXPLORATORY</p><h3 id="layer-c-strata-heading">層別の効きめ</h3></div></div>
+        <div className="section-heading"><div><p className="eyebrow">EXPLORATORY</p><h3 id="layer-c-strata-heading">層別の探索集計</h3></div></div>
         <p className="quiet-note">{EXPLORATORY_WARNING}</p>
         <div className="source-qc-grid">
           {model.strata.likelihood.map((item, index) => (
@@ -378,6 +378,7 @@ function LayerCPanel({ model }: { model: LayerCDashboardModel }) {
 
       <section aria-labelledby="pathways-heading">
         <div className="section-heading"><div><p className="eyebrow">EXPLORATORY / PATHWAYS</p><h3 id="pathways-heading">実現した願いの経路</h3></div><p>実現例だけの記述分布です。</p></div>
+        <p className="quiet-note">{EXPLORATORY_WARNING}</p>
         <div className="source-qc-grid">
           {model.pathways.map((item) => (
             <div key={item.pathway}><b>{PATHWAY_LABELS[item.pathway]}</b><span>実践 {item.practice} ({formatPercent(item.practiceShare, 1)})</span><span>封印 {item.sealed} ({formatPercent(item.sealedShare, 1)})</span></div>

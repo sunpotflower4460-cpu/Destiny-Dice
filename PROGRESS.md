@@ -962,3 +962,47 @@ CocoaPods未インストールの場合は `sudo gem install cocoapods` の上�
 - `src/session/types.ts`, `src/session/service.ts`, `src/session/service.test.ts`, `src/session/index.ts`
 - `src/runtime/ExperimentRuntime.tsx`
 - `PROGRESS.md`
+
+---
+
+## P11: Honesty and runtime recovery polish (2026-09-01)
+
+### 完了したこと
+- プロセス内 refresh（リマインダー変更・願い画面の更新）が新しい `startedAt` を作って、完了できる orphan prediction まで欠測扱いにしていたのを止めた。真の再起動だけ欠測カードを出す。
+- 「今日」以外のタブへ移っても `SessionFlow` を unmount しない。session commit 後も `onFinish` まで plan を保持し、願いタイム／フィードバックを飛ばさない。
+- セッション結果の z、最終レポートの相関・BF・層別差に「偶然ならこのくらい」を併記。探索の経路ブロックにも固定警告を足した。「層別の効きめ」は「層別の探索集計」に変更。moodPre 文言を実践前に合わせた。
+- `verifyChain()` が hash は通るが bitsHex と hits/z が食い違う session/control を落とす。
+
+### 完了基準の結果（コマンド出力の要約）
+- `pnpm typecheck`: green
+- `pnpm worker:typecheck`: green
+- `pnpm test`: green — **37 files / 176 tests**
+- `pnpm build`: green
+- 365日 null simulation: green — **1456 entries / networkRequests: 0 / headHash `4035fd1e1ed3aa733d6d42d89111605cbced958a73dd5052da27ca4c0867cd08`（不変） / reportSha256 `ef9462dd6dbf7e4852f66f3527d1c33c59b5ffcb8017ebac9b004284cb6cc24e`（正直メーター追記による Markdown 更新）**
+- `pnpm release-check`: green
+- ledger append-only grep: green
+- Web UI: タブ切替・クラッシュ欠測のブラウザ E2E は未実施。recovery の純関数テストと SessionFlow のマウント維持で代替。
+
+### 不変条件セルフチェック
+1. ledger は追記のみ — ✅
+2. 欠測は欠測のまま — ✅ 真の再起動の orphan は欠測。プロセス内で完了できる回を欠測に見せない
+3. Layer B 順序 — ✅ moodPost は reveal 前。再起動後に後付け再構成しない
+4. 確証と探索を混ぜない — ✅ 経路・層別に探索警告。共鳴／ミラクルは実証と書いていない
+5. 表示数値の隣に偶然 — ✅ 不足していた z / 相関 / BF を追加
+6. 凍結スキーマを変えない — ✅
+7. tamper-evident — ✅ 未変更
+8. Issue #16 を出荷済みと書かない — ✅
+
+### 要確定・申し送り
+- 同じ日の次 `seqInDay` への自動スキップは未定義のまま。変えるなら人間確認。
+- ダッシュボードのテスト fixture は `bitsHex: '00'` のプレースホルダのまま hits を直接置く。ライブ経路の session は `runSession` が bits から計算する。dashboard projection を bits 照合にすると fixture 一式の作り直しが要る。
+- Issue #16 の外部資格情報は未設定。
+
+### 触ったファイル
+- `src/runtime/sessionRecovery.ts`, `src/runtime/sessionRecovery.test.ts`, `src/runtime/ExperimentRuntime.tsx`
+- `src/session/service.ts`, `src/session/service.test.ts`, `src/session/index.ts`, `src/session/SessionFlow.tsx`
+- `src/ledger/verify.ts`, `src/ledger/verify.test.ts`
+- `src/report/markdown.ts`, `src/report/report.test.ts`
+- `src/dashboard/ExperimentDashboard.tsx`, `src/dashboard/layerCIntegration.test.tsx`
+- `.github/workflows/ci.yml`
+- `PROGRESS.md`

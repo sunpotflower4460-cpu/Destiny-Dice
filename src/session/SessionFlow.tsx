@@ -175,7 +175,7 @@ export function SessionFlow({
       {stage === 'moodPre' && (
         <div className="session-step">
           <h3>いまの状態</h3>
-          <p>結果を見る前の気分とエネルギーを記録します。</p>
+          <p>実践前の気分とエネルギーを記録します。結果はまだ見ません。</p>
           <MoodControls value={moodPre} onChange={setMoodPre} />
           <button type="button" onClick={() => setStage('ritual')}>この状態で実践へ</button>
         </div>
@@ -253,7 +253,7 @@ export function SessionFlow({
           <p className="session-eyebrow">RESULT COMMITTED</p>
           <h3>{result.payload.hits.toLocaleString()} / {result.payload.nBits.toLocaleString()} hits</h3>
           <p className="result-z">z = {result.payload.z.toFixed(3)}</p>
-          <p>偶然なら hit率 50%（期待 {Math.round(result.payload.nBits / 2).toLocaleString()} hits）</p>
+          <p>偶然なら hit率 50%（期待 {Math.round(result.payload.nBits / 2).toLocaleString()} hits）、偶然なら z = 0</p>
           <p>RNG source: <strong>{result.payload.rngSource}</strong></p>
           <button type="button" disabled={loadingWishMoment} onClick={() => void continueAfterResult()}>
             {loadingWishMoment ? '願いタイムを確認中…' : '次へ'}
@@ -272,6 +272,7 @@ export function SessionFlow({
           {result.payload.z >= 3 && <p className="signal-label">ミラクル</p>}
           {result.payload.z < 3 && Math.abs(result.payload.z) >= 2 && <p className="signal-label">共鳴</p>}
           {Math.abs(result.payload.z) < 2 && <p>今日の記録を台帳へ保存しました。</p>}
+          <p className="quiet-note">表示ラベルは |z|≥2 が共鳴、的方向 z≥3 がミラクルです。偶然なら z = 0 で、これ自体は事前登録の実証判定ではありません。</p>
           <p className="quiet-note">prediction seq {result.payload.predictionSeq} → session seq {result.sessionEntry.seq}</p>
           {onFinish && (
             <button type="button" disabled={finishing} onClick={() => void finishSession()}>

@@ -6,7 +6,7 @@ import { RegistrationService } from '../registration/service';
 import type { RegistrationInput } from '../registration/types';
 import type { RandomBits } from '../rng/types';
 import { summarizeBitstream } from '../stats/core';
-import { SessionFlowService, findOrphanedPredictionSlot } from './service';
+import { SessionFlowService, findOrphanedPredictionSlot, hasCommittedSession } from './service';
 import type { Clock, SessionDraft } from './types';
 
 const registrationInput: RegistrationInput = {
@@ -365,6 +365,7 @@ describe('SessionFlowService', () => {
     expect(findOrphanedPredictionSlot(await ledger.list(), '2026-09-01', 2)).toBeNull();
 
     await service.runSession(draft());
+    expect(hasCommittedSession(await ledger.list(), '2026-09-01', 1)).toBe(true);
     expect(findOrphanedPredictionSlot(await ledger.list(), '2026-09-01', 1)).toBeNull();
   });
 });

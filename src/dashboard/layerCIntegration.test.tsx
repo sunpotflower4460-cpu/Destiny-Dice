@@ -90,7 +90,7 @@ describe('P8 Layer C lab integration', () => {
     expect(html).toContain('封印群があなたのベースライン');
     expect(html).toContain('BF₁₀');
     expect(html).toContain('Fisher p値は最終解析まで非表示');
-    expect(html).toContain('層別の効きめ');
+    expect(html).toContain('層別の探索集計');
     expect(html).toContain('実現した願いの経路');
     expect(html).toContain('Local crypto');
     expect(html).not.toContain('UIへ漏れてはいけない封印本文');

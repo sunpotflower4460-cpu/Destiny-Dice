@@ -1,4 +1,5 @@
 import { LEDGER_ENTRY_TYPES, type LedgerEntryType } from '../db/schema';
+import { summarizeBitstream } from '../stats/core';
 import { canonicalizeJcs } from './canonicalize';
 import { computeLedgerEntryHash } from './hash';
 import { GENESIS_PREV_HASH, type JsonObject, type StoredLedgerEntry } from './types';
@@ -16,7 +17,8 @@ export type VerifyChainErrorCode =
   | 'invalid_payload_json'
   | 'non_canonical_payload'
   | 'entry_hash_mismatch'
-  | 'invalid_prediction_binding';
+  | 'invalid_prediction_binding'
+  | 'invalid_recorded_stats';
 
 export type VerifyChainResult =
   | { ok: true; entries: number; headHash: string }
@@ -72,6 +74,23 @@ function sessionMatchesPredictionIdentity(session: JsonObject, prediction: JsonO
     identityField(prediction, 'condition') === condition &&
     identityField(prediction, 'targetDir') === targetDir
   );
+}
+
+function recordedBitstreamMatches(payload: JsonObject, targetDir: 0 | 1): boolean | 'skip' {
+  if (
+    typeof payload.bitsHex !== 'string' ||
+    typeof payload.nBits !== 'number' ||
+    typeof payload.hits !== 'number' ||
+    typeof payload.z !== 'number'
+  ) {
+    return 'skip';
+  }
+  try {
+    const frozen = summarizeBitstream(payload.bitsHex, payload.nBits, targetDir);
+    return frozen.hits === payload.hits && Math.abs(frozen.z - payload.z) <= 1e-12;
+  } catch {
+    return false;
+  }
 }
 
 export async function verifyChain(entries: readonly StoredLedgerEntry[]): Promise<VerifyChainResult> {
@@ -134,6 +153,18 @@ export async function verifyChain(entries: readonly StoredLedgerEntry[]): Promis
       return fail('entry_hash_mismatch', index, 'entryHash does not match canonical entry contents', entry.seq);
     }
 
+    if (entry.type === 'control') {
+      const stats = recordedBitstreamMatches(payload, 1);
+      if (stats === false) {
+        return fail(
+          'invalid_recorded_stats',
+          index,
+          'control bits/hits/z do not match the frozen stats core',
+          entry.seq,
+        );
+      }
+    }
+
     if (entry.type === 'session') {
       const predictionSeq = payload.predictionSeq;
       if (!Number.isSafeInteger(predictionSeq) || (predictionSeq as number) < 1 || (predictionSeq as number) >= entry.seq) {
@@ -162,6 +193,19 @@ export async function verifyChain(entries: readonly StoredLedgerEntry[]): Promis
           'invalid_prediction_binding',
           index,
           'session identity does not match the referenced prediction',
+          entry.seq,
+        );
+      }
+      const targetDir = payload.targetDir;
+      if (targetDir !== 0 && targetDir !== 1) {
+        return fail('invalid_recorded_stats', index, 'session targetDir must be 0 or 1', entry.seq);
+      }
+      const stats = recordedBitstreamMatches(payload, targetDir);
+      if (stats === false) {
+        return fail(
+          'invalid_recorded_stats',
+          index,
+          'session bits/hits/z do not match the frozen stats core',
           entry.seq,
         );
       }
