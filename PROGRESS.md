@@ -894,3 +894,32 @@ CocoaPods未インストールの場合は `sudo gem install cocoapods` の上�
 - `scripts/simulate.ts`, `scripts/release-check.ts`
 - `.github/workflows/ci.yml`, `.github/workflows/ios-release.yml`
 - `README.md`, `PROGRESS.md`
+
+---
+
+## P11: Review follow-up on integrity hotfix (2026-09-01)
+
+### 完了したこと
+- マージ済み PR #17 への Codex レビューのうち、PROTOCOL に沿う指摘だけを追従修正した。
+- `verifyChain()` が参照先 prediction の date / seqInDay / condition / targetDir 一致も見る。
+- prediction の新規 commit を `appendConditionally` に載せ、複数 `SessionFlowService` が同じ identity の予言を二重書きしないようにした。
+- orphan prediction 再利用時は committed confidence / prophecy / `startedAt <= committedAt` が一致しない draft を拒否する。元の mood/ritual は prediction payload に無いので復元せず、欠測として残す。
+- ミラクル正直メーターを DESIGN の 1回/日概数固定から、分析 session 数 × 正規裾確率へ変更。ダッシュボードと同じ `chanceSessionCount()` を使う。
+- 「P11 に他フェーズを混ぜた」指摘は、人間が事後監査とマージを指示した作業のためコードでは戻していない。
+
+### 完了基準の結果
+- `pnpm typecheck` / `pnpm worker:typecheck`: green
+- `pnpm test`: green — **36 files / 167 tests**
+- `pnpm build`: green
+- 365日 null simulation: 1456 entries / networkRequests 0 / headHash 維持
+- null report golden: `2b564cc1dfe328d1b97959d39c6662929822c9b16875e7c74af5f8144b4fd90d`
+
+### 触ったファイル
+- `src/ledger/verify.ts`, `src/ledger/verify.test.ts`
+- `src/session/service.ts`, `src/session/service.test.ts`
+- `src/stats/inference.ts`, `src/stats/inference.test.ts`, `src/stats/index.ts`
+- `src/stats/reportExploratory.ts`, `src/stats/reportExploratory.test.ts`
+- `src/report/markdown.ts`, `src/report/report.test.ts`
+- `src/dashboard/ExperimentDashboard.tsx`
+- `.github/workflows/ci.yml`
+- `PROGRESS.md`

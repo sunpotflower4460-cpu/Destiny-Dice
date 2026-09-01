@@ -15,12 +15,12 @@ async function buildFixture(): Promise<StoredLedgerEntry[]> {
   await service.append('control', { date: '2026-08-28', hits: 512 }, '2026-08-28T01:01:00.000Z');
   await service.append(
     'prediction',
-    { date: '2026-08-28', confidence: 70 },
+    { date: '2026-08-28', seqInDay: 1, condition: 0, targetDir: 1, confidence: 70 },
     '2026-08-28T01:02:00.000Z',
   );
   await service.append(
     'session',
-    { date: '2026-08-28', bitsHex: 'aabbccdd', predictionSeq: 3 },
+    { date: '2026-08-28', seqInDay: 1, condition: 0, targetDir: 1, bitsHex: 'aabbccdd', predictionSeq: 3 },
     '2026-08-28T01:03:00.000Z',
   );
   return store.list();
@@ -138,6 +138,27 @@ describe('verifyChain', () => {
       ok: false,
       code: 'invalid_prediction_binding',
       seq: 2,
+    });
+  });
+
+  it('rejects a hash-valid session bound to a prediction for a different identity', async () => {
+    const store = new MemoryLedgerStore();
+    const service = new LedgerService(store);
+    await service.append('registration', { experimentId: 'exp-identity' }, '2026-08-28T01:00:00.000Z');
+    await service.append(
+      'prediction',
+      { date: '2026-08-28', seqInDay: 1, condition: 0, targetDir: 1, confidence: 70 },
+      '2026-08-28T01:02:00.000Z',
+    );
+    await service.append(
+      'session',
+      { date: '2026-08-29', seqInDay: 1, condition: 0, targetDir: 1, bitsHex: 'aabbccdd', predictionSeq: 2 },
+      '2026-08-28T01:03:00.000Z',
+    );
+    await expect(verifyChain(await store.list())).resolves.toMatchObject({
+      ok: false,
+      code: 'invalid_prediction_binding',
+      seq: 3,
     });
   });
 });

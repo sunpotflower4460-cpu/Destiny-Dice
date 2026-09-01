@@ -53,6 +53,22 @@ export function twoSidedBinomialNormalApproxP(hits: number, nBits: number): numb
   return Math.min(1, 2 * (1 - standardNormalCdf(z)));
 }
 
+/**
+ * Null expectation for how many sessions would cross a z threshold by chance.
+ * one-sided is P(Z ≥ threshold); two-sided is P(|Z| ≥ threshold).
+ */
+export function chanceSessionCount(sessions: number, zThreshold: number, sided: 'one' | 'two'): number {
+  if (!Number.isInteger(sessions) || sessions < 0) {
+    throw new RangeError('sessions must be a non-negative integer');
+  }
+  if (!Number.isFinite(zThreshold) || zThreshold < 0) {
+    throw new RangeError('zThreshold must be a finite number >= 0');
+  }
+  const upper = 1 - standardNormalCdf(zThreshold);
+  const probability = sided === 'two' ? Math.min(1, 2 * upper) : upper;
+  return sessions * probability;
+}
+
 /** Beta(1,1) alternative versus point null p=0.5. */
 export function oneSampleBayesFactor10(hits: number, nBits: number): number {
   validateCountPair(hits, nBits);

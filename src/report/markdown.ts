@@ -1,5 +1,5 @@
 import { CONDITION_LABELS } from '../dashboard/model';
-import type { BinomialSummary, ConfirmatoryLabel } from '../stats';
+import { chanceSessionCount, type BinomialSummary, type ConfirmatoryLabel } from '../stats';
 import type { FinalReportModel } from './types';
 
 function pct(value: number | null): string {
@@ -119,7 +119,10 @@ export function renderFinalReportMarkdown(report: FinalReportModel): string {
   lines.push('');
   lines.push('### 5. ミラクル日のプロファイル');
   lines.push('');
-  lines.push(`|z|≥2: ${report.exploratory.miracleProfile.resonanceSessions} session（偶然なら年約17回） / 的方向z≥3: ${report.exploratory.miracleProfile.targetMiracleSessions} session（偶然なら年約0.5回）。`);
+  const miracle = report.exploratory.miracleProfile;
+  const chanceResonance = chanceSessionCount(miracle.analyzedSessions, 2, 'two');
+  const chanceMiracle = chanceSessionCount(miracle.analyzedSessions, 3, 'one');
+  lines.push(`|z|≥2: ${miracle.resonanceSessions} session（偶然なら同じ分析session数で約 ${chanceResonance.toFixed(2)}回） / 的方向z≥3: ${miracle.targetMiracleSessions} session（偶然なら同じ分析session数で約 ${chanceMiracle.toFixed(2)}回）。`);
   lines.push(`平均気分pre=${num(report.exploratory.miracleProfile.averageMoodPreV, 2)}、平均エネルギーpre=${num(report.exploratory.miracleProfile.averageMoodPreE, 2)}、平均時刻=${num(report.exploratory.miracleProfile.averageHour, 2)}。`);
   lines.push('');
   lines.push('### 6. Layer C 経路分解');

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  chanceSessionCount,
   holmAdjust,
   oneSampleBayesFactor10,
   twoSidedBinomialNormalApproxP,
@@ -44,5 +45,12 @@ describe('P5 inference', () => {
     expect(() => oneSampleBayesFactor10(9, 8)).toThrow();
     expect(() => wilsonInterval95(-1, 8)).toThrow();
     expect(() => holmAdjust([0.5, 1.1])).toThrow();
+  });
+
+  it('scales DESIGN §3.6 chance counts from the analyzed session n', () => {
+    expect(chanceSessionCount(365, 2, 'two')).toBeCloseTo(16.6075, 4);
+    expect(chanceSessionCount(365, 3, 'one')).toBeCloseTo(0.4927, 4);
+    expect(chanceSessionCount(1, 3, 'one')).toBeCloseTo(0.001349967, 9);
+    expect(chanceSessionCount(0, 3, 'one')).toBe(0);
   });
 });

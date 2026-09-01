@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { RegistrationPayload } from '../registration/types';
-import { EXPLORATORY_WARNING, type CumulativeDeviationPoint, type LayerCArmSummary } from '../stats';
+import { EXPLORATORY_WARNING, chanceSessionCount, type CumulativeDeviationPoint, type LayerCArmSummary } from '../stats';
 import type { LayerCDashboardModel } from './layerCModel';
 import type { LayerADashboardModel } from './model';
 import './dashboard.css';
@@ -26,8 +26,6 @@ const INFLUENCE_LABELS = {
   mixed: '半々',
   external: '自分では動かせない',
 } as const;
-
-const MIRACLE_NULL_RATE = 0.0013498980316301;
 
 function formatPercent(value: number | null, digits = 2): string {
   return value === null ? '—' : `${(value * 100).toFixed(digits)}%`;
@@ -236,7 +234,7 @@ function ControlPanel({ model }: { model: LayerADashboardModel }) {
 }
 
 function MiracleLog({ model }: { model: LayerADashboardModel }) {
-  const expected = model.validSessions * MIRACLE_NULL_RATE;
+  const expected = chanceSessionCount(model.validSessions, 3, 'one');
   return (
     <section className="lab-section" aria-labelledby="miracle-heading">
       <div className="section-heading">
