@@ -82,6 +82,13 @@ export type SessionPlan = {
   targetDir: TargetDirection;
 };
 
+export type OrphanedPredictionSlot = {
+  experimentDate: string;
+  seqInDay: number;
+  predictionSeq: number;
+  committedAt: string;
+};
+
 export type SessionDraft = {
   experimentDate: string;
   seqInDay: number;

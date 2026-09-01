@@ -27,6 +27,8 @@ import { getApplicationRngConfiguration, getApplicationRngService } from '../rng
 import {
   SessionFlow,
   SessionFlowService,
+  findOrphanedPredictionSlot,
+  type OrphanedPredictionSlot,
   type SessionContextInput,
   type SessionDraft,
   type SessionPlan,
@@ -60,6 +62,7 @@ type RuntimeSnapshot = {
   progress: DailySessionProgress;
   streak: GentleStreak;
   plan: SessionPlan | null;
+  orphanedPrediction: OrphanedPredictionSlot | null;
   startedAt: string;
   context: SessionContextInput;
   dashboard: LayerADashboardModel;
@@ -179,11 +182,18 @@ export function ExperimentRuntime({
       const currentSchedule = await projectCurrentSchedule(registration, currentExperimentDate);
       let progress = deriveDailySessionProgress(entries, currentExperimentDate, registration.sessionsPerDay);
       let plan: SessionPlan | null = null;
+      let orphanedPrediction: OrphanedPredictionSlot | null = null;
 
       if (currentSchedule && progress.nextSeqInDay !== null) {
-        plan = await services.session.prepareSession(currentExperimentDate, progress.nextSeqInDay);
-        entries = await services.ledger.list();
-        progress = deriveDailySessionProgress(entries, currentExperimentDate, registration.sessionsPerDay);
+        // Frozen prediction payloads do not store mood/ritual/startedAt. After a
+        // restart, a new startedAt cannot reconstruct Layer B order, so this slot
+        // stays missing. Same-process retry still uses snapshot.startedAt.
+        orphanedPrediction = findOrphanedPredictionSlot(entries, currentExperimentDate, progress.nextSeqInDay);
+        if (!orphanedPrediction) {
+          plan = await services.session.prepareSession(currentExperimentDate, progress.nextSeqInDay);
+          entries = await services.ledger.list();
+          progress = deriveDailySessionProgress(entries, currentExperimentDate, registration.sessionsPerDay);
+        }
       }
 
       if (registration.layerC.enabled) {
@@ -207,6 +217,7 @@ export function ExperimentRuntime({
         progress,
         streak: deriveGentleStreak(entries, currentExperimentDate),
         plan,
+        orphanedPrediction,
         startedAt,
         context,
         dashboard: buildLayerADashboardModel(entries, registration),
@@ -385,6 +396,20 @@ export function ExperimentRuntime({
               <p className="eyebrow">TODAY COMPLETE</p>
               <h2>今日の {registration.sessionsPerDay} セッションを記録しました。</h2>
               <p>抜けた日を後から埋める必要はありません。次のexperiment dayに、そのまま続けます。</p>
+            </section>
+          )}
+
+          {!experimentNotStarted && !experimentEnded && snapshot.orphanedPrediction && (
+            <section className="runtime-card runtime-source-note" aria-label="欠測として残すセッション">
+              <p className="eyebrow">SESSION UNRECOVERABLE</p>
+              <h2>この回の予言は確定済みです。実践記録は復元できません。</h2>
+              <p>
+                セッション #{snapshot.orphanedPrediction.seqInDay} の予言（seq {snapshot.orphanedPrediction.predictionSeq}）は
+                {' '}
+                {snapshot.orphanedPrediction.committedAt}
+                {' '}
+                に台帳へ確定しています。再起動後に気分・実践を後付けすると Layer B の順序が壊れるため、この回は欠測のまま残します。抜けた回を後から埋める必要はありません。次の experiment day から続けられます。
+              </p>
             </section>
           )}
 

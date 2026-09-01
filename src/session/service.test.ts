@@ -6,7 +6,7 @@ import { RegistrationService } from '../registration/service';
 import type { RegistrationInput } from '../registration/types';
 import type { RandomBits } from '../rng/types';
 import { summarizeBitstream } from '../stats/core';
-import { SessionFlowService } from './service';
+import { SessionFlowService, findOrphanedPredictionSlot } from './service';
 import type { Clock, SessionDraft } from './types';
 
 const registrationInput: RegistrationInput = {
@@ -336,5 +336,35 @@ describe('SessionFlowService', () => {
       'retry startedAt is after the committed prediction',
     );
     expect((await ledger.list()).map((entry) => entry.type)).toEqual(['registration', 'control', 'prediction']);
+  });
+
+  it('projects an orphaned prediction slot until a session is committed, then clears it', async () => {
+    const ledger = await createRegisteredLedger();
+    const rng = {
+      calls: [] as number[],
+      async getBits(nBits: number) {
+        this.calls.push(nBits);
+        if (this.calls.length === 2) throw new Error('measured rng failed');
+        return localDraw('aa'.repeat(128));
+      },
+    };
+    const service = new SessionFlowService(
+      ledger,
+      rng,
+      new QueueClock(['2026-09-01T00:00:00.000Z', '2026-09-01T01:10:00.000Z', '2026-09-01T01:10:01.000Z']),
+    );
+    await service.prepareSession('2026-09-01', 1);
+    await expect(service.runSession(draft())).rejects.toThrow('measured rng failed');
+
+    expect(findOrphanedPredictionSlot(await ledger.list(), '2026-09-01', 1)).toEqual({
+      experimentDate: '2026-09-01',
+      seqInDay: 1,
+      predictionSeq: 3,
+      committedAt: '2026-09-01T01:10:00.000Z',
+    });
+    expect(findOrphanedPredictionSlot(await ledger.list(), '2026-09-01', 2)).toBeNull();
+
+    await service.runSession(draft());
+    expect(findOrphanedPredictionSlot(await ledger.list(), '2026-09-01', 1)).toBeNull();
   });
 });

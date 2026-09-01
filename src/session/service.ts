@@ -9,6 +9,7 @@ import type {
   Clock,
   ControlPayload,
   MoodRating,
+  OrphanedPredictionSlot,
   PredictionPayload,
   SessionContext,
   SessionContextInput,
@@ -151,6 +152,30 @@ function findSession(
     const identity = sessionIdentity(entry);
     return identity?.date === experimentDate && identity.seqInDay === seqInDay;
   });
+}
+
+export function findOrphanedPredictionSlot(
+  entries: readonly StoredLedgerEntry[],
+  experimentDate: string,
+  seqInDay: number,
+): OrphanedPredictionSlot | null {
+  if (findSession(entries, experimentDate, seqInDay)) return null;
+  let prediction: StoredLedgerEntry | undefined;
+  for (const entry of entries) {
+    if (entry.type !== 'prediction') continue;
+    const payload = parsePrediction(entry);
+    if (payload.date === experimentDate && payload.seqInDay === seqInDay) {
+      prediction = entry;
+    }
+  }
+  if (!prediction) return null;
+  const payload = parsePrediction(prediction);
+  return {
+    experimentDate,
+    seqInDay,
+    predictionSeq: prediction.seq,
+    committedAt: payload.committedAt,
+  };
 }
 
 export class SessionFlowService {

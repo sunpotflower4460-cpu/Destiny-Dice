@@ -1,10 +1,11 @@
-export { SessionFlowService } from './service';
+export { SessionFlowService, findOrphanedPredictionSlot } from './service';
 export { buildRitualRecord } from './ritual';
 export { SessionFlow } from './SessionFlow';
 export type {
   Clock,
   ControlPayload,
   MoodRating,
+  OrphanedPredictionSlot,
   PredictionPayload,
   RitualInput,
   RitualRecord,
