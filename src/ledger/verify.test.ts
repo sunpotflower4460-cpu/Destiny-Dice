@@ -161,4 +161,67 @@ describe('verifyChain', () => {
       seq: 3,
     });
   });
+
+  it('rejects a hash-valid session whose recorded hits do not match bitsHex', async () => {
+    const store = new MemoryLedgerStore();
+    const service = new LedgerService(store);
+    await service.append('registration', { experimentId: 'exp-stats' }, '2026-08-28T01:00:00.000Z');
+    await service.append(
+      'prediction',
+      { date: '2026-08-28', seqInDay: 1, condition: 0, targetDir: 1, confidence: 70 },
+      '2026-08-28T01:02:00.000Z',
+    );
+    await service.append(
+      'session',
+      {
+        date: '2026-08-28',
+        seqInDay: 1,
+        condition: 0,
+        targetDir: 1,
+        bitsHex: 'ffff',
+        nBits: 16,
+        hits: 0,
+        z: 0,
+        predictionSeq: 2,
+      },
+      '2026-08-28T01:03:00.000Z',
+    );
+    await expect(verifyChain(await store.list())).resolves.toMatchObject({
+      ok: false,
+      code: 'invalid_recorded_stats',
+      seq: 3,
+    });
+  });
+
+  it('accepts a hash-valid session whose bits match recorded hits and z', async () => {
+    const store = new MemoryLedgerStore();
+    const service = new LedgerService(store);
+    await service.append('registration', { experimentId: 'exp-stats-ok' }, '2026-08-28T01:00:00.000Z');
+    await service.append(
+      'prediction',
+      { date: '2026-08-28', seqInDay: 1, condition: 0, targetDir: 1, confidence: 70 },
+      '2026-08-28T01:02:00.000Z',
+    );
+    await service.append(
+      'session',
+      {
+        date: '2026-08-28',
+        seqInDay: 1,
+        condition: 0,
+        targetDir: 1,
+        bitsHex: 'ffff',
+        nBits: 16,
+        hits: 16,
+        z: 4,
+        predictionSeq: 2,
+      },
+      '2026-08-28T01:03:00.000Z',
+    );
+    const entries = await store.list();
+    await expect(verifyChain(entries)).resolves.toEqual({
+      ok: true,
+      entries: 3,
+      headHash: entries[2]!.entryHash,
+    });
+  });
 });

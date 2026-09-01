@@ -24,7 +24,7 @@ function labelJa(label: ConfirmatoryLabel): string {
 }
 
 function summaryText(summary: BinomialSummary): string {
-  return `nBits=${summary.nBits}, hit率=${pct(summary.hitRate)}（偶然50.00%）, z=${num(summary.z)}, BF10=${sci(summary.bf10)}`;
+  return `nBits=${summary.nBits}, hit率=${pct(summary.hitRate)}（偶然50.00%）, z=${num(summary.z)}（偶然なら 0）, BF10=${sci(summary.bf10)}（BF中立点 1）`;
 }
 
 export function renderFinalReportMarkdown(report: FinalReportModel): string {
@@ -68,7 +68,7 @@ export function renderFinalReportMarkdown(report: FinalReportModel): string {
     lines.push('');
     lines.push(`- 実践−封印の実現率差: ${pct(c.result.comparison.riskDifference)}（偶然なら 0pp）`);
     lines.push(`- Fisher両側p: ${sci(c.result.fisherTwoSidedP)}`);
-    lines.push(`- BF10: ${sci(c.result.comparison.bf10)}`);
+    lines.push(`- BF10: ${sci(c.result.comparison.bf10)}（偶然モデルとの中立点 1）`);
     lines.push(`- 判定: **${labelJa(c.result.label)}**`);
     lines.push(`- 実験終了までに締切到来・判定済み: ${c.eligibleJudgedWishes}件`);
     lines.push(`- 締切到来済みだが未判定（欠測のまま）: ${c.eligibleUnjudgedWishes}件`);
@@ -94,25 +94,25 @@ export function renderFinalReportMarkdown(report: FinalReportModel): string {
   lines.push('');
   lines.push('### 1. 強度勾配（dose-response）');
   lines.push('');
-  lines.push(`dose×z 相関: ${num(report.exploratory.doseResponse.doseZCorrelation)}`);
+  lines.push(`dose×z 相関: ${num(report.exploratory.doseResponse.doseZCorrelation)}（偶然なら 0）`);
   for (const group of report.exploratory.doseResponse.groups) lines.push(`- ${group.label}: ${summaryText(group)}`);
   lines.push('');
   lines.push('### 2. 習慣化・時間発展');
   lines.push('');
   for (const quarter of report.exploratory.quarterlyTrend.quarters) lines.push(`- Q${quarter.quarter}: ${summaryText(quarter)}`);
-  for (const row of report.exploratory.quarterlyTrend.byCondition) lines.push(`- ${CONDITION_LABELS[row.condition]} session順序×z相関=${num(row.ordinalZCorrelation)}, slope=${num(row.zSlopePerSession)}`);
+  for (const row of report.exploratory.quarterlyTrend.byCondition) lines.push(`- ${CONDITION_LABELS[row.condition]} session順序×z相関=${num(row.ordinalZCorrelation)}（偶然なら 0）, slope=${num(row.zSlopePerSession)}（偶然なら 0）`);
   lines.push('');
   lines.push('### 3. 状態依存');
   lines.push('');
   const state = report.exploratory.stateDependence.correlations;
-  lines.push(`- 気分pre×z: ${num(state.moodPreVWithZ)}`);
-  lines.push(`- エネルギーpre×z: ${num(state.moodPreEWithZ)}`);
-  lines.push(`- 時刻×z: ${num(state.hourWithZ)}`);
-  lines.push(`- 月相×z: ${num(state.lunarPhaseWithZ)}`);
+  lines.push(`- 気分pre×z: ${num(state.moodPreVWithZ)}（偶然なら 0）`);
+  lines.push(`- エネルギーpre×z: ${num(state.moodPreEWithZ)}（偶然なら 0）`);
+  lines.push(`- 時刻×z: ${num(state.hourWithZ)}（偶然なら 0）`);
+  lines.push(`- 月相×z: ${num(state.lunarPhaseWithZ)}（偶然なら 0）`);
   lines.push('');
   lines.push('### 4. 予言の答え合わせ');
   lines.push('');
-  lines.push(`セッション手応え×z相関: ${num(report.exploratory.predictionCalibration.confidenceZCorrelation)}`);
+  lines.push(`セッション手応え×z相関: ${num(report.exploratory.predictionCalibration.confidenceZCorrelation)}（偶然なら 0）`);
   for (const row of report.exploratory.predictionAnswerCheck) {
     lines.push(`- ${CONDITION_LABELS[row.condition]} 立て札: 「${row.registeredPrediction}」 / 実測判定: ${labelJa(row.finalLabel)} / 自動○×: 保留（v1の自由文には機械解釈ルールを事前固定していないため）`);
   }
@@ -131,11 +131,11 @@ export function renderFinalReportMarkdown(report: FinalReportModel): string {
     for (const row of report.exploratory.layerC.pathways) lines.push(`- ${row.pathway}: 実践=${row.practice}, 封印=${row.sealed}`);
   } else lines.push('Layer C無効。');
   lines.push('');
-  lines.push('### 7. Layer C 層別の効きめ');
+  lines.push('### 7. Layer C 層別の探索集計');
   lines.push('');
   if (report.exploratory.layerC) {
-    for (const row of report.exploratory.layerC.strata.likelihood) lines.push(`- ${row.label}: risk difference=${pct(row.comparison.riskDifference)}, BF10=${sci(row.comparison.bf10)}`);
-    for (const row of report.exploratory.layerC.strata.influence) lines.push(`- ${row.label}: risk difference=${pct(row.comparison.riskDifference)}, BF10=${sci(row.comparison.bf10)}`);
+    for (const row of report.exploratory.layerC.strata.likelihood) lines.push(`- ${row.label}: risk difference=${pct(row.comparison.riskDifference)}（偶然なら 0pp）, BF10=${sci(row.comparison.bf10)}（BF中立点 1）`);
+    for (const row of report.exploratory.layerC.strata.influence) lines.push(`- ${row.label}: risk difference=${pct(row.comparison.riskDifference)}（偶然なら 0pp）, BF10=${sci(row.comparison.bf10)}（BF中立点 1）`);
   }
   lines.push('');
   lines.push('### 8. 実現までの日数');

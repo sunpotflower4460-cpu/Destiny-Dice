@@ -28,12 +28,14 @@ import {
   SessionFlow,
   SessionFlowService,
   findOrphanedPredictionSlot,
+  hasCommittedSession,
   type OrphanedPredictionSlot,
   type SessionContextInput,
   type SessionDraft,
   type SessionPlan,
   type SessionResult,
 } from '../session';
+import { decideTodaySessionPresentation, type InFlightSession } from './sessionRecovery';
 import {
   createSecureWishId,
   WishRegistryPanel,
@@ -119,6 +121,8 @@ export function ExperimentRuntime({
   const [notificationMessage, setNotificationMessage] = useState<string | null>(null);
   const [dailyReminderTime, setDailyReminderTime] = useState<string | null>(() => readReminderTime(registration.experimentId));
   const servicesRef = useRef<Promise<RuntimeServices> | null>(null);
+  const snapshotRef = useRef<RuntimeSnapshot | null>(null);
+  const inFlightRef = useRef<InFlightSession | null>(null);
 
   const getServices = useCallback((): Promise<RuntimeServices> => {
     if (!servicesRef.current) {
@@ -183,16 +187,46 @@ export function ExperimentRuntime({
       let progress = deriveDailySessionProgress(entries, currentExperimentDate, registration.sessionsPerDay);
       let plan: SessionPlan | null = null;
       let orphanedPrediction: OrphanedPredictionSlot | null = null;
+      const inflight = inFlightRef.current;
+      const previous = snapshotRef.current;
+      const notificationNow = now;
+      let startedAt = notificationNow;
 
-      if (currentSchedule && progress.nextSeqInDay !== null) {
-        // Frozen prediction payloads do not store mood/ritual/startedAt. After a
-        // restart, a new startedAt cannot reconstruct Layer B order, so this slot
-        // stays missing. Same-process retry still uses snapshot.startedAt.
-        orphanedPrediction = findOrphanedPredictionSlot(entries, currentExperimentDate, progress.nextSeqInDay);
-        if (!orphanedPrediction) {
-          plan = await services.session.prepareSession(currentExperimentDate, progress.nextSeqInDay);
+      if (currentSchedule) {
+        const nextSeqInDay = progress.nextSeqInDay;
+        const orphanForNextSeq =
+          nextSeqInDay === null ? null : findOrphanedPredictionSlot(entries, currentExperimentDate, nextSeqInDay);
+        const decision = decideTodaySessionPresentation({
+          experimentDate: currentExperimentDate,
+          nextSeqInDay,
+          orphanForNextSeq,
+          inFlight: inflight,
+          previousPlan: previous?.plan ?? null,
+          inFlightSessionCommitted: inflight
+            ? hasCommittedSession(entries, inflight.experimentDate, inflight.seqInDay)
+            : false,
+          now: notificationNow,
+        });
+
+        if (decision.kind === 'preserve') {
+          plan = decision.plan;
+          startedAt = decision.startedAt;
+          orphanedPrediction = null;
+        } else if (decision.kind === 'abandon') {
+          orphanedPrediction = decision.orphan;
+          inFlightRef.current = null;
+        } else if (decision.kind === 'prepare' && nextSeqInDay !== null) {
+          plan = await services.session.prepareSession(currentExperimentDate, nextSeqInDay);
           entries = await services.ledger.list();
           progress = deriveDailySessionProgress(entries, currentExperimentDate, registration.sessionsPerDay);
+          startedAt = decision.startedAt;
+          inFlightRef.current = {
+            experimentDate: currentExperimentDate,
+            seqInDay: plan.seqInDay,
+            startedAt,
+          };
+        } else {
+          inFlightRef.current = null;
         }
       }
 
@@ -207,7 +241,6 @@ export function ExperimentRuntime({
       const dueJudgments = registration.layerC.enabled
         ? await services.wish.projectDueJudgments(currentExperimentDate)
         : [];
-      const startedAt = systemClock.now();
       const context = systemContext(startedAt, registration.timeZone);
 
       const next: RuntimeSnapshot = {
@@ -225,6 +258,7 @@ export function ExperimentRuntime({
         wishRegistry,
         dueJudgments,
       };
+      snapshotRef.current = next;
       setSnapshot(next);
 
       // Optional external anchoring is deliberately non-blocking. The notary
@@ -238,7 +272,7 @@ export function ExperimentRuntime({
       });
 
       if (options?.syncNotifications !== false) {
-        await syncNotificationsFor(entries, startedAt, dailyReminderTime, false);
+        await syncNotificationsFor(entries, notificationNow, dailyReminderTime, false);
       }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
@@ -333,8 +367,7 @@ export function ExperimentRuntime({
         <button className={tab === 'records' ? 'active' : ''} type="button" onClick={() => setTab('records')}>記録・ラボ</button>
       </nav>
 
-      {tab === 'today' && (
-        <section className="runtime-today">
+      <section className="runtime-today" hidden={tab !== 'today'}>
           <header className="runtime-hero">
             <div>
               <p className="eyebrow">{snapshot.currentExperimentDate}</p>
@@ -391,7 +424,7 @@ export function ExperimentRuntime({
             <section className="runtime-card"><h2>365日の実験期間は終了しています</h2><p>既存台帳はそのまま保持されます。締切を迎える願いの判定は「願い」画面から続けられます。</p></section>
           )}
 
-          {!experimentNotStarted && !experimentEnded && snapshot.progress.complete && (
+          {!experimentNotStarted && !experimentEnded && snapshot.progress.complete && !snapshot.plan && (
             <section className="runtime-card runtime-complete">
               <p className="eyebrow">TODAY COMPLETE</p>
               <h2>今日の {registration.sessionsPerDay} セッションを記録しました。</h2>
@@ -423,14 +456,16 @@ export function ExperimentRuntime({
               onDraw={runSession}
               loadWishMoment={registration.layerC.enabled ? loadWishMoment : undefined}
               recordWishMoment={registration.layerC.enabled ? recordWishMoment : undefined}
-              onFinish={() => refresh()}
+              onFinish={async () => {
+                inFlightRef.current = null;
+                await refresh();
+              }}
               finishLabel={snapshot.plan.seqInDay < registration.sessionsPerDay ? '次のセッションへ' : '今日を完了'}
             />
           )}
 
           {refreshing && <p className="runtime-refreshing">台帳を更新しています…</p>}
-        </section>
-      )}
+      </section>
 
       {tab === 'wishes' && registration.layerC.enabled && snapshot.wishRegistry && (
         <WishRegistryPanel

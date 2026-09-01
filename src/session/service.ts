@@ -178,6 +178,14 @@ export function findOrphanedPredictionSlot(
   };
 }
 
+export function hasCommittedSession(
+  entries: readonly StoredLedgerEntry[],
+  experimentDate: string,
+  seqInDay: number,
+): boolean {
+  return findSession(entries, experimentDate, seqInDay) !== undefined;
+}
+
 export class SessionFlowService {
   private readonly ledger: SessionLedger;
   private readonly rng: SessionRng;

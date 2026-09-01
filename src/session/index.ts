@@ -1,4 +1,4 @@
-export { SessionFlowService, findOrphanedPredictionSlot } from './service';
+export { SessionFlowService, findOrphanedPredictionSlot, hasCommittedSession } from './service';
 export { buildRitualRecord } from './ritual';
 export { SessionFlow } from './SessionFlow';
 export type {
