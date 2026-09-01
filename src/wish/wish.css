@@ -1,6 +1,6 @@
 .wish-registry {
   display: grid;
-  gap: 18px;
+  gap: 16px;
   width: min(960px, 100%);
   margin: 0 auto;
 }
@@ -10,18 +10,17 @@
 .wish-list,
 .wish-due,
 .wish-summary-strip {
-  border: 1px solid rgba(31, 45, 39, 0.1);
-  border-radius: 24px;
-  background: rgba(255, 255, 255, 0.84);
-  box-shadow: 0 16px 48px rgba(31, 45, 39, 0.05);
+  border: 1px solid rgba(154, 116, 56, 0.38);
+  background: var(--paper-bright);
+  box-shadow: var(--shadow);
 }
 
 .wish-heading {
   display: grid;
   grid-template-columns: 1.2fr 0.8fr;
-  gap: 24px;
+  gap: 22px;
   align-items: end;
-  padding: 30px;
+  padding: 26px;
 }
 
 .wish-heading h2,
@@ -29,24 +28,25 @@
 .wish-due h3,
 .wish-moment h3 {
   margin: 0;
+  font-family: var(--font-display);
 }
 
 .wish-heading > p {
   margin: 0;
-  color: #67766e;
+  color: var(--ink-soft);
   line-height: 1.7;
 }
 
-.wish-form {
-  display: grid;
-  gap: 16px;
-  padding: 26px;
+.wish-form input:not([type='checkbox']),
+.wish-form select,
+.wish-form textarea {
+  width: 100%;
 }
 
 .wish-hint,
 .sealed-note {
   margin: 0;
-  color: #6d7b73;
+  color: var(--ink-soft);
   font-size: 0.82rem;
   line-height: 1.6;
 }
@@ -67,25 +67,23 @@
 .judgment-actions button,
 .pathway-actions button,
 .wish-list article button {
-  border: 1px solid #cbd5cf;
-  border-radius: 999px;
+  border: 1px solid rgba(34, 25, 17, 0.22);
   padding: 8px 12px;
-  background: #fff;
-  color: #33483f;
-  font: inherit;
+  background: var(--paper);
+  color: var(--ink);
   font-size: 0.8rem;
   font-weight: 800;
   cursor: pointer;
 }
 
 .wish-chip-group button.active {
-  border-color: #244d3c;
-  background: #244d3c;
-  color: #fff;
+  border-color: var(--moss-deep);
+  background: var(--moss);
+  color: var(--paper-bright);
 }
 
 .wish-chip-group small {
-  color: #748178;
+  color: var(--ink-soft);
 }
 
 .wish-form-grid {
@@ -95,13 +93,12 @@
 }
 
 .wish-register-button {
-  border: 0;
-  border-radius: 14px;
-  padding: 14px 18px;
-  background: #203f35;
-  color: #fff;
-  font: inherit;
-  font-weight: 850;
+  border: 1px solid var(--moss-deep);
+  padding: 13px 18px;
+  background: var(--stamp);
+  color: var(--paper-bright);
+  font-family: var(--font-display);
+  font-weight: 700;
   cursor: pointer;
 }
 
@@ -113,9 +110,9 @@
 .wish-notice {
   margin: 0;
   padding: 14px 16px;
-  border-radius: 14px;
-  background: #eaf3ee;
-  color: #28513f;
+  border-left: 3px solid var(--brass);
+  background: rgba(154, 116, 56, 0.12);
+  color: var(--moss);
   line-height: 1.6;
 }
 
@@ -123,25 +120,25 @@
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
-  padding: 16px;
+  padding: 14px;
 }
 
 .wish-summary-strip div {
   display: grid;
   gap: 2px;
   padding: 12px 14px;
-  border-radius: 14px;
-  background: #f2f5f2;
+  background: rgba(24, 36, 29, 0.05);
 }
 
 .wish-summary-strip strong {
-  font-size: 1.6rem;
+  font-family: var(--font-display);
+  font-size: 1.5rem;
 }
 
 .wish-summary-strip span,
 .wish-summary-strip p,
 .due-meta {
-  color: #6a7870;
+  color: var(--ink-soft);
   font-size: 0.8rem;
 }
 
@@ -154,7 +151,7 @@
 .wish-due {
   display: grid;
   gap: 12px;
-  padding: 24px;
+  padding: 22px;
 }
 
 .wish-list article,
@@ -162,9 +159,8 @@
   display: grid;
   gap: 12px;
   padding: 16px;
-  border: 1px solid rgba(31, 45, 39, 0.08);
-  border-radius: 16px;
-  background: #fbfcfa;
+  border: 1px solid var(--rule);
+  background: #fbf6e8;
 }
 
 .wish-list article {
@@ -178,7 +174,7 @@
 }
 
 .wish-list article span {
-  color: #6b7971;
+  color: var(--ink-soft);
   font-size: 0.78rem;
 }
 
@@ -207,11 +203,10 @@
   width: fit-content;
   margin: 0;
   padding: 7px 11px;
-  border-radius: 999px;
-  background: #edf3ef;
-  color: #365245;
+  border: 1px solid var(--rule);
+  color: var(--moss);
+  font-family: var(--font-stamp);
   font-size: 0.78rem;
-  font-weight: 850;
 }
 
 .wish-moment-cards {
@@ -223,13 +218,12 @@
   display: grid;
   gap: 5px;
   padding: 18px;
-  border: 1px solid rgba(31, 45, 39, 0.09);
-  border-radius: 16px;
-  background: linear-gradient(180deg, #fcfdfb 0%, #f0f5f1 100%);
+  border: 1px solid var(--rule);
+  background: linear-gradient(180deg, #fbf6e8 0%, #efe2c6 100%);
 }
 
 .wish-moment-cards article span {
-  color: #6a7870;
+  color: var(--ink-soft);
   font-size: 0.78rem;
 }
 

@@ -1,11 +1,18 @@
 .session-flow {
   display: grid;
-  gap: 1.25rem;
-  padding: 1.5rem;
-  border: 1px solid rgba(127, 140, 160, 0.22);
-  border-radius: 24px;
-  background: rgba(255, 255, 255, 0.78);
-  box-shadow: 0 20px 60px rgba(30, 41, 59, 0.08);
+  gap: 1.15rem;
+  margin-top: 4px;
+  padding: 1.45rem 1.35rem 1.6rem;
+  border: 1px solid rgba(154, 116, 56, 0.5);
+  background:
+    linear-gradient(180deg, rgba(247, 238, 216, 0.7), transparent 18%),
+    repeating-linear-gradient(
+      180deg,
+      transparent 0 29px,
+      rgba(34, 25, 17, 0.055) 29px 30px
+    ),
+    var(--paper-bright);
+  box-shadow: var(--shadow);
 }
 
 .session-header {
@@ -13,96 +20,118 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 1rem;
+  padding-bottom: 0.7rem;
+  border-bottom: 1px solid var(--rule);
 }
 
 .session-eyebrow {
   margin: 0 0 0.35rem;
-  font-size: 0.75rem;
+  color: var(--brass);
+  font-family: var(--font-stamp);
+  font-size: 0.72rem;
   font-weight: 700;
-  letter-spacing: 0.14em;
-  opacity: 0.58;
+  letter-spacing: 0.16em;
 }
 
 .session-header h2,
 .session-step h3 {
   margin: 0;
+  font-family: var(--font-display);
 }
 
 .target-badge {
   display: grid;
-  gap: 0.15rem;
-  min-width: 88px;
-  padding: 0.7rem 0.9rem;
-  border-radius: 18px;
-  background: #111827;
-  color: white;
+  gap: 0.1rem;
+  min-width: 92px;
+  padding: 0.65rem 0.75rem;
+  border: 2px solid var(--stamp);
+  color: var(--stamp);
   text-align: center;
+  transform: rotate(-3deg);
 }
 
 .target-badge span {
-  font-size: 0.65rem;
-  letter-spacing: 0.12em;
-  opacity: 0.7;
+  font-family: var(--font-stamp);
+  font-size: 0.62rem;
+  letter-spacing: 0.14em;
 }
 
 .target-badge strong {
-  font-size: 1.1rem;
+  font-family: var(--font-display);
+  font-size: 1.15rem;
 }
 
 .session-step {
   display: grid;
-  gap: 1rem;
+  gap: 0.95rem;
 }
 
 .session-step label,
 .mood-controls {
   display: grid;
-  gap: 0.7rem;
+  gap: 0.65rem;
 }
 
 .mood-controls {
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
 }
 
+.session-step input[type='range'] {
+  width: 100%;
+  accent-color: var(--stamp);
+}
+
 .session-step input[type='text'],
 .session-step input:not([type]),
 .session-step textarea {
   width: 100%;
-  box-sizing: border-box;
-  padding: 0.8rem 0.9rem;
-  border: 1px solid rgba(100, 116, 139, 0.3);
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.92);
+  padding: 0.75rem 0.85rem;
+  border: 1px solid rgba(34, 25, 17, 0.22);
+  background: #fbf6e8;
   font: inherit;
 }
 
 .session-step button {
   justify-self: start;
+  min-height: 46px;
+  padding: 0.7rem 1.1rem;
+  border: 1px solid var(--moss-deep);
+  background: var(--moss);
+  color: var(--paper-bright);
+  font-family: var(--font-display);
+  font-weight: 700;
+  cursor: pointer;
 }
 
 .ritual-timer {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
+  gap: 0.65rem;
   flex-wrap: wrap;
 }
 
 .ritual-timer strong {
-  font-size: 1.55rem;
+  font-family: var(--font-display);
+  font-size: 1.7rem;
   font-variant-numeric: tabular-nums;
+}
+
+.ritual-timer button {
+  background: var(--paper);
+  color: var(--ink);
 }
 
 .quiet-note {
   margin: 0;
-  color: #64748b;
+  color: var(--ink-soft);
   font-size: 0.9rem;
 }
 
 .valid-note {
   margin: 0;
-  color: #166534;
+  color: var(--moss);
   font-size: 0.9rem;
-  font-weight: 650;
+  font-weight: 700;
 }
 
 .draw-step,
@@ -113,32 +142,40 @@
 
 .hold-button {
   min-width: min(100%, 280px);
-  min-height: 74px;
-  border-radius: 999px;
+  min-height: 88px;
+  border: 3px solid var(--stamp) !important;
+  border-radius: 50% / 18% !important;
+  background: #f3e0cc !important;
+  color: var(--stamp) !important;
+  font-size: 1.05rem;
+  letter-spacing: 0.06em;
   touch-action: none;
   user-select: none;
 }
 
 .hold-button.is-holding {
   transform: scale(0.98);
+  background: var(--stamp) !important;
+  color: var(--paper-bright) !important;
 }
 
 .session-error {
   margin: 0;
-  color: #b91c1c;
+  color: var(--stamp);
 }
 
 .result-z {
   margin: 0;
-  font-size: 2rem;
-  font-weight: 750;
+  font-family: var(--font-display);
+  font-size: 2.15rem;
   font-variant-numeric: tabular-nums;
 }
 
 .signal-label {
   margin: 0;
-  padding: 0.45rem 0.8rem;
-  border: 1px solid currentColor;
-  border-radius: 999px;
-  font-weight: 700;
+  padding: 0.4rem 0.85rem;
+  border: 2px solid var(--stamp);
+  color: var(--stamp);
+  font-family: var(--font-stamp);
+  letter-spacing: 0.12em;
 }

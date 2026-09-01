@@ -1,114 +1,158 @@
 .runtime-shell {
-  min-height: 100vh;
-  padding: 20px clamp(16px, 4vw, 48px) 64px;
-  background: radial-gradient(circle at top, #f5faf7 0, #eef3f0 38%, #e8edeb 100%);
-  color: #1f2d27;
+  min-height: 100svh;
+  padding: 18px clamp(12px, 3vw, 40px) 72px;
 }
 
 .runtime-tabs {
   position: sticky;
-  top: 12px;
-  z-index: 5;
+  top: 10px;
+  z-index: 8;
   display: flex;
-  gap: 8px;
+  gap: 0;
   width: fit-content;
   max-width: 100%;
-  margin: 0 auto 24px;
-  padding: 6px;
+  margin: 0 auto 22px;
   overflow-x: auto;
-  border: 1px solid rgba(54, 79, 68, 0.14);
-  border-radius: 999px;
-  background: rgba(250, 252, 251, 0.9);
-  box-shadow: 0 10px 28px rgba(37, 55, 47, 0.08);
-  backdrop-filter: blur(14px);
+  border: 1px solid rgba(154, 116, 56, 0.45);
+  background: var(--paper);
+  box-shadow: var(--shadow);
 }
 
 .runtime-tabs button {
-  min-width: 88px;
-  padding: 10px 16px;
+  min-width: 92px;
+  padding: 11px 18px;
   border: 0;
-  border-radius: 999px;
+  border-right: 1px solid var(--rule);
   background: transparent;
-  color: #5d6c65;
-  font-weight: 700;
+  color: var(--ink-soft);
+  font-family: var(--font-stamp);
+  font-size: 0.82rem;
+  letter-spacing: 0.08em;
   cursor: pointer;
 }
 
+.runtime-tabs button:last-child {
+  border-right: 0;
+}
+
 .runtime-tabs button.active {
-  background: #203f35;
-  color: #fff;
+  background: var(--moss-deep);
+  color: var(--paper-bright);
 }
 
 .runtime-today,
 .runtime-shell > .wish-registry,
 .runtime-shell > .dashboard-shell {
-  width: min(100%, 1040px);
+  width: min(100%, 980px);
   margin: 0 auto;
 }
 
 .runtime-hero {
   display: flex;
-  align-items: flex-start;
+  align-items: flex-end;
   justify-content: space-between;
-  gap: 24px;
-  margin: 12px 0 24px;
+  gap: 16px;
+  margin: 4px 0 18px;
 }
 
-.runtime-hero h1,
+.runtime-hero h1 {
+  margin: 0;
+  font-size: clamp(1.6rem, 4vw, 2.35rem);
+  line-height: 1.2;
+}
+
+.runtime-hero > div:first-child > p:last-child {
+  margin-top: 6px;
+  color: var(--ink-soft);
+  font-size: 0.88rem;
+}
+
+.runtime-streak {
+  display: grid;
+  min-width: 148px;
+  padding: 12px 14px;
+  border: 1px solid rgba(154, 116, 56, 0.4);
+  background: rgba(247, 238, 216, 0.72);
+}
+
+.runtime-streak strong {
+  font-family: var(--font-display);
+  font-size: clamp(1.7rem, 4vw, 2.4rem);
+  line-height: 1;
+}
+
+.runtime-streak span,
+.runtime-streak small {
+  color: var(--ink-soft);
+}
+
+.runtime-streak small {
+  margin-top: 6px;
+  font-size: 0.75rem;
+  line-height: 1.45;
+}
+
+.runtime-card {
+  margin: 14px 0;
+  padding: clamp(16px, 3vw, 26px);
+  border: 1px solid rgba(154, 116, 56, 0.38);
+  background: var(--paper-bright);
+  box-shadow: var(--shadow);
+}
+
 .runtime-card h1,
 .runtime-card h2 {
   margin-top: 4px;
 }
 
-.runtime-hero > div:first-child > p:last-child {
-  color: #68766f;
+.due-banner {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  border-color: rgba(125, 42, 34, 0.35);
+  background: #f3e0cc;
 }
 
-.runtime-streak {
-  display: grid;
-  min-width: 210px;
-  padding: 18px 20px;
-  border: 1px solid rgba(54, 79, 68, 0.14);
-  border-radius: 22px;
-  background: rgba(255, 255, 255, 0.75);
-  box-shadow: 0 12px 34px rgba(37, 55, 47, 0.07);
-}
-
-.runtime-streak strong {
-  font-size: clamp(2rem, 5vw, 3.4rem);
-  line-height: 1;
-}
-
-.runtime-streak span {
-  margin-top: 5px;
+.due-banner button {
+  border: 1px solid var(--stamp);
+  padding: 8px 12px;
+  background: var(--stamp);
+  color: var(--paper-bright);
+  cursor: pointer;
   font-weight: 700;
 }
 
-.runtime-streak small {
-  margin-top: 10px;
-  color: #68766f;
-  line-height: 1.55;
+.runtime-drawer {
+  margin: 18px 0 0;
+  border: 1px dashed rgba(154, 116, 56, 0.4);
+  background: rgba(24, 36, 29, 0.05);
+  padding: 2px 16px 12px;
 }
 
-.runtime-card {
-  margin: 18px 0;
-  padding: clamp(18px, 3vw, 28px);
-  border: 1px solid rgba(54, 79, 68, 0.14);
-  border-radius: 24px;
-  background: rgba(255, 255, 255, 0.78);
-  box-shadow: 0 14px 38px rgba(37, 55, 47, 0.07);
+.runtime-drawer > summary {
+  cursor: pointer;
+  padding: 12px 2px;
+  color: var(--ink-soft);
+  font-family: var(--font-stamp);
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
 }
 
 .notification-card {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 18px 28px;
+  gap: 16px 24px;
   align-items: center;
+  margin: 8px 0 0;
+  padding: 8px 0 4px;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .notification-card > .quiet-note {
   grid-column: 1 / -1;
-  margin: 0;
 }
 
 .notification-controls {
@@ -122,21 +166,20 @@
 .notification-controls label {
   display: grid;
   gap: 6px;
-  color: #68766f;
-  font-size: 0.85rem;
+  color: var(--ink-soft);
+  font-size: 0.82rem;
   font-weight: 700;
 }
 
 .notification-controls select,
 .notification-controls button,
-.runtime-card button {
+.runtime-card button,
+.final-report-card a {
   min-height: 42px;
-  padding: 9px 14px;
-  border: 1px solid rgba(54, 79, 68, 0.18);
-  border-radius: 12px;
-  background: #fff;
-  color: #203f35;
-  font: inherit;
+  padding: 8px 12px;
+  border: 1px solid rgba(34, 25, 17, 0.25);
+  background: var(--paper);
+  color: var(--ink);
 }
 
 .notification-controls button,
@@ -152,17 +195,16 @@
 }
 
 .runtime-source-note {
-  border-color: rgba(155, 119, 49, 0.22);
-  background: rgba(255, 250, 236, 0.88);
+  border-color: rgba(154, 116, 56, 0.5);
+  background: #ead8a8;
 }
 
 .runtime-source-note strong {
-  color: #6c572b;
+  color: var(--moss);
 }
 
 .runtime-complete {
   text-align: center;
-  background: rgba(239, 248, 243, 0.9);
 }
 
 .runtime-error {
@@ -172,18 +214,32 @@
 
 .runtime-refreshing {
   margin-top: 16px;
-  color: #68766f;
+  color: var(--ink-soft);
   text-align: center;
-  font-size: 0.9rem;
+  font-size: 0.88rem;
+}
+
+.runtime-shell > .dashboard-shell {
+  min-height: auto;
+  padding: 0;
+  background: transparent;
+}
+
+.runtime-shell > .dashboard-shell .dashboard-tabs {
+  top: 62px;
+}
+
+.runtime-shell > .dashboard-shell .zen-home {
+  min-height: 48vh;
 }
 
 @media (max-width: 720px) {
   .runtime-shell {
-    padding-inline: 14px;
+    padding-inline: 10px;
   }
 
   .runtime-tabs {
-    top: 8px;
+    top: 6px;
     width: 100%;
   }
 
@@ -192,16 +248,14 @@
     min-width: max-content;
   }
 
-  .runtime-hero {
+  .runtime-hero,
+  .due-banner,
+  .notification-card {
     display: grid;
   }
 
   .runtime-streak {
     min-width: 0;
-  }
-
-  .notification-card {
-    grid-template-columns: 1fr;
   }
 
   .notification-controls {

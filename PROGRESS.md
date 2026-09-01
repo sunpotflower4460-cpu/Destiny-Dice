@@ -1006,3 +1006,38 @@ CocoaPods未インストールの場合は `sudo gem install cocoapods` の上�
 - `src/dashboard/ExperimentDashboard.tsx`, `src/dashboard/layerCIntegration.test.tsx`
 - `.github/workflows/ci.yml`
 - `PROGRESS.md`
+
+---
+
+## P11: Analog secret-base UI (2026-09-01)
+
+### 完了したこと
+- 紙・インク・真鍮・スタンプのアナログ秘密基地トーンに画面を揃えた。Vite 初期の紫テーマと全面角丸ガラスをやめた。
+- 今日のセッションを前面に置いた。通知・乱数ソースは `<details>` の後ろ。判定待ちがあるときだけ今日面に出す。
+- 登録ウィザードは ID・開始・予言を前面、bit数・タイムゾーン・Layer C 細部は折りたたみ。確証判定ルールは隠していない。
+- 抽選ボタンを封蝋風の長押しスタンプにした。的バッジはスタンプ、ノート罫線のセッション紙面。
+
+### 完了基準の結果（コマンド出力の要約）
+- `pnpm typecheck`: green
+- `pnpm test`: green — **37 files / 176 tests**
+- `pnpm build`: green
+- 統計・ledger・report golden は未変更（見た目のみ）
+
+### 不変条件セルフチェック
+1. プロトコル・統計式・文言の証拠意味は変えていない
+2. 封印願い本文を出していない
+3. 判定ルールを折りたたみの外に残した
+4. Issue #16 は残す
+
+### 要確定・申し送り
+- 紙面トーンは Web の system 明朝に依存する。
+- Issue #16 の外部資格情報は未設定。
+
+### 触ったファイル
+- `src/theme.css`, `src/index.css`, `index.html`, `public/favicon.svg`
+- `src/App.css`, `src/App.tsx`
+- `src/runtime/ExperimentRuntime.css`, `src/runtime/ExperimentRuntime.tsx`
+- `src/session/SessionFlow.css`
+- `src/dashboard/dashboard.css`
+- `src/wish/wish.css`
+- `PROGRESS.md`

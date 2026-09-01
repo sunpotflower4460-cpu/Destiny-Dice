@@ -160,15 +160,9 @@ function App() {
         <p className="lead">ここで確定した内容はgenesisへ記録され、この実験IDでは変更できません。</p>
 
         <fieldset>
-          <legend>1. 実験の基本設定</legend>
+          <legend>1. この実験の名前と開始</legend>
           <label>Experiment ID<input required value={experimentId} onChange={(event) => setExperimentId(event.target.value)} placeholder="例: my-2026-experiment" /></label>
           <label>開始日<input required type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} /></label>
-          <label>固定タイムゾーン<input required value={timeZone} onChange={(event) => setTimeZone(event.target.value)} /></label>
-          <div className="form-row">
-            <label>1回のbit数<select value={bitsPerDraw} onChange={(event) => setBitsPerDraw(Number(event.target.value) as BitsPerDraw)}><option value={1024}>1,024</option><option value={2048}>2,048</option><option value={4096}>4,096</option></select></label>
-            <label>1日の回数<select value={sessionsPerDay} onChange={(event) => setSessionsPerDay(Number(event.target.value) as SessionsPerDay)}><option value={1}>1回</option><option value={2}>2回</option><option value={3}>3回</option></select></label>
-            <label>日付境界<select value={dayBoundaryHour} onChange={(event) => setDayBoundaryHour(Number(event.target.value))}>{Array.from({ length: 24 }, (_, hour) => <option value={hour} key={hour}>{String(hour).padStart(2, '0')}:00</option>)}</select></label>
-          </div>
         </fieldset>
 
         <fieldset>
@@ -180,12 +174,24 @@ function App() {
           ))}
         </fieldset>
 
-        <fieldset>
-          <legend>3. Layer C</legend>
-          <label className="check-row"><input type="checkbox" checked={layerCEnabled} onChange={(event) => setLayerCEnabled(event.target.checked)} />願いのランダム化比較を有効にする</label>
-          <label>願いの既定締切<select value={defaultDeadlineDays} onChange={(event) => setDefaultDeadlineDays(Number(event.target.value) as 14 | 28 | 90)}><option value={14}>2週間</option><option value={28}>4週間</option><option value={90}>3ヶ月</option></select></label>
-          <label className="check-row"><input type="checkbox" checked={notarize} onChange={(event) => setNotarize(event.target.checked)} />週次チェーンヘッド公証をONにする</label>
-        </fieldset>
+        <details className="secondary-panel">
+          <summary>計測の細部（あとから変えられません）</summary>
+          <fieldset>
+            <legend>時刻と回数</legend>
+            <label>固定タイムゾーン<input required value={timeZone} onChange={(event) => setTimeZone(event.target.value)} /></label>
+            <div className="form-row">
+              <label>1回のbit数<select value={bitsPerDraw} onChange={(event) => setBitsPerDraw(Number(event.target.value) as BitsPerDraw)}><option value={1024}>1,024</option><option value={2048}>2,048</option><option value={4096}>4,096</option></select></label>
+              <label>1日の回数<select value={sessionsPerDay} onChange={(event) => setSessionsPerDay(Number(event.target.value) as SessionsPerDay)}><option value={1}>1回</option><option value={2}>2回</option><option value={3}>3回</option></select></label>
+              <label>日付境界<select value={dayBoundaryHour} onChange={(event) => setDayBoundaryHour(Number(event.target.value))}>{Array.from({ length: 24 }, (_, hour) => <option value={hour} key={hour}>{String(hour).padStart(2, '0')}:00</option>)}</select></label>
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend>Layer C</legend>
+            <label className="check-row"><input type="checkbox" checked={layerCEnabled} onChange={(event) => setLayerCEnabled(event.target.checked)} />願いのランダム化比較を有効にする</label>
+            <label>願いの既定締切<select value={defaultDeadlineDays} onChange={(event) => setDefaultDeadlineDays(Number(event.target.value) as 14 | 28 | 90)}><option value={14}>2週間</option><option value={28}>4週間</option><option value={90}>3ヶ月</option></select></label>
+            <label className="check-row"><input type="checkbox" checked={notarize} onChange={(event) => setNotarize(event.target.checked)} />週次チェーンヘッド公証をONにする</label>
+          </fieldset>
+        </details>
 
         <section className="decision-box">
           <strong>確証判定ルールも同時に固定</strong>

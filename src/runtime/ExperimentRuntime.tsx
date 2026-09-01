@@ -371,48 +371,22 @@ export function ExperimentRuntime({
           <header className="runtime-hero">
             <div>
               <p className="eyebrow">{snapshot.currentExperimentDate}</p>
-              <h1>{snapshot.activeDayIndex === null ? '実験の時間を守る。' : `DAY ${snapshot.activeDayIndex + 1} / ${registration.days}`}</h1>
-              <p>固定 timezone: {registration.timeZone} ／ 日付境界 {String(registration.dayBoundaryHour).padStart(2, '0')}:00</p>
+              <h1>{snapshot.activeDayIndex === null ? '実験の時間を守る。' : `DAY ${snapshot.activeDayIndex + 1}`}</h1>
+              <p>{registration.days}日のうち今日だけを見る ／ {registration.timeZone} {String(registration.dayBoundaryHour).padStart(2, '0')}:00境界</p>
             </div>
             <div className="runtime-streak" aria-label="やさしい継続記録">
               <strong>{snapshot.streak.completedDays}</strong><span>記録した日</span>
-              <small>直近 {snapshot.streak.recentRunDays}日連続。空いた日があっても失格にはなりません。</small>
+              <small>空いた日があっても失格にはなりません。</small>
             </div>
           </header>
 
-          <section className="runtime-card notification-card" aria-labelledby="notification-heading">
-            <div>
-              <p className="eyebrow">LOCAL REMINDERS</p>
-              <h2 id="notification-heading">忘れない仕組みだけ、そっと置く。</h2>
-              <p>願い締切と、希望した時刻の日次リマインダーを端末内で予約します。封印願いの本文は通知へ渡しません。</p>
-            </div>
-            <div className="notification-controls">
-              {notificationState !== 'granted' && (
-                <button type="button" disabled={notificationState === 'checking'} onClick={() => void requestNotifications()}>
-                  {notificationState === 'checking' ? '確認中…' : '通知をONにする'}
-                </button>
-              )}
-              <label>毎日リマインダー
-                <select
-                  value={dailyReminderTime ?? ''}
-                  onChange={(event) => void changeReminderTime(event.target.value === '' ? null : event.target.value)}
-                >
-                  <option value="">OFF</option>
-                  <option value="08:00">08:00</option>
-                  <option value="12:00">12:00</option>
-                  <option value="18:00">18:00</option>
-                  <option value="20:00">20:00</option>
-                  <option value="22:00">22:00</option>
-                </select>
-              </label>
-            </div>
-            {notificationMessage && <p className="quiet-note">{notificationMessage}</p>}
-          </section>
-
-          {!anuConfigured && (
-            <section className="runtime-card runtime-source-note">
-              <strong>ANU endpoint 未設定</strong>
-              <p>現在は RANDOM.ORG → local crypto のfallbackで実行できます。fallbackは台帳に実ソースで残り、Layer A主要量子sampleには入りません。</p>
+          {snapshot.dueJudgments.length > 0 && (
+            <section className="runtime-card due-banner" aria-label="判定待ちの願い">
+              <div>
+                <p className="eyebrow">DUE</p>
+                <h2>判定待ちが {snapshot.dueJudgments.length} 件あります。</h2>
+              </div>
+              <button type="button" onClick={() => setTab('wishes')}>願いへ</button>
             </section>
           )}
 
@@ -463,6 +437,45 @@ export function ExperimentRuntime({
               finishLabel={snapshot.plan.seqInDay < registration.sessionsPerDay ? '次のセッションへ' : '今日を完了'}
             />
           )}
+
+          <details className="runtime-drawer">
+            <summary>通知と乱数ソース</summary>
+            <section className="runtime-card notification-card" aria-labelledby="notification-heading">
+              <div>
+                <p className="eyebrow">LOCAL REMINDERS</p>
+                <h2 id="notification-heading">忘れない仕組みだけ、そっと置く。</h2>
+                <p>願い締切と、希望した時刻の日次リマインダーを端末内で予約します。封印願いの本文は通知へ渡しません。</p>
+              </div>
+              <div className="notification-controls">
+                {notificationState !== 'granted' && (
+                  <button type="button" disabled={notificationState === 'checking'} onClick={() => void requestNotifications()}>
+                    {notificationState === 'checking' ? '確認中…' : '通知をONにする'}
+                  </button>
+                )}
+                <label>毎日リマインダー
+                  <select
+                    value={dailyReminderTime ?? ''}
+                    onChange={(event) => void changeReminderTime(event.target.value === '' ? null : event.target.value)}
+                  >
+                    <option value="">OFF</option>
+                    <option value="08:00">08:00</option>
+                    <option value="12:00">12:00</option>
+                    <option value="18:00">18:00</option>
+                    <option value="20:00">20:00</option>
+                    <option value="22:00">22:00</option>
+                  </select>
+                </label>
+              </div>
+              {notificationMessage && <p className="quiet-note">{notificationMessage}</p>}
+            </section>
+
+            {!anuConfigured && (
+              <section className="runtime-card runtime-source-note">
+                <strong>ANU endpoint 未設定</strong>
+                <p>現在は RANDOM.ORG → local crypto のfallbackで実行できます。fallbackは台帳に実ソースで残り、Layer A主要量子sampleには入りません。</p>
+              </section>
+            )}
+          </details>
 
           {refreshing && <p className="runtime-refreshing">台帳を更新しています…</p>}
       </section>
