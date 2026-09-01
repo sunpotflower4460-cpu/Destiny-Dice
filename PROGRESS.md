@@ -923,3 +923,42 @@ CocoaPods未インストールの場合は `sudo gem install cocoapods` の上�
 - `src/dashboard/ExperimentDashboard.tsx`
 - `.github/workflows/ci.yml`
 - `PROGRESS.md`
+
+---
+
+## P11: Orphan prediction abandonment (2026-09-01)
+
+### 完了したこと
+- マージ済み PR #18 の指摘どおり、予言 append 後・session append 前のクラッシュで再起動すると新しい `startedAt` が prediction より後になり、その回を完了不能になる問題へ明示的な欠測経路を足した。
+- `findOrphanedPredictionSlot()` を domain projection として公開。session が無い date/seq に prediction だけがあるとき、その枠を欠測として返す。
+- `ExperimentRuntime.refresh()` は次枠が orphan なら `prepareSession` / `SessionFlow` を開かない。気分・実践を後付け再開しない。
+- 今日画面に欠測カードを出す。同一プロセス内で元の `startedAt` を持つ retry は従来どおり prediction 再利用で完了できる。
+- prediction payload に mood / ritual / `startedAt` は足していない。同じ日の次 `seqInDay` への自動スキップもしていない。
+
+### 完了基準の結果（コマンド出力の要約）
+- `pnpm typecheck`: green（出力なし）
+- `pnpm worker:typecheck`: green
+- `pnpm test`: green — **36 files / 168 tests**
+- `pnpm build`: green
+- 365日 null simulation: green — **1456 entries / networkRequests: 0 / headHash `4035fd1e1ed3aa733d6d42d89111605cbced958a73dd5052da27ca4c0867cd08` / reportSha256 `2b564cc1dfe328d1b97959d39c6662929822c9b16875e7c74af5f8144b4fd90d`（不変）**
+- `pnpm release-check`: green
+- ledger append-only grep: green — no DELETE/UPDATE paths
+- Web UI: 欠測カードはクラッシュ再現が必要なためブラウザ E2E は未実施。投影関数のユニットテストと、orphan 時に `plan` を作らない分岐で代替した。
+
+### 不変条件セルフチェック
+1. ledger は追記のみ — ✅ DELETE/UPDATE 経路なし。欠測用の打ち消し entry も書いていない
+2. 予言は測定期 RNG より前 — ✅ 再利用経路は未変更。再起動後は後付け予言も後付け mood も作らない
+3. Layer B の mood pre/post は ritual を挟み reveal を挟まない — ✅ 再起動後に順序を組み立て直さない
+4. 欠測は欠測のまま — ✅ その枠を埋める経路を UI から閉じる
+5. 凍結スキーマを勝手に変えない — ✅ PredictionPayload にフィールド追加なし
+6. tamper-evident を tamper-proof と書かない — ✅ 未変更
+7. TestFlight 未upload を公開済みと書かない — ✅ Issue #16 は残す
+
+### 要確定・申し送り（次フェーズへ）
+- 同じ日の残り `seqInDay` は、既存の「未完了の最小 seq が next」規則のまま orphan 枠で止まる。2回目以降へ自動スキップする仕様は PROTOCOL に無いので発明していない。変えるなら人間確認が必要。
+- Issue #16 の Apple / Cloudflare / ANU production endpoint は未設定のまま。
+
+### 触ったファイル
+- `src/session/types.ts`, `src/session/service.ts`, `src/session/service.test.ts`, `src/session/index.ts`
+- `src/runtime/ExperimentRuntime.tsx`
+- `PROGRESS.md`
