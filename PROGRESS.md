@@ -1041,3 +1041,39 @@ CocoaPods未インストールの場合は `sudo gem install cocoapods` の上�
 - `src/dashboard/dashboard.css`
 - `src/wish/wish.css`
 - `PROGRESS.md`
+
+---
+
+## P11: In-app ledger export and on-demand verify (2026-09-01)
+
+### 完了したこと
+- DESIGN §2 IN / §3.8 のアプリ内エクスポート穴を閉じた。記録タブに JSON/CSV 保存と `verifyChain()` のオンデマンド実行を置いた。
+- CLI の `exportLedgerJson` / `exportLedgerCsv` をそのまま使う。生ビットは payload に含まれる。Blob 保存で巨大な data URI は使わない。
+- 検証成功文は「改竄検知可能 / tamper-evident」に留め、外部anchorなしの「完全改竄不能」とは書いていない。
+- 起動時の連鎖検証は従来どおり。記録タブでは毎回自動では走らせない。
+
+### 完了基準の結果（コマンド出力の要約）
+- `pnpm typecheck`: green
+- `pnpm worker:typecheck`: green
+- `pnpm test`: green — **41 files / 183 tests**（既存の `.tsx` ダッシュボード／レポートテストを vitest include に入れ、CIから漏れていた分を回収）
+- `pnpm build`: green
+- `pnpm release-check`: green
+- ledger append-only grep: green
+- 365日 null simulation / report golden: 未変更（export UI と vitest include のみ）
+
+### 不変条件セルフチェック
+1. ledger は追記のみ — ✅ エクスポートは list の読み取りのみ
+2. tamper-evident を tamper-proof と書かない — ✅
+3. 生ビットを落とさない — ✅ 既存 export 関数を使用
+4. Issue #16 は残す — ✅ 資格情報・TestFlight・実機smokeは手動のまま
+
+### 要確定・申し送り
+- iOS WKWebView の download 属性は実機smoke（Issue #16 F）で確認する。Filesystem plugin は足していない。
+- 同じ日の次 `seqInDay` 自動スキップは未定義のまま。
+- Issue #16 の外部資格情報は未設定。
+
+### 触ったファイル
+- `src/ledger/LedgerExportPanel.tsx`, `src/ledger/LedgerExportPanel.test.ts`
+- `src/runtime/ExperimentRuntime.tsx`, `src/runtime/ExperimentRuntime.css`
+- `vitest.config.ts`
+- `PROGRESS.md`

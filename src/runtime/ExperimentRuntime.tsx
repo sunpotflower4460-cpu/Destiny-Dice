@@ -17,6 +17,7 @@ import {
   type LayerCDashboardModel,
 } from '../dashboard';
 import { getApplicationLedgerService } from '../ledger/appService';
+import { LedgerExportPanel } from '../ledger/LedgerExportPanel';
 import { getApplicationNotaryService } from '../notary';
 import type { LedgerService } from '../ledger/service';
 import type { StoredLedgerEntry } from '../ledger/types';
@@ -501,6 +502,7 @@ export function ExperimentRuntime({
             model={snapshot.dashboard}
             layerCModel={snapshot.layerC}
           />
+          <LedgerExportPanel entries={snapshot.entries} registration={registration} />
           {experimentEnded && (
             <FinalReportPanel
               entries={snapshot.entries}

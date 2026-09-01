@@ -233,6 +233,11 @@
   min-height: 48vh;
 }
 
+.ledger-export-card {
+  width: min(100%, 980px);
+  margin: 18px auto 0;
+}
+
 @media (max-width: 720px) {
   .runtime-shell {
     padding-inline: 10px;
