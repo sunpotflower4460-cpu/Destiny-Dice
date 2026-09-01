@@ -120,6 +120,24 @@ function predictionMatchesPlan(entry: StoredLedgerEntry, plan: SessionPlan): boo
   );
 }
 
+function normalizedProphecy(text: string | undefined): string | undefined {
+  return text === undefined || text.length === 0 ? undefined : text;
+}
+
+function assertDraftMatchesCommittedPrediction(draft: SessionDraft, prediction: PredictionPayload): void {
+  if (draft.confidence !== prediction.confidence) {
+    throw new Error('retry draft confidence does not match the committed prediction');
+  }
+  if (normalizedProphecy(draft.prophecyText) !== normalizedProphecy(prediction.prophecyText)) {
+    throw new Error('retry draft prophecy does not match the committed prediction');
+  }
+  if (draft.startedAt > prediction.committedAt) {
+    throw new Error(
+      'retry startedAt is after the committed prediction; original pre-prediction measurements cannot be reconstructed',
+    );
+  }
+}
+
 function findControl(entries: readonly StoredLedgerEntry[], experimentDate: string): StoredLedgerEntry | undefined {
   return entries.find((entry) => parseControl(entry)?.date === experimentDate);
 }
@@ -198,28 +216,7 @@ export class SessionFlowService {
 
     const ritual = buildRitualRecord(plan.condition, draft.ritual);
     const context = buildContext(draft.context);
-    const existingEntries = await this.ledger.list();
-    const existingPrediction = existingEntries.find((entry) => predictionMatchesPlan(entry, plan));
-    let predictionEntry: StoredLedgerEntry;
-    if (existingPrediction) {
-      predictionEntry = existingPrediction;
-      await this.assertPredictionCommitted(predictionEntry, parsePrediction(predictionEntry));
-    } else {
-      const committedAt = this.clock.now();
-      const predictionPayload: PredictionPayload = {
-        date: plan.experimentDate,
-        seqInDay: plan.seqInDay,
-        condition: plan.condition,
-        targetDir: plan.targetDir,
-        confidence: draft.confidence,
-        committedAt,
-        ...(draft.prophecyText === undefined || draft.prophecyText.length === 0
-          ? {}
-          : { prophecyText: draft.prophecyText }),
-      };
-      predictionEntry = await this.ledger.append('prediction', predictionPayload, committedAt);
-      await this.assertPredictionCommitted(predictionEntry, predictionPayload);
-    }
+    const predictionEntry = await this.commitOrReusePrediction(plan, draft);
 
     const registration = await this.loadRegistration();
     const random = await this.rng.getBits(registration.bitsPerDraw);
@@ -259,6 +256,46 @@ export class SessionFlowService {
     }
 
     return { plan, predictionEntry, sessionEntry, payload };
+  }
+
+  private async commitOrReusePrediction(plan: SessionPlan, draft: SessionDraft): Promise<StoredLedgerEntry> {
+    const appended = await this.ledger.appendConditionally(
+      (entries) =>
+        findSession(entries, plan.experimentDate, plan.seqInDay) === undefined &&
+        entries.find((entry) => predictionMatchesPlan(entry, plan)) === undefined,
+      async () => {
+        const committedAt = this.clock.now();
+        const payload: PredictionPayload = {
+          date: plan.experimentDate,
+          seqInDay: plan.seqInDay,
+          condition: plan.condition,
+          targetDir: plan.targetDir,
+          confidence: draft.confidence,
+          committedAt,
+          ...(draft.prophecyText === undefined || draft.prophecyText.length === 0
+            ? {}
+            : { prophecyText: draft.prophecyText }),
+        };
+        return { type: 'prediction', payload, createdAt: committedAt };
+      },
+    );
+    if (appended) {
+      await this.assertPredictionCommitted(appended, parsePrediction(appended));
+      return appended;
+    }
+
+    const latest = await this.ledger.list();
+    if (findSession(latest, plan.experimentDate, plan.seqInDay)) {
+      throw new Error(`session ${plan.experimentDate} #${plan.seqInDay} is already committed`);
+    }
+    const existing = latest.find((entry) => predictionMatchesPlan(entry, plan));
+    if (!existing) {
+      throw new Error('prediction append was skipped without an existing matching prediction');
+    }
+    const payload = parsePrediction(existing);
+    assertDraftMatchesCommittedPrediction(draft, payload);
+    await this.assertPredictionCommitted(existing, payload);
+    return existing;
   }
 
   private async ensureDailyControlInside(experimentDate: string): Promise<StoredLedgerEntry> {

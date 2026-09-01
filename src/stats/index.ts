@@ -13,6 +13,7 @@ export {
   oneSampleBayesFactor10,
   twoSidedBinomialNormalApproxP,
   wilsonInterval95,
+  chanceSessionCount,
   type ConfidenceInterval,
 } from './inference';
 

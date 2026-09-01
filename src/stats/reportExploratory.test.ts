@@ -39,6 +39,7 @@ describe('P10 report exploratory statistics', () => {
 
   it('profiles resonance and target-miracle sessions with source disclosure', () => {
     const result = miracleProfile(sessions);
+    expect(result.analyzedSessions).toBe(3);
     expect(result.resonanceSessions).toBe(2);
     expect(result.targetMiracleSessions).toBe(1);
     expect(result.bySource.anu).toBe(1);

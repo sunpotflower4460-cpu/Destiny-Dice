@@ -178,14 +178,17 @@ describe('SessionFlowService', () => {
 
     const rejectingLedger = {
       list: () => ledger.list(),
-      append: (...args: Parameters<LedgerService['append']>) => {
-        if (args[0] === 'prediction') return Promise.reject(new Error('prediction write failed'));
-        return ledger.append(...args);
-      },
-      appendConditionally: (
+      append: (...args: Parameters<LedgerService['append']>) => ledger.append(...args),
+      appendConditionally: async (
         shouldAppend: Parameters<LedgerService['appendConditionally']>[0],
         entryFactory: Parameters<LedgerService['appendConditionally']>[1],
-      ) => ledger.appendConditionally(shouldAppend, entryFactory),
+      ) => {
+        const entries = await ledger.list();
+        if (!shouldAppend(entries)) return null;
+        const entry = await entryFactory();
+        if (entry.type === 'prediction') throw new Error('prediction write failed');
+        return ledger.append(entry.type, entry.payload, entry.createdAt);
+      },
     };
     const failingService = new SessionFlowService(
       rejectingLedger,
@@ -278,5 +281,60 @@ describe('SessionFlowService', () => {
     expect(result.payload.predictionSeq).toBe(entries.find((entry) => entry.type === 'prediction')?.seq);
     expect(result.payload.rngSource).toBe('local');
     expect(rng.calls).toEqual([1024, 1024, 1024]);
+  });
+
+  it('commits at most one matching prediction when two services share a ledger', async () => {
+    const ledger = await createRegisteredLedger();
+    const rng = new QueueRng([
+      localDraw('aa'.repeat(128)),
+      localDraw('ff'.repeat(128)),
+      localDraw('11'.repeat(128)),
+    ]);
+    const first = new SessionFlowService(
+      ledger,
+      rng,
+      new QueueClock(['2026-09-01T00:00:00.000Z', '2026-09-01T01:10:00.000Z', '2026-09-01T01:10:01.000Z']),
+    );
+    const second = new SessionFlowService(
+      ledger,
+      rng,
+      new QueueClock(['2026-09-01T01:10:02.000Z', '2026-09-01T01:10:03.000Z']),
+    );
+    await first.prepareSession('2026-09-01', 1);
+
+    const results = await Promise.allSettled([first.runSession(draft()), second.runSession(draft())]);
+    expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
+    expect(results.filter((result) => result.status === 'rejected')).toHaveLength(1);
+
+    const types = (await ledger.list()).map((entry) => entry.type);
+    expect(types.filter((type) => type === 'prediction')).toHaveLength(1);
+    expect(types.filter((type) => type === 'session')).toHaveLength(1);
+  });
+
+  it('rejects a restarted draft that no longer matches the committed prediction', async () => {
+    const ledger = await createRegisteredLedger();
+    const rng = {
+      calls: [] as number[],
+      async getBits(nBits: number) {
+        this.calls.push(nBits);
+        if (this.calls.length === 2) throw new Error('measured rng failed');
+        return localDraw('aa'.repeat(128));
+      },
+    };
+    const service = new SessionFlowService(
+      ledger,
+      rng,
+      new QueueClock(['2026-09-01T00:00:00.000Z', '2026-09-01T01:10:00.000Z']),
+    );
+    await service.prepareSession('2026-09-01', 1);
+    await expect(service.runSession(draft())).rejects.toThrow('measured rng failed');
+
+    await expect(service.runSession({ ...draft(), confidence: 10 })).rejects.toThrow(
+      'retry draft confidence does not match the committed prediction',
+    );
+    await expect(service.runSession({ ...draft(), startedAt: '2026-09-01T02:00:00.000Z' })).rejects.toThrow(
+      'retry startedAt is after the committed prediction',
+    );
+    expect((await ledger.list()).map((entry) => entry.type)).toEqual(['registration', 'control', 'prediction']);
   });
 });

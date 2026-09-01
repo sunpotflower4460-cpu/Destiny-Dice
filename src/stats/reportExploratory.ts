@@ -61,6 +61,7 @@ export type MiracleProfileResult = {
   warning: typeof EXPLORATORY_WARNING;
   resonanceThreshold: '|z|>=2';
   targetMiracleThreshold: 'z>=3';
+  analyzedSessions: number;
   resonanceSessions: number;
   targetMiracleSessions: number;
   byCondition: Record<Condition, number>;
@@ -170,6 +171,7 @@ export function miracleProfile(observations: readonly RichSessionObservation[]):
     warning: EXPLORATORY_WARNING,
     resonanceThreshold: '|z|>=2',
     targetMiracleThreshold: 'z>=3',
+    analyzedSessions: usable.length,
     resonanceSessions: resonances.length,
     targetMiracleSessions: targetMiracles.length,
     byCondition,

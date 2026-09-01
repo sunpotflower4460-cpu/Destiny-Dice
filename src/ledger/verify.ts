@@ -54,6 +54,26 @@ function parsePayload(payloadJson: string): JsonObject | null {
   return parsed as JsonObject;
 }
 
+function identityField(payload: JsonObject, key: 'date' | 'seqInDay' | 'condition' | 'targetDir'): string | number | null {
+  const value = payload[key];
+  if (key === 'date') return typeof value === 'string' ? value : null;
+  return typeof value === 'number' && Number.isSafeInteger(value) ? value : null;
+}
+
+function sessionMatchesPredictionIdentity(session: JsonObject, prediction: JsonObject): boolean {
+  const date = identityField(session, 'date');
+  const seqInDay = identityField(session, 'seqInDay');
+  const condition = identityField(session, 'condition');
+  const targetDir = identityField(session, 'targetDir');
+  if (date === null || seqInDay === null || condition === null || targetDir === null) return false;
+  return (
+    identityField(prediction, 'date') === date &&
+    identityField(prediction, 'seqInDay') === seqInDay &&
+    identityField(prediction, 'condition') === condition &&
+    identityField(prediction, 'targetDir') === targetDir
+  );
+}
+
 export async function verifyChain(entries: readonly StoredLedgerEntry[]): Promise<VerifyChainResult> {
   if (entries.length === 0) {
     return fail('empty_chain', 0, 'Ledger chain is empty');
@@ -130,6 +150,18 @@ export async function verifyChain(entries: readonly StoredLedgerEntry[]): Promis
           'invalid_prediction_binding',
           index,
           'session predictionSeq must refer to a committed prediction',
+          entry.seq,
+        );
+      }
+      const predictionPayload = parsePayload(referenced.payloadJson);
+      if (!predictionPayload) {
+        return fail('invalid_payload_json', index, 'referenced prediction payloadJson is not a JSON object', entry.seq);
+      }
+      if (!sessionMatchesPredictionIdentity(payload, predictionPayload)) {
+        return fail(
+          'invalid_prediction_binding',
+          index,
+          'session identity does not match the referenced prediction',
           entry.seq,
         );
       }
