@@ -224,15 +224,15 @@ export function SessionFlow({
             <input type="range" min={0} max={100} value={confidence} onChange={(event) => setConfidence(Number(event.target.value))} />
           </label>
           <label>一言予言（任意）<input value={prophecyText} onChange={(event) => setProphecyText(event.target.value)} /></label>
-          <p className="quiet-note">次へ進むと、この予言を先に台帳へ確定してからだけ乱数を取得できます。</p>
-          <button type="button" onClick={() => setStage('draw')}>予言を確定して抽選へ</button>
+          <p className="quiet-note">予言の値はこの画面ではまだ台帳へ書いていません。3秒長押しの抽選開始時に、乱数取得より先へ確定します。</p>
+          <button type="button" onClick={() => setStage('draw')}>抽選の準備へ</button>
         </div>
       )}
 
       {stage === 'draw' && (
         <div className="session-step draw-step">
           <h3>{plan.targetDir === 1 ? 'HIGH' : 'LOW'} に意図を向ける</h3>
-          <p>ボタンを3秒間押し続けると、予言をcommitした後に抽選します。</p>
+          <p>ボタンを3秒間押し続けると、先に予言を台帳へ確定し、その後だけ抽選します。</p>
           <button
             className={holding ? 'hold-button is-holding' : 'hold-button'}
             type="button"

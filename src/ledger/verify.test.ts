@@ -18,7 +18,11 @@ async function buildFixture(): Promise<StoredLedgerEntry[]> {
     { date: '2026-08-28', confidence: 70 },
     '2026-08-28T01:02:00.000Z',
   );
-  await service.append('session', { date: '2026-08-28', bitsHex: 'aabbccdd' }, '2026-08-28T01:03:00.000Z');
+  await service.append(
+    'session',
+    { date: '2026-08-28', bitsHex: 'aabbccdd', predictionSeq: 3 },
+    '2026-08-28T01:03:00.000Z',
+  );
   return store.list();
 }
 
@@ -100,6 +104,39 @@ describe('verifyChain', () => {
     await expect(verifyChain(entries)).resolves.toMatchObject({
       ok: false,
       code: 'non_canonical_payload',
+      seq: 2,
+    });
+  });
+
+  it('rejects a hash-valid session whose predictionSeq does not precede the session', async () => {
+    const store = new MemoryLedgerStore();
+    const service = new LedgerService(store);
+    await service.append('registration', { experimentId: 'exp-order' }, '2026-08-28T01:00:00.000Z');
+    await service.append('prediction', { date: '2026-08-28' }, '2026-08-28T01:02:00.000Z');
+    await service.append(
+      'session',
+      { date: '2026-08-28', bitsHex: 'aabbccdd', predictionSeq: 3 },
+      '2026-08-28T01:03:00.000Z',
+    );
+    await expect(verifyChain(await store.list())).resolves.toMatchObject({
+      ok: false,
+      code: 'invalid_prediction_binding',
+      seq: 3,
+    });
+  });
+
+  it('rejects a hash-valid session that does not bind an earlier prediction', async () => {
+    const store = new MemoryLedgerStore();
+    const service = new LedgerService(store);
+    await service.append('registration', { experimentId: 'exp-bind' }, '2026-08-28T01:00:00.000Z');
+    await service.append(
+      'session',
+      { date: '2026-08-28', bitsHex: 'aabbccdd', predictionSeq: 1 },
+      '2026-08-28T01:03:00.000Z',
+    );
+    await expect(verifyChain(await store.list())).resolves.toMatchObject({
+      ok: false,
+      code: 'invalid_prediction_binding',
       seq: 2,
     });
   });

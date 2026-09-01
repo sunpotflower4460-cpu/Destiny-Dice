@@ -839,3 +839,58 @@ CocoaPods未インストールの場合は `sudo gem install cocoapods` の上�
 - `fastlane/Fastfile`
 - `scripts/release-check.ts`
 - `docs/store/SUBMISSION-CHECKLIST.md`
+
+---
+
+## P11: Protocol integrity audit hotfix (2026-09-01)
+
+### 完了したこと
+- 全フェーズ完了後の横断監査で、PROTOCOL_FREEZE に明記されているのに実装が緩かった箇所を閉じた。仕様の発明はしていない。
+- `verifyChain()` が PROTOCOL §7 の `predictionSeq < session.seq` と「参照先が prediction」を検査するようにした。hash 検証の後に束縛検査する。
+- `runSession` を single-writer queue で直列化し、同一 `(date, seqInDay)` の並行実行が予測・session を二重書きしないようにした。
+- 予言commit後に RNG が失敗した場合、既存の prediction を再利用してから測定期 RNG を取り直す。後出し予言を増やさない。
+- 日次 control と session append を `appendConditionally` 経由にし、ledger lock 内で重複判定する。
+- 凍結済み `targetAlgorithmVersion` が現行 generator と違うときは target を再生成しない。
+- セッションUIが「次へ進むと予言が確定する」と誤表示していたのを、実際の commit 点（3秒長押し）に合わせた。
+- 最終レポートの探索カウント／Layer B Δ／Layer C 差に DESIGN §3.6 の「偶然ならこのくらい」を併記した。null-year Markdown が変わるため P10 golden hash を更新した。ledger head / 統計判定は変えていない。
+- TestFlight ephemeral keychain の search list に login keychain を残し、WWDR/system cert 解決が壊れないようにした。
+- README の「現在地」を P11 完了＋Issue #16 が外部作業であることに更新した。
+
+### 完了基準の結果（コマンド出力の要約）
+- `pnpm typecheck`: green
+- `pnpm worker:typecheck`: green
+- `pnpm test`: green — **36 test files / 163 tests passed**
+- `pnpm build`: green
+- 365日 offline null simulation: green — **1456 ledger entries / networkRequests: 0 / verifyChain success**
+- null report golden SHA-256: `5c0d6bea15bf3f86faaf00f8d5ca38b76b3947c34fb148bb7d8809d9ec4792da`（正直メーター追記による Markdown 更新。entries=1456 / headHash `4035fd1e1ed3aa733d6d42d89111605cbced958a73dd5052da27ca4c0867cd08` は維持）
+- export verification → report regeneration: green — byte-identical
+- Layer A positive fixture `--effect 0.01 --condition 2`: green — condition index 2 のみ `positive_pre_registered_result`
+- Layer C positive fixture `--wish-effect 0.25`: green — practice≈0.6271 / sealed≈0.2459 / Fisher p≈0.0000411067 / BF10≈1720.18 / `positive_pre_registered_result`
+- `pnpm release-check`: green
+- ledger append-only grep: green — no DELETE/UPDATE paths
+
+### 不変条件セルフチェック
+1. ledger は追記のみ — ✅ DELETE/UPDATE 経路なし
+2. prediction は測定期 RNG より前 — ✅ 再利用経路でも既存 prediction を先に確定済みとして扱う
+3. Layer A 主要確証 sample は anu + ritual-valid のまま — ✅ 統計式未変更
+4. confirmatory / exploratory 境界を維持 — ✅ 正直メーターは表示のみ
+5. targetDir は独立 seed + 凍結 algorithm version — ✅ mismatch 時は再生成しない
+6. fallback source を隠さない — ✅ 未変更
+7. 封印群を実践UIへ出さない — ✅ 未変更
+8. tamper-evident を tamper-proof と書かない — ✅ 未変更
+9. TestFlight 未upload を公開済みと書かない — ✅ Issue #16 は外部作業のまま残す
+
+### 要確定・申し送り
+- Issue #16 の Apple / Cloudflare / ANU production endpoint は今回も未設定。資格情報なしでは TestFlight upload も Worker deploy もできない。
+- `origin/p11-deep-integrity-audit-hotfix` は自己適用 workflow だけで、`erasableSyntaxOnly` で CI 失敗していた。本hotfixがその監査意図のうち PROTOCOL に明記された欠陥だけを通常PRとして入れた。
+- 最終レポートUIが実験最終日の翌日まで final p を出さない点は、DESIGN「365日目」の文言より PROTOCOL「終了時に1回」＋最終日データ取り込みの読みを維持した。仕様を変えるなら人間確認が必要。
+- prediction payload へ `experimentId` を足すことは既存 chain hash を変えるため未実施。現行は ledger 1本=1実験。
+
+### 触ったファイル
+- `src/ledger/verify.ts`, `src/ledger/verify.test.ts`
+- `src/session/service.ts`, `src/session/service.test.ts`, `src/session/SessionFlow.tsx`
+- `src/registration/schedule.ts`, `src/registration/schedule.test.ts`, `src/registration/projection.ts`, `src/registration/projection.test.ts`, `src/registration/index.ts`
+- `src/report/markdown.ts`, `src/report/report.test.ts`
+- `scripts/simulate.ts`, `scripts/release-check.ts`
+- `.github/workflows/ci.yml`, `.github/workflows/ios-release.yml`
+- `README.md`, `PROGRESS.md`

@@ -16,7 +16,7 @@ Capacitor 6 + React 19 + TypeScript + Vite / SQLite（@capacitor-community/sqlit
 
 ## 現在地
 
-P0（Vite / React / TypeScript / Capacitor iOS / SQLite接続）は完了済みです。Gate 0 で、乱数ソースの解析上の扱い、target独立性、experiment timezone、Layer Bの測定順序、RFC 8785/JCSベースのledger hash、Layer C outcome方針などを実装前に固定しました。
+実装フェーズは **P0 → Gate 0 → P1 → P2 → P3 → P4a → P4 → P5 → P6 → P7 → P8 → P9 → P10 → P11** まで完了しています。プロトコル・統計・セッション・最終レポート・TestFlight署名経路はリポジトリに揃っています。残るのは [Issue #16](https://github.com/sunpotflower4460-cpu/Destiny-Dice/issues/16) の外部作業（Apple / Cloudflare 資格情報、ANU production endpoint、実TestFlight upload）です。未設定のまま TestFlight 公開済みとは扱いません。
 
 ## フェーズ（1PR = 1フェーズ）
 

@@ -1,4 +1,4 @@
-import { generateTargetSchedule } from './schedule';
+import { assertTargetAlgorithmVersion, generateTargetSchedule } from './schedule';
 import type { Condition, RegistrationPayload, TargetDirection } from './types';
 import { assertIsoDate } from './validation';
 
@@ -34,6 +34,7 @@ export async function projectCurrentSchedule(
     throw new Error('Frozen registration schedule is invalid');
   }
 
+  assertTargetAlgorithmVersion(registration.targetAlgorithmVersion);
   const allTargets = await generateTargetSchedule(
     registration.days,
     registration.sessionsPerDay,

@@ -15,7 +15,8 @@ export type VerifyChainErrorCode =
   | 'invalid_entry_hash_format'
   | 'invalid_payload_json'
   | 'non_canonical_payload'
-  | 'entry_hash_mismatch';
+  | 'entry_hash_mismatch'
+  | 'invalid_prediction_binding';
 
 export type VerifyChainResult =
   | { ok: true; entries: number; headHash: string }
@@ -111,6 +112,27 @@ export async function verifyChain(entries: readonly StoredLedgerEntry[]): Promis
     });
     if (expectedHash !== entry.entryHash) {
       return fail('entry_hash_mismatch', index, 'entryHash does not match canonical entry contents', entry.seq);
+    }
+
+    if (entry.type === 'session') {
+      const predictionSeq = payload.predictionSeq;
+      if (!Number.isSafeInteger(predictionSeq) || (predictionSeq as number) < 1 || (predictionSeq as number) >= entry.seq) {
+        return fail(
+          'invalid_prediction_binding',
+          index,
+          'session predictionSeq must refer to an earlier ledger entry',
+          entry.seq,
+        );
+      }
+      const referenced = entries[(predictionSeq as number) - 1];
+      if (!referenced || referenced.type !== 'prediction') {
+        return fail(
+          'invalid_prediction_binding',
+          index,
+          'session predictionSeq must refer to a committed prediction',
+          entry.seq,
+        );
+      }
     }
 
     previousHash = entry.entryHash;

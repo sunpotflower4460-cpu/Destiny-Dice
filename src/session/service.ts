@@ -17,7 +17,7 @@ import type {
   SessionResult,
 } from './types';
 
-type SessionLedger = Pick<LedgerService, 'append' | 'list'>;
+type SessionLedger = Pick<LedgerService, 'append' | 'appendConditionally' | 'list'>;
 type SessionRng = Pick<RngService, 'getBits'>;
 
 function parseObject(payloadJson: string, label: string): JsonObject {
@@ -109,11 +109,38 @@ function sessionIdentity(entry: StoredLedgerEntry): { date: string; seqInDay: nu
   return { date: parsed.date, seqInDay: parsed.seqInDay };
 }
 
+function predictionMatchesPlan(entry: StoredLedgerEntry, plan: SessionPlan): boolean {
+  if (entry.type !== 'prediction') return false;
+  const parsed = parseObject(entry.payloadJson, 'prediction');
+  return (
+    parsed.date === plan.experimentDate &&
+    parsed.seqInDay === plan.seqInDay &&
+    parsed.condition === plan.condition &&
+    parsed.targetDir === plan.targetDir
+  );
+}
+
+function findControl(entries: readonly StoredLedgerEntry[], experimentDate: string): StoredLedgerEntry | undefined {
+  return entries.find((entry) => parseControl(entry)?.date === experimentDate);
+}
+
+function findSession(
+  entries: readonly StoredLedgerEntry[],
+  experimentDate: string,
+  seqInDay: number,
+): StoredLedgerEntry | undefined {
+  return entries.find((entry) => {
+    const identity = sessionIdentity(entry);
+    return identity?.date === experimentDate && identity.seqInDay === seqInDay;
+  });
+}
+
 export class SessionFlowService {
   private readonly ledger: SessionLedger;
   private readonly rng: SessionRng;
   private readonly clock: Clock;
   private controlTail: Promise<void> = Promise.resolve();
+  private sessionTail: Promise<void> = Promise.resolve();
 
   constructor(ledger: SessionLedger, rng: SessionRng, clock: Clock) {
     this.ledger = ledger;
@@ -141,13 +168,22 @@ export class SessionFlowService {
     return operation;
   }
 
+  async runSession(draft: SessionDraft): Promise<SessionResult> {
+    const operation = this.sessionTail.then(() => this.runSessionInside(draft));
+    this.sessionTail = operation.then(
+      () => undefined,
+      () => undefined,
+    );
+    return operation;
+  }
+
   /**
    * All pre-result user measurements arrive before this method is called.
    * The method appends prediction, re-reads and verifies that committed row,
    * and only then calls measured RNG. There is no measured-RNG method exposed
    * by this service that can bypass the committed prediction check.
    */
-  async runSession(draft: SessionDraft): Promise<SessionResult> {
+  private async runSessionInside(draft: SessionDraft): Promise<SessionResult> {
     validateMood(draft.moodPre, 'moodPre');
     validateMood(draft.moodPost, 'moodPost');
     if (!Number.isInteger(draft.confidence) || draft.confidence < 0 || draft.confidence > 100) {
@@ -162,21 +198,28 @@ export class SessionFlowService {
 
     const ritual = buildRitualRecord(plan.condition, draft.ritual);
     const context = buildContext(draft.context);
-    const committedAt = this.clock.now();
-    const predictionPayload: PredictionPayload = {
-      date: plan.experimentDate,
-      seqInDay: plan.seqInDay,
-      condition: plan.condition,
-      targetDir: plan.targetDir,
-      confidence: draft.confidence,
-      committedAt,
-      ...(draft.prophecyText === undefined || draft.prophecyText.length === 0
-        ? {}
-        : { prophecyText: draft.prophecyText }),
-    };
-
-    const predictionEntry = await this.ledger.append('prediction', predictionPayload, committedAt);
-    await this.assertPredictionCommitted(predictionEntry, predictionPayload);
+    const existingEntries = await this.ledger.list();
+    const existingPrediction = existingEntries.find((entry) => predictionMatchesPlan(entry, plan));
+    let predictionEntry: StoredLedgerEntry;
+    if (existingPrediction) {
+      predictionEntry = existingPrediction;
+      await this.assertPredictionCommitted(predictionEntry, parsePrediction(predictionEntry));
+    } else {
+      const committedAt = this.clock.now();
+      const predictionPayload: PredictionPayload = {
+        date: plan.experimentDate,
+        seqInDay: plan.seqInDay,
+        condition: plan.condition,
+        targetDir: plan.targetDir,
+        confidence: draft.confidence,
+        committedAt,
+        ...(draft.prophecyText === undefined || draft.prophecyText.length === 0
+          ? {}
+          : { prophecyText: draft.prophecyText }),
+      };
+      predictionEntry = await this.ledger.append('prediction', predictionPayload, committedAt);
+      await this.assertPredictionCommitted(predictionEntry, predictionPayload);
+    }
 
     const registration = await this.loadRegistration();
     const random = await this.rng.getBits(registration.bitsPerDraw);
@@ -204,7 +247,13 @@ export class SessionFlowService {
       completedAt,
     } as const;
 
-    const sessionEntry = await this.ledger.append('session', payload, completedAt);
+    const sessionEntry = await this.ledger.appendConditionally(
+      (entries) => findSession(entries, plan.experimentDate, plan.seqInDay) === undefined,
+      async () => ({ type: 'session', payload, createdAt: completedAt }),
+    );
+    if (!sessionEntry) {
+      throw new Error(`session ${plan.experimentDate} #${plan.seqInDay} is already committed`);
+    }
     if (predictionEntry.seq >= sessionEntry.seq) {
       throw new Error('prediction must be committed before session');
     }
@@ -220,24 +269,35 @@ export class SessionFlowService {
       throw new RangeError('experimentDate is outside the frozen experiment window');
     }
 
-    const existing = entries.find((entry) => parseControl(entry)?.date === experimentDate);
+    const existing = findControl(entries, experimentDate);
     if (existing) return existing;
 
-    const random = await this.rng.getBits(registration.bitsPerDraw);
-    if (random.nBits !== registration.bitsPerDraw) {
-      throw new Error(`control RNG returned ${random.nBits} bits; expected ${registration.bitsPerDraw}`);
+    const appended = await this.ledger.appendConditionally(
+      (latest) => findControl(latest, experimentDate) === undefined,
+      async () => {
+        const random = await this.rng.getBits(registration.bitsPerDraw);
+        if (random.nBits !== registration.bitsPerDraw) {
+          throw new Error(`control RNG returned ${random.nBits} bits; expected ${registration.bitsPerDraw}`);
+        }
+        const stats = summarizeBitstream(random.bitsHex, random.nBits, 1);
+        const payload: ControlPayload = {
+          date: experimentDate,
+          rngSource: random.source,
+          bitsHex: random.bitsHex,
+          nBits: random.nBits,
+          hits: stats.hits,
+          z: stats.z,
+        };
+        return { type: 'control', payload, createdAt: this.clock.now() };
+      },
+    );
+    if (appended) return appended;
+
+    const committed = findControl(await this.ledger.list(), experimentDate);
+    if (!committed) {
+      throw new Error(`daily control for ${experimentDate} was skipped without an existing control`);
     }
-    const stats = summarizeBitstream(random.bitsHex, random.nBits, 1);
-    const payload: ControlPayload = {
-      date: experimentDate,
-      rngSource: random.source,
-      bitsHex: random.bitsHex,
-      nBits: random.nBits,
-      hits: stats.hits,
-      z: stats.z,
-    };
-    const createdAt = this.clock.now();
-    return this.ledger.append('control', payload, createdAt);
+    return committed;
   }
 
   private async resolvePlan(
@@ -279,11 +339,7 @@ export class SessionFlowService {
 
   private async assertSessionNotAlreadyCommitted(experimentDate: string, seqInDay: number): Promise<void> {
     const entries = await this.ledger.list();
-    const duplicate = entries.some((entry) => {
-      const identity = sessionIdentity(entry);
-      return identity?.date === experimentDate && identity.seqInDay === seqInDay;
-    });
-    if (duplicate) {
+    if (findSession(entries, experimentDate, seqInDay)) {
       throw new Error(`session ${experimentDate} #${seqInDay} is already committed`);
     }
   }

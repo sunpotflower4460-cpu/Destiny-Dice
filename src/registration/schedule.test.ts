@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { generateConditionSchedule, generateTargetSchedule } from './schedule';
+import { assertTargetAlgorithmVersion, generateConditionSchedule, generateTargetSchedule } from './schedule';
 
 function counts(values: readonly number[]): number[] {
   return [0, 1, 2, 3, 4].map((condition) => values.filter((value) => value === condition).length);
@@ -36,5 +36,10 @@ describe('registration schedules', () => {
     expect(targets).toHaveLength(1095);
     expect(await generateTargetSchedule(365, 3, 'target-seed')).toEqual(targets);
     expect(await generateTargetSchedule(365, 3, 'different-target-seed')).not.toEqual(targets);
+  });
+
+  it('rejects a frozen targetAlgorithmVersion that is not the v1 generator', () => {
+    expect(() => assertTargetAlgorithmVersion('sha256-counter-target-v1')).not.toThrow();
+    expect(() => assertTargetAlgorithmVersion('other-algo')).toThrow('unsupported targetAlgorithmVersion');
   });
 });
