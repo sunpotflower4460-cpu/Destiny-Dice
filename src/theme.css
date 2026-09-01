@@ -1,0 +1,113 @@
+:root {
+  --ink: #221911;
+  --ink-soft: #5a4c3d;
+  --ink-faint: rgba(34, 25, 17, 0.58);
+  --paper: #efe2c6;
+  --paper-2: #e6d4ae;
+  --paper-bright: #f7eed8;
+  --fiber: #d7c49a;
+  --brass: #9a7438;
+  --brass-bright: #c4a05a;
+  --moss: #2f4034;
+  --moss-deep: #18241d;
+  --stamp: #7d2a22;
+  --rule: rgba(34, 25, 17, 0.16);
+  --shadow: 0 18px 40px rgba(28, 18, 8, 0.16);
+  --font-display: "Hiragino Mincho ProN", "Yu Mincho", "YuMincho", "Hiragino Mincho Pro", "Noto Serif JP", "Iowan Old Style", Palatino, serif;
+  --font-body: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", "YuGothic", "Noto Sans JP", ui-sans-serif, system-ui, sans-serif;
+  --font-stamp: "Iowan Old Style", Palatino, "Courier New", ui-monospace, monospace;
+  color-scheme: light;
+}
+
+html {
+  background: var(--moss-deep);
+}
+
+body {
+  margin: 0;
+  min-height: 100svh;
+  color: var(--ink);
+  background:
+    radial-gradient(1200px 700px at 12% -10%, rgba(196, 160, 90, 0.16), transparent 46%),
+    radial-gradient(900px 500px at 110% 8%, rgba(24, 36, 29, 0.35), transparent 42%),
+    repeating-linear-gradient(
+      90deg,
+      rgba(34, 25, 17, 0.035) 0 1px,
+      transparent 1px 11px
+    ),
+    linear-gradient(180deg, #3a3228 0%, var(--moss-deep) 38%, #121810 100%);
+  font: 16.5px/1.65 var(--font-body);
+}
+
+body::before {
+  content: "";
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  opacity: 0.22;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='.55'/%3E%3C/svg%3E");
+}
+
+#root {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  min-height: 100svh;
+  text-align: left;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  color: var(--ink);
+  letter-spacing: 0.01em;
+}
+
+p {
+  margin: 0;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+input:not([type='checkbox']):not([type='radio']):not([type='range']),
+select,
+textarea {
+  border: 1px solid rgba(34, 25, 17, 0.22);
+  background: #fbf6e8;
+  padding: 10px 12px;
+}
+
+.eyebrow {
+  margin: 0 0 8px;
+  color: var(--brass);
+  font-family: var(--font-stamp);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.quiet-note,
+.field-help {
+  color: var(--ink-soft);
+  line-height: 1.7;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+summary:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--brass);
+  outline-offset: 3px;
+}
