@@ -1,6 +1,6 @@
 # Unity箱庭 — アーキテクチャ
 
-状態: 設計案 / Unity未実装
+状態: 設計案 v0.2 / Unity未実装
 作成日: 2026-11-11
 対象: 新しい箱庭ゲームのUnity版。今回の変更は文書のみ。
 
@@ -34,11 +34,19 @@ Applicationが返す公開用projectionをUIへ渡し、監査用データの取
 | LedgerReader | 検証したrecord列と、読み取り可能な範囲を返す |
 | EntropyProvider | 実際の出所と取得結果を返す。UIや庭を直接更新しない |
 | Clock / IdSource | 時刻と識別子を注入し、試験で固定できる |
-| ProjectionStore | 再生成可能な画面用状態・head checkpointの保存 |
+| ProjectionStore | 再生成可能な画面用状態。永続cacheは計測後に追加可能 |
 | ExportService | 検証済み記録からJSON/CSVを生成する |
 | PlatformCapabilities | 共有・触覚・Steam等の利用可否を明示する |
 
 port名は実装時の命名候補。record名・状態名はDATA_CONTRACTに従う。出目、面の割当生成、オラクル、装飾の乱数は用途を分け、同じ可変乱数列を使い回さない。
+
+### 2.2 初日に作る最小構成
+
+責務の分離は、汎用frameworkを先に作る指示ではない。G1は一つのcoordinator、一つのjournal writer/reader、ローカル乱数adapter、固定できるClock、一つのSceneから始める。DI container、SQLite移行、クラウド、複数provider、永続head cacheは展示の必須条件にしない。
+
+初期版の復元は短いjournalを検証走査して行い、最後の`Resolved`と未完了のroundを取り戻す。走査時間・容量を実測して必要な場合にのみ、破棄して再生成できるcheckpointを足す。復元手順・意図の先行確定・single-writerは省略しない。
+
+`docs/unity-garden/content/`のJSONは実装時の照合用の設計資料。現時点ではUnityのloaderも検証器もない。採用時にはschemaと値を検証し、runへ固定するcontentに変換する。
 
 ## 3. Unity projectの予定配置
 
@@ -92,27 +100,33 @@ PhysXは固定刻みだけで端末間の完全な決定性が保証されるも
 ## 5. 動的6面の生成と試行進行
 
 面の候補は、固定した庭の事前状態・配置・候補規則・専用乱数から生成する。
+各レシピの作用セル・遮蔽・予定doseから局所的な必要度を求め、候補重みに使う。実際に作用しない遠方の平均値や、ユーザーの願いを必要度へ代入しない。
 6面が確定した後に、祈りの内容や欲しい結果へ合わせて面を差し替えない。
 提示する6面、対象地点、対応する要素と強度はPreparedへ記録する。
 面の重複等による確率はDomainで求め、UI独自の「当たりやすさ」を作らない。
 再起動時は記録済みの6面を読む。現在の庭から再生成しない。
 
-通常の順序は、`Prepared → IntentCommitted → AcquisitionStarted → OutcomeCommitted → Resolved → PresentationReceipt`。
+通常の順序は、`PreparationStarted → MappingEntropyCommitted → Prepared → IntentCommitted → AcquisitionStarted → DrawEntropyCommitted → OutcomeCommitted → Resolved → PresentationReceipt`。
 詳細な許可遷移・必須項目・例外はDATA_CONTRACTを正とする。
 
 | record | この層が守ること |
 |---|---|
+| PreparationStarted | 配面の取得前にroundと事前状態を固定 |
+| MappingEntropyCommitted | 同じ保存済み乱数材料から配面計算を再開できる |
 | Prepared | 事前状態、6面、対象地点など、その試行の条件を固定 |
 | IntentCommitted | 実践・意図の確定を受けてから測定用乱数へ進む |
 | AcquisitionStarted | 取得開始を記録し、重複する開始要求を拒否 |
+| DrawEntropyCommitted | 出目・カードの用途別材料を、解釈と表示の前に保存 |
 | OutcomeCommitted | 実際に確定した出目・出所を再利用可能にする |
 | Resolved | 計算後の全状態を含め、同じ試行の二重適用を防ぐ |
-| PresentationReceipt | 見せた事実を記録し、計算結果そのものは変更しない |
+| PresentationReceipt | アプリの提示処理の段階を記録。人が読んだ・理解したことの証拠とはしない |
 
 OutcomeCommittedは計算を許可する境界。出目・カード・庭・文章の結果表示と、新しい庭の公開はResolvedの保存成功後に行う。
 表示を閉じる、演出を飛ばす、端末を回すといった操作は再抽選・再適用を呼ばない。
 短い反応の経過を保持する場合も、同じCore計算から生成した表示データとして扱う。
 保存形式に存在しない独自の「適用済みフラグ」を別ファイルへ足して整合性を分散させない。
+
+Roll・Back・来場者交代は`commandId / runEpoch / expectedRoundState`を持つ同じApplicationのコマンド列へ入れる。取消が永続化される前にUIだけで「取消済み」にしない。取得開始が先に確定した場合は、画面を閉じても既存roundを処理し、既知の出目を消さない。細かな競合の勝敗はDATA_CONTRACTに従う。
 
 ## 6. single-writerと保存adapter
 
@@ -129,7 +143,10 @@ payloadの数値制約と正規化の詳細はDATA_CONTRACTに集約する。
 全OSでファイル追記が無条件に原子的であるとは主張せず、途中終了の試験を行う。
 末尾の不完全フレームを検出したら、元ファイルと不完全部分を保全する。
 自動truncateや削除で「検証成功」に見せず、DATA_CONTRACTの回復手順へ進む。
+回復は検証済みheadを引き継ぐ新しいsegmentへ追記する。同じ回復IDで重複した継続先を作らず、途中のhash不一致を末尾の欠損として扱わない。
 復元は検証済みのrecordから行い、head checkpointだけで確定結果を判断しない。
+
+地図・ルール・文章集をcontent blobとして保存する場合は、実体の保存・hash検証・durable確認を完了してから、その参照を`RunStarted`へ書く。hashだけを保存し、実体を後から用意する順序にしない。
 
 Resolvedのfull post-stateが庭の回復点になる。projectionはそこから再生成できる。
 checksum/hashエラーを空の新規庭として無言で置き換えない。
@@ -147,7 +164,10 @@ JSON/CSV出力は保存先の直接公開ではなく、検証結果と完全性
 iOSの中断やモバイルOSの終了ではOnApplicationQuitを受けられない場合がある。[Unityの注意][U3]
 Androidも、ユーザーに見えないプロセスが終了され得る前提で復元する。[Androidの説明][A1]
 
-AcquisitionStartedがありOutcomeCommittedがない状態でprocessが終了した場合はInterruptedUnresolvedとして保持し、同じ回を再取得しない。
+`PreparationStarted`だけで配面材料を回収できない場合は`PreparationInterrupted`。出目の欠測とは別に数える。
+`MappingEntropyCommitted`があれば同じ材料からPreparedまでを再開する。
+`AcquisitionStarted`だけで出目材料を回収できない場合は`InterruptedUnresolved`として保持し、同じ回を再取得しない。
+`DrawEntropyCommitted`があれば保存済み材料を解釈してOutcomeCommittedへ進める。まだ表示されていないという理由で欠測へ変えない。
 Prepared / IntentCommittedまでの復元は、その6面・意図を維持してDATA_CONTRACTの規則に従う。
 OutcomeCommittedがあれば、保存済みの結果から続ける。新たな乱数要求を出さない。
 Resolvedがあれば、そのfull post-stateを復帰させる。水や風をもう一度適用しない。
@@ -178,6 +198,18 @@ UIに触れた指を庭への地点選択としても解釈する二重入力を
 デスクトップではクリック操作、ウィンドウサイズ変更、フォーカス移動を確認する。
 exportの共有先選択は各OSのadapterへ渡し、Domainにファイルダイアログを持たせない。
 
+### 8.1 最初のグラフは固定した三つの見方にする
+
+| 見方 | 最小の表示 | 元になる記録 |
+|---|---|---|
+| 庭の歩み | round順の水量・植物の成長の推移と、各回の入力記号 | RunStarted、Resolvedの状態・収支 |
+| 意図と出目 | 比較できる抽選の累積一致数と基準値、対象数・p=0/1・欠測 | IntentCommitted、確定した出目 |
+| 一投のつながり | 入力→局所状態→適用規則→出来事の固定配置 | その回のresolvedParameters、イベント根拠、ruleId |
+
+最初から汎用ノードエディタや自動配置の物理演算を作らず、見たい回を選ぶと同じ配置へ具体的な量と場所を入れる。例えば「風→蒸発180→土中水950から770→成長184」は、その回に実際に保存された値の場合だけ表示する。別の場所の平均を一つの因果連鎖へつなげない。
+
+自然モデルの計算依存を表すedgeと、意図・カード・文章が同じroundに記録された対応を表すedgeは意味を分ける。カードから開花への計算依存edgeを作らない。詳細にはruleIdと根拠イベントへ辿れる参照を持たせ、別の成功台帳を追加しない。履歴にある過去の庭と、現在操作中の庭は表示上も区別する。
+
 ## 9. URPと表示品質
 
 描画はURPを候補とし、採用するUnity Editorとの互換組合せをG1で固定する。[URP資料][U5]
@@ -188,6 +220,8 @@ exportの共有先選択は各OSのadapterへ渡し、Domainにファイルダ�
 格子の値を小さなmesh・texture・少数の植物Viewへ反映し、セルごとにRigidbodyを置かない。
 日陰や岩の影響はCoreの配置・遮蔽情報と整合させ、shaderだけで因果関係を作らない。
 神聖なFX/SEは入力や実際の出来事へ反応させ、当たりを発生させる処理を持たない。
+Coreの集約された事実からObservationGroupを作り、カードと文章が選んだ主焦点を光・音でも使う。主焦点1、副焦点1以下、鐘1回、入力の自然音1系統、成長アクセント1回以下を初期上限にする。個々のセルイベント数だけ同じ音を重ねない。
+吸水の累計、終状態の湿り差、開花などの段階変化を区別して表示へ渡す。一時的な変化と終状態を同じ文章条件にしない。履歴から過去の文章を開いたときは、当時の庭・時点を明示する。
 演出用の揺らぎを使う場合は専用streamとし、Domainへ逆流させない。
 発熱・電池・メモリ・保存待ち時間は実機計測で確認し、未測定のfpsを保証しない。
 

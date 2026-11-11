@@ -1,0 +1,1297 @@
+{
+  "documentKind": "simulation-reference-fixtures",
+  "schemaVersion": "simulation-fixtures-v0.2",
+  "status": "designCandidate",
+  "implementationStatus": "notImplementedInUnity",
+  "profileFile": "simulation-profile.v0.2.json",
+  "profileId": "garden-simulation-v0.2",
+  "referenceMethod": "Python integer reference arithmetic, explicit expected-value assertions, no Unity execution.",
+  "referenceScriptName": "simulation_v02_reference.py",
+  "tickConvention": "Injection offset0 precedes the first update; event tick1 denotes the state after the first update.",
+  "fixtureScope": "Component domains intentionally smaller than16x16; fixed effective fields isolate arithmetic and do not claim a complete map simulation.",
+  "notCovered": [
+    "16x16 exhibition map",
+    "200-round repeated maximum water",
+    "Unity rendering",
+    "Mono/IL2CPP comparison",
+    "durable storage",
+    "full event aggregation",
+    "runtime recipe placement"
+  ],
+  "cases": [
+    {
+      "id": "wet_calm",
+      "scope": "componentReferenceArithmetic",
+      "component": "singleCellEvaporationGrowth",
+      "disabledProcesses": [
+        "surfaceFlow",
+        "infiltration",
+        "recipeTargetResolution"
+      ],
+      "initial": {
+        "height": 0,
+        "surfaceWater": 0,
+        "soilWater": 950,
+        "soilCapacity": 1000,
+        "evaporationRemainder": 0,
+        "plant": {
+          "growth": 0,
+          "growthRemainder": 0,
+          "stage": "seed"
+        }
+      },
+      "phases": [
+        {
+          "ticks": 40,
+          "effectiveLightQ": 500,
+          "effectiveWindQ": 0
+        }
+      ],
+      "outlet": null,
+      "expected": {
+        "finalTick": 40,
+        "state": {
+          "height": 0,
+          "surfaceWater": 0,
+          "soilWater": 930,
+          "soilCapacity": 1000,
+          "evaporationRemainder": 0,
+          "plant": {
+            "growth": 20,
+            "growthRemainder": 0,
+            "stage": "seed"
+          }
+        },
+        "totals": {
+          "waterInjected": 0,
+          "surfaceEvaporated": 0,
+          "soilEvaporated": 20,
+          "outletDischarged": 0
+        },
+        "waterBalanceResidual": 0,
+        "stageEvents": [],
+        "phaseEnds": [
+          {
+            "tick": 40,
+            "state": {
+              "height": 0,
+              "surfaceWater": 0,
+              "soilWater": 930,
+              "soilCapacity": 1000,
+              "evaporationRemainder": 0,
+              "plant": {
+                "growth": 20,
+                "growthRemainder": 0,
+                "stage": "seed"
+              }
+            },
+            "totals": {
+              "waterInjected": 0,
+              "surfaceEvaporated": 0,
+              "soilEvaporated": 20,
+              "outletDischarged": 0
+            }
+          }
+        ]
+      },
+      "notes": []
+    },
+    {
+      "id": "wet_exposed_wind",
+      "scope": "componentReferenceArithmetic",
+      "component": "singleCellEvaporationGrowth",
+      "disabledProcesses": [
+        "surfaceFlow",
+        "infiltration",
+        "recipeTargetResolution"
+      ],
+      "initial": {
+        "height": 0,
+        "surfaceWater": 0,
+        "soilWater": 950,
+        "soilCapacity": 1000,
+        "evaporationRemainder": 0,
+        "plant": {
+          "growth": 0,
+          "growthRemainder": 0,
+          "stage": "seed"
+        }
+      },
+      "phases": [
+        {
+          "ticks": 40,
+          "effectiveLightQ": 500,
+          "effectiveWindQ": 1000
+        }
+      ],
+      "outlet": null,
+      "expected": {
+        "finalTick": 40,
+        "state": {
+          "height": 0,
+          "surfaceWater": 0,
+          "soilWater": 770,
+          "soilCapacity": 1000,
+          "evaporationRemainder": 0,
+          "plant": {
+            "growth": 184,
+            "growthRemainder": 0,
+            "stage": "seed"
+          }
+        },
+        "totals": {
+          "waterInjected": 0,
+          "surfaceEvaporated": 0,
+          "soilEvaporated": 180,
+          "outletDischarged": 0
+        },
+        "waterBalanceResidual": 0,
+        "stageEvents": [],
+        "phaseEnds": [
+          {
+            "tick": 40,
+            "state": {
+              "height": 0,
+              "surfaceWater": 0,
+              "soilWater": 770,
+              "soilCapacity": 1000,
+              "evaporationRemainder": 0,
+              "plant": {
+                "growth": 184,
+                "growthRemainder": 0,
+                "stage": "seed"
+              }
+            },
+            "totals": {
+              "waterInjected": 0,
+              "surfaceEvaporated": 0,
+              "soilEvaporated": 180,
+              "outletDischarged": 0
+            }
+          }
+        ]
+      },
+      "notes": []
+    },
+    {
+      "id": "wet_sheltered_wind",
+      "scope": "componentReferenceArithmetic",
+      "component": "singleCellEvaporationGrowth",
+      "disabledProcesses": [
+        "surfaceFlow",
+        "infiltration",
+        "recipeTargetResolution"
+      ],
+      "initial": {
+        "height": 0,
+        "surfaceWater": 0,
+        "soilWater": 950,
+        "soilCapacity": 1000,
+        "evaporationRemainder": 0,
+        "plant": {
+          "growth": 0,
+          "growthRemainder": 0,
+          "stage": "seed"
+        }
+      },
+      "phases": [
+        {
+          "ticks": 40,
+          "effectiveLightQ": 500,
+          "effectiveWindQ": 250
+        }
+      ],
+      "outlet": null,
+      "expected": {
+        "finalTick": 40,
+        "state": {
+          "height": 0,
+          "surfaceWater": 0,
+          "soilWater": 890,
+          "soilCapacity": 1000,
+          "evaporationRemainder": 0,
+          "plant": {
+            "growth": 61,
+            "growthRemainder": 0,
+            "stage": "seed"
+          }
+        },
+        "totals": {
+          "waterInjected": 0,
+          "surfaceEvaporated": 0,
+          "soilEvaporated": 60,
+          "outletDischarged": 0
+        },
+        "waterBalanceResidual": 0,
+        "stageEvents": [],
+        "phaseEnds": [
+          {
+            "tick": 40,
+            "state": {
+              "height": 0,
+              "surfaceWater": 0,
+              "soilWater": 890,
+              "soilCapacity": 1000,
+              "evaporationRemainder": 0,
+              "plant": {
+                "growth": 61,
+                "growthRemainder": 0,
+                "stage": "seed"
+              }
+            },
+            "totals": {
+              "waterInjected": 0,
+              "surfaceEvaporated": 0,
+              "soilEvaporated": 60,
+              "outletDischarged": 0
+            }
+          }
+        ]
+      },
+      "notes": []
+    },
+    {
+      "id": "dry_calm",
+      "scope": "componentReferenceArithmetic",
+      "component": "singleCellEvaporationGrowth",
+      "disabledProcesses": [
+        "surfaceFlow",
+        "infiltration",
+        "recipeTargetResolution"
+      ],
+      "initial": {
+        "height": 0,
+        "surfaceWater": 0,
+        "soilWater": 250,
+        "soilCapacity": 1000,
+        "evaporationRemainder": 0,
+        "plant": {
+          "growth": 0,
+          "growthRemainder": 0,
+          "stage": "seed"
+        }
+      },
+      "phases": [
+        {
+          "ticks": 40,
+          "effectiveLightQ": 500,
+          "effectiveWindQ": 0
+        }
+      ],
+      "outlet": null,
+      "expected": {
+        "finalTick": 40,
+        "state": {
+          "height": 0,
+          "surfaceWater": 0,
+          "soilWater": 230,
+          "soilCapacity": 1000,
+          "evaporationRemainder": 0,
+          "plant": {
+            "growth": 233,
+            "growthRemainder": 162500,
+            "stage": "seed"
+          }
+        },
+        "totals": {
+          "waterInjected": 0,
+          "surfaceEvaporated": 0,
+          "soilEvaporated": 20,
+          "outletDischarged": 0
+        },
+        "waterBalanceResidual": 0,
+        "stageEvents": [],
+        "phaseEnds": [
+          {
+            "tick": 40,
+            "state": {
+              "height": 0,
+              "surfaceWater": 0,
+              "soilWater": 230,
+              "soilCapacity": 1000,
+              "evaporationRemainder": 0,
+              "plant": {
+                "growth": 233,
+                "growthRemainder": 162500,
+                "stage": "seed"
+              }
+            },
+            "totals": {
+              "waterInjected": 0,
+              "surfaceEvaporated": 0,
+              "soilEvaporated": 20,
+              "outletDischarged": 0
+            }
+          }
+        ]
+      },
+      "notes": []
+    },
+    {
+      "id": "dry_exposed_wind",
+      "scope": "componentReferenceArithmetic",
+      "component": "singleCellEvaporationGrowth",
+      "disabledProcesses": [
+        "surfaceFlow",
+        "infiltration",
+        "recipeTargetResolution"
+      ],
+      "initial": {
+        "height": 0,
+        "surfaceWater": 0,
+        "soilWater": 250,
+        "soilCapacity": 1000,
+        "evaporationRemainder": 0,
+        "plant": {
+          "growth": 0,
+          "growthRemainder": 0,
+          "stage": "seed"
+        }
+      },
+      "phases": [
+        {
+          "ticks": 40,
+          "effectiveLightQ": 500,
+          "effectiveWindQ": 1000
+        }
+      ],
+      "outlet": null,
+      "expected": {
+        "finalTick": 40,
+        "state": {
+          "height": 0,
+          "surfaceWater": 0,
+          "soilWater": 70,
+          "soilCapacity": 1000,
+          "evaporationRemainder": 0,
+          "plant": {
+            "growth": 101,
+            "growthRemainder": 275000,
+            "stage": "seed"
+          }
+        },
+        "totals": {
+          "waterInjected": 0,
+          "surfaceEvaporated": 0,
+          "soilEvaporated": 180,
+          "outletDischarged": 0
+        },
+        "waterBalanceResidual": 0,
+        "stageEvents": [],
+        "phaseEnds": [
+          {
+            "tick": 40,
+            "state": {
+              "height": 0,
+              "surfaceWater": 0,
+              "soilWater": 70,
+              "soilCapacity": 1000,
+              "evaporationRemainder": 0,
+              "plant": {
+                "growth": 101,
+                "growthRemainder": 275000,
+                "stage": "seed"
+              }
+            },
+            "totals": {
+              "waterInjected": 0,
+              "surfaceEvaporated": 0,
+              "soilEvaporated": 180,
+              "outletDischarged": 0
+            }
+          }
+        ]
+      },
+      "notes": []
+    },
+    {
+      "id": "dry_sheltered_wind",
+      "scope": "componentReferenceArithmetic",
+      "component": "singleCellEvaporationGrowth",
+      "disabledProcesses": [
+        "surfaceFlow",
+        "infiltration",
+        "recipeTargetResolution"
+      ],
+      "initial": {
+        "height": 0,
+        "surfaceWater": 0,
+        "soilWater": 250,
+        "soilCapacity": 1000,
+        "evaporationRemainder": 0,
+        "plant": {
+          "growth": 0,
+          "growthRemainder": 0,
+          "stage": "seed"
+        }
+      },
+      "phases": [
+        {
+          "ticks": 40,
+          "effectiveLightQ": 500,
+          "effectiveWindQ": 250
+        }
+      ],
+      "outlet": null,
+      "expected": {
+        "finalTick": 40,
+        "state": {
+          "height": 0,
+          "surfaceWater": 0,
+          "soilWater": 190,
+          "soilCapacity": 1000,
+          "evaporationRemainder": 0,
+          "plant": {
+            "growth": 199,
+            "growthRemainder": 0,
+            "stage": "seed"
+          }
+        },
+        "totals": {
+          "waterInjected": 0,
+          "surfaceEvaporated": 0,
+          "soilEvaporated": 60,
+          "outletDischarged": 0
+        },
+        "waterBalanceResidual": 0,
+        "stageEvents": [],
+        "phaseEnds": [
+          {
+            "tick": 40,
+            "state": {
+              "height": 0,
+              "surfaceWater": 0,
+              "soilWater": 190,
+              "soilCapacity": 1000,
+              "evaporationRemainder": 0,
+              "plant": {
+                "growth": 199,
+                "growthRemainder": 0,
+                "stage": "seed"
+              }
+            },
+            "totals": {
+              "waterInjected": 0,
+              "surfaceEvaporated": 0,
+              "soilEvaporated": 60,
+              "outletDischarged": 0
+            }
+          }
+        ]
+      },
+      "notes": []
+    },
+    {
+      "id": "outlet_limited_then_settled",
+      "scope": "componentReferenceArithmetic",
+      "component": "singleCellOutlet",
+      "disabledProcesses": [
+        "surfaceFlow",
+        "infiltration",
+        "recipeTargetResolution"
+      ],
+      "initial": {
+        "height": 100,
+        "surfaceWater": 300,
+        "soilWater": 0,
+        "soilCapacity": 1000,
+        "evaporationRemainder": 0,
+        "plant": null
+      },
+      "phases": [
+        {
+          "ticks": 1,
+          "effectiveLightQ": 0,
+          "effectiveWindQ": 0
+        },
+        {
+          "ticks": 1,
+          "effectiveLightQ": 0,
+          "effectiveWindQ": 0
+        },
+        {
+          "ticks": 38,
+          "effectiveLightQ": 0,
+          "effectiveWindQ": 0
+        }
+      ],
+      "outlet": {
+        "cellId": 0,
+        "spillLevel": 250,
+        "capacityPerTick": 100
+      },
+      "expected": {
+        "finalTick": 40,
+        "state": {
+          "height": 100,
+          "surfaceWater": 150,
+          "soilWater": 0,
+          "soilCapacity": 1000,
+          "evaporationRemainder": 0,
+          "plant": null
+        },
+        "totals": {
+          "waterInjected": 0,
+          "surfaceEvaporated": 0,
+          "soilEvaporated": 0,
+          "outletDischarged": 150
+        },
+        "waterBalanceResidual": 0,
+        "stageEvents": [],
+        "phaseEnds": [
+          {
+            "tick": 1,
+            "state": {
+              "height": 100,
+              "surfaceWater": 200,
+              "soilWater": 0,
+              "soilCapacity": 1000,
+              "evaporationRemainder": 0,
+              "plant": null
+            },
+            "totals": {
+              "waterInjected": 0,
+              "surfaceEvaporated": 0,
+              "soilEvaporated": 0,
+              "outletDischarged": 100
+            }
+          },
+          {
+            "tick": 2,
+            "state": {
+              "height": 100,
+              "surfaceWater": 150,
+              "soilWater": 0,
+              "soilCapacity": 1000,
+              "evaporationRemainder": 0,
+              "plant": null
+            },
+            "totals": {
+              "waterInjected": 0,
+              "surfaceEvaporated": 0,
+              "soilEvaporated": 0,
+              "outletDischarged": 150
+            }
+          },
+          {
+            "tick": 40,
+            "state": {
+              "height": 100,
+              "surfaceWater": 150,
+              "soilWater": 0,
+              "soilCapacity": 1000,
+              "evaporationRemainder": 0,
+              "plant": null
+            },
+            "totals": {
+              "waterInjected": 0,
+              "surfaceEvaporated": 0,
+              "soilEvaporated": 0,
+              "outletDischarged": 150
+            }
+          }
+        ]
+      },
+      "notes": [
+        "spillLevel=height100+profile.spillDepth150; all other boundaries closed."
+      ]
+    },
+    {
+      "id": "cross_four_donors",
+      "scope": "componentReferenceArithmetic",
+      "component": "surfaceFlow",
+      "disabledProcesses": [
+        "injection",
+        "outlet",
+        "infiltration",
+        "evaporation",
+        "growth"
+      ],
+      "initial": {
+        "width": 3,
+        "height": 3,
+        "terrainHeight": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "solid": [
+          true,
+          false,
+          true,
+          false,
+          false,
+          false,
+          true,
+          false,
+          true
+        ],
+        "surfaceWater": [
+          0,
+          8,
+          0,
+          8,
+          0,
+          8,
+          0,
+          8,
+          0
+        ]
+      },
+      "ticks": 1,
+      "expected": {
+        "surfaceWater": [
+          0,
+          7,
+          0,
+          7,
+          4,
+          7,
+          0,
+          7,
+          0
+        ],
+        "totalWater": 32,
+        "waterBalanceResidual": 0,
+        "cumulativeDirectedTransfers": {
+          "1>4": 1,
+          "3>4": 1,
+          "5>4": 1,
+          "7>4": 1
+        }
+      },
+      "notes": []
+    },
+    {
+      "id": "cross_single_unit_budget",
+      "scope": "componentReferenceArithmetic",
+      "component": "surfaceFlow",
+      "disabledProcesses": [
+        "injection",
+        "outlet",
+        "infiltration",
+        "evaporation",
+        "growth"
+      ],
+      "initial": {
+        "width": 3,
+        "height": 3,
+        "terrainHeight": [
+          0,
+          0,
+          0,
+          0,
+          1000,
+          0,
+          0,
+          0,
+          0
+        ],
+        "solid": [
+          true,
+          false,
+          true,
+          false,
+          false,
+          false,
+          true,
+          false,
+          true
+        ],
+        "surfaceWater": [
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "ticks": 1,
+      "expected": {
+        "surfaceWater": [
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "totalWater": 1,
+        "waterBalanceResidual": 0,
+        "cumulativeDirectedTransfers": {
+          "4>1": 1
+        }
+      },
+      "notes": [
+        "Requests are125 per edge; donor budget1 is allocated to N by the fixed tie order."
+      ]
+    },
+    {
+      "id": "dry_high_cell_has_no_outflow",
+      "scope": "componentReferenceArithmetic",
+      "component": "surfaceFlow",
+      "disabledProcesses": [
+        "injection",
+        "outlet",
+        "infiltration",
+        "evaporation",
+        "growth"
+      ],
+      "initial": {
+        "width": 3,
+        "height": 3,
+        "terrainHeight": [
+          0,
+          0,
+          0,
+          0,
+          1000,
+          0,
+          0,
+          0,
+          0
+        ],
+        "solid": [
+          true,
+          false,
+          true,
+          false,
+          false,
+          false,
+          true,
+          false,
+          true
+        ],
+        "surfaceWater": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "ticks": 40,
+      "expected": {
+        "surfaceWater": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "totalWater": 0,
+        "waterBalanceResidual": 0,
+        "cumulativeDirectedTransfers": {}
+      },
+      "notes": []
+    },
+    {
+      "id": "documented_flow_quantization",
+      "scope": "componentReferenceArithmetic",
+      "component": "surfaceFlow",
+      "disabledProcesses": [
+        "injection",
+        "outlet",
+        "infiltration",
+        "evaporation",
+        "growth"
+      ],
+      "initial": {
+        "width": 2,
+        "height": 1,
+        "terrainHeight": [
+          0,
+          0
+        ],
+        "solid": [
+          false,
+          false
+        ],
+        "surfaceWater": [
+          7,
+          0
+        ]
+      },
+      "ticks": 40,
+      "expected": {
+        "surfaceWater": [
+          7,
+          0
+        ],
+        "totalWater": 7,
+        "waterBalanceResidual": 0,
+        "cumulativeDirectedTransfers": {}
+      },
+      "notes": [
+        "Known model resolution: head difference7 at conductance125 gives floor(0.875)=0."
+      ]
+    },
+    {
+      "id": "seed_then_light",
+      "scope": "componentReferenceArithmetic",
+      "component": "singleCellEvaporationGrowth",
+      "disabledProcesses": [
+        "surfaceFlow",
+        "infiltration",
+        "recipeTargetResolution"
+      ],
+      "initial": {
+        "height": 0,
+        "surfaceWater": 0,
+        "soilWater": 600,
+        "soilCapacity": 1000,
+        "evaporationRemainder": 0,
+        "plant": null
+      },
+      "phases": [
+        {
+          "ticks": 40,
+          "effectiveLightQ": 500,
+          "effectiveWindQ": 0,
+          "placeSeedBeforeFirstUpdate": true
+        },
+        {
+          "ticks": 40,
+          "effectiveLightQ": 1000,
+          "effectiveWindQ": 0
+        }
+      ],
+      "outlet": null,
+      "expected": {
+        "finalTick": 80,
+        "state": {
+          "height": 0,
+          "surfaceWater": 0,
+          "soilWater": 540,
+          "soilCapacity": 1000,
+          "evaporationRemainder": 0,
+          "plant": {
+            "growth": 1500,
+            "growthRemainder": 0,
+            "stage": "bud"
+          }
+        },
+        "totals": {
+          "waterInjected": 0,
+          "surfaceEvaporated": 0,
+          "soilEvaporated": 60,
+          "outletDischarged": 0
+        },
+        "waterBalanceResidual": 0,
+        "stageEvents": [
+          {
+            "kind": "Germinated",
+            "tick": 20,
+            "threshold": 250,
+            "beforeGrowth": 237,
+            "postGrowth": 250
+          },
+          {
+            "kind": "LeafOpened",
+            "tick": 50,
+            "threshold": 750,
+            "beforeGrowth": 725,
+            "postGrowth": 750
+          },
+          {
+            "kind": "BudFormed",
+            "tick": 80,
+            "threshold": 1500,
+            "beforeGrowth": 1475,
+            "postGrowth": 1500
+          }
+        ],
+        "phaseEnds": [
+          {
+            "tick": 40,
+            "state": {
+              "height": 0,
+              "surfaceWater": 0,
+              "soilWater": 580,
+              "soilCapacity": 1000,
+              "evaporationRemainder": 0,
+              "plant": {
+                "growth": 500,
+                "growthRemainder": 0,
+                "stage": "sprout"
+              }
+            },
+            "totals": {
+              "waterInjected": 0,
+              "surfaceEvaporated": 0,
+              "soilEvaporated": 20,
+              "outletDischarged": 0
+            }
+          },
+          {
+            "tick": 80,
+            "state": {
+              "height": 0,
+              "surfaceWater": 0,
+              "soilWater": 540,
+              "soilCapacity": 1000,
+              "evaporationRemainder": 0,
+              "plant": {
+                "growth": 1500,
+                "growthRemainder": 0,
+                "stage": "bud"
+              }
+            },
+            "totals": {
+              "waterInjected": 0,
+              "surfaceEvaporated": 0,
+              "soilEvaporated": 60,
+              "outletDischarged": 0
+            }
+          }
+        ]
+      },
+      "notes": []
+    },
+    {
+      "id": "light_then_seed",
+      "scope": "componentReferenceArithmetic",
+      "component": "singleCellEvaporationGrowth",
+      "disabledProcesses": [
+        "surfaceFlow",
+        "infiltration",
+        "recipeTargetResolution"
+      ],
+      "initial": {
+        "height": 0,
+        "surfaceWater": 0,
+        "soilWater": 600,
+        "soilCapacity": 1000,
+        "evaporationRemainder": 0,
+        "plant": null
+      },
+      "phases": [
+        {
+          "ticks": 40,
+          "effectiveLightQ": 1000,
+          "effectiveWindQ": 0
+        },
+        {
+          "ticks": 40,
+          "effectiveLightQ": 500,
+          "effectiveWindQ": 0,
+          "placeSeedBeforeFirstUpdate": true
+        }
+      ],
+      "outlet": null,
+      "expected": {
+        "finalTick": 80,
+        "state": {
+          "height": 0,
+          "surfaceWater": 0,
+          "soilWater": 540,
+          "soilCapacity": 1000,
+          "evaporationRemainder": 0,
+          "plant": {
+            "growth": 500,
+            "growthRemainder": 0,
+            "stage": "sprout"
+          }
+        },
+        "totals": {
+          "waterInjected": 0,
+          "surfaceEvaporated": 0,
+          "soilEvaporated": 60,
+          "outletDischarged": 0
+        },
+        "waterBalanceResidual": 0,
+        "stageEvents": [
+          {
+            "kind": "Germinated",
+            "tick": 60,
+            "threshold": 250,
+            "beforeGrowth": 237,
+            "postGrowth": 250
+          }
+        ],
+        "phaseEnds": [
+          {
+            "tick": 40,
+            "state": {
+              "height": 0,
+              "surfaceWater": 0,
+              "soilWater": 560,
+              "soilCapacity": 1000,
+              "evaporationRemainder": 0,
+              "plant": null
+            },
+            "totals": {
+              "waterInjected": 0,
+              "surfaceEvaporated": 0,
+              "soilEvaporated": 40,
+              "outletDischarged": 0
+            }
+          },
+          {
+            "tick": 80,
+            "state": {
+              "height": 0,
+              "surfaceWater": 0,
+              "soilWater": 540,
+              "soilCapacity": 1000,
+              "evaporationRemainder": 0,
+              "plant": {
+                "growth": 500,
+                "growthRemainder": 0,
+                "stage": "sprout"
+              }
+            },
+            "totals": {
+              "waterInjected": 0,
+              "surfaceEvaporated": 0,
+              "soilEvaporated": 60,
+              "outletDischarged": 0
+            }
+          }
+        ]
+      },
+      "notes": []
+    },
+    {
+      "id": "dry_cell_has_no_evaporation_debt",
+      "scope": "componentReferenceArithmetic",
+      "component": "singleCellEvaporationGrowth",
+      "disabledProcesses": [
+        "surfaceFlow",
+        "infiltration",
+        "recipeTargetResolution"
+      ],
+      "initial": {
+        "height": 0,
+        "surfaceWater": 0,
+        "soilWater": 0,
+        "soilCapacity": 1000,
+        "evaporationRemainder": 0,
+        "plant": null
+      },
+      "phases": [
+        {
+          "ticks": 40,
+          "effectiveLightQ": 1000,
+          "effectiveWindQ": 1000
+        },
+        {
+          "ticks": 1,
+          "effectiveLightQ": 1000,
+          "effectiveWindQ": 1000,
+          "waterInjectionAtFirstUpdate": 100
+        }
+      ],
+      "outlet": null,
+      "expected": {
+        "finalTick": 41,
+        "state": {
+          "height": 0,
+          "surfaceWater": 95,
+          "soilWater": 0,
+          "soilCapacity": 1000,
+          "evaporationRemainder": 0,
+          "plant": null
+        },
+        "totals": {
+          "waterInjected": 100,
+          "surfaceEvaporated": 5,
+          "soilEvaporated": 0,
+          "outletDischarged": 0
+        },
+        "waterBalanceResidual": 0,
+        "stageEvents": [],
+        "phaseEnds": [
+          {
+            "tick": 40,
+            "state": {
+              "height": 0,
+              "surfaceWater": 0,
+              "soilWater": 0,
+              "soilCapacity": 1000,
+              "evaporationRemainder": 0,
+              "plant": null
+            },
+            "totals": {
+              "waterInjected": 0,
+              "surfaceEvaporated": 0,
+              "soilEvaporated": 0,
+              "outletDischarged": 0
+            }
+          },
+          {
+            "tick": 41,
+            "state": {
+              "height": 0,
+              "surfaceWater": 95,
+              "soilWater": 0,
+              "soilCapacity": 1000,
+              "evaporationRemainder": 0,
+              "plant": null
+            },
+            "totals": {
+              "waterInjected": 100,
+              "surfaceEvaporated": 5,
+              "soilEvaporated": 0,
+              "outletDischarged": 0
+            }
+          }
+        ]
+      },
+      "notes": []
+    },
+    {
+      "id": "complete_light_shadow",
+      "scope": "componentReferenceArithmetic",
+      "component": "singleCellEvaporationGrowth",
+      "disabledProcesses": [
+        "surfaceFlow",
+        "infiltration",
+        "recipeTargetResolution"
+      ],
+      "initial": {
+        "height": 0,
+        "surfaceWater": 0,
+        "soilWater": 550,
+        "soilCapacity": 1000,
+        "evaporationRemainder": 0,
+        "plant": {
+          "growth": 0,
+          "growthRemainder": 0,
+          "stage": "seed"
+        }
+      },
+      "phases": [
+        {
+          "ticks": 40,
+          "effectiveLightQ": 0,
+          "effectiveWindQ": 0
+        }
+      ],
+      "outlet": null,
+      "expected": {
+        "finalTick": 40,
+        "state": {
+          "height": 0,
+          "surfaceWater": 0,
+          "soilWater": 550,
+          "soilCapacity": 1000,
+          "evaporationRemainder": 0,
+          "plant": {
+            "growth": 0,
+            "growthRemainder": 0,
+            "stage": "seed"
+          }
+        },
+        "totals": {
+          "waterInjected": 0,
+          "surfaceEvaporated": 0,
+          "soilEvaporated": 0,
+          "outletDischarged": 0
+        },
+        "waterBalanceResidual": 0,
+        "stageEvents": [],
+        "phaseEnds": [
+          {
+            "tick": 40,
+            "state": {
+              "height": 0,
+              "surfaceWater": 0,
+              "soilWater": 550,
+              "soilCapacity": 1000,
+              "evaporationRemainder": 0,
+              "plant": {
+                "growth": 0,
+                "growthRemainder": 0,
+                "stage": "seed"
+              }
+            },
+            "totals": {
+              "waterInjected": 0,
+              "surfaceEvaporated": 0,
+              "soilEvaporated": 0,
+              "outletDischarged": 0
+            }
+          }
+        ]
+      },
+      "notes": [
+        "At lightExposureQ=0, even base500+extra500 yields effectiveLightQ=0."
+      ]
+    },
+    {
+      "id": "cardinal_wind_ray",
+      "scope": "componentReferenceArithmetic",
+      "component": "staticWindShelter",
+      "initial": {
+        "width": 5,
+        "height": 1,
+        "solidCellIds": [
+          1
+        ],
+        "direction": "E",
+        "unoccludedWindQ": 1000
+      },
+      "queries": [
+        {
+          "cellId": 3,
+          "expected": {
+            "visitedCellIds": [
+              2,
+              1
+            ],
+            "blockerCellId": 1,
+            "shelterQ": 250,
+            "effectiveWindQ": 250
+          }
+        },
+        {
+          "cellId": 0,
+          "expected": {
+            "visitedCellIds": [],
+            "blockerCellId": null,
+            "shelterQ": 1000,
+            "effectiveWindQ": 1000
+          }
+        }
+      ],
+      "notes": [
+        "The ray walks against the wind; a blocker downwind of cell0 must not shelter it."
+      ]
+    }
+  ],
+  "pendingFullGardenGate": {
+    "status": "notRun",
+    "requiredRounds": 200,
+    "recipes": [
+      "water_drop",
+      "water_rain"
+    ],
+    "requirements": [
+      "Use a dedicated development run, never force these outcomes in normal play.",
+      "Observe every tick water balance, maximum surface depth, root-zone soil moisture, discharge and numeric bounds.",
+      "A single outlet capacity inequality is not sufficient evidence of no flooding."
+    ]
+  }
+}
