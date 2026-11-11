@@ -1,6 +1,6 @@
 # Unity Garden — 記録・復旧・観察のデータ契約
 
-設計版: **0.4 / designCandidate／Unity 実装・実機検証は未実施**。対象は新しい箱庭ゲームのみ。v0.2の自然モデルへ、版付きの天候入力とその記録を加える。
+設計版: **0.5 / designCandidate／Unity 実装・実機検証は未実施**。対象は新しい箱庭ゲームのみ。自然・天候・保存順序を保ち、文章選定v0.5と展示範囲の契約を明確にする。
 この文書は既存の `DESIGN.md` / `PROTOCOL_FREEZE.md` の実験・台帳を変更しない。
 数値パラメーター、ファイル I/O、C# の具体的な型は、後続の実装フェーズで検証する。
 
@@ -43,7 +43,8 @@ run内で未終端のroundは最大一つとする。正となる庭の参照は
 
 ### 1.1 天候を三つの正常解決投に固定する
 
-`weatherPolicyVersion=weather-episodes.v0.4`は、一つのrunを初期`worldRevision=0`から始め、正常なResolvedの保存ごとに一つ進める。別runから庭を引き継ぐ場合も、新runのrevisionを0にし、元の参照をinitialStateProvenanceへ残す。
+`weatherPolicyVersion=weather-episodes.v0.4`は、一つのrunを初期`worldRevision=0`から始め、正常なResolvedの保存ごとに一つ進める。
+G1〜G3の新しいrunは保存した静的mapから初期化し、initialStateProvenanceへmapの内容hashと展開版を残す。同runの復帰は保存済みsnapshot・revision・天候材料をそのまま復元する。別runの庭を引き継いで初期化する機能は後続の拡張とし、初期meanLight、個体の出自、累計、tickをどう扱うかを別の版で定義する。単にrevisionだけ0へ書き換えて引継ぎ対応済みにしない。
 
 ```text
 weatherPeriodIndex = floor(beforeRevision / 3)
@@ -112,7 +113,7 @@ WeatherEntropyCommittedの保存でも、現在のrun/epoch・未終端準備・
 | `DrawEntropyCommitted` | 保存したbufferと取得成否を解釈し、同じ出目・カードまたは未成立へ進める。未表示でも再取得しない |
 | `OutcomeCommitted` | 保存した出目・カード・開始状態から同じ計算を実行する |
 | `Resolved` | 保存した完全な更新後状態を復元する。入力をもう一度加算しない |
-| 提示記録なし／提示途中 | 同じ結果の提示を再開できる。集計から結果を外さない |
+| 提示記録なし／提示途中 | 保存済み終状態と本文を静かに表示する。過去の音・注目cueを自動再生せず、集計から結果を外さない。表示の詳細はEXPERIENCE§5.3 |
 
 roundの論理解決はResolvedで完了する。Receiptを失った回も、結果を復元してそのまま次へ進める。
 Receiptは読了や次回開始の条件ではない。保存adapter自体の障害中は、通常どおり新規取得を止めて回復する。
@@ -272,7 +273,7 @@ nullable と未取得を区別し、既知の値を便宜的な `0` や空文字
 
 WeatherContextの期index/stepはbeforeRevisionから導出した値と照合し、weatherSourceRefは同run・同一期の唯一のWeatherEntropyCommittedへ結ぶ。取得した準備のroundIdが違っても、同一期の再利用を許す。profile hashはRunStartedと一致し、weatherIdと消費範囲は保存材料から再現できなければならない。
 resolvedWeatherParametersは[weather-profile.v0.4.json](./content/weather-profile.v0.4.json)を当該mapへ展開した日差し・風・降雨の対象/量/scheduleであり、UIの天候アイコンから推測しない。entropyConsumptionは先頭4byte・棄却0・変換版を残す。
-初期セルのmeanLightは固定clearの光500と静的露出から作り、初期期のWeatherContextと照合する。RunStartedだけで天候抽選を省略する別経路は設けない。
+静的mapから新規作成する初期セルのmeanLightは固定clearの光500と静的露出から作り、初期期のWeatherContextと照合する。同runの復帰では保存済みmeanLightを現在の空で作り直さない。RunStartedだけで天候抽選を省略する別経路は設けない。
 
 `kind` は `none / face / element / gardenOutcome / freeText` とする。
 `method` は選択された `asIs / intention / prayer / spoken / unknown` とする。
@@ -338,7 +339,9 @@ input_pairの二つ目のgroupは必要な補助焦点として優先する。su
 イベントのない事実fallbackではfocus/primary/secondaryをnullにでき、確定入力・前後状態を直接参照する。
 fallbackの`input_applied`にはInputApplicationEvidenceが必要。Outcomeで入力が選ばれただけでは成立しない。
 `templateId`はcatalogの`entries[].id`を保存する。文章を指すmessageIdと別の独立IDを生成しない。
-`oracle-focus.v0.4`の候補は、scoreTuple=`cardAffinity / priority / recentNovelty`の降順、その後messageId・groupId・bindingKeyの昇順で比較する。bindingKeyは保存したpredicateBindingsから導出できるため独立recordにしない。
+`oracle-focus.v0.5`のfactual候補は、scoreTuple=`cardAffinity / recentNovelty / priority`の降順、その後messageId・groupId・bindingKeyの昇順で比較する。bindingKeyは保存したpredicateBindingsから導出できるため独立recordにしない。
+同じmessageIdとfocusGroupIdの完全な束縛は最小bindingKeyへ先にまとめる。全factual候補の最終順位1位のgroupを、GAMEPLAY§7.2の注目候補の第2枠へ必ず含める。第1・第3枠の固定重要度にはrecentNoveltyを混ぜず、fallbackを通常候補やgroup選抜へ入れない。主焦点1・補助最大1・input_pairの必須相手を維持する。
+選定版とcatalogの実体をRunStartedに固定し、v0.4のscore順で保存した結果をv0.5へ読み替えない。過去の文章・焦点・根拠は当時のまま保持する。
 通常rankingを使わず基本文を選ぶ場合はscoreTupleをnull、比較ID/seq列を空にし、fallbackReasonを`no_factual_candidate / card_unavailable`から記録する。
 重複回避は、**同runでseqがPrepared.seqより小さい直近3件のResolved**に保存されたmessageIdだけと比較する。
 3件はResolvedレコード数であり、同じmessageIdが重複していてもそのまま含める。3件未満なら存在する分だけ使う。
@@ -512,8 +515,8 @@ exportはsegmentの接続・回復診断・参照した原本を含め、途切�
 
 途中のhash不一致・不正な完全frame・必須参照欠損は`integrity_error`として旧runの書込みを止める。
 原本を保全したまま、閲覧できる検証済み範囲と障害を表示する。
-継続不能なら、検証済みsnapshotを明示的な出所とする新runを開始できる。旧runの失われた結果を埋めない。
-この新runは旧runの完全な復旧とは呼ばず、回復元と未確定範囲を記録する。
+継続不能なら、G1〜G3では原本と検証済み範囲を保全し、回復元・未確定範囲を示したうえで静的mapから新runを開始できる。旧runの失われた結果を埋めず、旧runの完全な復旧とも呼ばない。
+検証済みsnapshotそのものを別runへ引き継ぐ機能は後続拡張とする。同runの正常な末尾回復・保存済み状態の復元とは区別する。
 
 ### 9.2 内容参照の永続性
 
@@ -544,6 +547,8 @@ runが参照中の内容は更新で置換・削除せず、exportにも実体�
 17. weather保存前、weather保存後/mapping前、Prepared後、Resolved保存前後で終了し、未知の天候・既知の天候・次期への進行を区別する。
 18. 3回目のResolved保存後だけ次期を準備し、旧演出の途中には次の天候を公開しない。欠測・取消・提示だけでは天候期を進めない。
 19. 天候だけの雨とダイスの雨が同時にある回で、源別注水と総収支を一致させ、混合後の土中水の由来を捏造しない。
+20. v0.5の同一カード対応候補では直近に使っていない文をpriorityより先に比較し、全候補既出なら固定順位へ戻る。全候補の勝者をgroup選抜で失わず、同じ入力順序を並べ替えても同じ結果になる。
+21. 静的mapからの新runだけを固定晴れの初期meanLightで作り、同run復帰の保存値を初期化しない。G1〜G3で未定義の別run snapshot引継ぎを暗黙に行わない。
 
 代表的な復旧trace（実行済み結果ではなく、G1のfixture要件）:
 
