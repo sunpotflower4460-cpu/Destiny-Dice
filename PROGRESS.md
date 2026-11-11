@@ -1457,3 +1457,97 @@ git diff --check: exit 0
 - `docs/unity-garden/content/weather-reference-report.v0.4.json`
 - `docs/unity-garden/content/oracle-catalog.v0.4.json`
 - `PROGRESS.md`
+
+## Gate0: 育った庭の観察・文章の選び分け・静かな提示を設計v0.5へ更新 (2026-11-11)
+
+### 完了したこと
+
+- 「さらにブラッシュアップして設計更新」という依頼に対応。直前main `80983f926766593138a7a3d4a5edc935fa6ca108` を基点に、G0の設計文書と候補JSONだけを更新した。
+- 反復して振ったときに同じ定常文へ偏ること、種の範囲が埋まった理由が見えないこと、土の湿りと描画量の曖昧さ、skip・中断で未再生cueをどう終えるかを具体化した。
+- `oracle-focus.v0.5`の最終順位はcardAffinity / recentNovelty / priorityの降順。既存28entryの本文・条件・cardTags・priorityは全て保持し、同じカード対応なら最近使っていない成立文を先に選ぶ。唯一の事実や全候補既出では同文を許可する。
+- 最大3groupの枠を、固定重要度1位／全文章候補の最終順位1位のgroup／ダイス直接入力の重要度1位とした。候補を途中で絞るために未使用文が消えることを防ぐ。主1・補助最大1、seed pairの必須相手、全支持根拠、カード未成立fallbackを維持。
+- `scoreTuple`の並びと選定版を固定し、旧runの本文・焦点を新しい規則で置換しない。新規DTOフィールド、乱数、文章の自由生成は追加していない。
+- 現mapの種範囲を列挙し、20土セル・初期占有3・新規最大17・全植物21、範囲外の空き土34を確認。種が今回の配面に入らなかった場合と、一粒の空き0・二粒の空き0/1を任意説明で区別する。
+- 説明は公開中Preparedの開始snapshotと固定map/profileから導く投影とした。見た目の途中状態から理由を作らず、範囲外の空き土を隠す・anchorを移す・目標を変える処理を加えない。
+- 土の湿りはsoilWater/soilCapacityの比、水面はsurfaceWater、葉の揺れは再生中の合成風、局所照射は追加実効光、植物形状は保存段階へ結ぶ。待機時は公開済み天候の基礎場へ戻り、前回の局所入力を持ち越さない。
+- 全21個体がflower/growth2500の合成境界fixtureを文書化。追加17個体は開発用初期配置で、過去の種を引いた履歴やSeedPlacedを作らない。三天候×非種6入力の18ケースは実装後の受け入れ条件で、今回未実行。
+- Presentation内だけのownerToken・cursor・cue管理を定義。skip・提示中断・run切替では未発火の音と注目の光を破棄し、保存済みの庭と本文へ静かに収束する。遅延した旧callbackを新しい天候へ採用しない。
+- 低fpsでも一描画更新で強調cue最大1件。同tickの未発火cueを次frameへ残し、採用文の束縛と元eventの個体・tickを使う。group.firstTickを別個体の開花時刻の代理にしない。成長アクセントは合計最大1回。
+- G1〜G3の通常新runは静的mapから作り、同run復帰はsnapshot・meanLight・revision・天候を保持する。別run snapshotの引継ぎは後続拡張へ整理し、未定義のimportを展示の必須実装にしない。
+- README、天候の案内、アーキテクチャ、ロードマップ、受け入れ条件を同期。自然係数・map・三天候・8入力・カード6枚・出目の確率は変更していない。
+
+### 完了基準の結果
+
+既存アプリの確認は `npx --yes --package=pnpm@10.34.9 pnpm <script>` で実行した。
+
+```text
+pnpm typecheck
+> tsc -b --noEmit
+exit 0
+
+pnpm test
+> vitest run
+Test Files  41 passed (41)
+Tests       183 passed (183)
+Duration    2.19s
+exit 0
+
+pnpm build
+> tsc -b && vite build
+vite v8.1.4 building client environment for production...
+102 modules transformed.
+built in 189ms
+exit 0
+
+Selector v0.5: 15 authored synthetic cases / 75 selection checks; all expected results match
+Order invariance: group, binding and prior-record reversals preserve winner, score, focus, support and history
+Catalog: all 28 v0.4 entries preserved exactly; only v0.5 metadata changed
+Not executed: natural simulation, predicate evaluator, journal I/O, Unity, device/audio checks
+
+Static map coverage: 55 plantable / 20 in seed bands / 3 initially occupied there / 17 addable / 21 total plants maximum
+Outside bands: 35 plantable / 1 initial plant / 34 empty after both bands are full
+Saved v0.4 seed 1: single last at round 15, scatter last at round 20; rounds 21-24 contain no seed faces
+Synthetic mature fixture definition: 21 unique IDs / 18 future weather-recipe cases; physics and rendering NOT executed
+Moisture display examples: 160/200 -> 800; 200/1000 -> 200
+Repository files written: 0; errors: 0
+
+python check_design_v05.py
+Markdown: 12 files / 117 local links / 1 JSON examples / 89 tables / 0 isolated row blocks
+JSON: all 10 design files parse; all status=designCandidate
+Oracle: 28 unique entries / 4 input fallbacks / 6 cards; old 28 entries exactly preserved
+Legacy: all 8 earlier JSON files and 1 SVG byte-identical to base
+Selector fixtures: 15 authored cases / 75 read-only checks match every expected field; catalog/script hashes match
+Selector independent properties: 11 global winners, score tuples, complete bindings and history windows match; no predicate truth evaluation
+Scope: 13 authorized documentation/data paths; no runtime changes; git diff --check passed
+Errors: 0
+```
+
+- buildには既存jeep-sqliteのcrypto browser externalization警告がある。成功しており、依存・build設定は変更していない。
+- 選定15例は、未使用優先、全既出、唯一事実、カード優先・不一致、候補切捨て、同点、完全束縛、必須補助、不適合除外、カード欠測、適用証拠欠損、Prepared前の直近3Resolvedを含む。各例は元の順・group逆順・binding逆順・履歴逆順・全逆順の5通りで比較した。
+- 期待する勝者・score・主補助・支持group・履歴集合は手で指定した。fixtureが渡す述語の真偽と束縛キーは合成入力であり、実際の雨・cell・tick・植物からそれらが正しいと判定する処理は今回実行していない。
+- 参照script `oracle_selection_reference_v05.py` のSHA-256は `cdc4f3acd815cbf0c9cc09128f4f6f14d39bdf04235792f6fe01457a38f5cb42`、catalogのSHA-256は `59e377831723d6e58928d5a0d51ff1ecb7e8ef37f2960087e1b2620ad156235c`。JSONへ版・範囲・全入力・期待値・結果を残した。
+- 静的な種範囲と保存済みseed=1の列を読み直した。旧v0.4の808投・32,320tickの自然計算は再実行しておらず、新しい実行数として重複計上していない。
+
+### 不変条件と要確定・申し送り
+
+- `DESIGN.md` / `PROTOCOL_FREEZE.md` / `AGENTS.md`、既存runtime・台帳・統計・依存・CIは未変更。PROGRESSは直前mainの全内容を保つ末尾追記。
+- 旧8JSONと配置SVGをbyte単位で保持。現行は基礎profile v0.2、map v0.3、天候・配面・group生成v0.4、catalog・選定v0.5の組合せ。
+- 次の実装はG1から継続。G2で自然Core、G3で実イベントからの文章候補と表示を接続する。選定部分の合成例が通ることだけで、全文章機能やゲーム体験の合格とはしない。
+- 成熟庭18ケース、EXPERIENCEの18操作場面、実際の土の色・水面・植物・音、保存障害や中断、Unity/C#・スマホ・Steam実機は未検証。候補4秒の再生時間は低fps時に延長でき、美しさと読み取りやすさは実機で判断する。
+- 全植物21は現在mapと固定seed帯の上限であり、通常プレイで全個体が開花する保証ではない。整数成長0だけから乾燥・過湿・失敗という理由を作らず、実際に残る状態と出来事から説明する。
+
+### 触ったファイル
+
+- `README.md`
+- `docs/unity-garden/README.md`
+- `docs/unity-garden/GAMEPLAY.md`
+- `docs/unity-garden/DATA_CONTRACT.md`
+- `docs/unity-garden/EXPERIENCE.md`
+- `docs/unity-garden/GARDEN_LAYOUT.md`
+- `docs/unity-garden/ARCHITECTURE.md`
+- `docs/unity-garden/ROADMAP.md`
+- `docs/unity-garden/VALIDATION.md`
+- `docs/unity-garden/WEATHER.md`
+- `docs/unity-garden/content/oracle-catalog.v0.5.json`
+- `docs/unity-garden/content/oracle-selection-fixtures.v0.5.json`
+- `PROGRESS.md`

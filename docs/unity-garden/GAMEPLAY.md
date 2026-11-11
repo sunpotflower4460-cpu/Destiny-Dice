@@ -1,6 +1,6 @@
 # Unity箱庭 — 体験・動的な6面・表現・言葉
 
-設計版: 0.4 / 2026-11-11。Unity実装・実機の体験検証は未実施。基礎の自然モデルはv0.2を使い、v0.4の天候・合成規則を重ねる。既存24本の文章本文を保ち、天候との関係を述べる4本を追加する。
+設計版: 0.5 / 2026-11-11。Unity実装・実機の体験検証は未実施。基礎の自然モデルv0.2と天候・合成規則v0.4を保つ。文章28本の本文・成立条件は変えず、成立した別の事実にも目を向けられる選定順をv0.5として定義する。
 
 ## 0. この文書の位置づけ
 
@@ -259,6 +259,7 @@ WaterEnteredのgroupIdは`roundId + ":WaterEntered:" + sourceKind + ":" + minCel
 特定の周波数や音階に実証済みの超常的効能があると説明しない。
 音量調整、消音、画面揺れなし、光の動きを抑える設定でも、現象と結果を把握できるようにする。
 これらの表現設定はモデルの状態・抽選・メッセージの事実条件を変えない。
+演出の省略・中断では未再生cueを破棄し、保存終状態と本文へ静かに収束する。同tickの順序、遅い描画、古いcallbackの扱いはEXPERIENCE§5.3に従う。
 
 ### 6.3 天候と局所入力を見分ける
 
@@ -292,33 +293,43 @@ WaterEnteredのgroupIdは`roundId + ":WaterEntered:" + sourceKind + ":" + minCel
 
 ### 7.2 選定の順序
 
-1. 保存対象となる実イベント・入力・状態差分から、その回の事実を作る。
-2. `allowedElements`を確認し、`requiresAll`を全て満たし`forbiddenFlags`に触れない文章だけを残す。
-3. 成立した事実をObservationGroupへまとめ、下記の固定順位、当該カードとの対応、直接入力の三つの観点から最大3groupを注目候補にする。同じgroupは重複させない。
-4. 注目候補に結び付く文章を、`cardAffinity`、`priority`、`recentNovelty`の降順、最後に固定messageIdの昇順で比較する。
-5. 勝った文章のgroupを焦点にする。成立したfactual候補がなければ、該当する入力のfallbackを選ぶ。
-6. 文章・focusGroupId・補助group・述語の束縛先・scoreTuple・比較した直近messageIdとResolved.seqを保存する。
+`selectionPolicyVersion=oracle-focus.v0.5`は、カードとの対応を保ちながら、その範囲で直近に使っていない事実文を先に見る。成立条件や対象・時点の束縛を、文章の新しさで緩めない。
 
-groupの固定順位は「成立候補文章の最大priority、段階rank」の降順、同点はgroupIdの昇順とする。水量と成長量など異単位の数値を直接比較しない。
-段階rankはBloomed=4、BudFormed=3、LeafOpened=2、Germinated=1、他は0。複数の根拠があるgroupは最大値を取る。
-三つの候補は、全groupの固定順位1位、当該cardに合う成立候補だけで同じ順位を求めた1位、当該系統の直接入力groupの固定順位1位とする。
-直接入力groupのkindはwater=WaterEntered、wind=WindReceived、light=LightReceived、seed=SeedPlaced。このslotはダイスの入力だけを対象とし、WaterEnteredはsourceKind=diceに限定する。天候の雨groupを、ダイスの直接作用先として選ばない。証拠または成立文章がないslotは空とし、無理に3件へ埋めない。
-選択した最大3groupから焦点を決める。input_pairが別々のgroupを必要とするときは、その二つ目をsecondaryにする。それ以外は残る注目候補groupの固定順位1位をsecondaryにし、候補がなければnullにする。
-supportingGroupIdsには文の成立に必要な焦点以外の全groupを重複なくgroupId順で保持し、焦点候補の3枠やsecondaryの1枠で証拠を削らない。同じ地点の他kindをsupportingへ保存しただけではsecondaryを増やさない。
-`selectionPolicyVersion=oracle-focus.v0.4`の最終比較は、同messageIdならgroupId昇順、さらに同じなら§7.3のbindingKey昇順で決着する。v0.4では入力元を分けたgroupと天候述語を使い、その他のranking順は維持する。表示器は保存済みPresentationPlanに従い、補助焦点を選び直さない。
+1. 保存対象となる実イベント・入力・状態差分から、その回の事実とObservationGroupを作る。カード未成立は通常rankingへ入らず、§7.1の基本文経路へ進む。
+2. `kind=factual`だけを対象に、`allowedElements`、全`requiresAll`、`forbiddenFlags`、§7.3の完全な束縛を検査する。fallbackは通常候補へ混ぜない。成立した`messageId + focusGroupId`ごとに最小bindingKeyの束縛を一つ採用し、以下ではこれを「文章候補」と呼ぶ。
+3. **全文章候補**から、下表の三つの枠を求める。同じgroupは重複を除き、空き枠を埋め直さず、最大3groupにする。
+4. そのgroupへ結び付く文章候補を最終順位で比較し、1位を主焦点と本文にする。第2枠へ全候補の最終順位1位を必ず含めるため、中間のgroup制限でその候補を落とさない。
+5. input_pairの必須相手を優先して補助を一つ決める。それ以外は残る注目候補groupの固定重要度1位、なければnullにする。
+6. 文章・focusGroupId・補助group・述語の束縛先・scoreTuple・比較した直近messageIdとResolved.seqを保存する。factual候補がないときだけ、入力の実適用を裏付ける基本文へ進む。
+
+| 枠 | 選ぶgroup | 役割 |
+|---|---|---|
+| 1 | 全候補のgroupから固定重要度1位 | 開花など、今回の大きな変化を残す |
+| 2 | 全文章候補を最終順位で比較した1位のfocusGroup | カードとの対応と直近の文章を考慮した注目先。カード一致候補がなくてもこの枠を使う |
+| 3 | ダイスの直接入力groupのうち固定重要度1位 | 今回加えた入力の作用先を残す |
+
+groupの**固定重要度**は「そのgroupを焦点とする成立候補文章の最大priority、段階rank」の降順、同点はgroupIdの昇順とする。段階rankはBloomed=4、BudFormed=3、LeafOpened=2、Germinated=1、他は0。groupが持つ元イベントの最大rankを使い、supportingの別groupのrankを借りない。水量と成長量など異単位の数値を直接比較しない。
+
+文章候補の**最終順位**は`cardAffinity / recentNovelty / priority`の降順、その後messageId・focusGroupId・bindingKeyの昇順。scoreTupleもこの三値を同じ順で保存する。groupの固定重要度と最終順位を一つのscoreへ混ぜない。
+直接入力groupのkindはwater=WaterEntered、wind=WindReceived、light=LightReceived、seed=SeedPlaced。この枠はダイスの入力だけを対象とし、WaterEnteredはsourceKind=diceに限定する。天候の雨groupをダイスの直接作用先にしない。証拠または成立するfactual文章がない枠は空とする。
+
+input_pairが二つのgroupを必要とするときは、§7.3で定めた二つ目をsecondaryにする。supportingGroupIdsには文の成立に必要な焦点以外の全groupを重複なくgroupId順で保持し、焦点候補の3枠やsecondaryの1枠で証拠を削らない。同じ地点の他kindをsupportingへ保存しただけではsecondaryを増やさない。
+新しい文が主焦点になる回も、残る候補の最重要groupを補助へ使える。必須の種pairが補助を使う場合はそちらを優先する。段階成長・植物・水の確定状態は焦点に選ばれなくても全て表示し、強い注目点だけを絞る。表示器は保存済みPresentationPlanに従い、焦点や補助を選び直さない。
+
 `cardAffinity`は引いたcardIdが`cardTags`にあると1、なければ0。カードは真偽判定へは入れない。
 `priority`はcatalog内の固定整数。`recentNovelty`は同runでこのPrepared.seqより前の直近3件のResolvedに保存されたmessageIdにないと1、それ以外は0とする。
-3件はResolvedレコード数であり、同じmessageIdの重複も保持する。比較集合を永続したPreparedのprefixで固定し、後着の提示記録を使わない。
+3件はResolvedレコード数であり、同じmessageIdの重複も保持する。3件未満なら存在する分だけを新しい順で使い、Prepared.seq以上の後着recordは含めない。
 実際に読まれたかは判定せず、提示の事実はPresentationReceiptで別に保持する。
 本書のmessageIdはcatalog.entries[].idを指し、保存DTOのSelectedMessage.templateIdへ記録する。
 基本文を直接選ぶ場合はscoreTuple=null、比較履歴の配列は空、fallbackReasonは`no_factual_candidate`または`card_unavailable`とする。実行しなかったrankingの値を作らない。
-同じ大きな成長があっても、根なら土の吸水、調和なら水と光の成立条件など、事実があるときは見る角度を変えられる。
-根拠がないときまでカードらしい説明を作らない。カードを引き直したり、出目や自然の変化を文章に合わせたりしない。
 
-現行候補は[oracle-catalog.v0.4.json](./content/oracle-catalog.v0.4.json)の28本。4入力fallbackと24本の事実条件付き文章を持つ。[oracle-catalog.v0.2.json](./content/oracle-catalog.v0.2.json)の既存24本文とIDは維持し、天候との関係を述べる4本を加える。旧catalogは過去の設計資料として残す。
+同じカードに合う「雨の中に、光が差しました。」を直近に使い、今回も成立する別の光の事実文が未使用なら、その別文を先に選べる。全候補が直近に使われているときはpriorityと固定ID順へ戻る。一つの事実文しか成立しない場合や、カード対応を優先した結果は同文の継続も許す。過去文を削除したり、言い換えだけを乱数で増やしたりしない。
+同じ大きな成長があっても、根なら土の吸水、調和なら水と光の成立条件など、事実があるときは見る角度を変えられる。根拠がないときまでカードらしい説明を作らず、カード・出目・自然の変化を文章に合わせて変更しない。
+
+現行候補は[oracle-catalog.v0.5.json](./content/oracle-catalog.v0.5.json)の28本。4入力fallbackと24本の事実条件付き文章を持つ。v0.4の全entryをそのまま維持し、選定policyのmetadataだけを更新する。旧catalogは過去の設計資料として残す。
 JSONは`status=designCandidate`であり、Unityの選定器・画面での読みやすさは未検証。G3で内容と条件を検証して採用する。
-出目番号は保存済み配面を介して系統・recipeへ解釈する。文中へ出す量や位置を、カードの印象から補完しない。
-外部AIとの通信なしで一巡できる。実行時の自由生成を入れる場合も、別の設計・版で扱う。
+選定順位だけの合成例を[oracle-selection-fixtures.v0.5.json](./content/oracle-selection-fixtures.v0.5.json)へ置く。ここでは成立済みの根拠と束縛の順序キーを入力する。自然計算や同cell/tickの述語判定を実行したfixtureではない。
+出目番号は保存済み配面を介して系統・recipeへ解釈する。文中へ出す量や位置を、カードの印象から補完しない。外部AIとの通信なしで一巡でき、実行時の自由生成は別の設計・版で扱う。
 
 ### 7.3 述語と根拠の契約
 
@@ -411,7 +422,9 @@ profileやrecordが破損して適用自体を確認できなければ、成功�
 - 6面の保存前に投擲できず、意図の確定前に出目を先取りしない。
 - 水が2面・3面・0面の配面で、目標の確率と未設定の扱いが一致する。
 - 実際に発芽していない場面では発芽した文章が選ばれず、基本文で継続できる。
-- 同じカードが続いても再抽選せず、文章の違いだけで読みやすさを保てる。
+- 同じカードが続いても再抽選せず、同じカードに対応する未使用の事実文を選べる。唯一の事実しかなければ同文を許可する。
+- 全文章候補で最終順位1位のgroupが、最大3groupの選抜でも残る。カード一致候補がない場合も同じ順序で決まる。
+- 全候補既出、直近Resolvedの重複、Prepared後の後着record、同点のgroup/binding、input_pairの必須補助で再開後も同じ文章と焦点になる。
 - 作用範囲外の乾燥や完全遮蔽セルだけを変えても、無関係なrecipeの局所needは変わらない。
 - 水の2レシピは総量が一致し、種の2レシピは配置先の包含による一方的な上位互換にならない。
 - 同じ実事実に複数の焦点があるfixtureでは、カードを変えると焦点が変わり、事実は変わらない。
