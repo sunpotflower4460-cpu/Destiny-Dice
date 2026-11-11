@@ -1,6 +1,6 @@
 # Unity箱庭 — 体験・動的な6面・表現・言葉
 
-設計版: 0.3 / 2026-11-11。Unity実装・実機の体験検証は未実施。自然モデルの係数と24本の文章本文はv0.2を継続する。
+設計版: 0.4 / 2026-11-11。Unity実装・実機の体験検証は未実施。基礎の自然モデルはv0.2を使い、v0.4の天候・合成規則を重ねる。既存24本の文章本文を保ち、天候との関係を述べる4本を追加する。
 
 ## 0. この文書の位置づけ
 
@@ -14,6 +14,7 @@
 
 - Unity製。iOS・AndroidのスマホとSteamでの展開を前提にする。
 - サイコロで庭に入るものが決まり、位置関係や庭の状態から自然の変化が生じる。
+- 天候があり、その雨・日差し・風とサイコロの局所入力が同じ庭へ作用する。
 - 6面の割り当てそのものを、庭の状況と乱数から毎回生成する。
 - 意図する・祈る・言葉にする余地があり、記録と後の振り返りを自動化する。
 - 美しく神秘を感じるエフェクトとSE、状況に合った分かる言葉を届ける。
@@ -39,10 +40,13 @@
 花は最終段階として残る。その後も水・光・風の小さな変化を見られるようにし、投擲を続けるために花を消さない。
 発見記録は既存イベントの初回出現を`kind + 対象cell/plant + stage`から導出するprojectionとする。新しい報酬、在庫、クエストは追加しない。
 
+天候は「晴れ・薄曇り・小雨」の三つを初期案とし、庭の基礎の光・風・雨を変える。初期は晴れ、その後は正常に解決した3投ごとに次の天候を独立に選ぶ。同じ天候の継続も許可する。天候の保存・切替・数値の正は[WEATHER.md](./WEATHER.md)と[weather-profile.v0.4.json](./content/weather-profile.v0.4.json)を参照する。
+天候を配面と一緒に振る前から知らせることで、「雨の中へ光を添える」「湿りが続く場所へ風が入る」という関係を見つけられるようにする。天候だけで成功・失敗を決めず、場所の状態と合成した場から変化を計算する。
+
 ### 一投の順序
 
-1. 前の自然変化を確定し、庭の状態から次の6面を生成する。
-2. 6面とその生成条件を保存する。保存成功後、画面が生成元の終状態になってから一覧を公開し、その投擲について固定する。
+1. 前の自然変化を確定し、今回の天候を固定して、庭の状態とその天候から次の6面を生成する。
+2. 天候参照・6面・生成条件を保存する。保存成功後、画面が生成元の終状態になってから天候と一覧を公開し、その投擲について固定する。
 3. 必要なら願いの対象や方法を置く。前回の設定を続けても、何も選ばなくてもよい。
 4. サイコロに触れている間に思う・祈る・声に出す。離すと投擲を要求する。
 5. 意図の記録が確定してから出目を取得し、その面に保存済みの入力を庭へ適用する。
@@ -50,7 +54,7 @@
 7. 過程再生の終了・省略で同じ終状態を見せ、用意済みの次の6面を公開する。そのまま次を振れ、結果の確認ボタンは出さない。
 
 カードは一投につき一度だけ独立に抽選・保存し、メッセージ選定前に確定させる。
-配面・出目・カードの抽選は別用途として扱う。文章から前段の結果を変更しない。
+天候・配面・出目・カードの抽選は別用途として扱う。天候は配面より前、出目は意図より後に確定する。文章から前段の結果を変更しない。
 連打や二重タッチで同じ投擲の抽選を重ねない。処理中は庭の動きを見せて入力を待つ。
 
 ## 2. 操作を増やさないUI
@@ -103,7 +107,7 @@
 | 系統 | recipeId | 表示名（仮） | 違い | 候補条件 |
 |---|---|---|---|---|
 | water | water_drop | しずく | 同じ総量を狭い範囲へ一度に入れる | 常時 |
-| water | water_rain | 雨 | 同じ総量を広い範囲と複数tickへ分配する | 常時 |
+| water | water_rain | 小さな雨 | 同じ総量を広い範囲と複数tickへ分配する | 常時 |
 | wind | wind_breeze | そよ風 | 広い範囲へ弱い風を通す | 常時 |
 | wind | wind_passage | 通り抜ける風 | 狭い範囲へ強い風を通す | 常時 |
 | light | light_soft | 淡い光 | 広い範囲へ弱い光を入れる | 常時 |
@@ -116,6 +120,7 @@
 水の2レシピは総注水量を等しくする。どちらが庭へ届きやすいかは、分配・注入時間・そのときの湿りから決まる。
 種の2レシピは作用集合を非包含にする。2粒の方が1粒の場所へ必ず追加する形にせず、中心と外側で湿り・光の違いが生きる配置にする。
 半径、量、強さ、時間、注入scheduleの初期数値は[simulation-profile.v0.2.json](./content/simulation-profile.v0.2.json)へ集約する。値は試作候補であり体験の合格値ではない。
+天候からの入力と合成する規則は[weather-profile.v0.4.json](./content/weather-profile.v0.4.json)を重ねる。天候の「小雨」とダイスの「小さな雨」は表示と入力元を区別し、どちらも実際に入った量を記録する。
 入力位置と風・光の方向は、展示版では庭に設定した固定anchorから決める。
 配面保存時にanchor・候補セル・各パラメータも固定する。投擲後に便利な位置へ移さない。
 種の候補セルは各レシピの範囲内でanchorからの格子距離、同距離なら固定cellId順で選ぶ。中心側と外側の正確なセルはG2のmapで検証する。
@@ -127,6 +132,7 @@
 ### 4.1 状態を固定してから計算する
 
 `stateBefore`は最後の保存済みResolved.postState、最初はRunStartedの初期状態とする。run内の未終端roundは一つだけで、準備時と解決保存時に開始状態参照を照合する。
+今回の`Prepared.weatherContext`も配面生成前に固定する。庭の開始状態参照と天候参照を一緒に使い、過去の天候から計算した場を使い回さない。天候の保存・取消後の再利用・一期の数え方はDATA_CONTRACTに従う。
 配面を眺める時間や意図時間によって、生成済み配面の重み・位置・パラメータは動かさない。
 対象土セルが一つ以上あり、水・風・光を常に定義できることを庭設定の検証条件にする。
 seedは上表の空き土セル条件を満たすrecipeだけ候補に含める。
@@ -142,8 +148,8 @@ eligibleな系統が3未満の設定は検証失敗。密かに別の抽選方�
 | 系統 | relevanceCellsと整数doseWeightの初期定義 |
 |---|---|
 | water | 直接注入される土セル。各セルへ配る総水量を重みにする。将来の流路は推測しない |
-| light | 追加光が実際に正となる土セル。距離減衰・遮蔽・上限を適用した追加照射の積算量を重みにする |
-| wind | 風が実際に正となる土セル。距離減衰・遮蔽後の風量と作用時間の積を重みにする |
+| light | ダイスの追加実効光が正となる土セル。現在天候だけの場と、距離減衰したダイス光を合成して上限・遮蔽を適用した場との差に、作用時間を掛けた量を重みにする |
+| wind | ダイスの追加実効風が正となる土セル。現在天候だけの場と、ダイス風を合成して上限・遮蔽を適用した場との差に、作用時間を掛けた量を重みにする |
 | seed | そのレシピの範囲内の全plantable土セル。占有セルも分母へ含め、各セルの重みは1 |
 
 水・光・風の支持範囲に土セルがない場合はneed=0とし、基準重み100を使う。入力自体を黙って削除しない。
@@ -152,7 +158,7 @@ eligibleな系統が3未満の設定は検証失敗。密かに別の抽選方�
 ### 4.3 整数の計算式
 
 土セルは`!solid && soilCapacity > 0`、水分は`m = floor(1000 * soilWater / soilCapacity)`とする。
-光の状態値`l`は直前40tickの`meanLight`。最初の配面は初期mapの基礎光と遮蔽から求める。
+光の状態値`l`は今回の天候だけから得る焦点セルの実効光`Lweather`。天候の光へmapの露出比を適用した値を使う。直前40tickの`meanLight`は観察値として残すが、v0.4の配面重みへは使わない。晴れから薄曇りへ変わった回も、現在の天候で必要度を求める。
 `low = moistureOptimalLow`、`high = moistureOptimalHigh`、`sat = lightGrowthSaturation`はsimulation profileと同じ値を使う。
 `clampQ(x)`は整数を0〜1000へ制限する。設定検証で`0 < low <= high < 1000`、`sat > 0`を要求する。
 
@@ -170,6 +176,7 @@ eligibleな系統が3未満の設定は検証失敗。密かに別の抽選方�
 値の範囲外や状態欠落は検証エラーとし、欠けた状態を「乾燥している」などに読み替えない。
 重みを変更する場合は計算式・パラメータ・rulesetVersionを一緒に更新する。
 意図の内容、声、祈り方、カード、的中率、メッセージの都合は重みへ入力しない。
+水と風の湿り指標は開始時の実際の土中水を使う。今から降る予定の雨を既に吸った水として足したり、40tick後の開花を先読みして候補を選んだりしない。
 重み3倍は出目が3倍当たりやすいという意味ではなく、配面に収録される候補重みである。
 局所needの効果は、同じ乱数列を使った乾燥／適湿／過湿・遮蔽の参照比較で確認する。一つ一つの配面が常に有利になる保証は設けない。
 
@@ -187,7 +194,7 @@ eligibleな系統が3未満の設定は検証失敗。密かに別の抽選方�
 重み付き抽選は、対象の整数重み合計未満の一様整数を取り、累積重みで選ぶ。
 候補が一つでも`UniformBelow(重み合計)`を呼ぶ。候補数だけを理由にbyte消費を省略しない。
 整数への変換とFisher–Yatesの各index選択では、剰余による偏りを避ける方式を使う。
-`mappingPolicyVersion=dynamic-faces.v0.3`では、系統順を`water / wind / light / seed`、recipe順を保存したprofileの`recipes[]`順に固定する。v0.2 profileでは水2種、風2種、光2種、種2種の掲載順であり、filter後も相対順を保つ。
+`mappingPolicyVersion=dynamic-faces.v0.4`では、系統順を`water / wind / light / seed`、recipe順を保存したprofileの`recipes[]`順に固定する。v0.2 profileでは水2種、風2種、光2種、種2種の掲載順であり、filter後も相対順を保つ。v0.4は現在天候による局所needと実効doseを使い、以下の列挙・乱数消費順は維持する。
 同じmapping bufferを前から使い、最初に3系統を全て選んで抽選順を保ち、その順に各系統のrecipeを一つずつ選ぶ。残り3枠もrecipe原順で一枠ずつ選び、途中で候補を並べ替えない。
 shuffleは0始まりの6枠を`i=5,4,3,2,1`の順に、`j=UniformBelow(i+1)`で交換する。完成配列のindex+1をfaceIdとする。UniformBelowとbyte消費はDATA_CONTRACT§4.1に従い、shuffleだけ別の乱数を使わない。
 残り枠の候補が空になる設定は検証失敗。無制限の再抽選や制約の解除をしない。
@@ -215,9 +222,10 @@ shuffleは0始まりの6枠を`i=5,4,3,2,1`の順に、`j=UniformBelow(i+1)`で�
 ### 6.1 記録と、見る人への提示を分ける
 
 保存する`SimulationEvent`の集約・証拠は[SIMULATION.md](./SIMULATION.md)に従う。表示の都合で記録された不都合な結果を落とさない。
-`groupingVersion=observation-groups.v0.3`では、同一round・同kindのイベントが対象とするセルを、上下左右4近傍の連結成分ごとに`ObservationGroup`へまとめる。
+`groupingVersion=observation-groups.v0.4`では、同一round・同kindのイベントが対象とするセルを、上下左右4近傍の連結成分ごとに`ObservationGroup`へまとめる。WaterEnteredだけは、さらに`sourceKind=dice / weather`で分け、天候の雨とダイスの注水を同じgroupにしない。
 同じ植物のイベントはそのcellへ束縛する。firstTickは最小値、lastTickは最大値、eventIds/plantIdsは重複除去後の固定ID順、cellIdsは昇順とする。
 `groupId = roundId + ":" + kind + ":" + minCellId`で固定する。対象セルのない入力fallbackはgroupを作らない。
+WaterEnteredのgroupIdは`roundId + ":WaterEntered:" + sourceKind + ":" + minCellId`とする。LightReceived・WindReceived・WindShelteredはダイスによる追加作用を表し、天候だけの場はWeatherApplicationEvidenceに保持する。
 例外はSurfaceFlowObservedだけで、`groupId = roundId + ":SurfaceFlowObserved:global"`の一つの全域groupにする。元のinvolvedCellIds・区間・集計量をそのまま保持し、離れた水たまりが含まれても4近傍分割しない。
 異なる種類の量を一律に足さず、成分別に分離できない全域集計値を各groupへ複製しない。groupingVersionと参照した証拠を保存する。
 全域の流れを焦点にする文・FXは「庭で水が動いた」という範囲にとどめ、特定セルの量や根元への到達へ読み替えない。
@@ -242,6 +250,7 @@ shuffleは0始まりの6枠を`i=5,4,3,2,1`の順に、`j=UniformBelow(i+1)`で�
 | 変化のあと | 庭を隠さず、短い言葉を表示 | 余韻のあと環境音へ戻る |
 
 一投につき、出目確定の鐘は1回、入力の自然音loopは最大1本、段階成長などのアクセントは最大1回を初期上限とする。
+自然音loopの最大1本には天候の雨音・風音も含める。天候音を別枠で重ねず、主焦点へ音を移す場合もこの上限内で扱う。
 セルごとの変化や複数の開花を個別に重ね鳴らししない。主焦点と補助が違う場所なら、同時に強く光らせない。
 通常の各入力は数秒で伝わる長さを初期目安とし、正確な時間は実機の手触りで調整する。
 光や粒子は状態変化を伝えるものとし、実モデルにない水路や発芽を描かない。
@@ -250,6 +259,12 @@ shuffleは0始まりの6枠を`i=5,4,3,2,1`の順に、`j=UniformBelow(i+1)`で�
 特定の周波数や音階に実証済みの超常的効能があると説明しない。
 音量調整、消音、画面揺れなし、光の動きを抑える設定でも、現象と結果を把握できるようにする。
 これらの表現設定はモデルの状態・抽選・メッセージの事実条件を変えない。
+
+### 6.3 天候と局所入力を見分ける
+
+天候は画面上の小さな名称・アイコンと庭全体の光の調子で示し、ダイスの作用は今回の面と局所の輪郭で示す。雨の色だけで入力元を区別しない。待機中に天候を示していても、土中水・水面・植物の計算は進めない。
+自然変化の再生では、天候の雨pulseとダイスの注水scheduleに従って水を入れる。由来の分かるのは投入時点までとし、混ざった流れや吸水を後から色分けして追跡したように見せない。
+天候は次の6面と同じround文脈で公開する。前回の言葉を残すときはその回の識別を保ち、新しい天候への感想だったように見せない。履歴の「庭の歩み」には天候の帯を添え、天候とダイスの入力記号を別の行で読めるようにする。
 
 ## 7. オリジナルカードと、自然に分かる言葉
 
@@ -261,6 +276,7 @@ shuffleは0始まりの6枠を`i=5,4,3,2,1`の順に、`j=UniformBelow(i+1)`で�
 この分岐では通常rankingへ進めず、カード紋章は出さない。focusGroupId/primaryGroupId/secondaryGroupIdはnullとする。
 初期`deckVersion`では、固定順に`sprout / roots / circulation / space / harmony / lantern`を対応させる。
 カードはモデルへ力を加える入力ではなく、実際に起きた変化のどこに目を向けるかを示す。
+天候はカードの抽選重みや順序を変えない。雨だから根のカードを引くのではなく、引いたカードと実際の雨・局所入力・出来事から成立する文を選ぶ。
 
 | cardId | 表示名 | 文章の焦点と、必要になる事実 |
 |---|---|---|
@@ -286,10 +302,10 @@ shuffleは0始まりの6枠を`i=5,4,3,2,1`の順に、`j=UniformBelow(i+1)`で�
 groupの固定順位は「成立候補文章の最大priority、段階rank」の降順、同点はgroupIdの昇順とする。水量と成長量など異単位の数値を直接比較しない。
 段階rankはBloomed=4、BudFormed=3、LeafOpened=2、Germinated=1、他は0。複数の根拠があるgroupは最大値を取る。
 三つの候補は、全groupの固定順位1位、当該cardに合う成立候補だけで同じ順位を求めた1位、当該系統の直接入力groupの固定順位1位とする。
-直接入力groupのkindはwater=WaterEntered、wind=WindReceived、light=LightReceived、seed=SeedPlaced。証拠または成立文章がないslotは空とし、無理に3件へ埋めない。
+直接入力groupのkindはwater=WaterEntered、wind=WindReceived、light=LightReceived、seed=SeedPlaced。このslotはダイスの入力だけを対象とし、WaterEnteredはsourceKind=diceに限定する。天候の雨groupを、ダイスの直接作用先として選ばない。証拠または成立文章がないslotは空とし、無理に3件へ埋めない。
 選択した最大3groupから焦点を決める。input_pairが別々のgroupを必要とするときは、その二つ目をsecondaryにする。それ以外は残る注目候補groupの固定順位1位をsecondaryにし、候補がなければnullにする。
 supportingGroupIdsには文の成立に必要な焦点以外の全groupを重複なくgroupId順で保持し、焦点候補の3枠やsecondaryの1枠で証拠を削らない。同じ地点の他kindをsupportingへ保存しただけではsecondaryを増やさない。
-`selectionPolicyVersion=oracle-focus.v0.3`の最終比較は、同messageIdならgroupId昇順、さらに同じなら§7.3のbindingKey昇順で決着する。表示器は保存済みPresentationPlanに従い、補助焦点を選び直さない。
+`selectionPolicyVersion=oracle-focus.v0.4`の最終比較は、同messageIdならgroupId昇順、さらに同じなら§7.3のbindingKey昇順で決着する。v0.4では入力元を分けたgroupと天候述語を使い、その他のranking順は維持する。表示器は保存済みPresentationPlanに従い、補助焦点を選び直さない。
 `cardAffinity`は引いたcardIdが`cardTags`にあると1、なければ0。カードは真偽判定へは入れない。
 `priority`はcatalog内の固定整数。`recentNovelty`は同runでこのPrepared.seqより前の直近3件のResolvedに保存されたmessageIdにないと1、それ以外は0とする。
 3件はResolvedレコード数であり、同じmessageIdの重複も保持する。比較集合を永続したPreparedのprefixで固定し、後着の提示記録を使わない。
@@ -299,7 +315,7 @@ supportingGroupIdsには文の成立に必要な焦点以外の全groupを重複
 同じ大きな成長があっても、根なら土の吸水、調和なら水と光の成立条件など、事実があるときは見る角度を変えられる。
 根拠がないときまでカードらしい説明を作らない。カードを引き直したり、出目や自然の変化を文章に合わせたりしない。
 
-初期候補は[oracle-catalog.v0.2.json](./content/oracle-catalog.v0.2.json)の24本。4入力fallbackと20本の事実条件付き文章を持つ。
+現行候補は[oracle-catalog.v0.4.json](./content/oracle-catalog.v0.4.json)の28本。4入力fallbackと24本の事実条件付き文章を持つ。[oracle-catalog.v0.2.json](./content/oracle-catalog.v0.2.json)の既存24本文とIDは維持し、天候との関係を述べる4本を加える。旧catalogは過去の設計資料として残す。
 JSONは`status=designCandidate`であり、Unityの選定器・画面での読みやすさは未検証。G3で内容と条件を検証して採用する。
 出目番号は保存済み配面を介して系統・recipeへ解釈する。文中へ出す量や位置を、カードの印象から補完しない。
 外部AIとの通信なしで一巡できる。実行時の自由生成を入れる場合も、別の設計・版で扱う。
@@ -312,6 +328,7 @@ JSONは`status=designCandidate`であり、Unityの選定器・画面での読�
 選んだ束縛先を`predicateBindings`へ残す。存在しないイベント、未実装の証拠、未知の値は成立とみなさない。
 
 catalogの`scope=focus`は、主groupの対象cell/plantに少なくとも一つの述語根拠を結び付け、他kindの根拠も同じ対象へ束縛する意味とする。別groupを参照した場合はsupportingGroupIdsへ保存する。
+新しい`weather_rain_reached_focus`と`plant_from_earlier_seed`は補助条件であり、この二つだけではfocusを与えない。天候の4文は、組み合わせるLightReceived・WindReceived・SeedPlaced・Germinatedのgroupを焦点にする。雨の全域groupへ焦点を広げず、WeatherApplicationEvidenceや個体の出自へのsourceRefsをpredicateBindingsに残す。
 SurfaceFlowObservedのglobal groupを焦点にする場合は、全域の流れそのものを対象にする。全域集計を任意のcell/plantへ束縛し直して他の局所条件と合成しない。
 `scope=input_pair`だけは、同じ種入力で生成された二つのcell/plantを集合として扱う。二つが別groupならgroupId昇順の先頭を焦点、もう一方をsupportingとし、無関係な種や前の回の種を数えない。
 `scope=input`は4系統のfallback専用で、groupを要求せずInputApplicationEvidenceへ直接束縛する。scope自体は真偽の根拠にはしない。
@@ -324,18 +341,18 @@ SurfaceFlowObservedのglobal groupを焦点にする場合は、全域の流れ�
 
 | predicate | 成立に必要な事実・時間条件 |
 |---|---|
-| `input_applied` | Resolved.inputApplicationEvidenceがこのroundのscheduleの実適用を裏付ける。出目に選ばれただけでは成立せず、自然の変化や成功も含意しない |
+| `input_applied` | Resolved.inputApplicationEvidenceがこのroundのダイスscheduleの実適用を裏付ける。weatherApplicationEvidenceだけでは成立せず、出目に選ばれただけでも成立しない。自然の変化や成功を含意しない |
 | `soil_moistened` | 焦点土セルの集約吸水`cumulativeAbsorbed > 0`。途中の吸水なので文は過去形にする |
 | `soil_was_dry` | 同じ土セルの事前水分比が`moistureDryStop`未満 |
 | `root_zone_wetted` | 吸水時に発芽済みだった同じ植物のRootZoneWettedと正の吸水累計 |
 | `puddle_formed` | 同じセルが今回PuddleFormedの水深閾値を下から越えた記録。低地やくぼみであるとは推測しない |
 | `surface_flow_observed` | 今回のglobalなSurfaceFlowObservedのcumulativeTransportが正で、対象セル集合・区間が記録されている。反復移動を含む全域輸送量で、各セルの量・注水総量・特定経路の由来とは別 |
 | `verified_path_to_root` | 時間順の流量辺による根元までの経路と、その根元の吸水を確認した証拠。同じ水粒子の由来は断定しない |
-| `wind_reached_focus` | 焦点セルのWindReceivedで今回の積算実効風量が正となった区間と値が記録されている |
-| `wind_sheltered` | WindShelteredの実効風量と無遮蔽風量、岩のblockerCellIdが減衰を裏付ける |
+| `wind_reached_focus` | 焦点セルのWindReceivedで、合成実効風と天候だけの実効風との差であるダイス追加分が正となった区間と積算値が記録されている |
+| `wind_sheltered` | WindShelteredで同じダイス追加風の無遮蔽値と遮蔽後値を比較し、実在する岩のblockerCellIdが減衰を裏付ける。天候の風の遮蔽だけを使わない |
 | `moisture_returned_to_band` | 同じ土セルの事前水分比がoptimalHigh超、終状態はoptimalLow〜optimalHighの範囲 |
-| `light_reached_focus` | LightReceivedの積算追加実効光が正。今回の追加照射が焦点セルへ届いた区間の証拠 |
-| `light_attenuated_by_rock` | 同じ照射の無遮蔽値より実効値が小さく、実効値は正。岩による遮蔽のmap根拠もある |
+| `light_reached_focus` | LightReceivedで合成実効光と天候だけの実効光との差を積算した値が正。今回のダイス追加光が焦点セルへ届いた区間の証拠 |
+| `light_attenuated_by_rock` | 同じダイス追加光の無遮蔽値より遮蔽後値が小さく、遮蔽後値は正。岩による遮蔽のmap根拠もある。天候の明るさだけで成立させない |
 | `growth_advanced` | 同一plantのGrowthObservedでpostGrowthがbeforeGrowthより大きい。段階越えや開花とは区別する |
 | `seed_placed` | 今回SeedPlacedで追加した個体・cell・placedTickの記録がある |
 | `soil_in_band_at_seed` | 同じSeedPlacedのsoilQAtPlacementがoptimalLow〜optimalHighの範囲 |
@@ -346,6 +363,8 @@ SurfaceFlowObservedのglobal groupを焦点にする場合は、全域の流れ�
 | `bloomed` | 同一plantのBloomedの閾値越えが今回記録された |
 | `soil_and_light_sufficient_during_growth` | 同じ植物のfirstPositiveGrowthEvidenceでmoistureFactorQ・effectiveLightQ・growthDeltaが正。保存profileから同tickのlightFactorも正と確認できる |
 | `shadowed_bud_unchanged` | 今回の光の範囲にある岩陰の同じplantが事前・終状態ともbud。遮蔽値・段階比較を確認し、イベント欠落から推測しない |
+| `weather_rain_reached_focus` | 今回のWeatherApplicationEvidenceで焦点cellへの正の雨の実適用tickが確認できる。天候名だけでは成立しない。§7.4の相手の出来事と同cell・所定の同tick/区間関係を満たす補助条件 |
+| `plant_from_earlier_seed` | stateBeforeの同じplantIdがoriginKind=seedInputで、seedSourceRoundIdが今回と異なる。その過去roundの保存済みSeedPlacedが同じplantId/cellIdを持つと確認できる。初期map個体・今回の種・不明な出自は不成立。過去の入力順の対応であり、過去の水の寄与は意味しない |
 
 表のoptimalLow/optimalHighは`moistureOptimalLow / moistureOptimalHigh`の略。閾値は保存したsimulation profileを参照する。
 `surface_flow_observed`は全庭の正の流量辺をroundで集約した一つのglobal groupで扱う。`verified_path_to_root`は経路証拠を実装・保存しない版ではfalseにし、流れがあったことだけから経路を推測しない。
@@ -359,7 +378,20 @@ SurfaceFlowObservedのglobal groupを焦点にする場合は、全域の流れ�
 条件が一つもない文章を、開花・到達・成長などの成功描写に使わない。fallbackにも`input_applied`を必須にする。
 profileやrecordが破損して適用自体を確認できなければ、成功文を出さず保存・回復の経路へ戻す。
 
-### 7.4 短く、実際に分かる言葉にする
+### 7.4 天候と同じ場所・時間を結ぶ4文
+
+| templateId | 本文 | 主焦点と雨の時間条件 |
+|---|---|---|
+| `message.weather.rain_light` | 雨の中に、光が差しました。 | LightReceivedの焦点cell。同じcellの実雨pulseが、正のダイス追加光の区間と少なくとも一つ重なる |
+| `message.weather.rain_wind` | 雨の降る場所を、風が通りました。 | WindReceivedの焦点cell。同じcellの実雨pulseが、正のダイス追加風の区間と少なくとも一つ重なる |
+| `message.weather.rain_seed` | 雨の降る土に、種を置きました。 | 今回のSeedPlacedのcell。実雨pulseのtickがplacedTickと一致 |
+| `message.weather.earlier_seed_germinated` | 前に置いた種が、雨の中で芽を出しました。 | 過去の種から今回Germinatedした同じplant/cell。実雨pulseのtickがGerminated.tickと一致 |
+
+小雨の実注入はoffset0,4,…,36だけなので、「その一投が小雨」だけで任意のtickの同時性を補わない。発芽が雨pulseのないtickなら最後の文は候補外とし、既存の発芽文などを使える。新しい文のために雨・発芽時刻・カードを変更しない。
+雨の同tickとは、開始tickIndexにoffset+1を加えた自然モデルのイベントtickが一致する意味であり、画面を描画した時刻ではない。最初と最後の雨tickだけから間の全tickに降ったと推測せず、固定scheduleと実適用証拠を照合する。
+これらの文は、同じ場所での入力や出来事の重なりを述べる。雨水の特定の割合がその根へ届いた、雨がなければ芽が出なかった、という反実仮想や由来を付け加えない。補助証拠は主焦点のセルへ束縛し、主焦点1・副焦点最大1の表示上限を維持する。
+
+### 7.5 短く、実際に分かる言葉にする
 
 「根元の土に、水が染み込みました」「光の届いた場所で、植物の成長が進みました」など、一つの焦点を短く伝える。
 文は最大2文を初期上限とする。一文で足りるときに、意味の曖昧な一文を後付けしない。
@@ -383,6 +415,10 @@ profileやrecordが破損して適用自体を確認できなければ、成功�
 - 作用範囲外の乾燥や完全遮蔽セルだけを変えても、無関係なrecipeの局所needは変わらない。
 - 水の2レシピは総量が一致し、種の2レシピは配置先の包含による一方的な上位互換にならない。
 - 同じ実事実に複数の焦点があるfixtureでは、カードを変えると焦点が変わり、事実は変わらない。
+- 雨はcell A、ダイス光はcell Bだけの場合、同じ一投でも雨と光を重ねた文は選ばれない。
+- 天候の光・風が正でも、ダイス追加分が0なら、そのダイスのReceivedや直接入力groupを作らない。
+- 小雨の非pulse tickでの発芽には、雨と発芽の同tickを要求する文を選ばない。初期map個体や今回の種を「前に置いた種」としない。
+- 同じ天候・庭・出目でカードだけを変えたとき、自然の状態は同じで、成立している文章の焦点だけが変わる。
 - catalogの全requiresAll/forbiddenFlagsが定義済みで、対象やtickの不一致を除外できる。
 - 複数の吸水・開花があっても音の上限を守り、言葉・光・音が同じ焦点を示す。
 - 公平な複数の抽選列で、初期数投の変化の種類・段階成長までの回数・fallback率を報告する。結果列を選別して品質合格にしない。

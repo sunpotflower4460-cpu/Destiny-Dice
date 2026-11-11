@@ -1,16 +1,18 @@
 # 庭の自然モデル
 
-設計版0.3 / `designCandidate`。数式・係数と参照算術はv0.2を継続する。水・風・光・種の位置関係から結果を求める、小さな整数モデルの仕様である。**Unityの実装・実機試験は未実施。** 現実の流体、気象、植物生理を精密に再現したという主張ではない。
+設計版0.4 / `designCandidate`。v0.2の水・土・蒸発・成長の整数式を土台に、固定済み天候とサイコロの局所入力を合成する。水・風・光・種の位置関係から結果を求める、小さな整数モデルの仕様である。**Unityの実装・実機試験は未実施。** 現実の流体、気象、植物生理を精密に再現したという主張ではない。
 
-[simulation-profile.v0.2.json](./content/simulation-profile.v0.2.json)に候補値、[simulation-fixtures.v0.2.json](./content/simulation-fixtures.v0.2.json)に参照算術の入力と期待値を置く。数式・順序・意味は本文、数値はprofileを正とし、矛盾したら設定検証を失敗させる。G2で採用した値・地図・計算版のcontent hashをrunへ固定し、途中で差し替えない。
+[simulation-profile.v0.2.json](./content/simulation-profile.v0.2.json)を基底profileとし、[weather-profile.v0.4.json](./content/weather-profile.v0.4.json)がhashで参照して天候・合成・配面need・注水上限を明示的に拡張する。上書き対象は拡張profileのexplicitReplacementsに限る。矛盾や未知の基底hashは設定検証を失敗させる。G2で採用した両profile・地図・計算版のcontent hashをrunへ固定し、途中で差し替えない。
+
+[simulation-fixtures.v0.2.json](./content/simulation-fixtures.v0.2.json)は基礎光500・無風などを明示した従来の成分例として保持する。天候を加えた全庭参照は[weather-reference-report.v0.4.json](./content/weather-reference-report.v0.4.json)、天候の準備・公開と体験は[WEATHER.md](./WEATHER.md)を参照する。
 
 ## 1. 結果を作るもの
 
 出目から直接「池」「発芽」「開花」を発火させない。確定入力を庭へ加え、位置、岩、湿り、日陰、過去の成長量から計算する。
 
-水は保存する物質、風は蒸発に作用する場、光はその区間の照射、種は成長可能な個体。共通の「エネルギー点数」へまとめない。風に直接の成長ボーナスはなく、蒸発で変わる湿りを通して成長へ作用する。
+水は保存する物質、風は蒸発に作用する場、光はその区間の照射、種は成長可能な個体。共通の「エネルギー点数」へまとめない。風に直接の成長ボーナスはなく、蒸発で変わる湿りを通して成長へ作用する。天候もこの同じ式に入り、光・風の背景場と雨の注入を変える。
 
-| 項目 | v0.2候補 | 意味 |
+| 項目 | v0.4候補 | 意味 |
 |---|---|---|
 | 庭 | 16×16、等面積セル | 見た目は3D、計算は固定格子 |
 | 近傍 | 上下左右4方向 | 斜めへ一足で水を移さない |
@@ -19,6 +21,7 @@
 | 時間 | 1tick = 0.1モデル秒、1投擲40tick | 描画fps・意図時間と独立 |
 | 比率 | `Q = 1000` | 光・風・湿りの係数は整数 |
 | 進行 | 投擲の解決中だけ | 待機中・バックグラウンドでは進めない |
+| 天候 | 晴れ・薄曇り・小雨 | 正常解決3投を一期とし、40tick内では固定 |
 | 植物 | 1種、1セル1個体 | 種→芽→葉→つぼみ→花 |
 
 モデル4秒は現実の植物の4秒を意味しない。展示で読める成長速度は明示した係数で調整し、出目を都合よく変えない。
@@ -32,7 +35,7 @@
 | 可変セル | `surfaceWater`, `soilWater`, `evaporationRemainder`, 直前40tickの`meanLight` |
 | 個体 | `plantId`, `cellId`, `growth`, `growthRemainder`, `stage`, `originKind`, `seedSourceRoundId?` |
 | 系 | `tickIndex`, `lastResolvedRoundId`、注入・蒸発・排出の累計 |
-| 解決入力 | 固定済み`recipeId`と`resolvedParameters`、profileとmapの参照/hash |
+| 解決入力 | 固定済み`recipeId`と`resolvedParameters`、`Prepared.weatherContext`、基底・天候profileとmapの参照/hash |
 
 `height`と`surfaceWater`は同じモデル水深単位。セル面積1なので水量の集計にも同じ数値を使う。メートルやリットルへ未校正の値を換算しない。
 
@@ -42,6 +45,7 @@
 - solidは水・土・植物を持たず、流量辺と入力の対象外。plantableには`!solid && soilCapacity > 0`を要求する。
 - 初期個体の段階は成長量から求める。`originKind=initialMap`とし、架空の播種roundを割り当てない。
 - 初期plantIdはmapの明記値を使う。今回の種は`plantId = roundId + ":seed:" + cellId`（cellIdは先頭ゼロのない10進数）、`originKind=seedInput`、`seedSourceRoundId=roundId`とする。ID生成に乱数・時刻・個体配列のindexを使わず、重複IDは検証失敗にする。
+- 水分・成長・端数・植物の占有は次の投擲へ持ち越す。前回の光・風の場は、今回の天候と入力から作る場へ加算しない。
 
 四則演算・積・総和は明示的なchecked 64bit整数。非負の整数除算は切り捨て、符号付き差は`max(0, difference)`を先に適用する。保存整数はJSONで正確に扱える`±(2^53-1)`以内。範囲外、overflow、保存則違反は計算失敗とし、水量を黙って丸めたり、別の出目へ変更したりしない。
 
@@ -49,20 +53,21 @@
 
 傾斜、岩と迂回路、乾いた土と湿った土、明るい場所と岩陰、芽とつぼみ、空き土を一庭へ置く。各水入力先から唯一の排出口まで非solidセルの経路があり、雨の対象が最低3セルになることを要求する。経路があるだけでは十分な排水を保証しない。
 
-初期16×16の候補を[garden-map.v0.3.json](./content/garden-map.v0.3.json)、配置の狙いを[GARDEN_LAYOUT.md](./GARDEN_LAYOUT.md)へ置く。全庭の独立参照計算は[garden-reference-report.v0.3.json](./content/garden-reference-report.v0.3.json)に残す。profile v0.2の係数は変えない。
+初期16×16の候補を[garden-map.v0.3.json](./content/garden-map.v0.3.json)、配置の狙いを[GARDEN_LAYOUT.md](./GARDEN_LAYOUT.md)へ置く。v0.4は同じ地形・土容量・初期水・植物・anchorを再利用し、初期天候は晴れなので初期meanLightも旧値と一致する。map内のprofileFileとexpandedCellsEncodingはv0.3作成時の参照であり、天候拡張profileを参照するWorldSnapshotのhashや、PreparedのweatherContextの識別子へ読み替えない。
+旧全庭参照は[garden-reference-report.v0.3.json](./content/garden-reference-report.v0.3.json)へ保持し、新しい天候参照と区別する。基底profileの係数は変更せず、拡張profileで指定した場・注入・needだけを変更する。
 候補データと参照計算はあるが、Unityへの実装・実機の見やすさや成長速度の確認は未実施。小さな算術fixtureや参照計算の合格を、展示庭の体験検証に置き換えない。
 
 ## 3. 一投擲を解決する順序
 
-Preparedの事前状態・地図・profileと、OutcomeCommittedの選択面を入力にする。保存順序と中断再開は[DATA_CONTRACT.md](./DATA_CONTRACT.md)を正とする。Coreは新たな乱数を取得せず、同じ開始状態へ同じroundを二重適用しない。
+Preparedの事前状態・地図・両profile・weatherContextと、OutcomeCommittedの選択面を入力にする。保存順序と中断再開は[DATA_CONTRACT.md](./DATA_CONTRACT.md)を正とする。Coreは新たな乱数を取得せず、同じ開始状態へ同じroundを二重適用しない。
 Applicationはrun内の未終端roundを一つに保ち、準備・Resolved保存時に開始状態参照を照合する。別のround IDでも古い庭からの計画を採用せず、Resolvedの永続化後にだけrevisionを一つ進める。
 
 投擲内のtickOffsetは0～39。offset0の入力は最初の更新前に加える。開始tickIndex=tなら、更新中のイベントを`tick = t + tickOffset + 1`で識別する。SeedPlaced.placedTickもこの番号で、配置はそのtickの流れ・吸水・成長より前に行う。
 
 | 順番 | 処理 | 参照する状態 |
 |---|---|---|
-| 1 | 予定された水・種の注入 | 保存済みschedule、そのtickの開始状態 |
-| 2 | 光・風の場 | 固定地図、保存済み範囲・方向・期間 |
+| 1 | 天候とサイコロの予定水・種を注入 | 両方の保存済みschedule、そのtickの開始状態 |
+| 2 | 天候と局所入力から光・風の場を合成 | 固定地図、weatherContext、保存済み範囲・方向・期間 |
 | 3 | 地表水の移動 | 注入後・流れ更新前の同一snapshot |
 | 4 | 排出口からの排出 | 流れを一斉反映した後の水 |
 | 5 | 地表から土への吸水 | 排出後の水と空き容量 |
@@ -70,12 +75,29 @@ Applicationはrun内の未終端roundを一つに保ち、準備・Resolved保�
 | 7 | 個体の成長 | 蒸発後の湿り、有効光 |
 | 8 | 出来事と収支の集約 | 実適用量・閾値越え |
 
-40tick後の全状態・入力適用証拠・イベント・文章と根拠をResolvedへ保存してからUnityで再生する。`Resolved.inputApplicationEvidence`には予定scheduleの各tick・対象・量が実際に適用された証拠を保存する。面を選んだだけではinput_appliedは成立しない。風・光の自然イベントがなくても、実際の場の適用を確認したこの証拠へ事実fallbackを束縛できる。
+40tick後の全状態・入力適用証拠・イベント・文章と根拠をResolvedへ保存してからUnityで再生する。`Resolved.inputApplicationEvidence`はサイコロ入力、`Resolved.weatherApplicationEvidence`は固定weatherContextからの天候入力を裏付ける。水は予定scheduleの各tick・対象・実量を源別に記録し、光・風は天候のみの場、合成場、サイコロの追加実効量を照合可能にする。
+面を選んだだけではinput_appliedは成立しない。天候だけが正の場を作った場合も、サイコロ入力の証拠へ置き換えない。自然イベントがない事実fallbackでも、実際のサイコロ入力の適用を確認する。
 
 表示用の中間状態を補間してもCoreを再計算しない。再起動でtraceが失われたら保存済み終状態を見せ、アニメーションのために結果を作り直さない。
 次回の配面は保存済み終状態から非公開で準備できるが、画面にその終状態を反映してから公開する。過程再生中の画面や補間値を次回の開始状態・種の空きセル判定に使わない。
 
-`meanLight = floor(sum(effectiveLightQ over 40 ticks) / 40)`を次回配面用に保存する。最初は基礎光と地図の露出比から求める。この要約を次回の光源へ再投入しない。
+`meanLight = floor(sum(totalEffectiveLightQ over 40 ticks) / 40)`を、その回に実際に届いた光の観察用に保存する。最初は晴れの光500と地図の露出比から求める。v0.4の次回配面のlight needは、固定した今回天候だけのbaseEffectiveLightQを使う。直前の追加光を新しい空の状態や次回の光源へ再投入しない。
+
+### 3.1 天候の固定と雨の実注入
+
+天候は`weatherPeriodIndex = floor(beforeRevision / 3)`、`periodStep = beforeRevision % 3`で対応付ける。初期期は晴れに固定し、その後は晴れ96・薄曇り96・小雨64の独立重みを使う。同じ天候が続いても変更しない。各期の32byteのweather材料を保存してから先頭big-endian uint32をUniformBelow(256)で解釈し、初期の固定期も4byteを消費する。Coreはこの抽選を再実行せず、Preparedの確定weatherContextを読む。
+
+| weatherId | 空の基礎光 | 空の基礎風 | 天候注水 |
+|---|---:|---:|---|
+| clear / 晴れ | 500 | 0 | 0 |
+| cloudy / 薄曇り | 350 | 100、東向き | 0 |
+| drizzle / 小雨 | 250 | 0 | 全非solidへ各1をoffset 0,4,8,…,36で注入 |
+
+小雨は土のない石地にも降る。雨の遮蔽や樹冠による遮断は含めず、solidと格子外だけを除く。現在の地図は253対象なので一投2530、16×16全セルなら最大2560。サイコロの水の最大1200を加え、`maxDiceWaterInjectionPerRound=1200`、`maxWeatherWaterInjectionPerRound=2560`、`maxCombinedWaterInjectionPerRound=3760`を検証する。現地図での実際の合計最大は3730。
+
+同tickの天候水とサイコロ水はセルごとに合計し、その後に一回だけ流れ・排出・吸水・蒸発を進める。二つの40tickを別々に順次実行しない。雨の整数pulseは量の更新単位で、描画の雨粒数やSEの発音回数を意味しない。
+
+天候の進行は保存済み正常Resolvedだけに結び付く。意図、祈りの時間、画面の待機・省略・再表示、取消や未成立では進めない。天候を変更するために既知の出目や未完了roundを捨てる経路を作らない。
 
 ## 4. 8レシピと作用先の固定
 
@@ -165,10 +187,12 @@ soilWater += absorbed
 
 ```text
 post(地表水 + 土中水) - pre(地表水 + 土中水)
-    = 実注入量 - 実地表蒸発 - 実土中蒸発 - 実排出量
+    = 天候の実注入量 + サイコロの実注入量
+      - 実地表蒸発 - 実土中蒸発 - 実排出量
 ```
 
-吸水・セル間移動は内部移動なので右辺へ足さない。累積吸水・累積輸送は現在の水の総量と別の値である。
+`weatherInjected / diceInjected / totalInjected`を別に持ち、totalInjectedが二つの和と一致することを検証する。吸水・セル間移動は内部移動なので右辺へ足さない。累積吸水・累積輸送は現在の水の総量と別の値である。
+混合した後の水に、天候由来とサイコロ由来の比率を後付けしない。特定の吸水・根元・成長がどちらの水で起きたかは、このモデルの証拠には含まれない。
 
 ## 6. 光と風の届き方
 
@@ -176,18 +200,18 @@ post(地表水 + 土中水) - pre(地表水 + 土中水)
 
 中心からのマンハッタン距離d、半径rに対し、範囲内は`K = floor((r + 1 - d) * 1000 / (r + 1))`、範囲外・solidは0。Preparedへ保存したKを使い、描画メッシュで適用セルを再判定しない。
 
-基礎光500に、そのrecipeの期間だけ追加光を与える。地図の露出比X=lightExposureQを使う。
+固定した天候の基礎光W_Lに、そのrecipeの期間だけ追加光を与える。地図の露出比X=lightExposureQを使う。
 
 ```text
 localExtra = floor(extraLightQ * K / 1000)  # 光入力がなければ0
-unoccludedLightQ = min(1000, 500 + localExtra)
-unoccludedAdditionalLightQ = unoccludedLightQ - 500
+unoccludedLightQ = min(1000, W_L + localExtra)
+unoccludedAdditionalLightQ = unoccludedLightQ - W_L
 L = effectiveLightQ = floor(unoccludedLightQ * X / 1000)
-baseEffectiveLightQ = floor(500 * X / 1000)
+baseEffectiveLightQ = floor(W_L * X / 1000)
 additionalEffectiveLightQ = L - baseEffectiveLightQ
 ```
 
-和を1000へ制限してから露出比を掛ける。X=0なら追加してもL=0。基礎光も影で弱まる。入力終了後は基礎光へ戻り、追加光を永久に蓄えない。
+和を1000へ制限してから露出比を掛ける。X=0なら追加してもL=0。天候からの光も同じ影で弱まる。入力終了後はその天候の基礎光へ戻り、追加光を永久に蓄えない。配面のdoseWeightとダイス光の述語にはadditionalEffectiveLightQを使い、基礎光を追加量へ含めない。
 
 影は静的map値。GPUの影画像をCoreの正にしない。岩による影と述べるセルにはlightOccluderCellIdで実在solidの根拠を持たせ、nullなら岩に帰属させない。成長した植物の動的な影は含めない。
 
@@ -197,17 +221,22 @@ additionalEffectiveLightQ = L - baseEffectiveLightQ
 
 ```text
 shelterQ = firstSolidFound ? 250 : 1000
-unoccludedWindQ = floor(strengthQ * K / 1000)
+localExtraWindQ = floor(strengthQ * K / 1000)  # 風入力がなければ0
+unoccludedWindQ = min(1000, W_V + localExtraWindQ)
+unoccludedAdditionalWindQ = unoccludedWindQ - W_V
+baseEffectiveWindQ = floor(W_V * shelterQ / 1000)
 V = effectiveWindQ = floor(unoccludedWindQ * shelterQ / 1000)
+additionalEffectiveWindQ = V - baseEffectiveWindQ
 ```
 
-複数の岩の係数を重ね掛けしない。地形高、岩の高さ、渦、圧力はこの風モデルへ入力しない。基礎風は0、入力のない区間はV=0。
+W_Vは固定天候の基礎風。天候とサイコロの風はともに東向きとし、異方向の合成はこの版に含めない。異方向の設定を黙って東向きへ丸めず検証失敗にする。合計を1000へ制限してから遮蔽し、影響量を別々に丸めて後で足さない。
+複数の岩の係数を重ね掛けしない。地形高、岩の高さ、渦、圧力はこの風モデルへ入力しない。薄曇りでは風入力の範囲外にも天候の風がある。配面のdoseWeightとダイス風の述語はadditionalEffectiveWindQを使う。
 
-蒸発も葉の揺れも同じVを参照する。岩陰の見た目だけを変え、モデルを一律の風量にしない。種・水の運搬は行わず、運搬したという文章も生成しない。
+蒸発も葉の揺れも天候を含む同じVを参照する。岩陰の見た目だけを変え、モデルを一律の風量にしない。種・水の運搬は行わず、運搬したという文章も生成しない。
 
 ## 7. 蒸発はセル全体の一つの要求量
 
-吸水後の水、有効光L、風Vを使う。
+吸水後の水、天候と局所入力を合成した有効光L、風Vを使う。
 
 ```text
 numerator = evaporationRemainder + L + 4 * V
@@ -222,7 +251,7 @@ soilEvaporated = actual - surfaceEvaporated
 
 引ききれなかった整数の要求量は捨てる。処理前から水0なら計算を省略して端数0、処理後に水0になった場合も端数0。乾いた40tickの要求を次の雨へ請求しない。水がある間の0～999の分数だけは次回へ保持する。
 
-成長による水消費は追加しない。後の版で吸収・蒸散を導入するときは別sinkとして収支へ加える。
+成長による水消費は追加しない。RootZoneWettedは根元の土への吸水であり、植物体内への水の取り込み量ではない。後の版で吸収・蒸散を導入するときは別sinkとして収支へ加える。
 
 ## 8. 湿りと光による成長
 
@@ -264,19 +293,19 @@ growthRemainderNext = n % 1000000
 
 ### tickの事実をround単位へ集約する
 
-小さな変化を毎tick別の発見として保存・発音しない。基本キーはroundId+kind+cellId/plantId、流れ全体だけはroundごとに1件。共通にeventId、kind、ruleId/version、対象、firstTick/lastTickまたはtick、入力参照、数値根拠を持つ。
+小さな変化を毎tick別の発見として保存・発音しない。基本キーはroundId+kind+cellId/plantId、WaterEnteredだけはさらにsourceKindを含め、流れ全体はroundごとに1件。共通にeventId、kind、ruleId/version、対象、firstTick/lastTickまたはtick、入力参照、数値根拠を持つ。
 
 | イベント | 成立条件・保存する証拠 |
 |---|---|
-| WaterEntered | 正の実注入。セルごとの累計実量・区間 |
+| WaterEntered | 正の実注入。sourceKind=dice/weather、セルごとの累計実量・区間・実注入tickを別々に保持。同じセルの二つの源を一イベントへ混ぜない |
 | SurfaceFlowObserved | 正の適用辺流量が1つ以上。first/lastTick、昇順involvedCellIds、positiveEdgeTransferCount、cumulativeTransport |
 | WaterDrained | 正の実排出。排出口・累計量・区間 |
 | SoilMoistened | 正の吸水が1tick以上。cumulativeAbsorbedと事前/終状態 |
 | RootZoneWetted | 吸水時点で発芽済みの同セルの個体。その対象tickの正の吸水だけを累計 |
 | PuddleFormed | tick開始の地表水が120未満、更新終了時120以上。round最初の越え、越え回数、最大水深 |
-| LightReceived | 今回の追加実効光が正。区間・積算追加光・無遮蔽追加光・実効光・露出比・影の根拠 |
-| WindReceived | 今回のVが正。区間・cumulativeEffectiveWindQ・無遮蔽風・実効風・遮蔽比・blocker |
-| WindSheltered | 無遮蔽風が正で、実在solidによりVが小さい。同じ風場の値を根拠にする |
+| LightReceived | サイコロの追加実効光が正。区間・積算追加光・無遮蔽追加光・天候基礎光・合成光・露出比・影の根拠 |
+| WindReceived | サイコロの追加実効風が正。区間・積算追加風・無遮蔽追加風・天候基礎風・合成風・遮蔽比・blocker |
+| WindSheltered | サイコロの無遮蔽追加風が正で、実在solidにより追加実効風が小さい。同じ合成場との差分とblockerを根拠にする |
 | SeedPlaced | 保存済み空きセルへの実配置。plantId/cellId/placedTick、soilQAtPlacement、actualLightQAtPlacement |
 | GrowthObserved | 整数成長が増加。roundのbefore/postGrowth、正の成長tick数・区間、最初の同tick証拠 |
 | 段階越え4種 | 閾値越え。個体、tick、threshold、直前/直後growth |
@@ -288,9 +317,13 @@ SurfaceFlowObservedは全庭で一件のまま保存し、表示でも一つのg
 
 光のcumulativeAdditionalEffectiveLightはadditionalEffectiveLightQをtickで加えた値。追加照射の遮蔽はunoccludedAdditionalLightQとadditionalEffectiveLightQを比較し、基礎光込みのLとは比較しない。風の積算も物理単位のエネルギーではない。静的map・区間内一定の場なので、無遮蔽値・実効値はその区間の値を記録する。将来変化させる版では単一値で変動を隠さず区間を分ける。
 
+風の積算追加量もadditionalEffectiveWindQで求める。天候のみの光・風はWeatherApplicationEvidenceに保存し、ダイスのReceivedイベントを作らない。WaterEnteredの表示groupもsourceKindを分ける。weatherのWaterEnteredはweatherSourceRefとweatherApplicationEvidence、diceのWaterEnteredは選択入力とinputApplicationEvidenceへ結ぶ。天候の雨があるだけで「今回のサイコロで雨が降った」とする根拠にはしない。
+
+雨と光・風・種を組み合わせた文は、同じcellと実際の雨pulse tickを根拠にする。具体的な時間関係と、前の投擲で置かれた同じplantの参照はGAMEPLAYの述語へ従う。経過区間が同じだけで、水の由来や開花への単独原因を作らない。
+
 GrowthObserved.firstPositiveGrowthEvidenceはtick、soilWater、soilCapacity、moistureFactorQ、effectiveLightQ、growthDeltaを持つ。ここでgrowthDeltaは上限適用後のpostGrowth-beforeGrowth。別tickの湿りと光を結び付けず、同じ個体・同じ成長tickの根拠にする。
 
-eventIdはround・種類・対象から安定して作り、追加乱数を使わない。配列順もfirstTick、kindのordinal順、対象cellId/plantId順で固定する。閾値の一度だけの記録とUnityによる再提示を区別する。
+eventIdはround・種類・対象から安定して作り、WaterEnteredではsourceKindも含める。追加乱数を使わない。配列順はfirstTick、kindのordinal順、sourceKindのordinal順（ない種類は空文字）、対象cellId/plantId順で固定する。閾値の一度だけの記録とUnityによる再提示を区別する。
 
 ### 述語の正はGAMEPLAY
 
@@ -304,6 +337,8 @@ eventIdはround・種類・対象から安定して作り、追加乱数を使�
 ## 10. 参照算術と、残る受け入れ
 
 fixture JSONの16件は、明示的な期待値をPython整数算術で照合した。小さな領域で他の処理を無効化した例を含み、Unityや展示庭の試験結果ではない。初期状態、tick数、無効化した処理、終状態、端数、収支をJSONに残す。
+
+天候v0.4の参照reportは同じ初期庭×3天候×8入力、晴れ8例の旧結果との照合、小雨と最大水を組み合わせる連続入力、合成上限、現在天候を使うneed、固定seed全16列を対象とする。これは保存障害や天候recordの回復、全イベント/文章選定、Unityの実機検証を実行したという意味ではない。
 
 以下6件は単セル、地表水0、容量1000、光500、種の成長0・端数0から40tick。吸水・流れ・排出を無効化し、蒸発→成長だけを確認する。
 
