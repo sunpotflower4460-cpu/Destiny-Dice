@@ -1,0 +1,46 @@
+{
+  "schemaVersion": "plant-appearance-profile.v0.6",
+  "status": "designCandidate",
+  "profileId": "garden-birth-appearance-v0.6",
+  "appearanceProjectionVersion": "birth-appearance.v0.6",
+  "scope": "presentation_projection_only",
+  "descriptionJa": "同じ個体の保存済み播種記録と、その回の天候から、花の基準色と花弁幅を導く。自然計算、配面、文章の条件には入力しない。Unity表示と9組の見分けやすさは未検証。",
+  "seedInputEvidence": {
+    "plantOriginKind": "seedInput",
+    "birthRoundSource": "plant.seedSourceRoundId",
+    "soilSource": "same-plant-and-cell SeedPlaced.soilQAtPlacement",
+    "weatherSource": "birth-round Prepared.weatherContext.weatherId",
+    "soilSampling": "actual-placement-tick before infiltration and evaporation",
+    "requiredBinding": ["plantId", "cellId", "seedSourceRoundId"],
+    "requiredReferences": ["birthResolvedRef+eventId", "birthPreparedRef+weatherSourceRef", "styleContentHash", "appearanceProjectionVersion"]
+  },
+  "moistureBands": [
+    {"minInclusive": 0, "maxInclusive": 399, "paletteId": "ivory", "displayNameJa": "あたたかい白", "baseColorSrgbHex": "#F3E8CB"},
+    {"minInclusive": 400, "maxInclusive": 700, "paletteId": "rose", "displayNameJa": "淡い桃色", "baseColorSrgbHex": "#E6B8C6"},
+    {"minInclusive": 701, "maxInclusive": 1000, "paletteId": "lilac", "displayNameJa": "淡い藤色", "baseColorSrgbHex": "#C9B8E8"}
+  ],
+  "weatherPetalWidthQ": [
+    {"weatherId": "clear", "petalWidthQ": 1000},
+    {"weatherId": "cloudy", "petalWidthQ": 900},
+    {"weatherId": "drizzle", "petalWidthQ": 1100}
+  ],
+  "petalWidthScaleDenominator": 1000,
+  "appliesToStage": "flower",
+  "initialMapAppearance": {"paletteId": "ivory", "petalWidthQ": 1000, "sourceKind": "initialMap"},
+  "missingEvidenceAppearance": {"paletteId": "ivory", "petalWidthQ": 1000, "sourceKind": "unknown", "displayNameJa": "生まれたときの記録は不明"},
+  "projectionCachePolicy": "rebuildable from immutable source records and run-pinned profile; not authoritative WorldSnapshot state",
+  "invalidInputPolicy": "reject the appearance derivation for unknown weather, noninteger or out-of-range soilQ, conflicting or mismatched source records; use unknown placeholder without clamping or fabricated birth; existing DATA_CONTRACT integrity/recovery rules still apply",
+  "noNaturalEffect": ["growth", "water", "soilCapacity", "lightExposureQ", "windShelter", "mappingWeights", "D6", "oraclePredicates"],
+  "noResampling": true,
+  "recolorOnCurrentWeatherChange": false,
+  "separateSpecies": false,
+  "requiredAssetCountCandidate": {"plantModel": 1, "basePalettes": 3, "petalWidthValues": 3},
+  "boundaryFixtures": [
+    {"soilQAtPlacement": 0, "weatherId": "clear", "paletteId": "ivory", "petalWidthQ": 1000},
+    {"soilQAtPlacement": 399, "weatherId": "cloudy", "paletteId": "ivory", "petalWidthQ": 900},
+    {"soilQAtPlacement": 400, "weatherId": "drizzle", "paletteId": "rose", "petalWidthQ": 1100},
+    {"soilQAtPlacement": 700, "weatherId": "clear", "paletteId": "rose", "petalWidthQ": 1000},
+    {"soilQAtPlacement": 701, "weatherId": "cloudy", "paletteId": "lilac", "petalWidthQ": 900},
+    {"soilQAtPlacement": 1000, "weatherId": "drizzle", "paletteId": "lilac", "petalWidthQ": 1100}
+  ]
+}
