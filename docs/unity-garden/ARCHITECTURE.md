@@ -1,6 +1,6 @@
 # Unity箱庭 — アーキテクチャ
 
-状態: 設計案 v0.5 / Unity未実装
+状態: 設計案 v0.6 / Unity未実装
 作成日: 2026-11-11
 対象: 新しい箱庭ゲームのUnity版。今回の変更は設計資料のみ。
 
@@ -49,7 +49,7 @@ port名は実装時の命名候補。record名・状態名はDATA_CONTRACTに従
 初期版の復元は短いjournalを検証走査して行い、最後の`Resolved`と未完了のroundを取り戻す。走査時間・容量を実測して必要な場合にのみ、破棄して再生成できるcheckpointを足す。復元手順・意図の先行確定・single-writerは省略しない。
 
 `docs/unity-garden/content/`のJSONは実装時の照合用の設計資料。現時点ではUnityのloaderも検証器もない。採用時にはschemaと値を検証し、runへ固定するcontentに変換する。
-v0.5はv0.2の数値profile、v0.3の静的な庭配置、weather-profile.v0.4、oracle-catalog.v0.5を組み合わせる。天候・配面・group生成はv0.4を保ち、文章の選定だけをoracle-focus.v0.5へ更新する。旧mapの初期セルhashや旧参照結果を、天候を含む正式なWorldSnapshotのhashへ読み替えない。
+v0.6はv0.2の数値profile、v0.3の静的な庭配置、weather-profile.v0.4、oracle-catalog.v0.5にtarget-profile.v0.6とplant-appearance-profile.v0.6を重ねる。天候・group生成はv0.4、文章選定はoracle-focus.v0.5を保つ。場所と配面はtarget-sites.v0.6 / dynamic-faces.v0.6、見た目はbirth-appearance.v0.6として区別する。旧mapの初期セルhashや旧参照結果を、天候を含む正式なWorldSnapshotのhashへ読み替えない。
 文書版・地図版・計算版を一つの番号だと扱わず、contentManifestに各実体とhashを残す。参照計算reportは照合用であり、通常プレイの出目列や成長結果を供給するassetにはしない。
 
 G1〜G3の通常経路は静的mapから新しい庭を作ることと、同じrunの保存済みsnapshotへ戻ること。別runの庭のimport・forkを展示版に実装しない。開発fixtureの合成初期状態は明示したfixtureとして扱い、通常の新庭や過去の種の履歴へ混ぜない。
@@ -113,15 +113,17 @@ Coreの最新状態は保存済みResolvedのpostState。画面は、その同�
 
 次の配面を公開するときは、表示している庭がそのPreparedのbeforeRevision/beforeStateHashに対応する終状態になっていることを確認する。前回の流れを再生中の庭へ次の作用範囲を重ねず、演出を省略する場合も終状態への反映を先に行う。
 
+v0.6では公開だけでなく、次のPreparationStartedも結果再生の終了・省略と終状態表示の後にする。それまでに受け付けたCareFocusChangedを同じコマンド列で先に処理し、保存済み設定を新しい準備へ固定する。Preparing中の場所操作は受け付けず、隠れた操作予約を作らない。非公開の先行準備で次回の場所指定を追い越さない。
+
 これはPresentation側の公開条件であり、PresentationReceiptの保存を読了・次回開始の必須gateにするものではない。前のcallbackや離した指を、新しいroundのRollへ転用しない。具体的な入力状態はEXPERIENCEに従う。
 
 再生中のcueもPresentation内の所有者・cursor・発火済み集合で管理する。省略、中断、run切替では所有者を失効させ、未再生の音と注目の光を破棄して、保存済み終状態と本文へ揃える。飛ばした時間のcueをまとめて発火しない。新しいPrepared公開後の旧callbackは、音・焦点・天候を変更できない。この管理情報を新しいjournalや読了記録にしない。詳細な境界と低fps時の扱いはEXPERIENCEを正とする。
 
 ## 5. 動的6面の生成と試行進行
 
-面の候補は、固定した庭の事前状態・配置・現在の天候・候補規則・専用乱数から生成する。
+面の候補は、固定した庭の事前状態・今回の場所・現在の天候・候補規則・専用乱数から生成する。場所はPreparationStartedの設定と保存mapping bufferから先に決める。auto/fixedとも先頭のUniformBelow(3)を消費し、fixedだけ保存指定を採用する。その後で局所needを計算し、同じbufferの残りから従来の14抽選を行う。
 各レシピの作用セル・遮蔽・予定doseから局所的な必要度を求め、候補重みに使う。実際に作用しない遠方の平均値や、ユーザーの願いを必要度へ代入しない。
-種の候補理由を示すprojectionは、公開中Preparedの開始snapshotと固定map/profileから導く。現在の表示補間や別roundの庭から理由を計算しない。6面への不採用、中心の空き不足、二粒分の空き不足を区別するために、別の進行台帳は作らない。
+種の候補理由を示すprojectionは、公開中Preparedの開始snapshot・targetContextと固定map/profileから導く。現在の表示補間、予約中の場所、別roundの庭から理由を計算しない。6面への不採用、中心の空き不足、二粒分の空き不足を区別するために、別の進行台帳は作らない。
 6面が確定した後に、祈りの内容や欲しい結果へ合わせて面を差し替えない。
 提示する6面、対象地点、対応する要素と強度はPreparedへ記録する。
 面の重複等による確率はDomainで求め、UI独自の「当たりやすさ」を作らない。
@@ -134,10 +136,11 @@ Coreの最新状態は保存済みResolvedのpostState。画面は、その同�
 
 | record | この層が守ること |
 |---|---|
-| PreparationStarted | 配面の取得前にroundと事前状態を固定 |
+| CareFocusChanged | 任意の場所設定をrun単位で追記。現在のPreparedとworldRevisionを変更しない |
+| PreparationStarted | 配面の取得前にround・事前状態・場所設定のsourceRefを固定 |
 | WeatherEntropyCommitted | run内の同一期で一意の32byteを、解釈前に保存する。取消後も同一期の準備から再利用 |
-| MappingEntropyCommitted | 同じ保存済み乱数材料から配面計算を再開できる |
-| Prepared | 事前状態、WeatherContext、6面、対象地点など、その試行の条件を固定 |
+| MappingEntropyCommitted | 同じ保存済み乱数材料から場所と配面の計算を再開できる |
+| Prepared | 事前状態、WeatherContext、targetContext、6面、対象地点など、その試行の条件を固定 |
 | IntentCommitted | 実践・意図の確定を受けてから測定用乱数へ進む |
 | AcquisitionStarted | 取得開始を記録し、重複する開始要求を拒否 |
 | DrawEntropyCommitted | 出目・カードの用途別材料を、解釈と表示の前に保存 |
@@ -150,7 +153,9 @@ OutcomeCommittedは計算を許可する境界。出目・カード・庭・文�
 短い反応の経過を保持する場合も、同じCore計算から生成した表示データとして扱う。
 保存形式に存在しない独自の「適用済みフラグ」を別ファイルへ足して整合性を分散させない。
 
-Roll・Back・来場者交代は`commandId / runEpoch / expectedRoundState`を持つ同じApplicationのコマンド列へ入れる。取消が永続化される前にUIだけで「取消済み」にしない。取得開始が先に確定した場合は、画面を閉じても既存roundを処理し、既知の出目を消さない。細かな競合の勝敗はDATA_CONTRACTに従う。
+Roll・Back・場所変更・来場者交代は`commandId / runEpoch / expectedRoundState`を持つ同じApplicationのコマンド列へ入れる。取消が永続化される前にUIだけで「取消済み」にしない。取得開始が先に確定した場合は、画面を閉じても既存roundを処理し、既知の出目を消さない。細かな競合の勝敗はDATA_CONTRACTに従う。
+
+花の基準外観は、同plant/cellのSeedPlacedとその回のWeatherContext、run固定の外観profileを読むprojectionとする。初期植物はmap由来、記録不足はunknownとして扱う。描画cacheは再構成可能にし、外観のための別journal・追加乱数・生態係数を設けない。自然のWorldSnapshotへ外観を戻さず、現時点の天候で出生色を変えない。
 
 ## 6. single-writerと保存adapter
 
@@ -172,7 +177,7 @@ payloadの数値制約と正規化の詳細はDATA_CONTRACTに集約する。
 
 地図・ルール・文章集をcontent blobとして保存する場合は、実体の保存・hash検証・durable確認を完了してから、その参照を`RunStarted`へ書く。hashだけを保存し、実体を後から用意する順序にしない。
 
-Resolvedのfull post-stateが庭の回復点になる。projectionはそこから再生成できる。
+Resolvedのfull post-stateが自然状態の回復点になる。自然状態の表示はそこから再生成する。出生時外観や履歴のprojectionは、元のSeedPlaced・同回Prepared.weatherContext・固定style profileなど、定義された過去の原本も参照する。最後のsnapshotだけで全履歴を再構築できるとは扱わない。
 checksum/hashエラーを空の新規庭として無言で置き換えない。
 保存失敗は新しい投擲を止め、結果未保存・未適用の状態をそのまま保つ。
 将来SQLite adapterへ移す場合も、Application/Domainの契約と元journalの証拠を維持する。

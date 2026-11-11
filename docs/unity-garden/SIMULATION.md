@@ -1,8 +1,10 @@
 # 庭の自然モデル
 
-設計版0.4 / `designCandidate`。v0.2の水・土・蒸発・成長の整数式を土台に、固定済み天候とサイコロの局所入力を合成する。水・風・光・種の位置関係から結果を求める、小さな整数モデルの仕様である。**Unityの実装・実機試験は未実施。** 現実の流体、気象、植物生理を精密に再現したという主張ではない。
+設計版0.6 / `designCandidate`。v0.2の水・土・蒸発・成長の整数式とv0.4の天候合成を維持し、v0.6で三地点から確定した作用先を使う。水・風・光・種の位置関係から結果を求める、小さな整数モデルの仕様である。**Unityの実装・実機試験は未実施。** 現実の流体、気象、植物生理を精密に再現したという主張ではない。
 
 [simulation-profile.v0.2.json](./content/simulation-profile.v0.2.json)を基底profileとし、[weather-profile.v0.4.json](./content/weather-profile.v0.4.json)がhashで参照して天候・合成・配面need・注水上限を明示的に拡張する。上書き対象は拡張profileのexplicitReplacementsに限る。矛盾や未知の基底hashは設定検証を失敗させる。G2で採用した両profile・地図・計算版のcontent hashをrunへ固定し、途中で差し替えない。
+
+v0.6は[target-profile.v0.6.json](./content/target-profile.v0.6.json)をさらに固定し、当該回の四anchorだけを選択地点の中心へ置き換える。地形・初期状態・自然係数は変更しない。targetContextの保存と配面生成はDATA_CONTRACTとGAMEPLAY、分岐の意図は[DIVERSITY.md](./DIVERSITY.md)を参照する。花の外観projectionは自然モデルの入力・stateHashへ含めない。
 
 [simulation-fixtures.v0.2.json](./content/simulation-fixtures.v0.2.json)は基礎光500・無風などを明示した従来の成分例として保持する。天候を加えた全庭参照は[weather-reference-report.v0.4.json](./content/weather-reference-report.v0.4.json)、天候の準備・公開と体験は[WEATHER.md](./WEATHER.md)を参照する。
 
@@ -79,7 +81,7 @@ Applicationはrun内の未終端roundを一つに保ち、準備・Resolved保�
 面を選んだだけではinput_appliedは成立しない。天候だけが正の場を作った場合も、サイコロ入力の証拠へ置き換えない。自然イベントがない事実fallbackでも、実際のサイコロ入力の適用を確認する。
 
 表示用の中間状態を補間してもCoreを再計算しない。再起動でtraceが失われたら保存済み終状態を見せ、アニメーションのために結果を作り直さない。
-次回の配面は保存済み終状態から非公開で準備できるが、画面にその終状態を反映してから公開する。過程再生中の画面や補間値を次回の開始状態・種の空きセル判定に使わない。
+v0.6の次回準備は、保存済み終状態を画面へ反映し、それまでに受け付けた場所設定を保存してから始める。過程再生中に先行Preparedを作らない。過程再生中の画面や補間値を次回の開始状態・種の空きセル判定に使わない。
 
 `meanLight = floor(sum(totalEffectiveLightQ over 40 ticks) / 40)`を、その回に実際に届いた光の観察用に保存する。最初は晴れの光500と地図の露出比から求める。v0.4の次回配面のlight needは、固定した今回天候だけのbaseEffectiveLightQを使う。直前の追加光を新しい空の状態や次回の光源へ再投入しない。
 
@@ -100,6 +102,8 @@ Applicationはrun内の未終端roundを一つに保ち、準備・Resolved保�
 天候の進行は保存済み正常Resolvedだけに結び付く。意図、祈りの時間、画面の待機・省略・再表示、取消や未成立では進めない。天候を変更するために既知の出目や未完了roundを捨てる経路を作らない。
 
 ## 4. 8レシピと作用先の固定
+
+以下のwaterInlet・windCenter・lightCenter・seedCenterは、v0.6ではPrepared.targetContextが確定した同じ地点の四anchorを意味する。入口85・岩陰135・ひらけた土154のいずれか一つで、四anchorすべて同cellとする。旧map内の四anchorへ直接戻して解決しない。旧runは当時のanchorを使う。
 
 | recipeId | 候補入力 | 位置・期間 |
 |---|---|---|
@@ -124,7 +128,7 @@ profileのauthoringParametersはanchor名や選択規則。Preparedでは6面す
 - 風・光はoffset0からduration未満まで有効でinjectionSchedule=[]。dropのdurationは1、rainは12、種は1。
 
 seedの必要度を測る支持範囲全体と、実配置セルは別にする。表示後に空き土や作用先を選び直さず、後のprofileから値を推測しない。6面に同じ空きセルを使う種recipeがあっても、実適用は選ばれた一面だけとする。前回の種で埋まったセルを次のPreparedへ予約済み空き地として持ち越さない。
-地図・対象・scheduleの不整合はPrepared前に拒否する。適用時に保存対象が占有されていれば開始状態参照か実装の不整合として止め、別の空き土へ移動して成功扱いにしない。将来のタップによる位置選択も配面固定より前に行う。
+地図・対象・scheduleの不整合はPrepared前に拒否する。適用時に保存対象が占有されていれば開始状態参照か実装の不整合として止め、別の空き土へ移動して成功扱いにしない。場所の設定を変えても、公開中のPreparedの作用先は不変。次のPreparationStartedが固定した設定だけを次の展開へ使い、Coreは現在のUI設定を読まない。
 
 ## 5. 水を移し、吸わせ、排出する
 

@@ -1,0 +1,191 @@
+{
+  "documentKind": "target-sites-design-profile",
+  "schemaVersion": "target-profile.v0.6",
+  "profileId": "garden-targets-v0.6",
+  "status": "designCandidate",
+  "implementationStatus": "notImplementedInUnity",
+  "date": "2026-11-11",
+  "baseProfile": {
+    "file": "simulation-profile.v0.2.json",
+    "sha256": "7615b63c32d1e67c74b8c42e7a491859ca6c9e430e49e91b37d9a534f5e0f6c6"
+  },
+  "mapReuse": {
+    "file": "garden-map.v0.3.json",
+    "sha256": "fbf85d3c8278d4bd7eb6fdb06982923c5b039d1aad86596922742371a374fe20",
+    "initialStateUnchanged": true
+  },
+  "weatherProfile": {
+    "file": "weather-profile.v0.4.json",
+    "sha256": "9aa3f20ec4dbc41d14d6beb4fa7437304647a9c8256f9facb4d6d1923d31d1b6"
+  },
+  "targetPolicyVersion": "target-sites.v0.6",
+  "mappingPolicyVersion": "dynamic-faces.v0.6",
+  "siteOrder": [
+    "inlet",
+    "shade",
+    "meadow"
+  ],
+  "sites": [
+    {
+      "siteId": "inlet",
+      "labelJa": "入口",
+      "centerCellId": 85,
+      "x": 5,
+      "y": 5
+    },
+    {
+      "siteId": "shade",
+      "labelJa": "岩陰",
+      "centerCellId": 135,
+      "x": 7,
+      "y": 8
+    },
+    {
+      "siteId": "meadow",
+      "labelJa": "ひらけた土",
+      "centerCellId": 154,
+      "x": 10,
+      "y": 9
+    }
+  ],
+  "anchorBindings": {
+    "waterInlet": "selectedSite.centerCellId",
+    "windCenter": "selectedSite.centerCellId",
+    "lightCenter": "selectedSite.centerCellId",
+    "seedCenter": "selectedSite.centerCellId"
+  },
+  "explicitReplacements": [
+    "For this version only, resolve all four base recipe anchor names to the selected site center before recipe eligibility, target expansion and local need. The static map file and its historical anchors are not rewritten.",
+    "Prepend one UniformBelow(3) site draw to the existing mapping buffer. The remaining weighted draws and Fisher-Yates continue from that same cursor.",
+    "Use the committed preference auto/inlet/shade/meadow. auto chooses siteOrder[siteDraw]; a fixed preference chooses that site but still consumes the same prelude draw.",
+    "The target policy and mapping policy versions above supersede the weather profile mappingPolicyVersion only for a run pinned to this target profile."
+  ],
+  "unchanged": [
+    "16x16 terrain, drainage, capacity, exposure and shelter",
+    "initial water and four initial plants",
+    "all eight recipe amounts, radii, durations, schedules and seed bands",
+    "three weather rules and independent weather materials",
+    "water flow, infiltration, evaporation and growth arithmetic",
+    "local need formulas, family/recipe order and mapping caps",
+    "fair D6 and independent oracle draw",
+    "plant growth cap and permanent flowers"
+  ],
+  "preference": {
+    "allowedValues": [
+      "auto",
+      "inlet",
+      "shade",
+      "meadow"
+    ],
+    "default": "auto",
+    "mechanicalMeaning": "Selects where physical inputs are resolved; it is separate from intention target and prayer method.",
+    "selectionBoundary": "The preference is fixed by PreparationStarted before target selection and mapping. Accept changes only in Ready or Presenting and queue them for a later preparation; Preparing and Holding reject changes without queuing. Use DATA_CONTRACT.md for persistence and cancellation order.",
+    "automaticChoice": "Equal 1/3 across all three authored sites; no empty-soil, novelty or success filtering. A full seed band does not cause an automatic site reroll.",
+    "sameSiteMayRepeat": true,
+    "allowedValuesMeaning": "These four values are UI/reference aliases, not DTO mode values. Persist TargetPreference with mode auto or fixed and siteId as specified below.",
+    "dtoByAlias": {
+      "auto": {
+        "mode": "auto",
+        "siteId": null
+      },
+      "inlet": {
+        "mode": "fixed",
+        "siteId": "inlet"
+      },
+      "shade": {
+        "mode": "fixed",
+        "siteId": "shade"
+      },
+      "meadow": {
+        "mode": "fixed",
+        "siteId": "meadow"
+      }
+    }
+  },
+  "entropyPrelude": {
+    "role": "mapping",
+    "bufferBytes": 256,
+    "operation": "UniformBelow(3)",
+    "wordOrder": "big-endian uint32",
+    "acceptBelow": 4294967295,
+    "rejectedWord": 4294967295,
+    "selection": "acceptedWord % 3 in siteOrder",
+    "alwaysConsumeForFixedPreference": true,
+    "stateUse": "Select the site before expanding every recipe and calculating current-weather local need.",
+    "noNewEntropyRole": true,
+    "onExhaustion": "Use the existing mapping-material exhaustion failure; do not fetch replacement bytes or choose a different site."
+  },
+  "recipeResolution": {
+    "distance": "Manhattan",
+    "seedSingleBand": [
+      0,
+      1
+    ],
+    "seedScatterBand": [
+      2,
+      3
+    ],
+    "seedChoice": "Distance ascending then cellId ascending; require the full seed count or mark the recipe ineligible.",
+    "rainTargets": "Center and valid orthogonal neighbours, sorted by cellId; base minEligibleCells applies.",
+    "save": "Save the selected site and all six resolved recipe parameter sets in Prepared; rendering or resolution cannot choose a new target."
+  },
+  "validation": {
+    "requiredSites": 3,
+    "requiredWeatherRecipeSingleCases": 72,
+    "pairedCohortPolicies": [
+      "auto",
+      "inlet",
+      "shade",
+      "meadow",
+      "cycle_three"
+    ],
+    "fixtureSeeds": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15
+    ],
+    "roundsPerSeedAndPolicy": 24,
+    "checkpointRounds": [
+      6,
+      12,
+      24
+    ],
+    "cycleThreeMeaning": "Development fixture only: inlet for rounds1..3, shade4..6, meadow7..9, then repeat. Each change is supplied before preparation; this is not an additional player preference value.",
+    "coarsePhysicalSignature": "Plant cell and stage; every plantable soil cell moisture band; non-solid cells with final surfaceWater>=120. No run/plant IDs, random bytes, raw numeric hash, oracle card or appearance variant contributes.",
+    "candidateG2Acceptance": {
+      "autoDistinctCoarseStatesAtRound24Minimum": 8,
+      "autoRunCount": 16,
+      "atRounds": [
+        12,
+        24
+      ],
+      "seedCountPerPair": 16,
+      "noRerollOrPostResultTuning": true,
+      "tripleAllDistinctSeedCountMinimum": 8
+    },
+    "limits": "These are reference design and future acceptance conditions, not confirmation of Unity, persistence, visual quality or an infinite number of distinct gardens."
+  },
+  "excluded": [
+    "procedural terrain",
+    "initial-state randomisation",
+    "personality inference",
+    "intention-dependent mapping or dice correction",
+    "new weather or natural coefficients",
+    "plant genetics or death/rebirth",
+    "unbounded target selection",
+    "historical run migration"
+  ]
+}

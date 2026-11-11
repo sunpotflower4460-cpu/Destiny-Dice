@@ -1551,3 +1551,100 @@ Errors: 0
 - `docs/unity-garden/content/oracle-catalog.v0.5.json`
 - `docs/unity-garden/content/oracle-selection-fixtures.v0.5.json`
 - `PROGRESS.md`
+
+
+## Gate0: 場所・履歴からそれぞれの庭が育つ設計 v0.6 (2026-11-11)
+
+### 完了したこと
+
+- 依頼「やる人によって無数のパターンがしっかり生まれるように」に対応し、新Unity箱庭のG0設計を更新。DIVERSITY.mdを追加し、操作・保存・自然・表現・検証・実装順を同じ規則へ統合した。既存React/Capacitorの実験、登録済み台帳、凍結プロトコル、runtimeコードは変更していない。
+- 固定4anchorの収束を見直し、入口85・岩陰135・ひらけた土154の三地点を追加。その回の水・風・光・種の中心を同じ地点へ解決し、既存8recipeの総量・範囲・時間と自然係数を維持。初期地形・水・四植物は共通とした。
+- 既定はおまかせ、任意の固定地点は持続。dynamic-faces.v0.6は保存mapping材料の先頭でUniformBelow(3)を必ず消費し、fixedでも同じ場所抽選の根拠を残す。残りから従来14回の配面抽選を行う。場所と配面を同じ準備roleと明記し、天候・D6・カードの独立材料は維持した。
+- CareFocusChangedをrun単位で保存し、次のPreparationStartedが設定とsourceRefを固定する。公開済みの今回の場所・6面・確率は変更しない。「今回／次から」を表示し、Ready・Presenting以外では選択を受け付けない。提示終了・省略と終状態表示の後、受け付け済み場所commandを先に保存して次を準備する。非公開の先行準備による追越しを禁止した。
+- 花の外観は同じ個体のSeedPlaced.soilQAtPlacementと同じ回のWeatherContextから導く表示projectionとし、三配色×三花弁幅を候補化。生態係数・新乱数・自然状態フィールド・専用journalは追加しない。初期個体は中立、証拠不足はunknownとして扱い、style原本と版をrunへ固定する。G3の任意表示として物理分岐の後に置いた。
+- 三地点の種範囲は和集合40土セル、初期占有4、追加候補36、静的全個体上限40。範囲外15セルを含め正確に記載。到達保証はせず、二粒に必要な空き数と距離/cellId順による残りを認める。旧21個体の境界は当時の資料として保持した。
+- 固定seed0〜15×5方針×24投の全80列を、ID・外観を除く整数状態と粗い空間状態で比較。粗い分類と候補基準を結果より先に固定し、似た結果や成長0も除外しない。28文・選定v0.5、天候・group v0.4、基礎数値v0.2を維持した。
+- 自己完結したPython参照をdocs/unity-garden/reference/diversity_v06.pyへ追加。標準ライブラリと固定repo JSONのみを読み、既定/--verifyは読み取り専用、--writeは新しいdiversity reportだけを出力する。旧scratchの参照scriptは実行依存にしない。
+
+### 完了基準の結果（実行出力）
+
+既存アプリの必須コマンド。利用可能なpnpmをnpxの固定versionで呼び出した。
+
+```text
+$ npx --yes --package=pnpm@10.34.9 pnpm typecheck
+> tsc -b --noEmit
+exit 0
+
+$ npx --yes --package=pnpm@10.34.9 pnpm test
+Test Files  41 passed (41)
+     Tests  183 passed (183)
+Duration 2.40s
+exit 0
+
+$ npx --yes --package=pnpm@10.34.9 pnpm build
+vite v8.1.4 building client environment for production...
+102 modules transformed.
+built in 215ms
+exit 0
+```
+
+既存のjeep-sqlite由来のcryptoブラウザ外部化警告とnpmのhttp-proxy環境設定警告を確認。依存・build設定・runtimeはこの更新で変更していない。
+
+G0の自然参照は--write成功後、/tmpから絶対pathで--verifyを実行しexit 0。保存reportと再計算内容が一致し、repo外のcwdからも実行できた。
+
+```text
+legacy anchor regression: 24 rounds, v0.4 numeric hashes/selected quantities matched
+three sites x three weather x eight recipes: 72 rounds
+three sites x two input orders x two rounds: 12 rounds
+sixteen seeds x five policies x twenty-four rounds: 1920 rounds
+exact replay seed0/auto: 24 rounds
+TOTAL: 2052 rounds / 82080 ticks
+all tick water balances zero; all states in profile bounds
+mapping caps checked: 1944 rounds
+coarse physical states at rounds 6 / 12 / 24: 80 / 80 / 80 (80 cases each)
+auto at round24: 16 distinct coarse states (predeclared minimum8)
+fixed-site triple all distinct: 16 of16 seeds at round12 and round24 (minimum8 each)
+same weather + water/seed recipe, different sites: all36 pairs differ in coarse state
+```
+
+順序比較には差が見えない例も残した。新しい種のgrowthは岩陰1166/500、入口0/0、ひらけた土107/73。粗い状態が異なる対は岩陰だけで、ほかの2対を除外していない。全80列で重複がないことを、全プレイヤーの固有性や実機で見えた美しさの保証へ置き換えていない。
+
+読み取り専用の統合検査でも、保存済み80列の粗い状態を実配列から再集計し、6/12/24投の各80種類、おまかせ16種類、固定三地点16/16を確認。480組の同材料pairの粗い比較と1,920配面の個数制約・選択面を照合した。これらは保存reportの独立再集計であり、追加の自然シミュレーション投数へ数えない。
+
+```text
+13 JSON: parse / designCandidate
+Markdown: local links / tables / JSON example valid
+Legacy: all10 JSON +1 SVG unchanged byte for byte against ade506d
+Target profile: three centers / four shared anchors / pinned source hashes
+Style profile: soilQ0..1000 partitions exactly once; six authored boundary rows; three weather widths
+Seed geometry: 55soil /40union /4initial /36additional upper bound /40total upper bound
+Report source hashes and physical recount: pass
+Scope: documentation / candidate data / G0 reference only
+PROGRESS: append-only; git diff --check: pass
+```
+
+主要原本のSHA-256:
+
+- target-profile.v0.6.json: dd72a71da076a597f34085b003ee02f05660d1801410c3df17f9517c91a7cb2a
+- diversity-reference-report.v0.6.json: e764c47615c2983336e022a26de1156428f8c0b62d8516d240fe0017b7d25acd (298899 bytes)
+- reference/diversity_v06.py: 2e2af0ad82435698d0bb9d4be336a6b93a15071cd252f3f06ba85d2cc63d9096
+
+レビューでUniformBelow(1)の0byte消費、元mapの展開hashとの照合、場所設定aliasとDTOの対応、旧先行準備の記述、出生projectionの過去原本参照を修正してから最終照合した。
+
+### 要確定・申し送り（次フェーズへ）
+
+- **今回もG0設計更新であり、Unityプロジェクト・C#実装・実機画面・SE・配布ビルドは未作成。** 既存アプリの183testsとPython参照を、Unity実装の合格とはしない。
+- 参照自然kernelはv0.3/v0.4を継承。独立した第二シミュレータ、全イベント集約、述語/文章選定、journal I/O、保存競合、appearance rendererは今回の自然参照に含まれない。
+- G1でCareFocusChangedの冪等保存、提示終了と準備開始の順序、失敗・再開・来場者交代を実装。G2で同入力のC#一致と三地点の局所範囲を照合。G3で今回/次からの読みやすさと実際の分岐の見分けやすさを確認する。
+- mature-garden-boundary.v0.6は全40個体をflowerにした開発用の合成状態。三地点×三天候×非種6入力の54ケースは未実行の受け入れ条件で、今回の2052投へ加算しない。旧21個体・18ケースは旧版の境界条件として保持する。
+- 9組の花の基準外観の発生頻度・実機での識別、消音/低刺激設定、スマホの画面・性能は未確認。外観を採用しない展示ビルドは中立表示と範囲を明記し、物理分岐と保存を優先する。
+- 全ての保存値・名称・色・表示幅はdesignCandidate。新runへ版と実体hashを固定し、旧runの材料へ新しい場所抽選を後付けしない。既存実験の仕様・registered data・統計経路は変更しない。
+
+### 触ったファイル
+
+- README.md、PROGRESS.md（追記）
+- docs/unity-garden/README.md、DIVERSITY.md（新規）、GAMEPLAY.md、DATA_CONTRACT.md
+- docs/unity-garden/EXPERIENCE.md、GARDEN_LAYOUT.md、SIMULATION.md、WEATHER.md
+- docs/unity-garden/ARCHITECTURE.md、ROADMAP.md、VALIDATION.md
+- docs/unity-garden/content/target-profile.v0.6.json、plant-appearance-profile.v0.6.json、diversity-reference-report.v0.6.json（新規）
+- docs/unity-garden/reference/diversity_v06.py（新規G0参照）
