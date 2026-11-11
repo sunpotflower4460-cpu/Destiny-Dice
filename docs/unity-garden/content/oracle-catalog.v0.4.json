@@ -1,0 +1,636 @@
+{
+  "schemaVersion": "oracle-catalog.v0.4",
+  "status": "designCandidate",
+  "catalogVersion": "oracle-catalog.v0.4",
+  "locale": "ja-JP",
+  "description": "Unity箱庭の実装用文章候補28本。既存24本文とIDを維持し、同じ場所・時間の天候とダイス入力の関係4本を追加。実機の言葉・表示品質は未検証。述語・焦点・時間条件はGAMEPLAY.mdを参照する。",
+  "predicateContract": "../GAMEPLAY.md#73-述語と根拠の契約",
+  "selectionPolicyVersion": "oracle-focus.v0.4",
+  "limits": {
+    "maxSentences": 2,
+    "maxCharacters": 90
+  },
+  "cardOrder": [
+    "sprout",
+    "roots",
+    "circulation",
+    "space",
+    "harmony",
+    "lantern"
+  ],
+  "entries": [
+    {
+      "id": "message.input.water",
+      "kind": "fallback",
+      "scope": "input",
+      "allowedElements": [
+        "water"
+      ],
+      "requiresAll": [
+        "input_applied"
+      ],
+      "forbiddenFlags": [
+        "evidence_incomplete",
+        "subject_binding_invalid"
+      ],
+      "cardTags": [],
+      "priority": 0,
+      "text": "庭に、水を注ぎました。"
+    },
+    {
+      "id": "message.input.wind",
+      "kind": "fallback",
+      "scope": "input",
+      "allowedElements": [
+        "wind"
+      ],
+      "requiresAll": [
+        "input_applied"
+      ],
+      "forbiddenFlags": [
+        "evidence_incomplete",
+        "subject_binding_invalid"
+      ],
+      "cardTags": [],
+      "priority": 0,
+      "text": "庭に、風を送りました。"
+    },
+    {
+      "id": "message.input.light",
+      "kind": "fallback",
+      "scope": "input",
+      "allowedElements": [
+        "light"
+      ],
+      "requiresAll": [
+        "input_applied"
+      ],
+      "forbiddenFlags": [
+        "evidence_incomplete",
+        "subject_binding_invalid"
+      ],
+      "cardTags": [],
+      "priority": 0,
+      "text": "庭に、光を向けました。"
+    },
+    {
+      "id": "message.input.seed",
+      "kind": "fallback",
+      "scope": "input",
+      "allowedElements": [
+        "seed"
+      ],
+      "requiresAll": [
+        "input_applied"
+      ],
+      "forbiddenFlags": [
+        "evidence_incomplete",
+        "subject_binding_invalid"
+      ],
+      "cardTags": [],
+      "priority": 0,
+      "text": "庭に、種を置きました。"
+    },
+    {
+      "id": "message.soil.absorbed",
+      "kind": "factual",
+      "scope": "focus",
+      "allowedElements": [
+        "water",
+        "wind",
+        "light",
+        "seed"
+      ],
+      "requiresAll": [
+        "soil_moistened"
+      ],
+      "forbiddenFlags": [
+        "evidence_incomplete",
+        "subject_binding_invalid"
+      ],
+      "cardTags": [
+        "roots",
+        "circulation"
+      ],
+      "priority": 20,
+      "text": "水が、土の中へ染み込みました。"
+    },
+    {
+      "id": "message.soil.dry_absorbed",
+      "kind": "factual",
+      "scope": "focus",
+      "allowedElements": [
+        "water",
+        "wind",
+        "light",
+        "seed"
+      ],
+      "requiresAll": [
+        "soil_moistened",
+        "soil_was_dry"
+      ],
+      "forbiddenFlags": [
+        "evidence_incomplete",
+        "subject_binding_invalid"
+      ],
+      "cardTags": [
+        "roots",
+        "sprout"
+      ],
+      "priority": 30,
+      "text": "乾いていた土に、水が染み込みました。"
+    },
+    {
+      "id": "message.roots.absorbed",
+      "kind": "factual",
+      "scope": "focus",
+      "allowedElements": [
+        "water",
+        "wind",
+        "light",
+        "seed"
+      ],
+      "requiresAll": [
+        "root_zone_wetted"
+      ],
+      "forbiddenFlags": [
+        "evidence_incomplete",
+        "subject_binding_invalid"
+      ],
+      "cardTags": [
+        "roots"
+      ],
+      "priority": 30,
+      "text": "根元の土に、水が染み込みました。"
+    },
+    {
+      "id": "message.water.puddle",
+      "kind": "factual",
+      "scope": "focus",
+      "allowedElements": [
+        "water",
+        "wind",
+        "light",
+        "seed"
+      ],
+      "requiresAll": [
+        "puddle_formed"
+      ],
+      "forbiddenFlags": [
+        "evidence_incomplete",
+        "subject_binding_invalid"
+      ],
+      "cardTags": [
+        "space",
+        "circulation"
+      ],
+      "priority": 30,
+      "text": "地面に、水たまりができました。"
+    },
+    {
+      "id": "message.water.flow",
+      "kind": "factual",
+      "scope": "focus",
+      "allowedElements": [
+        "water",
+        "wind",
+        "light",
+        "seed"
+      ],
+      "requiresAll": [
+        "surface_flow_observed"
+      ],
+      "forbiddenFlags": [
+        "evidence_incomplete",
+        "subject_binding_invalid"
+      ],
+      "cardTags": [
+        "circulation"
+      ],
+      "priority": 20,
+      "text": "水の流れが、庭の中を進みました。"
+    },
+    {
+      "id": "message.water.verified_root_path",
+      "kind": "factual",
+      "scope": "focus",
+      "allowedElements": [
+        "water",
+        "wind",
+        "light",
+        "seed"
+      ],
+      "requiresAll": [
+        "verified_path_to_root",
+        "root_zone_wetted"
+      ],
+      "forbiddenFlags": [
+        "evidence_incomplete",
+        "subject_binding_invalid"
+      ],
+      "cardTags": [
+        "circulation"
+      ],
+      "priority": 35,
+      "text": "水の通り道が、根元までつながりました。"
+    },
+    {
+      "id": "message.wind.reached",
+      "kind": "factual",
+      "scope": "focus",
+      "allowedElements": [
+        "wind"
+      ],
+      "requiresAll": [
+        "wind_reached_focus"
+      ],
+      "forbiddenFlags": [
+        "evidence_incomplete",
+        "subject_binding_invalid"
+      ],
+      "cardTags": [
+        "circulation"
+      ],
+      "priority": 20,
+      "text": "庭の一角に、風が通りました。"
+    },
+    {
+      "id": "message.wind.sheltered",
+      "kind": "factual",
+      "scope": "focus",
+      "allowedElements": [
+        "wind"
+      ],
+      "requiresAll": [
+        "wind_sheltered"
+      ],
+      "forbiddenFlags": [
+        "evidence_incomplete",
+        "subject_binding_invalid"
+      ],
+      "cardTags": [
+        "space"
+      ],
+      "priority": 30,
+      "text": "岩の向こうでは、風がやわらいでいました。"
+    },
+    {
+      "id": "message.wind.moisture_recovered",
+      "kind": "factual",
+      "scope": "focus",
+      "allowedElements": [
+        "wind"
+      ],
+      "requiresAll": [
+        "wind_reached_focus",
+        "moisture_returned_to_band"
+      ],
+      "forbiddenFlags": [
+        "evidence_incomplete",
+        "subject_binding_invalid"
+      ],
+      "cardTags": [
+        "harmony",
+        "roots"
+      ],
+      "priority": 35,
+      "text": "湿りすぎていた土が、ほどよい湿りに戻りました。"
+    },
+    {
+      "id": "message.light.reached",
+      "kind": "factual",
+      "scope": "focus",
+      "allowedElements": [
+        "light"
+      ],
+      "requiresAll": [
+        "light_reached_focus"
+      ],
+      "forbiddenFlags": [
+        "evidence_incomplete",
+        "subject_binding_invalid"
+      ],
+      "cardTags": [
+        "lantern"
+      ],
+      "priority": 20,
+      "text": "庭の一角が、光に照らされました。"
+    },
+    {
+      "id": "message.light.sheltered",
+      "kind": "factual",
+      "scope": "focus",
+      "allowedElements": [
+        "light"
+      ],
+      "requiresAll": [
+        "light_reached_focus",
+        "light_attenuated_by_rock"
+      ],
+      "forbiddenFlags": [
+        "evidence_incomplete",
+        "subject_binding_invalid"
+      ],
+      "cardTags": [
+        "space",
+        "lantern"
+      ],
+      "priority": 30,
+      "text": "岩の陰には、やわらいだ光が届きました。"
+    },
+    {
+      "id": "message.light.growth",
+      "kind": "factual",
+      "scope": "focus",
+      "allowedElements": [
+        "light"
+      ],
+      "requiresAll": [
+        "light_reached_focus",
+        "growth_advanced"
+      ],
+      "forbiddenFlags": [
+        "evidence_incomplete",
+        "subject_binding_invalid"
+      ],
+      "cardTags": [
+        "lantern",
+        "harmony"
+      ],
+      "priority": 30,
+      "text": "光の届いた場所で、植物の成長が進みました。"
+    },
+    {
+      "id": "message.seed.moist_soil",
+      "kind": "factual",
+      "scope": "focus",
+      "allowedElements": [
+        "seed"
+      ],
+      "requiresAll": [
+        "seed_placed",
+        "soil_in_band_at_seed"
+      ],
+      "forbiddenFlags": [
+        "evidence_incomplete",
+        "subject_binding_invalid"
+      ],
+      "cardTags": [
+        "sprout",
+        "roots"
+      ],
+      "priority": 30,
+      "text": "種が、湿りのある土に落ちました。"
+    },
+    {
+      "id": "message.seed.pair",
+      "kind": "factual",
+      "scope": "input_pair",
+      "allowedElements": [
+        "seed"
+      ],
+      "requiresAll": [
+        "seed_pair_placed"
+      ],
+      "forbiddenFlags": [
+        "evidence_incomplete",
+        "subject_binding_invalid"
+      ],
+      "cardTags": [
+        "sprout",
+        "space"
+      ],
+      "priority": 25,
+      "text": "庭の二つの場所に、小さな種が加わりました。"
+    },
+    {
+      "id": "message.plant.germinated",
+      "kind": "factual",
+      "scope": "focus",
+      "allowedElements": [
+        "water",
+        "wind",
+        "light",
+        "seed"
+      ],
+      "requiresAll": [
+        "germinated"
+      ],
+      "forbiddenFlags": [
+        "evidence_incomplete",
+        "subject_binding_invalid"
+      ],
+      "cardTags": [
+        "sprout"
+      ],
+      "priority": 40,
+      "text": "小さな芽が、土から顔を出しました。"
+    },
+    {
+      "id": "message.plant.leaf_opened",
+      "kind": "factual",
+      "scope": "focus",
+      "allowedElements": [
+        "water",
+        "wind",
+        "light",
+        "seed"
+      ],
+      "requiresAll": [
+        "leaf_opened"
+      ],
+      "forbiddenFlags": [
+        "evidence_incomplete",
+        "subject_binding_invalid"
+      ],
+      "cardTags": [
+        "sprout"
+      ],
+      "priority": 40,
+      "text": "新しい葉が、ひらきました。"
+    },
+    {
+      "id": "message.plant.bud_formed",
+      "kind": "factual",
+      "scope": "focus",
+      "allowedElements": [
+        "water",
+        "wind",
+        "light",
+        "seed"
+      ],
+      "requiresAll": [
+        "bud_formed"
+      ],
+      "forbiddenFlags": [
+        "evidence_incomplete",
+        "subject_binding_invalid"
+      ],
+      "cardTags": [
+        "sprout"
+      ],
+      "priority": 40,
+      "text": "小さなつぼみが、姿を見せました。"
+    },
+    {
+      "id": "message.plant.bloomed",
+      "kind": "factual",
+      "scope": "focus",
+      "allowedElements": [
+        "water",
+        "wind",
+        "light",
+        "seed"
+      ],
+      "requiresAll": [
+        "bloomed"
+      ],
+      "forbiddenFlags": [
+        "evidence_incomplete",
+        "subject_binding_invalid"
+      ],
+      "cardTags": [
+        "sprout"
+      ],
+      "priority": 40,
+      "text": "つぼみがひらき、花になりました。"
+    },
+    {
+      "id": "message.growth.water_and_light",
+      "kind": "factual",
+      "scope": "focus",
+      "allowedElements": [
+        "water",
+        "wind",
+        "light",
+        "seed"
+      ],
+      "requiresAll": [
+        "growth_advanced",
+        "soil_and_light_sufficient_during_growth"
+      ],
+      "forbiddenFlags": [
+        "evidence_incomplete",
+        "subject_binding_invalid"
+      ],
+      "cardTags": [
+        "harmony",
+        "roots"
+      ],
+      "priority": 35,
+      "text": "水と光がそろった場所で、植物の成長が進みました。"
+    },
+    {
+      "id": "message.plant.shadowed_bud",
+      "kind": "factual",
+      "scope": "focus",
+      "allowedElements": [
+        "light"
+      ],
+      "requiresAll": [
+        "shadowed_bud_unchanged"
+      ],
+      "forbiddenFlags": [
+        "evidence_incomplete",
+        "subject_binding_invalid"
+      ],
+      "cardTags": [
+        "space"
+      ],
+      "priority": 25,
+      "text": "岩陰のつぼみは、まだ閉じたままでした。"
+    },
+    {
+      "id": "message.weather.rain_light",
+      "kind": "factual",
+      "scope": "focus",
+      "allowedElements": [
+        "light"
+      ],
+      "requiresAll": [
+        "weather_rain_reached_focus",
+        "light_reached_focus"
+      ],
+      "forbiddenFlags": [
+        "evidence_incomplete",
+        "subject_binding_invalid"
+      ],
+      "cardTags": [
+        "lantern",
+        "harmony"
+      ],
+      "priority": 35,
+      "text": "雨の中に、光が差しました。"
+    },
+    {
+      "id": "message.weather.rain_wind",
+      "kind": "factual",
+      "scope": "focus",
+      "allowedElements": [
+        "wind"
+      ],
+      "requiresAll": [
+        "weather_rain_reached_focus",
+        "wind_reached_focus"
+      ],
+      "forbiddenFlags": [
+        "evidence_incomplete",
+        "subject_binding_invalid"
+      ],
+      "cardTags": [
+        "circulation",
+        "harmony"
+      ],
+      "priority": 35,
+      "text": "雨の降る場所を、風が通りました。"
+    },
+    {
+      "id": "message.weather.rain_seed",
+      "kind": "factual",
+      "scope": "focus",
+      "allowedElements": [
+        "seed"
+      ],
+      "requiresAll": [
+        "weather_rain_reached_focus",
+        "seed_placed"
+      ],
+      "forbiddenFlags": [
+        "evidence_incomplete",
+        "subject_binding_invalid"
+      ],
+      "cardTags": [
+        "sprout",
+        "roots"
+      ],
+      "priority": 35,
+      "text": "雨の降る土に、種を置きました。"
+    },
+    {
+      "id": "message.weather.earlier_seed_germinated",
+      "kind": "factual",
+      "scope": "focus",
+      "allowedElements": [
+        "water",
+        "wind",
+        "light",
+        "seed"
+      ],
+      "requiresAll": [
+        "weather_rain_reached_focus",
+        "plant_from_earlier_seed",
+        "germinated"
+      ],
+      "forbiddenFlags": [
+        "evidence_incomplete",
+        "subject_binding_invalid"
+      ],
+      "cardTags": [
+        "sprout",
+        "harmony"
+      ],
+      "priority": 40,
+      "text": "前に置いた種が、雨の中で芽を出しました。"
+    }
+  ]
+}

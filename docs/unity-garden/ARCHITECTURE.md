@@ -1,6 +1,6 @@
 # Unity箱庭 — アーキテクチャ
 
-状態: 設計案 v0.3 / Unity未実装
+状態: 設計案 v0.4 / Unity未実装
 作成日: 2026-11-11
 対象: 新しい箱庭ゲームのUnity版。今回の変更は設計資料のみ。
 
@@ -12,6 +12,7 @@ Unity版は新しいschema・保存領域・セッション識別子を持ち、
 状態遷移、recordの必須項目、hash、欠測・回復規則の正は[DATA_CONTRACT.md](DATA_CONTRACT.md)。
 本書は同じ契約を別方式で再定義しない。実装順と段階の完了条件は[ROADMAP.md](ROADMAP.md)を参照する。
 画面の進行と操作は[EXPERIENCE.md](EXPERIENCE.md)、初期庭の配置候補と参照計算は[GARDEN_LAYOUT.md](GARDEN_LAYOUT.md)にまとめる。
+天候・局所入力・持ち越す庭の状態の関係は[WEATHER.md](WEATHER.md)を入口とし、合成する式はSIMULATIONを参照する。
 Unity project、C#コード、package、CI設定、ネイティブ設定は、この設計phaseでは作成しない。
 
 ## 2. 一つの計算モデルと四つの責務
@@ -39,7 +40,7 @@ Applicationが返す公開用projectionをUIへ渡し、監査用データの取
 | ExportService | 検証済み記録からJSON/CSVを生成する |
 | PlatformCapabilities | 共有・触覚・Steam等の利用可否を明示する |
 
-port名は実装時の命名候補。record名・状態名はDATA_CONTRACTに従う。出目、面の割当生成、オラクル、装飾の乱数は用途を分け、同じ可変乱数列を使い回さない。
+port名は実装時の命名候補。record名・状態名はDATA_CONTRACTに従う。天候、出目、面の割当生成、オラクル、装飾の乱数は用途を分け、同じ可変乱数列を使い回さない。
 
 ### 2.2 初日に作る最小構成
 
@@ -48,7 +49,8 @@ port名は実装時の命名候補。record名・状態名はDATA_CONTRACTに従
 初期版の復元は短いjournalを検証走査して行い、最後の`Resolved`と未完了のroundを取り戻す。走査時間・容量を実測して必要な場合にのみ、破棄して再生成できるcheckpointを足す。復元手順・意図の先行確定・single-writerは省略しない。
 
 `docs/unity-garden/content/`のJSONは実装時の照合用の設計資料。現時点ではUnityのloaderも検証器もない。採用時にはschemaと値を検証し、runへ固定するcontentに変換する。
-v0.3の庭配置はv0.2の計算profileを使う。文書版・地図版・計算版を一つの番号だと扱わず、contentManifestにそれぞれの実体とhashを残す。参照計算reportは照合用であり、通常プレイの出目列や成長結果を供給するassetにはしない。
+v0.4はv0.2の数値profile、v0.3の静的な庭配置、weather-profile.v0.4、oracle-catalog.v0.4を組み合わせる。天候による式の拡張と、合成後の実効量・現在の空を使う配面規則はv0.4として固定する。旧mapの初期セルhashや旧参照結果を、天候を含む正式なWorldSnapshotのhashへ読み替えない。
+文書版・地図版・計算版を一つの番号だと扱わず、contentManifestに各実体とhashを残す。参照計算reportは照合用であり、通常プレイの出目列や成長結果を供給するassetにはしない。
 
 ## 3. Unity projectの予定配置
 
@@ -84,6 +86,8 @@ Domainは明示的なstep数と入力から次の状態を求め、描画フレ�
 草や空の装飾的な揺れは継続できるが、実践中のCore状態は確定条件に従って停止する。
 バックグラウンド中の経過時間を、復帰時に無記録の大量stepとして追加しない。
 
+天候の一期は正常に永続化した3Resolved。開始worldRevisionから期を求め、同じ期のWeatherEntropyCommittedを再利用する。天候専用のリアルタイムschedulerや別の世界更新loopは作らない。天候が加える水・光・風も、Preparedに固定したWeatherContextから同じ40tickへ入力する。
+
 ### 4.1 FPSによらない記録
 
 30fpsと60fpsの比較では、同じ入力列・固定Clock・乱数fixture・step数を使う。この条件でOutcomeCommittedとResolvedの内容、庭の状態、出来事列が一致することを確認する。
@@ -111,7 +115,7 @@ Coreの最新状態は保存済みResolvedのpostState。画面は、その同�
 
 ## 5. 動的6面の生成と試行進行
 
-面の候補は、固定した庭の事前状態・配置・候補規則・専用乱数から生成する。
+面の候補は、固定した庭の事前状態・配置・現在の天候・候補規則・専用乱数から生成する。
 各レシピの作用セル・遮蔽・予定doseから局所的な必要度を求め、候補重みに使う。実際に作用しない遠方の平均値や、ユーザーの願いを必要度へ代入しない。
 6面が確定した後に、祈りの内容や欲しい結果へ合わせて面を差し替えない。
 提示する6面、対象地点、対応する要素と強度はPreparedへ記録する。
@@ -119,19 +123,21 @@ Coreの最新状態は保存済みResolvedのpostState。画面は、その同�
 再起動時は記録済みの6面を読む。現在の庭から再生成しない。
 同じrunの未終端roundは最大一つとし、新しいroundIdだけを作って並行取得する経路も拒否する。準備元のworldRevision/hash、commit時の最新状態をDATA_CONTRACTの条件で照合する。
 
-通常の順序は、`PreparationStarted → MappingEntropyCommitted → Prepared → IntentCommitted → AcquisitionStarted → DrawEntropyCommitted → OutcomeCommitted → Resolved → PresentationReceipt`。
+通常の順序は、`PreparationStarted → 必要ならWeatherEntropyCommitted → MappingEntropyCommitted → Prepared → IntentCommitted → AcquisitionStarted → DrawEntropyCommitted → OutcomeCommitted → Resolved → PresentationReceipt`。
+既に同じ期の天候材料がある場合は再取得せず、その参照を使う。初期期も同じ保存経路を通し、固定晴れの重みを`initial_fixed`として明記する。
 詳細な許可遷移・必須項目・例外はDATA_CONTRACTを正とする。
 
 | record | この層が守ること |
 |---|---|
 | PreparationStarted | 配面の取得前にroundと事前状態を固定 |
+| WeatherEntropyCommitted | run内の同一期で一意の32byteを、解釈前に保存する。取消後も同一期の準備から再利用 |
 | MappingEntropyCommitted | 同じ保存済み乱数材料から配面計算を再開できる |
-| Prepared | 事前状態、6面、対象地点など、その試行の条件を固定 |
+| Prepared | 事前状態、WeatherContext、6面、対象地点など、その試行の条件を固定 |
 | IntentCommitted | 実践・意図の確定を受けてから測定用乱数へ進む |
 | AcquisitionStarted | 取得開始を記録し、重複する開始要求を拒否 |
 | DrawEntropyCommitted | 出目・カードの用途別材料を、解釈と表示の前に保存 |
 | OutcomeCommitted | 実際に確定した出目・出所を再利用可能にする |
-| Resolved | 計算後の全状態を含め、同じ試行の二重適用を防ぐ |
+| Resolved | 計算後の全状態、天候とダイスそれぞれの実適用証拠を含め、同じ試行の二重適用を防ぐ |
 | PresentationReceipt | アプリの提示処理の段階を記録。人が読んだ・理解したことの証拠とはしない |
 
 OutcomeCommittedは計算を許可する境界。出目・カード・庭・文章の結果表示と、新しい庭の公開はResolvedの保存成功後に行う。
@@ -178,6 +184,7 @@ iOSの中断やモバイルOSの終了ではOnApplicationQuitを受けられな�
 Androidも、ユーザーに見えないプロセスが終了され得る前提で復元する。[Androidの説明][A1]
 
 `PreparationStarted`だけで配面材料を回収できない場合は`PreparationInterrupted`。出目の欠測とは別に数える。
+WeatherEntropyCommittedだけが残っている場合も期の材料は保持し、次の合法な準備で再利用する。保存済みmapping材料のない旧準備はDATA_CONTRACTの中断経路へ進める。遅延した天候callbackを別runや別期へ採用しない。
 `MappingEntropyCommitted`があれば同じ材料からPreparedまでを再開する。
 `AcquisitionStarted`だけで出目材料を回収できない場合は`InterruptedUnresolved`として保持し、同じ回を再取得しない。
 `DrawEntropyCommitted`があれば保存済み材料を解釈してOutcomeCommittedへ進める。まだ表示されていないという理由で欠測へ変えない。
@@ -217,14 +224,15 @@ exportの共有先選択は各OSのadapterへ渡し、Domainにファイルダ�
 
 | 見方 | 最小の表示 | 元になる記録 |
 |---|---|---|
-| 庭の歩み | round順の水量・植物の成長の推移と、各回の入力記号 | RunStarted、Resolvedの状態・収支 |
+| 庭の歩み | round順の天候帯、水量・植物の成長の推移、各回のダイス入力記号 | RunStarted、Prepared.weatherContext、Resolvedの状態・収支 |
 | 意図と出目 | 比較できる抽選の累積一致数と基準値、対象数・p=0/1・欠測 | IntentCommitted、確定した出目 |
-| 一投のつながり | 入力→局所状態→適用規則→出来事の固定配置 | その回のresolvedParameters、イベント根拠、ruleId |
+| 一投のつながり | 開始時の庭・天候・ダイス入力から、同じ場所の状態と出来事へつなぐ固定配置 | WeatherContext、両方の実適用証拠、resolvedParameters、イベント根拠、ruleId |
 
 最初から汎用ノードエディタや自動配置の物理演算を作らず、見たい回を選ぶと同じ配置へ具体的な量と場所を入れる。例えば「風→蒸発180→土中水950から770→成長184」は、その回に実際に保存された値の場合だけ表示する。別の場所の平均を一つの因果連鎖へつなげない。
 
 自然モデルの計算依存を表すedgeと、意図・カード・文章が同じroundに記録された対応を表すedgeは意味を分ける。カードから開花への計算依存edgeを作らない。詳細にはruleIdと根拠イベントへ辿れる参照を持たせ、別の成功台帳を追加しない。履歴にある過去の庭と、現在操作中の庭は表示上も区別する。
 全投擲で庭全体が40tick進むため、初期の水分・成長と基礎光も計算への入力に含める。今回の追加作用が届かない植物の成長を、同roundという理由だけで出目の直接効果へ結ばない。詳細の根拠条件はDATA_CONTRACT§8に従う。
+天候の全域の場と、ダイスが追加した実効分を分ける。注入水量はsource別に示せるが、混合後の土への吸水・成長を根拠のない由来割合へ分配しない。同じplantIdの段階履歴は既存記録から再生成し、独立した成長台帳を増やさない。
 
 ## 9. URPと表示品質
 
@@ -238,6 +246,7 @@ exportの共有先選択は各OSのadapterへ渡し、Domainにファイルダ�
 神聖なFX/SEは入力や実際の出来事へ反応させ、当たりを発生させる処理を持たない。
 Coreの集約された事実からObservationGroupを作り、カードと文章が選んだ主焦点を光・音でも使う。主焦点1、副焦点1以下、鐘1回、入力の自然音1系統、成長アクセント1回以下を初期上限にする。個々のセルイベント数だけ同じ音を重ねない。
 吸水の累計、終状態の湿り差、開花などの段階変化を区別して表示へ渡す。一時的な変化と終状態を同じ文章条件にしない。履歴から過去の文章を開いたときは、当時の庭・時点を明示する。
+天候の空色・雲・雨の見た目はWeatherContextから、雨の実注水と局所の変化は同じCoreのtraceから表示する。天候の環境音は一層にまとめ、入力の自然音との音量調整で焦点を示す。画面の雲量やparticle数を、雨量・遮蔽の計算へ戻さない。
 演出用の揺らぎを使う場合は専用streamとし、Domainへ逆流させない。
 発熱・電池・メモリ・保存待ち時間は実機計測で確認し、未測定のfpsを保証しない。
 

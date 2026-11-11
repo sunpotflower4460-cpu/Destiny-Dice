@@ -1337,3 +1337,123 @@ git diff --check: exit 0
 - `docs/unity-garden/content/garden-layout.v0.3.svg`
 - `docs/unity-garden/content/oracle-catalog.v0.2.json`
 - `PROGRESS.md`
+
+## 2026-11-11 — Gate0: 天候と庭・配面・言葉の関係を設計v0.4へ更新
+
+### 目的・依頼
+
+- 「さらに関係性をブラッシュアップして設計を更新」「天候もあると嬉しい」という依頼に対応。
+- 晴れ・薄曇り・小雨を庭全体の条件とし、その中へサイコロの局所入力が加わる関係を具体化した。G0の設計更新であり、Unity projectやruntimeの実装を完了したものではない。
+- 直前main `d9bd112b82cf0229461bb5bb1b7243db33088e6e` を基点とし、README・本記録・Unity設計文書と候補JSONだけを変更する。
+
+### 設計と候補データの変更
+
+- `WEATHER.md`を関係性の入口として追加。天候・開始時の庭・配面・局所入力・次の庭の計算依存図、持ち越す水分・成長・占有、カード・言葉・音の役割をまとめた。
+- 天候は晴れ（光500・風0）、薄曇り（光350・東風100）、小雨（光250・風0・実注水）の3種類。天候水は全非solidへ各1をoffset0,4,…,36に加える。現在mapは253セルで2,530/投、ダイス最大1,200との合計3,730/投。
+- 天候とダイス水を同tickに合算して一回の自然更新へ渡す。光・風は遮蔽前に合成・上限適用し、その後に遮蔽する。天候だけの場・合成場・ダイスの追加実効分を分ける。
+- 配面の光needは今回の天候の実効基礎光から計算。前回meanLightは観察値として残し、今回の明るさへ再投入しない。風のdoseもダイス追加分を使う。水・風のneedは開始時の実水分を使い、未来の雨や開花を先読みしない。
+- 一期は正常に解決・永続化した3投。初期晴れの重み256/0/0、以後96/96/64、同じ天候の連続を許可。専用32byteを同一期で一度保存し、初期も共通のUniformBelow(256)で4byte消費する。
+- WeatherEntropyCommittedはrun単位、同一期で一意。取消・欠測・待機・履歴・再生では期を進めず、保存済み材料を準備の再開・やり直しで再利用する。PreparedにWeatherContextを固定し、天候と6面を同時公開してから意図を添える。
+- WaterEnteredをsourceKind=dice/weatherで分ける。源別注入は記録し、混合後の吸水・成長へ水源割合を作らない。LightReceived/WindReceived/WindShelteredはダイス追加分の証拠を使い、天候だけで直接作用があったことにしない。
+- 新catalogは既存24entryをそのまま保持して4文を追加した28本。雨と光・風・種・以前の種の発芽を、同じ場所と実注入tickの条件で結ぶ。雨pulseのないtickを補完しない。全イベント集約・文章選定器自体は未実装。
+- 天候の「小雨」とダイス入力の「小さな雨」を区別。天候音も自然音loop最大1本に含め、主焦点1・補助最大1・鐘1・成長アクセント最大1を保つ。
+- 庭の歩みに天候帯、一投の詳細に開始状態・天候・ダイスの三つの入口、植物詳細に同じplantIdの段階履歴を加える。記録は既存journalから導出し、新しい確認操作・報酬台帳を増やさない。
+- 基礎profile v0.2・map v0.3へweather extension v0.4を組み合わせる。旧profile・fixture・catalog v0.2・map・report v0.3・配置SVGは変更せず、旧結果を当時の規則の比較資料として保持する。
+
+### 設計用の自然計算
+
+Pythonの整数参照で808投・32,320tickを実行した。Unityの実行ではない。
+
+| 集合 | 投数 | tick数 | 確認した結果 |
+|---|---:|---:|---|
+| 同じ初期庭×三天候×8入力 | 24 | 960 | 晴れ8単発はv0.3の数値状態hash・主要量と一致 |
+| 強制小雨＋water_drop / water_rain各200投 | 400 | 16,000 | 両方とも初排水7投目、源別入力と全tick収支を保持 |
+| 固定seed0～15、各24投 | 384 | 15,360 | 全16列・384配面・128天候期を掲載 |
+| 合計 | 808 | 32,320 | 全tickで水収支残差0、状態範囲内 |
+
+- 光中心のつぼみは初期growth1,700。同じlight_beam一回で晴れ2,300・薄曇り2,210・小雨2,150。初期の同recipe候補重みは240/258/270。天候の水だけで成長が有利になるという期待値は置かなかった。
+- 薄曇りの風100＋ダイス風1,000は合成1,000・追加900。遮蔽250なら合成250・天候25・追加225。前回meanLightを0／1,000へ変えても同じ現在の薄曇りで全8重みが一致した。
+- 強制小雨200投の累計排出はdrop408,192／rain408,296。注入直後を含む最大水深1,265／237、tick後最大665／232。最終全庭土中水は両方54,200で全土の容量へ達した。無限継続・美術上の水位・遊び心地の合格を意味しない。
+- 通常16列の初開花2〜3投、最終花4〜13、最終植物10〜21、整数成長のない投擲13回、土中水の観測範囲0〜1,000。天候128期は晴れ66・薄曇り39・小雨23で、晴れには固定初期期16期を含む。
+- 別の読み取り照合で全128期の生材料と先頭wordの変換、4byte消費、3投の再利用、profile/map/script hashを確認した。先頭wordの末尾byteがbucketになること、初期も同じ経路を使うことを確認。
+- 参照script `weather_reference_v04.py` のSHA-256: `7d06475f01d5ead869b384eecbeb5e45692cb7d8c29ee6573602c756f4ebafc5`。元の自然kernelを継承しており、独立した第二シミュレータとの一致試験ではない。診断用numeric hashは正式なWorldSnapshot.stateHashではない。
+
+### 実行した確認
+
+Node v24.22.1、pnpm 10.34.9。既存package scriptsは `npx --yes --package=pnpm@10.34.9 pnpm <script>` で実行。
+
+```text
+pnpm typecheck
+> tsc -b --noEmit
+exit 0
+
+pnpm test
+> vitest run
+Test Files  41 passed (41)
+Tests       183 passed (183)
+Duration    2.09s
+exit 0
+
+pnpm build
+> tsc -b && vite build
+vite v8.1.4 building client environment for production...
+102 modules transformed.
+built in 239ms
+exit 0
+
+天候を含むPython参照算術
+totalRoundResolutions: 808
+totalTickUpdates: 32320
+allTickWaterBalancesZero: true
+allStatesInProfileBounds: true
+mappingCapsCheckedForRounds: 384
+weatherPeriodsSelected: 128
+fullEventAggregatorExecuted: false
+oracleMessageSelectionExecuted: false
+
+python check_design_v04.py（保存済みデータの静的照合）
+Markdown: 12 files / 108 local links / 1 JSON examples / 79 tables / 0 isolated row blocks
+JSON: all 8 design files parse; all status=designCandidate
+Oracle: 28 unique entries / 4 input fallbacks / 6 cards / all predicates defined / old 24 entries exactly preserved
+Legacy: 6 profile/fixture/catalog/map/report/SVG files byte-identical to base
+Hashes/profile: 7 content/script references match
+Weather: all 128 periods checked (16 initial); raw 32 bytes / first big-endian word % 256 / 4 bytes used / 3-round reuse
+Fixtures: 384 assignments / 2304 face slots / 384 D6 / 384 independent cards; caps, chosen recipes and source water totals match
+Clear regression: all 8 old numeric hashes and 16 primary result fields per recipe match
+Water/report: all stored source sums and aggregate balances match
+Summary: all 11 fields match
+Scope: 15/15 authorized documentation/data paths; no runtime changes
+Errors: 0
+
+git diff --check: exit 0
+```
+
+- buildには既存jeep-sqlite依存のcrypto browser externalization警告がある。成功しており、依存やbuild設定は変更していない。
+- DATA契約・SIMULATION・GAMEPLAY・EXPERIENCE・WEATHER間で、天候の時点、同cell/tickの条件、源別証拠、同一期の再利用、自然音の上限を読み取りレビューした。DTO表の孤立行も修正した。
+
+### 不変条件・申し送り
+
+- DESIGN.md / PROTOCOL_FREEZE.md / AGENTS.md、既存runtime・台帳・統計・依存・CIを変更していない。PROGRESSは直前mainを全て保持した末尾追記。
+- 既知の出目を欠測へ戻すこと、保存済み天候を引き直すこと、意図・カード・文章に合わせて出目や成長を補正することは認めない。参照結果も再抽選・選別していない。
+- 次の実装入口はG1。天候を含む一つの準備・保存・復元を通し、G2で同じ入力をC#へ移してからG3で見た目・音・履歴へ接続する。
+- Unity/C# checked Int64、天候材料の永続化・取消競合・再開、全イベント集約、文章選定、Mono/IL2CPP、スマホ・Steam実機は未検証。EXPERIENCEの14場面は実装後の受け入れ条件。
+- 植物の水消費・新しい影、気温・雪・雷・季節・現実の天候API・雲の流体は最小版へ追加しない。三天候を既存の自然更新へつなげる範囲に収める。
+- 初開花は初期つぼみの寄与を含む設計fixtureの結果。独立した検証標本、実プレイの成功率、祈りの効果の根拠として扱わない。
+
+### 触ったファイル
+
+- `README.md`
+- `docs/unity-garden/README.md`
+- `docs/unity-garden/WEATHER.md`
+- `docs/unity-garden/GAMEPLAY.md`
+- `docs/unity-garden/SIMULATION.md`
+- `docs/unity-garden/DATA_CONTRACT.md`
+- `docs/unity-garden/EXPERIENCE.md`
+- `docs/unity-garden/GARDEN_LAYOUT.md`
+- `docs/unity-garden/ARCHITECTURE.md`
+- `docs/unity-garden/ROADMAP.md`
+- `docs/unity-garden/VALIDATION.md`
+- `docs/unity-garden/content/weather-profile.v0.4.json`
+- `docs/unity-garden/content/weather-reference-report.v0.4.json`
+- `docs/unity-garden/content/oracle-catalog.v0.4.json`
+- `PROGRESS.md`

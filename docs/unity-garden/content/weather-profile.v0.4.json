@@ -1,0 +1,121 @@
+{
+  "documentKind": "weather-extension-design-profile",
+  "schemaVersion": "weather-profile.v0.4",
+  "profileId": "garden-weather-v0.4",
+  "status": "designCandidate",
+  "implementationStatus": "notImplementedInUnity",
+  "date": "2026-11-11",
+  "baseProfile": {
+    "file": "simulation-profile.v0.2.json",
+    "profileId": "garden-simulation-v0.2",
+    "sha256": "7615b63c32d1e67c74b8c42e7a491859ca6c9e430e49e91b37d9a534f5e0f6c6",
+    "inheritance": "Use the base rules and recipe authoring parameters except for the explicit replacements below. Reject an unknown base hash; do not silently substitute a newer profile."
+  },
+  "mapReuse": {
+    "file": "garden-map.v0.3.json",
+    "sha256": "fbf85d3c8278d4bd7eb6fdb06982923c5b039d1aad86596922742371a374fe20",
+    "reused": ["grid", "terrainRows", "cellTypes", "heightRows", "cellOverrides", "anchors", "drain", "initialPlants", "initial water and remainder state"],
+    "initialWeatherId": "clear",
+    "initialMeanLight": "floor(clear.baseLightQ * lightExposureQ / 1000), equal to the original map's initial meanLight",
+    "hashBoundary": "The map's expandedCellsEncoding hash describes its original numeric rows. It is not a weather episode hash or a complete v0.4 WorldSnapshot stateHash."
+  },
+  "explicitReplacements": [
+    "base.defaults.baseLightQ and base.defaults.baseWindQ are supplied by the committed weather episode, not used as fallback values",
+    "base.light field formulas use the committed weather base light",
+    "base.wind field formulas combine weather and dice before clamping and shelter",
+    "base.limits.maxWaterInjectionPerRound remains the dice-only limit; source and combined limits below govern the complete round",
+    "GAMEPLAY local light need uses the current weather-only effective light, not previous meanLight",
+    "GAMEPLAY local wind dose uses the dice-added effective wind, not total weather-plus-dice wind"
+  ],
+  "weatherPolicyVersion": "weather-episodes.v0.4",
+  "mappingPolicyVersion": "dynamic-faces.v0.4",
+  "weatherOrder": ["clear", "cloudy", "drizzle"],
+  "weathers": [
+    {"weatherId": "clear", "labelJa": "晴れ", "baseLightQ": 500, "baseWindQ": 0, "windDirection": "E", "rainPerTargetAtScheduledTick": 0},
+    {"weatherId": "cloudy", "labelJa": "薄曇り", "baseLightQ": 350, "baseWindQ": 100, "windDirection": "E", "rainPerTargetAtScheduledTick": 0},
+    {"weatherId": "drizzle", "labelJa": "小雨", "baseLightQ": 250, "baseWindQ": 0, "windDirection": "E", "rainPerTargetAtScheduledTick": 1}
+  ],
+  "episodes": {
+    "normalResolvedRoundsPerEpisode": 3,
+    "weatherPeriodIndex": "floor(worldRevision / 3) before preparation of a new round",
+    "periodStep": "worldRevision % 3 before preparation of a new round",
+    "initialWeights": [256, 0, 0],
+    "laterWeights": [96, 96, 64],
+    "initialSelectionKind": "initial_fixed",
+    "laterSelectionKind": "independent_weighted",
+    "weightTotal": 256,
+    "sameWeatherMayRepeat": true,
+    "advanceOn": "Only a durable normal Resolved increments worldRevision. Cancelled, interrupted, unresolved, replayed and presentation-only actions do not advance it.",
+    "frozenThrough": "Prepared, intention, outcome acquisition and all 40 model ticks",
+    "excludedInputs": ["intention", "prayer duration", "free text", "oracle card", "match history", "wall clock", "idle duration", "presentation duration"]
+  },
+  "entropy": {
+    "role": "weather",
+    "bufferBytes": 32,
+    "wordOrder": "big-endian uint32",
+    "selection": "UniformBelow(256), then cumulative weights in weatherOrder",
+    "initialEpisodeConsumesWord": true,
+    "bytesConsumedPerEpisode": 4,
+    "rejection": "2^32 is divisible by 256; every complete first word is accepted. Keep the remaining 28 bytes as committed unused material.",
+    "durability": "Persist the complete raw buffer before interpreting the weather. A saved buffer is never replaced to change weather."
+  },
+  "rain": {
+    "targetRule": "All non-solid cells in cellId order, including non-soil stone ground; exclude solid and outside-grid cells",
+    "tickOffsets": [0, 4, 8, 12, 16, 20, 24, 28, 32, 36],
+    "amountRule": "The weather's rainPerTargetAtScheduledTick is applied independently to every target at every scheduled offset; do not divide a fixed amount with a first-cell remainder bias.",
+    "combinationOrder": "Apply weather and dice water scheduled for this tick, sum in each cell, then run one simultaneous flow/drain/infiltration/evaporation update.",
+    "terrainInterpretation": "Static light exposure and wind shelter do not block rain. Rain-through-rock or canopy interception is not modelled.",
+    "currentMapNonSolidCount": 253,
+    "currentMapDrizzleWaterPerRound": 2530
+  },
+  "fields": {
+    "directionRule": "All weather and dice wind is E for this version; reject a different direction rather than silently merging incompatible vectors.",
+    "light": {
+      "localExtraQ": "floor(diceExtraLightQ * falloffQ / 1000) while the dice recipe is active; otherwise 0",
+      "unoccludedTotalQ": "min(1000, weatherBaseLightQ + localExtraQ)",
+      "baseEffectiveQ": "floor(weatherBaseLightQ * lightExposureQ / 1000)",
+      "totalEffectiveQ": "floor(unoccludedTotalQ * lightExposureQ / 1000)",
+      "diceAdditionalEffectiveQ": "totalEffectiveQ - baseEffectiveQ",
+      "diceAdditionalUnoccludedQ": "unoccludedTotalQ - weatherBaseLightQ"
+    },
+    "wind": {
+      "localExtraQ": "floor(diceWindStrengthQ * falloffQ / 1000) while the dice recipe is active; otherwise 0",
+      "unoccludedTotalQ": "min(1000, weatherBaseWindQ + localExtraQ)",
+      "baseEffectiveQ": "floor(weatherBaseWindQ * shelterQ / 1000)",
+      "totalEffectiveQ": "floor(unoccludedTotalQ * shelterQ / 1000)",
+      "diceAdditionalEffectiveQ": "totalEffectiveQ - baseEffectiveQ",
+      "diceAdditionalUnoccludedQ": "unoccludedTotalQ - weatherBaseWindQ"
+    },
+    "roundSummary": "meanLight stores the actual total effective light over the resolved 40 ticks for observation; it is not reused as a light source or as v0.4 local light need.",
+    "consumerRules": "Evaporation uses totalEffectiveLightQ + 4 * totalEffectiveWindQ; growth uses totalEffectiveLightQ and post-evaporation moisture. Presentation leaf response uses the same total wind."
+  },
+  "limits": {
+    "maxDiceWaterInjectionPerRound": 1200,
+    "maxWeatherWaterInjectionPerRound": 2560,
+    "maxCombinedWaterInjectionPerRound": 3760,
+    "derivation": "16*16 possible non-solid cells * 10 rain offsets * 1 unit = 2560. Add the unchanged dice limit 1200. The current map's actual combined maximum is 3730.",
+    "currentMapCombinedMaximum": 3730,
+    "otherStateRanges": "Use the unchanged v0.2 state ranges, checked Int64 intermediates and exact integer mass balance."
+  },
+  "waterAccounting": {
+    "sourceTotals": ["weatherInjected", "diceInjected", "totalInjected"],
+    "identity": "totalInjected = weatherInjected + diceInjected",
+    "balance": "post(surfaceWater+soilWater)-pre(surfaceWater+soilWater) = weatherInjected+diceInjected-surfaceEvaporated-soilEvaporated-drained",
+    "noSourceApportionment": "After mixing, flow, absorption, evaporation and growth are not split proportionally into weather-origin and dice-origin outcomes. No water-particle provenance is inferred."
+  },
+  "localNeed": {
+    "water": "Keep the base start-state moisture need and dice-only planned direct injection weights. Do not predict future rain or downstream flow.",
+    "wind": "Keep the base start-state excess-moisture need; use diceAdditionalEffectiveWindQ * duration as doseWeight.",
+    "light": "Use current weather-only baseEffectiveLightQ as l, and diceAdditionalEffectiveLightQ * duration as doseWeight. Do not use the previous round's meanLight.",
+    "seed": "Keep the unchanged empty/occupied band rule.",
+    "zeroDose": "No related positive-dose soil cells means localNeedQ=0 and recipeWeight=100; do not remove the recipe silently.",
+    "mappingOrder": "Keep dynamic-faces.v0.3 family/recipe order, draw order, caps, UniformBelow and shuffle. v0.4 changes environmental inputs to local weights."
+  },
+  "evidenceBoundary": {
+    "inputs": "WeatherApplicationEvidence and InputApplicationEvidence identify weather and dice application separately.",
+    "receivedFields": "Dice-related light/wind predicates require positive diceAdditionalEffectiveQ. Positive weather-only fields do not establish a dice effect.",
+    "growth": "Growth can use initial moisture and weather fields even outside dice targets. Same-round input references alone do not establish a local dice dependency."
+  },
+  "excluded": ["real-world weather API", "wall-clock seasons", "weather changes during a round", "wind-vector composition", "wind transport of seeds", "plant water consumption", "dynamic canopy shadows", "water-source particle tracking"],
+  "acceptance": "These are fixed design candidates. Compare all planned fixtures without rerolling or changing weather values to improve outcomes; Unity implementation, rendering and device operation remain untested."
+}
