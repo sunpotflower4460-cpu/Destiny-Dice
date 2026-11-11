@@ -5,7 +5,7 @@
   "locale": "ja-JP",
   "description": "Unity箱庭の実装用文章候補。実機の言葉・表示品質の検証は未実施。述語の意味と選定規則はGAMEPLAY.mdを参照する。",
   "predicateContract": "../GAMEPLAY.md#73-述語と根拠の契約",
-  "selectionPolicyVersion": "oracle-focus.v0.2",
+  "selectionPolicyVersion": "oracle-focus.v0.3",
   "limits": {
     "maxSentences": 2,
     "maxCharacters": 90
