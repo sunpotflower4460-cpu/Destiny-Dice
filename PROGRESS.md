@@ -1142,3 +1142,95 @@ Scope: 8 documentation files; PROGRESS append-only
 - `docs/unity-garden/ARCHITECTURE.md`
 - `docs/unity-garden/ROADMAP.md`
 - `PROGRESS.md`
+
+---
+
+## G0: Unity箱庭設計 v0.2 — 仕組みの強化 (2026-11-11)
+
+### 完了したこと
+
+- ユーザーの「仕組みなどの強化ブラッシュアップ」の依頼に対応し、同じG0設計の改訂として体験・自然モデル・文章・保存の契約を具体化した。Unity runtimeや既存アプリの先回り実装は行っていない。
+- 動的配面の必要度を、庭全体の平均から各レシピの直接作用範囲・実効doseに変更。系統重みは候補レシピの平均とし、3系統以上・同系統3面以下・同レシピ2面以下を維持した。
+- 水2レシピを同じ総量1200の集中／分散入力にし、種は中心／外側の非重複範囲へ配置する候補とした。風と光も範囲・強さの違いを定義した。
+- 水深単位、流出予算、最大剰余配分、一つの排出口、吸水、蒸発の端数、乾燥／適湿／過湿の成長曲線、段階閾値をprofile JSONに整理した。
+- 風と湿りの6例、水の保存・排出口・量子化、種と光の順序、蒸発要求を蓄積しないこと、遮蔽を含む16件の参照算術と期待値をJSON化した。全庭やUnityの実行結果ではない。
+- オリジナル6枚に対応する24本の条件付き日本語候補（入力fallback4本を含む）を追加。事実の成立判定→表示group→カードの焦点→優先度・重複回避の順序を具体化した。
+- 言葉・光・音の主焦点を共通化し、強い注目点1、副焦点1以下、鐘1回、自然音1系統、成長アクセント1回以下を初期上限とした。発見は既存イベントから自動で再生成する表示に留めた。
+- 配面・出目の乱数材料を解釈前に保存する境界、カードだけ失敗した場合の出目保全、取消競合、不完全末尾から新segmentへ継続する回復手順、content実体を先に保存する順序を定義した。
+- 文章の重複判定はPreparedより前の直近3Resolvedへ固定し、遅延した提示callbackで変わらないようにした。提示記録を読了判定や次回開始の必須条件にしない。
+- グラフを庭の推移・意図と出目・一投の計算上のつながりへ整理。p=0、欠測、比較対象数、目標変更などの母数を同じ投影から示す。
+- G1は一つのScene、coordinator、local RNG、journal writer/readerで始める。初期はjournal走査で復元し、汎用frameworkや永続cacheを先に作らない。
+
+### 完了基準の結果（実際のコマンド出力）
+
+検証環境: Node `v24.22.1` / pnpm `10.34.9`。既存CIのpnpm 10系列に合わせ、`npx --yes --package=pnpm@10.34.9 pnpm <script>`で実行。依存・lock・実装コードは未変更。
+
+```text
+pnpm typecheck
+> tsc -b --noEmit
+exit 0
+
+pnpm test
+Test Files  41 passed (41)
+     Tests  183 passed (183)
+exit 0
+
+pnpm build
+> tsc -b && vite build
+vite v8.1.4 building client environment for production...
+102 modules transformed.
+built in 234ms
+exit 0
+
+設計の参照算術（Python整数演算、Unity実行ではない）
+caseCount: 16
+referenceArithmetic: all explicit assertions passed
+unityTested: false
+
+配面の分岐全列挙（Fraction、抽選標本ではない）
+all weights 100: mean water faces = 3/2
+water weights 300, others 100: mean water faces = 187067/81675
+recipe-count states: 676 per scenario; total probability: 1
+
+設計資料の検証
+Markdown files: 8; local links: 49; JSON examples: 1; JSON design files: 3
+Catalog: 24 unique templates / 4 input fallbacks / 6 cards; all predicates defined
+Recipes: 8; equal water total=1200; non-overlapping seed bands; profile thresholds consistent
+Scope: 12 documentation/data files; PROGRESS append-only
+Errors: 0
+git diff --check: exit 0
+```
+
+- 既存の`jeep-sqlite`依存による`crypto` browser externalization警告あり。ビルドは成功し、今回その依存・実装は変更していない。
+- 参照算術は設計候補の小さな成分例。Unity C#、16×16展示庭、200回の最大注水、Mono/IL2CPP、実機、FX/SEの試験は未実施。
+- 同じ例の数値が出たことだけで、モデルが実地形で安定する、美しく見える、一定時間で必ず開花するという合格判定はしていない。
+
+### 不変条件の確認
+
+- 既存`DESIGN.md` / `PROTOCOL_FREEZE.md` / `AGENTS.md`、runtime、台帳、統計、依存関係、CIを変更していない。
+- Unity企画は別のgameId/runId・保存領域の設計。旧365日実験の確率・乱数変換・確証解析へ混在させていない。
+- PROGRESSは既存内容を保持して末尾へ追記。設計候補と実装済み・実測済みを区別した。
+- カード・文章・演出は結果を書き換えない。欠測を成功に補完せず、既知出目をカード失敗や未提示で除外しない。
+
+### 要確定・申し送り
+
+- 次の入口はG1。展示端末、正確なUnity Editor/パッケージ、署名・配布環境は未確定。
+- profileの数値は`designCandidate`。G2で16×16の実地図を作り、200回最大注水、複数の公平な入力列、局所変化と成長の見やすさを確認して採用版を固定する。
+- 経路の由来追跡は最小版に含めない。必要な証拠が未実装の文章は成立としない。通常の正の流量の集約と、特定の根までの経路検証を区別する。
+- 24文の読みやすさ、実際のメッセージ比率、静かなFX/SE、グラフの可読性、来場者交代はG3の実機で確認する。
+- 外部乱数provider、音声文字起こし、同期、ストア一般公開は展示の成立条件へ加えていない。旧アプリのIssue #16も別の残件のまま。
+
+### 触ったファイル
+
+- `README.md`
+- `docs/unity-garden/README.md`
+- `docs/unity-garden/GAMEPLAY.md`
+- `docs/unity-garden/SIMULATION.md`
+- `docs/unity-garden/DATA_CONTRACT.md`
+- `docs/unity-garden/ARCHITECTURE.md`
+- `docs/unity-garden/ROADMAP.md`
+- `docs/unity-garden/VALIDATION.md`
+- `docs/unity-garden/content/simulation-profile.v0.2.json`
+- `docs/unity-garden/content/simulation-fixtures.v0.2.json`
+- `docs/unity-garden/content/oracle-catalog.v0.2.json`
+- `PROGRESS.md`
