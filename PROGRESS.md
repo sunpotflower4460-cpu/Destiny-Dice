@@ -1077,3 +1077,68 @@ CocoaPods未インストールの場合は `sudo gem install cocoapods` の上�
 - `src/runtime/ExperimentRuntime.tsx`, `src/runtime/ExperimentRuntime.css`
 - `vitest.config.ts`
 - `PROGRESS.md`
+
+---
+
+## G0: Unity箱庭ゲームの共通設計 (2026-11-11)
+
+### 完了したこと
+- ユーザーの依頼に基づく新しいUnityゲーム企画の設計を `docs/unity-garden/` に追加した。旧実験のP0〜P11とは別のG0設計フェーズとして扱う。
+- 庭の状態と専用乱数による動的6面、水・風・光・種、局所格子の自然モデル、意図の先行記録、独立したオラクル、自然な短文、神聖なFX/SEを定義した。
+- スマホ（iOS/Android）とSteam向けWindowsを共通C#モデルから作る責務分担、入力・品質設定・保存・中断回復・配布ゲートを文書化した。
+- 可変の配面に合わせた `p_t=該当面数/6`、結果既知/欠測/未提示の区別、再抽選・二重適用防止、実イベントに基づく文章の条件を定義した。
+- 約3日での一台の展示から、各プラットフォームの製品化へ進むG1〜G5の受け入れ条件を作成した。READMEから設計へ案内した。
+- 独立した設計レビューで、recipe/event ID、意図変更期限、モデル停止と計算コピー、取得前の取消、入力の継続tick・対象セル、整数保存範囲、文章の成立条件を照合・修正した。
+
+### 完了基準の結果（実際のコマンド出力）
+
+検証環境: Node `v24.22.1` / pnpm `10.34.9`。既存CIのpnpm 10系列に合わせ、`npx --yes --package=pnpm@10.34.9 pnpm <script>`で実行した。package.json・lockfileの変更はない。
+
+```text
+pnpm typecheck
+> tsc -b --noEmit
+exit 0
+
+pnpm test
+Test Files  41 passed (41)
+     Tests  183 passed (183)
+exit 0
+
+pnpm build
+> tsc -b && vite build
+vite v8.1.4 building client environment for production...
+102 modules transformed.
+built in 184ms
+exit 0
+
+文書検証
+Markdown files: 7; local links: 27; JSON examples: 1; errors: 0
+git diff --cached --check: exit 0
+Scope: 8 documentation files; PROGRESS append-only
+```
+
+- ビルド時に `jeep-sqlite` 依存の `crypto` browser externalization警告あり。ビルドは成功し、該当する実装・依存関係は今回の変更対象外。
+- 初回の環境既定pnpm 11は、依存のbuild-script保護によりコマンドが停止した。許可設定を変更せず、CIと同じpnpm 10系列で上記コマンドを実行して成功した。生成されたworkspace設定はコミットに含めない。
+- 説明用JSONの6面、recipe ID、意図に対応する面集合、基準確率の分子、一致判定を確認した。
+- この変更は文書のみ。Unityビルド、Unityテスト、実機動作、UI確認、ストア申請は未実施であり、ゲーム完成の証拠とはしない。
+
+### 不変条件の確認
+- 既存 `DESIGN.md` / `PROTOCOL_FREEZE.md` / `AGENTS.md`、runtime、台帳、統計、依存関係、CIは変更していない。
+- 新Unity企画は別のgameId/runId・保存領域を使う設計で、登録済み実験へ6面の記録を混在させない。
+- 文書にも、意図確定後の乱数取得、実source記録、追記履歴、欠測の保持、tamper-evident表現を明記した。
+
+### 要確定・申し送り
+- 次の実装入口はG1。正式タイトル、展示端末、正確なUnityパッチ・パッケージ、対応する最低端末・OS、公開識別子は未確定。
+- 地図・入力の量/範囲/時間、成長係数、文章集は初期案として記述し、G2/G3で実際のfixtureと体験から固定する。
+- 展示ビルドの成立と、iOS/Android/Steamの一般公開は別の完了条件。3日で全ストア公開済みになるとは扱わない。
+- 旧アプリのIssue #16にある外部資格情報・実配布の残件は、このUnity設計では解決していない。
+
+### 触ったファイル
+- `README.md`
+- `docs/unity-garden/README.md`
+- `docs/unity-garden/GAMEPLAY.md`
+- `docs/unity-garden/SIMULATION.md`
+- `docs/unity-garden/DATA_CONTRACT.md`
+- `docs/unity-garden/ARCHITECTURE.md`
+- `docs/unity-garden/ROADMAP.md`
+- `PROGRESS.md`
