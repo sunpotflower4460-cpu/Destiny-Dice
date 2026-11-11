@@ -1,6 +1,6 @@
 # Unity Garden — 記録・復旧・観察のデータ契約
 
-設計版: **0.2 / designCandidate／Unity 実装・実機検証は未実施**。対象は新しい箱庭ゲームのみ。
+設計版: **0.3 / designCandidate／Unity 実装・実機検証は未実施**。対象は新しい箱庭ゲームのみ。自然モデルの係数・参照算術はv0.2を継続する。
 この文書は既存の `DESIGN.md` / `PROTOCOL_FREEZE.md` の実験・台帳を変更しない。
 数値パラメーター、ファイル I/O、C# の具体的な型は、後続の実装フェーズで検証する。
 
@@ -34,6 +34,11 @@
 版を変更する場合は新しい run を開始し、変更前後の集計を既定で混ぜない。
 同じ端末の同じ人物かどうかは自動判定しない。展示の run は人物 ID を意味しない。
 
+run内で未終端のroundは最大一つとする。正となる庭の参照は、最後の保存済み`Resolved.postState`、まだなければ`RunStarted`の初期状態から求める。
+この参照は`sourceSeq / sourceEntryHash / worldRevision / stateHash`の組であり、最新のjournal headとは区別する。後着のPresentationReceiptやRecoveryContinuedは庭の版を進めない。
+`PreparationStarted`はこの組を開始状態参照として固定し、`beforeRevision / beforeStateHash`を持つ。新しい準備の保存時とResolvedの保存時に、同じ庭の参照であることをwriterが照合する。
+別の未終端roundがあれば新しいround IDの開始も拒否する。準備commandは一度だけroundIdを割り当ててcommandIdと保存し、同じcommandの再送はそのroundへ収束させる。二つの配面を同じ庭から並行解決しない。
+
 ## 2. 一回の状態遷移
 
 以下の各段階は、single-writer が追記を永続化してから次へ進める。
@@ -43,21 +48,25 @@
 |---|---|---|
 | `PreparationStarted` | round ID、開始状態参照、配面規則、mapping取得 ID | 初めて配面用乱数を取得 |
 | `MappingEntropyCommitted` | 配面用の生byte、取得元、材料形式・変換版 | この材料だけから6面を生成 |
-| `Prepared` | 開始時の庭、6面全体、生成根拠、mapping材料参照、実行時間幅 | 配面表示、意図の編集 |
+| `Prepared` | 開始時の庭、6面全体、生成根拠、mapping材料参照、実行時間幅 | 下記の表示条件を満たしてから配面公開、意図の編集 |
 | `IntentCommitted` | 意図のスナップショット、方法、対応面、基準確率 | 取得開始の記録 |
 | `AcquisitionStarted` | 取得 ID、参照する意図・配面、乱数ポリシー | 初めて出目・カード用乱数を取得 |
 | `DrawEntropyCommitted` | outcomeのbufferと、oracleのbufferまたは失敗receiptを一つのrecordで保存 | 初めて出目・カードとして解釈 |
 | `OutcomeCommitted` | 材料参照、出目、選択面、カードまたはカード未成立理由 | 同じ入力で自然モデルを計算 |
-| `Resolved` | 完全な更新後状態、出来事、採用文、参照情報 | 結果演出、演出終了・省略後の次の回 |
+| `Resolved` | 完全な更新後状態、出来事、採用文、参照情報 | 結果演出、次の回の非公開準備 |
 | `PresentationReceipt` | アプリが報告した提示段階、提示対象 | 補助的な提示履歴。次の回の必須gateではない |
 
 意図を持たない場合も `IntentCommitted(kind=none)` を保存して同じ経路を通る。
 長押し中の下書きは変更可能だが、確定後の変更は次の round に適用する。
 `Prepared` の6面は固定し、意図変更・画面回転・バックグラウンド復帰で再生成しない。
-`PreparationStarted`から`Resolved`までは開始snapshotと公開中の庭を固定し、待機時間で進めない。
-`OutcomeCommitted`後に別の計算用コピーを固定tick数だけ進め、保存した`Resolved.postState`を新しい庭にする。
+`PreparationStarted`から`Resolved`まではCoreの開始snapshotを固定する。配面公開後は公開中の庭もその開始状態に保ち、待機時間で進めない。
+`OutcomeCommitted`後に別の計算用コピーを固定tick数だけ進める。未終端roundの所有と開始状態参照を再確認し、`Resolved`の永続化後にだけ`postState.worldRevision = beforeRevision + 1`を新しい庭として採用する。
 対象位置・方向・シミュレーション時間幅も固定し、確定後の外部入力を混ぜない。
 結果待ちの光や音は使えるが、保存前に出目・カード・庭の結果を先に見せない。
+
+次のPreparedを先に保存しても、6面公開・意図編集・投擲受付は、前回の過程再生があれば終了または省略し、画面がそのPreparedの`beforeRevision / beforeStateHash`に対応する終状態になってから許可する。初回は保存済み初期状態との対応を確認する。
+途中の補間画面は開始snapshotにしない。省略操作のreleaseを次の投擲へ流用せず、公開後の新しいpointer-down/upまたはkey-down/upを要求する。処理中の連打を次回分として予約しない。
+この表示条件は保存済み庭と画面の対応であり、Receiptの保存や人の読了確認を新しいgateにしない。
 
 ## 3. 中断・再開・二重実行
 
@@ -93,6 +102,8 @@ Receiptは読了や次回開始の条件ではない。保存adapter自体の障
 通常のroundイベントは`roundId + eventType`の一意性と合法な遷移をwriter/application層で検査する。
 提示記録だけは `roundId + presentationAttemptId + phase` を一意にする。
 準備終了・取得前取消・出目未成立・正常解決は、同じroundで矛盾する終端を併存させない。
+未終端枠を解放するのは、これらの終端recordを永続化した後だけ。正常解決以外では庭のrevisionを進めず、同じ検証済み状態から新しいroundを準備できる。
+保存エラーを未成立の終端とみなして新roundを並行開始しない。部分末尾を回復して既存roundを閉じる経路、または§9.1の継続不能時に出所を明示した新runへ移る経路を使う。
 完全なframeとhashを検証できれば、保存完了通知が返る前に終了していてもその記録を採用する。
 連打・重複コールバック・遅れて返った取得結果は、既存の確定結果を置換できない。
 終端状態になった round の遅延応答を新しい round へ流用しない。
@@ -108,6 +119,7 @@ Receiptは読了や次回開始の条件ではない。保存adapter自体の障
 - 開始記録をwriterで保存した後、ロックを解放してlocal取得を行い、結果を同じwriterへ戻す。
 - 保存完了callbackは直接次の取得を開始しない。現在のrun/round/状態を検査した次のコマンドを通す。
 - 取得を待つ間にwriterのロックを保持しない。重複要求は既存commandの結果へ収束させる。
+- 新規準備と解決のcommandは期待する開始状態参照も渡す。writer内で未終端roundと庭の参照を照合し、古いsnapshotに対する計画・遅延計算を採用しない。後着Receiptだけではこの照合を失敗させない。
 
 来場者交代では旧runの内容を通常画面から外して処理を閉じ、`RunClosed`保存後に新しいRunStartedへ切り替える。
 旧runに処理中の回があれば、取得前取消または取得後の確定・未成立に決着させる。
@@ -151,6 +163,7 @@ oracleも独立bufferに同じ変換を適用し、固定した6枚の順序へ�
 mappingの`UniformBelow(n)`は、固定した候補順と連続するbig-endian uint32を使う初期案とする。
 `n=1`はbyteを消費せず0。その他は`limit=2^32-(2^32 mod n)`未満のwordだけを受理し、`word mod n`を返す。
 `2 <= n < 2^32`と中間64bit演算を検査する。Fisher–Yatesも同じmapping bufferから消費する。
+候補順・抽選順・shuffle方向は[GAMEPLAY.md](./GAMEPLAY.md)§5.1の`dynamic-faces.v0.3`に固定する。列挙コンテナや辞書の順序を乱数の解釈へ混ぜない。
 
 ### 4.2 棄却がbufferを使い切った場合
 
@@ -192,23 +205,26 @@ nullable と未取得を区別し、既知の値を便宜的な `0` や空文字
 | 同上・識別 | `platform`, `previousRunId?`, `initialStateProvenance`, `startedAtUtc` |
 | 同上・内容 | `contentManifest`：設定・地図・deck・文章集の永続参照、内容hash、byte長 |
 | `RunClosed` | 終端head、終了理由、最後のworldRevision。進行中の回を残して通常終了しない |
-| `WorldSnapshot` | グリッド形状、地形・障害物・土壌容量、地表水・土中水、植物状態、`worldRevision`, `stateHash` |
+| `WorldSnapshot` | profile/mapの内容hash、グリッド形状、地形・障害物・土壌容量、地表水・土中水・端数、植物状態、tickと累計、`worldRevision`, `stateHash` |
 
 グリッドや植物状態の正確な要素は自然モデルの仕様で固定する。
 浮動小数の丸め、列挙順、境界処理、時間刻みも数値表現・計算版に含める。
 固定時間刻みだけを根拠に、Unity PhysX の端末間完全一致を主張しない。
 異なる端末での完全一致は、同じ保存入力を使った監査で確認する実装上の受入条件とする。
 
+`stateHash = SHA-256(JCS(WorldSnapshotからstateHashだけを除いたobject))`の小文字16進値とする。snapshotはSIMULATIONの状態項目を全て含み、セル配列はcellId昇順、個体配列はcellId・plantIdの順とする。整数は§9の範囲、IDはordinal比較を使う。
+`Resolved.postStateHash`は`postState.stateHash`と同じ値。外側のrecord、hash自身、文章、演出trace、UI状態をsnapshot hashへ入れない。内容原本を識別するcontent hash、journal record全体のentryHashとは別の対象をhashする。
+
 ### 5.2 配面と意図
 
 | DTO | 必須情報 |
 |---|---|
-| `PreparationStarted` | 開始状態参照/hash、`preparationId`, 配面ポリシー、予定buffer長 |
+| `PreparationStarted` | 開始状態の`sourceSeq / sourceEntryHash / beforeRevision / beforeStateHash`、`commandId`, `preparationId`, 配面ポリシー、予定buffer長 |
 | `MappingEntropyCommitted` | `preparationSeq`, `mappingReceipt`, 材料形式、変換版 |
-| `Prepared` | `mappingEntropySeq`, 開始状態参照/hash、`faces[6]`, 候補重みと状態量、材料消費記録、`selectionAtPrepared` |
+| `Prepared` | `mappingEntropySeq`, PreparationStartedと同じ開始状態参照/hash、`faces[6]`, 候補重みと状態量、材料消費記録、`selectionAtPrepared` |
 | 同上・入力範囲 | `targetMode`, `anchorRefs`, `simulationStepCount`, `fixedDelta`, `preparedAtUtc` |
 | `FaceAssignment` | `faceId=1..6`, `recipeId`, `elementId`, `resolvedParameters` |
-| `resolvedParameters` | `amount`, `unitId`, `targetCells[]`, `cellWeights[]`, `radius`, `direction?`, `durationTicks`, `injectionSchedule` |
+| `resolvedParameters` | `amount`, `unitId`, `targetCells[]`, `cellWeights[]`, `radius`, `direction?`, `startTickOffset`, `durationTicks`, `injectionSchedule` |
 | `IntentCommitted` | `preparedSeq`, `kind`, `target?`, `freeText?`, `method`, `committedAtUtc` |
 | 同上・比較 | `matchingFaceIds?`, `chanceNumerator?`, `chanceDenominator?`, `eligibilityReason` |
 | 同上・経過 | 実際に計測した長押し時間、前回提示文への参照、前回の意図からの継続か |
@@ -234,7 +250,7 @@ nullable と未取得を区別し、既知の値を便宜的な `0` や空文字
 | 同上・成功／失敗 | acquiredは`materialFormat=raw-bytes`, `rawBytesHex`, byte長。failedは材料null、固定した安全なerrorCode |
 | `DrawEntropyCommitted` | `acquisitionSeq`, 成功した`outcomeReceipt`, 成功または失敗の`oracleReceipt`。一つのframeで保存 |
 | `OutcomeCommitted` | `drawEntropySeq`, `faceId`, 選択面参照、`cardId?`, `cardStatus`, roleごとの消費範囲・棄却数・変換版 |
-| `Resolved` | `outcomeSeq`, 完全な `postState`, `postStateHash`, `inputApplicationEvidence`, `events[]`, `message`, `presentationPlan`, 計算版 |
+| `Resolved` | `outcomeSeq`, Preparedと同じ開始状態参照、完全な `postState`, `postStateHash`, `inputApplicationEvidence`, `events[]`, `message`, `presentationPlan`, 計算版 |
 | `PresentationReceipt` | `resolvedSeq`, `presentationAttemptId`, `phase=presenter_started/presenter_completed`, アプリ報告時刻 |
 | `InterruptedUnresolved` | `acquisitionSeq`, 検出時刻、理由、`outcomeKnown=false` |
 | `PreparationInterrupted` | `preparationSeq`, `mappingEntropySeq?`, 理由。出目の欠測とは別 |
@@ -264,14 +280,17 @@ bundleが完全に保存される前の終了と、保存済み材料の未解�
 | `PresentationPlan` | `primaryGroupId?`, `secondaryGroupId?`, 参照した`observationGroups[]`, `groupingVersion` |
 
 ObservationGroupは、実イベントを意味と場所でまとめた表示用の投影であり、新しい自然イベントや独立台帳ではない。
+`observation-groups.v0.3`では同kindの4近傍成分を基本とし、全域集約のSurfaceFlowObservedだけは一つのglobal groupにする。分離した流れへ集計値を複写せず、局所到達の根拠にしない。
 Resolvedには全SimulationEventと、文章・表示で参照するgroupだけを保存する。全候補groupは同じgroupingVersionから再生成できる。
 `primaryGroupId=focusGroupId`とし、secondaryは最大一つ。言葉とFX/SEは同じ焦点を参照する。
+input_pairの二つ目のgroupは必要な補助焦点として優先する。supportingGroupIdsは焦点以外の全ての述語根拠groupの参照であり、表示する一つのsecondaryとは区別する。
 `predicateBindings`は文の各成立条件を具体的なイベント・入力・状態へ結び付け、group名だけを真偽の根拠にしない。
-同じ対象を述べる複数条件はplant/cellと区間を合わせ、異なる場所の事実を組み合わせて成立させない。
+同じ対象を述べる複数条件はplant/cellを合わせ、各述語で定義した時点・区間の関係を満たすことを要求する。異なる場所の事実を組み合わせて成立させない。
+複数の完全な束縛が成立するときは、GAMEPLAY§7.3のsubject・tick・source eventによる固定tupleで一つを選び、その束縛を保存する。辞書の列挙順や追加乱数で選ばない。
 イベントのない事実fallbackではfocus/primary/secondaryをnullにでき、確定入力・前後状態を直接参照する。
 fallbackの`input_applied`にはInputApplicationEvidenceが必要。Outcomeで入力が選ばれただけでは成立しない。
 `templateId`はcatalogの`entries[].id`を保存する。文章を指すmessageIdと別の独立IDを生成しない。
-scoreTupleは`cardAffinity / priority / recentNovelty`の降順、最後にmessageIdの固定昇順で比較する。
+`oracle-focus.v0.3`の候補は、scoreTuple=`cardAffinity / priority / recentNovelty`の降順、その後messageId・groupId・bindingKeyの昇順で比較する。bindingKeyは保存したpredicateBindingsから導出できるため独立recordにしない。
 通常rankingを使わず基本文を選ぶ場合はscoreTupleをnull、比較ID/seq列を空にし、fallbackReasonを`no_factual_candidate / card_unavailable`から記録する。
 重複回避は、**同runでseqがPrepared.seqより小さい直近3件のResolved**に保存されたmessageIdだけと比較する。
 3件はResolvedレコード数であり、同じmessageIdが重複していてもそのまま含める。3件未満なら存在する分だけ使う。
@@ -393,6 +412,8 @@ hash、byte、状態配列、完全な参照を省いた投影で、実装 fixtu
 1回の詳細は「入力→局所状態→適用規則→出来事」の固定配置を基本にする。
 投影のedgeKindを`modelDependency / recordedAssociation`に分け、既存イベントの参照から作る。
 例えば入力→蒸発→湿り→成長は、該当する計算依存が記録されている場合だけmodelDependencyで示す。
+毎回40tickの基礎光・蒸発・成長は、今回の追加作用が届かない場所でも進む。イベントのinputRefは同roundの文脈参照であり、それだけで局所作用や因果edgeの根拠にはしない。
+必要に応じ「開始時の水分・成長」「40tickの経過・基礎光」「今回の追加作用」を別の計算入力として示す。今回の入力からは、対象・区間・実適用の証拠がある依存だけを結ぶ。範囲外の花が育っても、今回の風や追加光の直接効果と表示しない。
 汎用ノードエディタや別のグラフ台帳は設けず、庭の歩みはround順の水量・成長推移と入力記号から表示する。
 前の文章が次の意図へ影響した可能性を検討できるよう、文章と提示証拠への参照を残す。
 提示証拠を読了判定に変換せず、機械が観測できなかった状態は不明のまま扱う。

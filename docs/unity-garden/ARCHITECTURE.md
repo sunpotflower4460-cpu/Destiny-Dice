@@ -1,8 +1,8 @@
 # Unity箱庭 — アーキテクチャ
 
-状態: 設計案 v0.2 / Unity未実装
+状態: 設計案 v0.3 / Unity未実装
 作成日: 2026-11-11
-対象: 新しい箱庭ゲームのUnity版。今回の変更は文書のみ。
+対象: 新しい箱庭ゲームのUnity版。今回の変更は設計資料のみ。
 
 ## 1. 適用範囲と正となる文書
 
@@ -11,6 +11,7 @@ Unity版は新しいschema・保存領域・セッション識別子を持ち、
 
 状態遷移、recordの必須項目、hash、欠測・回復規則の正は[DATA_CONTRACT.md](DATA_CONTRACT.md)。
 本書は同じ契約を別方式で再定義しない。実装順と段階の完了条件は[ROADMAP.md](ROADMAP.md)を参照する。
+画面の進行と操作は[EXPERIENCE.md](EXPERIENCE.md)、初期庭の配置候補と参照計算は[GARDEN_LAYOUT.md](GARDEN_LAYOUT.md)にまとめる。
 Unity project、C#コード、package、CI設定、ネイティブ設定は、この設計phaseでは作成しない。
 
 ## 2. 一つの計算モデルと四つの責務
@@ -47,6 +48,7 @@ port名は実装時の命名候補。record名・状態名はDATA_CONTRACTに従
 初期版の復元は短いjournalを検証走査して行い、最後の`Resolved`と未完了のroundを取り戻す。走査時間・容量を実測して必要な場合にのみ、破棄して再生成できるcheckpointを足す。復元手順・意図の先行確定・single-writerは省略しない。
 
 `docs/unity-garden/content/`のJSONは実装時の照合用の設計資料。現時点ではUnityのloaderも検証器もない。採用時にはschemaと値を検証し、runへ固定するcontentに変換する。
+v0.3の庭配置はv0.2の計算profileを使う。文書版・地図版・計算版を一つの番号だと扱わず、contentManifestにそれぞれの実体とhashを残す。参照計算reportは照合用であり、通常プレイの出目列や成長結果を供給するassetにはしない。
 
 ## 3. Unity projectの予定配置
 
@@ -97,6 +99,16 @@ Domainは明示的なstep数と入力から次の状態を求め、描画フレ�
 自由物理のサイコロを追加する場合は、別mode・別記録として設計する。
 PhysXは固定刻みだけで端末間の完全な決定性が保証されるものではない。[Unityの説明][U1]
 
+### 4.3 確定した庭と、演出中の庭を混同しない
+
+Coreの最新状態は保存済みResolvedのpostState。画面は、その同じ計算から得た一投分の経過を一時的に再生できる。表示中の補間値を次の配面の入力にしない。
+
+表示用traceはメモリー上の一投分に限定できる。過去全roundの全tickをjournalへ追加することは最小版の要件にしない。traceが失われた復帰時は保存済みの終状態と文を示し、推測した過程で埋めない。
+
+次の配面を公開するときは、表示している庭がそのPreparedのbeforeRevision/beforeStateHashに対応する終状態になっていることを確認する。前回の流れを再生中の庭へ次の作用範囲を重ねず、演出を省略する場合も終状態への反映を先に行う。
+
+これはPresentation側の公開条件であり、PresentationReceiptの保存を読了・次回開始の必須gateにするものではない。前のcallbackや離した指を、新しいroundのRollへ転用しない。具体的な入力状態はEXPERIENCEに従う。
+
 ## 5. 動的6面の生成と試行進行
 
 面の候補は、固定した庭の事前状態・配置・候補規則・専用乱数から生成する。
@@ -105,6 +117,7 @@ PhysXは固定刻みだけで端末間の完全な決定性が保証されるも
 提示する6面、対象地点、対応する要素と強度はPreparedへ記録する。
 面の重複等による確率はDomainで求め、UI独自の「当たりやすさ」を作らない。
 再起動時は記録済みの6面を読む。現在の庭から再生成しない。
+同じrunの未終端roundは最大一つとし、新しいroundIdだけを作って並行取得する経路も拒否する。準備元のworldRevision/hash、commit時の最新状態をDATA_CONTRACTの条件で照合する。
 
 通常の順序は、`PreparationStarted → MappingEntropyCommitted → Prepared → IntentCommitted → AcquisitionStarted → DrawEntropyCommitted → OutcomeCommitted → Resolved → PresentationReceipt`。
 詳細な許可遷移・必須項目・例外はDATA_CONTRACTを正とする。
@@ -186,6 +199,8 @@ pauseとprocess killは区別する。同じprocessが続いている場合も�
 
 ## 8. 入力と画面
 
+初回から次の一投、履歴、来場者交代までの画面状態と日本語文言は[EXPERIENCE.md](EXPERIENCE.md)を正とする。UIに独自の投擲queueや自動連投を追加しない。
+
 Unity Input SystemのActionsで、タッチ・マウスを同じ意味の操作へ変換する。[タッチ入力][U4]
 候補ActionはPoint / Select / Roll / Confirm / Back。正確なassetはG1で作る。
 ポインター速度や端末のタッチ圧を、測定用乱数の値へ混ぜない。
@@ -209,6 +224,7 @@ exportの共有先選択は各OSのadapterへ渡し、Domainにファイルダ�
 最初から汎用ノードエディタや自動配置の物理演算を作らず、見たい回を選ぶと同じ配置へ具体的な量と場所を入れる。例えば「風→蒸発180→土中水950から770→成長184」は、その回に実際に保存された値の場合だけ表示する。別の場所の平均を一つの因果連鎖へつなげない。
 
 自然モデルの計算依存を表すedgeと、意図・カード・文章が同じroundに記録された対応を表すedgeは意味を分ける。カードから開花への計算依存edgeを作らない。詳細にはruleIdと根拠イベントへ辿れる参照を持たせ、別の成功台帳を追加しない。履歴にある過去の庭と、現在操作中の庭は表示上も区別する。
+全投擲で庭全体が40tick進むため、初期の水分・成長と基礎光も計算への入力に含める。今回の追加作用が届かない植物の成長を、同roundという理由だけで出目の直接効果へ結ばない。詳細の根拠条件はDATA_CONTRACT§8に従う。
 
 ## 9. URPと表示品質
 

@@ -1,6 +1,6 @@
 # Unity箱庭 — 体験・動的な6面・表現・言葉
 
-設計版: 0.2 / 2026-11-11。Unity実装・実機の体験検証は未実施。
+設計版: 0.3 / 2026-11-11。Unity実装・実機の体験検証は未実施。自然モデルの係数と24本の文章本文はv0.2を継続する。
 
 ## 0. この文書の位置づけ
 
@@ -42,12 +42,12 @@
 ### 一投の順序
 
 1. 前の自然変化を確定し、庭の状態から次の6面を生成する。
-2. 6面とその生成条件を保存する。保存成功後に一覧を表示し、その投擲について固定する。
+2. 6面とその生成条件を保存する。保存成功後、画面が生成元の終状態になってから一覧を公開し、その投擲について固定する。
 3. 必要なら願いの対象や方法を置く。前回の設定を続けても、何も選ばなくてもよい。
 4. サイコロに触れている間に思う・祈る・声に出す。離すと投擲を要求する。
 5. 意図の記録が確定してから出目を取得し、その面に保存済みの入力を庭へ適用する。
 6. 庭の変化を計算・保存し、結果に沿った映像・音・言葉を見せる。
-7. 次の6面が用意されたら、そのまま次を振れる。結果の確認ボタンは出さない。
+7. 過程再生の終了・省略で同じ終状態を見せ、用意済みの次の6面を公開する。そのまま次を振れ、結果の確認ボタンは出さない。
 
 カードは一投につき一度だけ独立に抽選・保存し、メッセージ選定前に確定させる。
 配面・出目・カードの抽選は別用途として扱う。文章から前段の結果を変更しない。
@@ -82,6 +82,8 @@
 タップ代替でも保存・抽選・庭の変化の経路は同じで、操作方式だけを区別して記録する。
 画面外へのドラッグ、フォーカス喪失、アプリ中断は意図時間の継続とみなさず終了イベントにする。
 中断後の再開・保存失敗時の処理はデータ設計に従い、成功したふりをして次の抽選へ進めない。
+次回の非公開準備は前回Resolvedの保存後にできるが、6面公開・意図編集・投擲受付は表示庭とPreparedのbeforeRevision/beforeStateHashが対応してから。演出の途中状態を次の入力対象にしない。
+投擲には公開後の新しい押下・解放を必要とする。演出省略・履歴を閉じる操作のreleaseを流用せず、処理中の連打を予約しない。再開時にtraceがなければ保存済み終状態を直接見せる。
 
 ### 2.3 六つの面を見渡す
 
@@ -124,7 +126,7 @@
 
 ### 4.1 状態を固定してから計算する
 
-`stateBefore`は前の投擲の処理が完了した時点のスナップショットとする。
+`stateBefore`は最後の保存済みResolved.postState、最初はRunStartedの初期状態とする。run内の未終端roundは一つだけで、準備時と解決保存時に開始状態参照を照合する。
 配面を眺める時間や意図時間によって、生成済み配面の重み・位置・パラメータは動かさない。
 対象土セルが一つ以上あり、水・風・光を常に定義できることを庭設定の検証条件にする。
 seedは上表の空き土セル条件を満たすrecipeだけ候補に含める。
@@ -183,8 +185,11 @@ eligibleな系統が3未満の設定は検証失敗。密かに別の抽選方�
 6. 配面・状態参照・候補重み・生成手順の版を保存する。保存成功後に表示する。
 
 重み付き抽選は、対象の整数重み合計未満の一様整数を取り、累積重みで選ぶ。
+候補が一つでも`UniformBelow(重み合計)`を呼ぶ。候補数だけを理由にbyte消費を省略しない。
 整数への変換とFisher–Yatesの各index選択では、剰余による偏りを避ける方式を使う。
-同じ保存済み配面用乱数材料・同じ状態・同じrulesetで同じ配面を生成できるよう、候補の走査順を固定する。
+`mappingPolicyVersion=dynamic-faces.v0.3`では、系統順を`water / wind / light / seed`、recipe順を保存したprofileの`recipes[]`順に固定する。v0.2 profileでは水2種、風2種、光2種、種2種の掲載順であり、filter後も相対順を保つ。
+同じmapping bufferを前から使い、最初に3系統を全て選んで抽選順を保ち、その順に各系統のrecipeを一つずつ選ぶ。残り3枠もrecipe原順で一枠ずつ選び、途中で候補を並べ替えない。
+shuffleは0始まりの6枠を`i=5,4,3,2,1`の順に、`j=UniformBelow(i+1)`で交換する。完成配列のindex+1をfaceIdとする。UniformBelowとbyte消費はDATA_CONTRACT§4.1に従い、shuffleだけ別の乱数を使わない。
 残り枠の候補が空になる設定は検証失敗。無制限の再抽選や制約の解除をしない。
 生成過程では3系統以上を確保し、同recipe最大2面・同系統最大3面を守る。
 
@@ -210,10 +215,12 @@ eligibleな系統が3未満の設定は検証失敗。密かに別の抽選方�
 ### 6.1 記録と、見る人への提示を分ける
 
 保存する`SimulationEvent`の集約・証拠は[SIMULATION.md](./SIMULATION.md)に従う。表示の都合で記録された不都合な結果を落とさない。
-表示用には、同一round・同kindのイベントが対象とするセルを、上下左右4近傍の連結成分ごとに`ObservationGroup`へまとめる。
+`groupingVersion=observation-groups.v0.3`では、同一round・同kindのイベントが対象とするセルを、上下左右4近傍の連結成分ごとに`ObservationGroup`へまとめる。
 同じ植物のイベントはそのcellへ束縛する。firstTickは最小値、lastTickは最大値、eventIds/plantIdsは重複除去後の固定ID順、cellIdsは昇順とする。
 `groupId = roundId + ":" + kind + ":" + minCellId`で固定する。対象セルのない入力fallbackはgroupを作らない。
+例外はSurfaceFlowObservedだけで、`groupId = roundId + ":SurfaceFlowObserved:global"`の一つの全域groupにする。元のinvolvedCellIds・区間・集計量をそのまま保持し、離れた水たまりが含まれても4近傍分割しない。
 異なる種類の量を一律に足さず、成分別に分離できない全域集計値を各groupへ複製しない。groupingVersionと参照した証拠を保存する。
+全域の流れを焦点にする文・FXは「庭で水が動いた」という範囲にとどめ、特定セルの量や根元への到達へ読み替えない。
 例えば吸水累計は「染み込んだ」の根拠、終状態の水分は「湿っている」の根拠として別に保持する。
 段階成長は実際の閾値越えを保ち、複数の花の同時開花は一つの表示上のまとまりへできる。
 新しい自然現象をgroupとして作らず、同じセルの40tick分を40回の発見として鳴らさない。
@@ -280,7 +287,9 @@ groupの固定順位は「成立候補文章の最大priority、段階rank」の
 段階rankはBloomed=4、BudFormed=3、LeafOpened=2、Germinated=1、他は0。複数の根拠があるgroupは最大値を取る。
 三つの候補は、全groupの固定順位1位、当該cardに合う成立候補だけで同じ順位を求めた1位、当該系統の直接入力groupの固定順位1位とする。
 直接入力groupのkindはwater=WaterEntered、wind=WindReceived、light=LightReceived、seed=SeedPlaced。証拠または成立文章がないslotは空とし、無理に3件へ埋めない。
-選択した3groupから焦点を決め、残るgroupの固定順位1位だけを補助候補にする。最終比較でも同messageIdはgroupIdの昇順で決着させる。
+選択した最大3groupから焦点を決める。input_pairが別々のgroupを必要とするときは、その二つ目をsecondaryにする。それ以外は残る注目候補groupの固定順位1位をsecondaryにし、候補がなければnullにする。
+supportingGroupIdsには文の成立に必要な焦点以外の全groupを重複なくgroupId順で保持し、焦点候補の3枠やsecondaryの1枠で証拠を削らない。同じ地点の他kindをsupportingへ保存しただけではsecondaryを増やさない。
+`selectionPolicyVersion=oracle-focus.v0.3`の最終比較は、同messageIdならgroupId昇順、さらに同じなら§7.3のbindingKey昇順で決着する。表示器は保存済みPresentationPlanに従い、補助焦点を選び直さない。
 `cardAffinity`は引いたcardIdが`cardTags`にあると1、なければ0。カードは真偽判定へは入れない。
 `priority`はcatalog内の固定整数。`recentNovelty`は同runでこのPrepared.seqより前の直近3件のResolvedに保存されたmessageIdにないと1、それ以外は0とする。
 3件はResolvedレコード数であり、同じmessageIdの重複も保持する。比較集合を永続したPreparedのprefixで固定し、後着の提示記録を使わない。
@@ -299,12 +308,19 @@ JSONは`status=designCandidate`であり、Unityの選定器・画面での読�
 
 述語は文を選ぶための事実条件であり、文字列を自由に実行する式ではない。catalogで使う名前を以下に限定する。
 各条件は同一roundの入力・事前状態・解決中の証拠・終状態へ束縛する。異なる植物や無関係なセルの条件を寄せ集めない。
-一つの文が同じ植物に水と光を述べるなら、両条件のplantId/cellIdと対象区間が一致することを要求する。
+一つの文が同じ植物に水と光を述べるなら、両条件のplantId/cellIdを合わせ、下表で定義した時点・区間の関係を満たすことを要求する。
 選んだ束縛先を`predicateBindings`へ残す。存在しないイベント、未実装の証拠、未知の値は成立とみなさない。
 
 catalogの`scope=focus`は、主groupの対象cell/plantに少なくとも一つの述語根拠を結び付け、他kindの根拠も同じ対象へ束縛する意味とする。別groupを参照した場合はsupportingGroupIdsへ保存する。
+SurfaceFlowObservedのglobal groupを焦点にする場合は、全域の流れそのものを対象にする。全域集計を任意のcell/plantへ束縛し直して他の局所条件と合成しない。
 `scope=input_pair`だけは、同じ種入力で生成された二つのcell/plantを集合として扱う。二つが別groupならgroupId昇順の先頭を焦点、もう一方をsupportingとし、無関係な種や前の回の種を数えない。
 `scope=input`は4系統のfallback専用で、groupを要求せずInputApplicationEvidenceへ直接束縛する。scope自体は真偽の根拠にはしない。
+
+同じmessage/groupに複数の成立対象があれば、まず全requiresAllを満たす完全な束縛の組を作り、次の`bindingKey`の辞書式昇順で一つを選ぶ。述語ごとに別の植物の先頭一致を拾わない。
+
+- subject列：`(cellId, plantIdまたは空文字)`をcellId数値順・plantId ordinal順に並べる。focusの局所文は同じ一対象、input_pairは今回の正確な二対象、global/inputには局所subjectを捏造せず空列を使う。
+- 根拠列：predicate名のordinal順に、`(firstTick, lastTick, 昇順eventIds, 昇順sourceRefKeys)`を並べる。単一tickは両端をそのtick、事前・終状態はそのsnapshot.tickIndexとし、各述語に必要な時点の関係を先に検証する。
+- sourceRefKeyは参照先を表す保存済みsourceRefのJCS文字列。ID・参照はordinal順、数値は整数順、列は先頭から比較して同prefixなら短い方を先とする。選定に追加乱数を使わず、採用したpredicateBindingsから同じkeyを導出できるようにする。
 
 | predicate | 成立に必要な事実・時間条件 |
 |---|---|
@@ -313,7 +329,7 @@ catalogの`scope=focus`は、主groupの対象cell/plantに少なくとも一つ
 | `soil_was_dry` | 同じ土セルの事前水分比が`moistureDryStop`未満 |
 | `root_zone_wetted` | 吸水時に発芽済みだった同じ植物のRootZoneWettedと正の吸水累計 |
 | `puddle_formed` | 同じセルが今回PuddleFormedの水深閾値を下から越えた記録。低地やくぼみであるとは推測しない |
-| `surface_flow_observed` | 今回SurfaceFlowObservedのcumulativeTransportが正で、対象セル・区間が記録されている。反復移動を含む輸送量で、注水総量や特定経路の由来とは別 |
+| `surface_flow_observed` | 今回のglobalなSurfaceFlowObservedのcumulativeTransportが正で、対象セル集合・区間が記録されている。反復移動を含む全域輸送量で、各セルの量・注水総量・特定経路の由来とは別 |
 | `verified_path_to_root` | 時間順の流量辺による根元までの経路と、その根元の吸水を確認した証拠。同じ水粒子の由来は断定しない |
 | `wind_reached_focus` | 焦点セルのWindReceivedで今回の積算実効風量が正となった区間と値が記録されている |
 | `wind_sheltered` | WindShelteredの実効風量と無遮蔽風量、岩のblockerCellIdが減衰を裏付ける |
@@ -332,7 +348,7 @@ catalogの`scope=focus`は、主groupの対象cell/plantに少なくとも一つ
 | `shadowed_bud_unchanged` | 今回の光の範囲にある岩陰の同じplantが事前・終状態ともbud。遮蔽値・段階比較を確認し、イベント欠落から推測しない |
 
 表のoptimalLow/optimalHighは`moistureOptimalLow / moistureOptimalHigh`の略。閾値は保存したsimulation profileを参照する。
-`surface_flow_observed`は局所流量辺のround集約で扱う。`verified_path_to_root`は経路証拠を実装・保存しない版ではfalseにし、流れがあったことだけから経路を推測しない。
+`surface_flow_observed`は全庭の正の流量辺をroundで集約した一つのglobal groupで扱う。`verified_path_to_root`は経路証拠を実装・保存しない版ではfalseにし、流れがあったことだけから経路を推測しない。
 過去形の条件は該当tick/区間へ、現在形を追加する場合の条件は終状態へ束縛する。吸水後に乾いた土を「今も湿っている」としない。
 
 | forbiddenFlag | 候補を除外する理由 |

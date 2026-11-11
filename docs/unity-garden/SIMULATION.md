@@ -1,6 +1,6 @@
 # 庭の自然モデル
 
-設計版0.2 / `designCandidate`。水・風・光・種の位置関係から結果を求める、小さな整数モデルの仕様である。**Unityの実装・実機試験は未実施。** 現実の流体、気象、植物生理を精密に再現したという主張ではない。
+設計版0.3 / `designCandidate`。数式・係数と参照算術はv0.2を継続する。水・風・光・種の位置関係から結果を求める、小さな整数モデルの仕様である。**Unityの実装・実機試験は未実施。** 現実の流体、気象、植物生理を精密に再現したという主張ではない。
 
 [simulation-profile.v0.2.json](./content/simulation-profile.v0.2.json)に候補値、[simulation-fixtures.v0.2.json](./content/simulation-fixtures.v0.2.json)に参照算術の入力と期待値を置く。数式・順序・意味は本文、数値はprofileを正とし、矛盾したら設定検証を失敗させる。G2で採用した値・地図・計算版のcontent hashをrunへ固定し、途中で差し替えない。
 
@@ -41,6 +41,7 @@
 - 蒸発端数は0～999、成長端数は0～999,999、成長は0～2500。端数も次回へ持ち越す。
 - solidは水・土・植物を持たず、流量辺と入力の対象外。plantableには`!solid && soilCapacity > 0`を要求する。
 - 初期個体の段階は成長量から求める。`originKind=initialMap`とし、架空の播種roundを割り当てない。
+- 初期plantIdはmapの明記値を使う。今回の種は`plantId = roundId + ":seed:" + cellId`（cellIdは先頭ゼロのない10進数）、`originKind=seedInput`、`seedSourceRoundId=roundId`とする。ID生成に乱数・時刻・個体配列のindexを使わず、重複IDは検証失敗にする。
 
 四則演算・積・総和は明示的なchecked 64bit整数。非負の整数除算は切り捨て、符号付き差は`max(0, difference)`を先に適用する。保存整数はJSONで正確に扱える`±(2^53-1)`以内。範囲外、overflow、保存則違反は計算失敗とし、水量を黙って丸めたり、別の出目へ変更したりしない。
 
@@ -48,11 +49,13 @@
 
 傾斜、岩と迂回路、乾いた土と湿った土、明るい場所と岩陰、芽とつぼみ、空き土を一庭へ置く。各水入力先から唯一の排出口まで非solidセルの経路があり、雨の対象が最低3セルになることを要求する。経路があるだけでは十分な排水を保証しない。
 
-**初期16×16地図はまだ実データ化していない。** 小さな算術fixtureの合格を、展示庭の水位・見やすさ・成長速度の検証に置き換えない。
+初期16×16の候補を[garden-map.v0.3.json](./content/garden-map.v0.3.json)、配置の狙いを[GARDEN_LAYOUT.md](./GARDEN_LAYOUT.md)へ置く。全庭の独立参照計算は[garden-reference-report.v0.3.json](./content/garden-reference-report.v0.3.json)に残す。profile v0.2の係数は変えない。
+候補データと参照計算はあるが、Unityへの実装・実機の見やすさや成長速度の確認は未実施。小さな算術fixtureや参照計算の合格を、展示庭の体験検証に置き換えない。
 
 ## 3. 一投擲を解決する順序
 
 Preparedの事前状態・地図・profileと、OutcomeCommittedの選択面を入力にする。保存順序と中断再開は[DATA_CONTRACT.md](./DATA_CONTRACT.md)を正とする。Coreは新たな乱数を取得せず、同じ開始状態へ同じroundを二重適用しない。
+Applicationはrun内の未終端roundを一つに保ち、準備・Resolved保存時に開始状態参照を照合する。別のround IDでも古い庭からの計画を採用せず、Resolvedの永続化後にだけrevisionを一つ進める。
 
 投擲内のtickOffsetは0～39。offset0の入力は最初の更新前に加える。開始tickIndex=tなら、更新中のイベントを`tick = t + tickOffset + 1`で識別する。SeedPlaced.placedTickもこの番号で、配置はそのtickの流れ・吸水・成長より前に行う。
 
@@ -70,6 +73,7 @@ Preparedの事前状態・地図・profileと、OutcomeCommittedの選択面を�
 40tick後の全状態・入力適用証拠・イベント・文章と根拠をResolvedへ保存してからUnityで再生する。`Resolved.inputApplicationEvidence`には予定scheduleの各tick・対象・量が実際に適用された証拠を保存する。面を選んだだけではinput_appliedは成立しない。風・光の自然イベントがなくても、実際の場の適用を確認したこの証拠へ事実fallbackを束縛できる。
 
 表示用の中間状態を補間してもCoreを再計算しない。再起動でtraceが失われたら保存済み終状態を見せ、アニメーションのために結果を作り直さない。
+次回の配面は保存済み終状態から非公開で準備できるが、画面にその終状態を反映してから公開する。過程再生中の画面や補間値を次回の開始状態・種の空きセル判定に使わない。
 
 `meanLight = floor(sum(effectiveLightQ over 40 ticks) / 40)`を次回配面用に保存する。最初は基礎光と地図の露出比から求める。この要約を次回の光源へ再投入しない。
 
@@ -97,7 +101,8 @@ profileのauthoringParametersはanchor名や選択規則。Preparedでは6面す
 - radius、direction?、startTickOffset、durationTicks、水・種の各tick・各セル・量へ展開したinjectionSchedule。
 - 風・光はoffset0からduration未満まで有効でinjectionSchedule=[]。dropのdurationは1、rainは12、種は1。
 
-seedの必要度を測る支持範囲全体と、実配置セルは別にする。表示後に空き土や作用先を選び直さず、後のprofileから値を推測しない。地図・対象・scheduleの不整合はPrepared前に拒否する。将来のタップによる位置選択も配面固定より前に行う。
+seedの必要度を測る支持範囲全体と、実配置セルは別にする。表示後に空き土や作用先を選び直さず、後のprofileから値を推測しない。6面に同じ空きセルを使う種recipeがあっても、実適用は選ばれた一面だけとする。前回の種で埋まったセルを次のPreparedへ予約済み空き地として持ち越さない。
+地図・対象・scheduleの不整合はPrepared前に拒否する。適用時に保存対象が占有されていれば開始状態参照か実装の不整合として止め、別の空き土へ移動して成功扱いにしない。将来のタップによる位置選択も配面固定より前に行う。
 
 ## 5. 水を移し、吸わせ、排出する
 
@@ -277,6 +282,7 @@ growthRemainderNext = n % 1000000
 | 段階越え4種 | 閾値越え。個体、tick、threshold、直前/直後growth |
 
 positiveEdgeTransferCountは正の流れを持つ「辺×tick」の件数、cumulativeTransportはその量の総和。同じ水の反復移動を含み、ユニークな水量・注入量・下流到達量ではない。この集約だけでは特定の根までの時間順経路を確認できない。
+SurfaceFlowObservedは全庭で一件のまま保存し、表示でも一つのglobal ObservationGroupにする。離れた流れが同時にあっても成分別の量・区間を推測せず、同じ集計値を複数groupへ複製しない。
 
 吸水はcumulativeAbsorbedと、round開始preSoilWater、終了postSoilWater、差netSoilWaterDeltaを分ける。吸水後に蒸発しても「染み込んだ」は成立し得る。根元の吸水は、そのtickの成長で初めて発芽した個体へ遡及しない。
 

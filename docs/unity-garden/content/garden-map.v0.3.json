@@ -1,0 +1,607 @@
+{
+  "documentKind": "garden-map-design",
+  "schemaVersion": "garden-map.v0.3",
+  "mapId": "quiet-basin",
+  "mapVersion": "0.3",
+  "status": "designCandidate",
+  "implementationStatus": "notImplementedInUnity",
+  "date": "2026-11-11",
+  "profileFile": "simulation-profile.v0.2.json",
+  "profileId": "garden-simulation-v0.2",
+  "grid": {
+    "width": 16,
+    "height": 16,
+    "cellOrder": "rowMajor:y*width+x",
+    "northIsNegativeY": true
+  },
+  "expansionOrder": [
+    "cellTypes from terrainRows",
+    "heightRows",
+    "stateDefaults",
+    "cellOverrides",
+    "initialPlants"
+  ],
+  "terrainRows": [
+    "................",
+    "................",
+    "................",
+    "................",
+    "....mddmmmmm....",
+    "....dsccmmmm....",
+    "....dd#cmmmm....",
+    "....mm#c#mwm....",
+    "....mmmmmmww....",
+    "....mmmmmmwm....",
+    "....mmmmcmmm....",
+    "....mmmmcmmm....",
+    "................",
+    "................",
+    "................",
+    "................"
+  ],
+  "cellTypes": {
+    ".": {
+      "label": "open_stone_ground",
+      "solid": false,
+      "soilCapacity": 0,
+      "infiltrationPerTick": 0,
+      "plantable": false,
+      "initialSoilWater": 0,
+      "lightExposureQ": 1000
+    },
+    "m": {
+      "label": "meadow_soil",
+      "solid": false,
+      "soilCapacity": 1000,
+      "infiltrationPerTick": 20,
+      "plantable": true,
+      "initialSoilWater": 550,
+      "lightExposureQ": 1000
+    },
+    "d": {
+      "label": "dry_receiving_soil",
+      "solid": false,
+      "soilCapacity": 1000,
+      "infiltrationPerTick": 20,
+      "plantable": true,
+      "initialSoilWater": 80,
+      "lightExposureQ": 1000
+    },
+    "s": {
+      "label": "shallow_dry_inlet_soil",
+      "solid": false,
+      "soilCapacity": 200,
+      "infiltrationPerTick": 20,
+      "plantable": true,
+      "initialSoilWater": 10,
+      "lightExposureQ": 1000
+    },
+    "w": {
+      "label": "wet_wind_soil",
+      "solid": false,
+      "soilCapacity": 1000,
+      "infiltrationPerTick": 20,
+      "plantable": true,
+      "initialSoilWater": 950,
+      "lightExposureQ": 1000
+    },
+    "c": {
+      "label": "shallow_stone_channel",
+      "solid": false,
+      "soilCapacity": 0,
+      "infiltrationPerTick": 0,
+      "plantable": false,
+      "initialSoilWater": 0,
+      "lightExposureQ": 1000
+    },
+    "#": {
+      "label": "rock",
+      "solid": true,
+      "soilCapacity": 0,
+      "infiltrationPerTick": 0,
+      "plantable": false,
+      "initialSoilWater": 0,
+      "lightExposureQ": 0
+    }
+  },
+  "heightRows": [
+    [
+      1140,
+      1080,
+      1020,
+      960,
+      900,
+      840,
+      780,
+      720,
+      660,
+      720,
+      780,
+      840,
+      900,
+      960,
+      1020,
+      1080
+    ],
+    [
+      1080,
+      1020,
+      960,
+      900,
+      840,
+      780,
+      720,
+      660,
+      600,
+      660,
+      720,
+      780,
+      840,
+      900,
+      960,
+      1020
+    ],
+    [
+      1020,
+      960,
+      900,
+      840,
+      780,
+      720,
+      660,
+      600,
+      540,
+      600,
+      660,
+      720,
+      780,
+      840,
+      900,
+      960
+    ],
+    [
+      960,
+      900,
+      840,
+      780,
+      720,
+      660,
+      600,
+      540,
+      480,
+      540,
+      600,
+      660,
+      720,
+      780,
+      840,
+      900
+    ],
+    [
+      900,
+      840,
+      780,
+      720,
+      660,
+      600,
+      540,
+      480,
+      420,
+      480,
+      540,
+      600,
+      660,
+      720,
+      780,
+      840
+    ],
+    [
+      840,
+      780,
+      720,
+      660,
+      600,
+      540,
+      480,
+      420,
+      360,
+      420,
+      480,
+      540,
+      600,
+      660,
+      720,
+      780
+    ],
+    [
+      780,
+      720,
+      660,
+      600,
+      540,
+      480,
+      420,
+      360,
+      300,
+      360,
+      420,
+      480,
+      540,
+      600,
+      660,
+      720
+    ],
+    [
+      720,
+      660,
+      600,
+      540,
+      480,
+      420,
+      360,
+      300,
+      240,
+      300,
+      360,
+      420,
+      480,
+      540,
+      600,
+      660
+    ],
+    [
+      660,
+      600,
+      540,
+      480,
+      420,
+      360,
+      300,
+      240,
+      180,
+      240,
+      300,
+      360,
+      420,
+      480,
+      540,
+      600
+    ],
+    [
+      600,
+      540,
+      480,
+      420,
+      360,
+      300,
+      240,
+      180,
+      120,
+      180,
+      240,
+      300,
+      360,
+      420,
+      480,
+      540
+    ],
+    [
+      540,
+      480,
+      420,
+      360,
+      300,
+      240,
+      180,
+      120,
+      60,
+      120,
+      180,
+      240,
+      300,
+      360,
+      420,
+      480
+    ],
+    [
+      480,
+      420,
+      360,
+      300,
+      240,
+      180,
+      120,
+      60,
+      0,
+      60,
+      120,
+      180,
+      240,
+      300,
+      360,
+      420
+    ],
+    [
+      540,
+      480,
+      420,
+      360,
+      300,
+      240,
+      180,
+      120,
+      60,
+      120,
+      180,
+      240,
+      300,
+      360,
+      420,
+      480
+    ],
+    [
+      600,
+      540,
+      480,
+      420,
+      360,
+      300,
+      240,
+      180,
+      120,
+      180,
+      240,
+      300,
+      360,
+      420,
+      480,
+      540
+    ],
+    [
+      660,
+      600,
+      540,
+      480,
+      420,
+      360,
+      300,
+      240,
+      180,
+      240,
+      300,
+      360,
+      420,
+      480,
+      540,
+      600
+    ],
+    [
+      720,
+      660,
+      600,
+      540,
+      480,
+      420,
+      360,
+      300,
+      240,
+      300,
+      360,
+      420,
+      480,
+      540,
+      600,
+      660
+    ]
+  ],
+  "initialState": {
+    "tickIndex": 0,
+    "lastResolvedRoundId": null
+  },
+  "stateDefaults": {
+    "initialSurfaceWater": 0,
+    "evaporationRemainder": 0,
+    "meanLight": "floor(baseLightQ*lightExposureQ/1000)",
+    "lightOccluderCellId": null
+  },
+  "cellOverrides": [
+    {
+      "cellId": 135,
+      "lightExposureQ": 600,
+      "lightOccluderCellId": 118
+    },
+    {
+      "cellId": 136,
+      "lightExposureQ": 200,
+      "lightOccluderCellId": 120
+    },
+    {
+      "cellId": 152,
+      "lightExposureQ": 800,
+      "initialSoilWater": 600,
+      "lightOccluderCellId": 120
+    },
+    {
+      "cellId": 150,
+      "initialSoilWater": 200
+    },
+    {
+      "cellId": 117,
+      "initialSoilWater": 850
+    }
+  ],
+  "anchors": {
+    "waterInlet": {
+      "cellId": 85,
+      "x": 5,
+      "y": 5
+    },
+    "windCenter": {
+      "cellId": 138,
+      "x": 10,
+      "y": 8
+    },
+    "lightCenter": {
+      "cellId": 135,
+      "x": 7,
+      "y": 8
+    },
+    "seedCenter": {
+      "cellId": 152,
+      "x": 8,
+      "y": 9
+    }
+  },
+  "drain": {
+    "cellId": 184,
+    "x": 8,
+    "y": 11
+  },
+  "initialPlants": [
+    {
+      "plantId": "initial-light-bud",
+      "cellId": 135,
+      "growth": 1700,
+      "growthRemainder": 0,
+      "stage": "bud",
+      "originKind": "initialMap"
+    },
+    {
+      "plantId": "initial-shadow-bud",
+      "cellId": 136,
+      "growth": 1700,
+      "growthRemainder": 0,
+      "stage": "bud",
+      "originKind": "initialMap"
+    },
+    {
+      "plantId": "initial-wind-sheltered",
+      "cellId": 122,
+      "growth": 500,
+      "growthRemainder": 0,
+      "stage": "sprout",
+      "originKind": "initialMap"
+    },
+    {
+      "plantId": "initial-wind-exposed",
+      "cellId": 154,
+      "growth": 500,
+      "growthRemainder": 0,
+      "stage": "sprout",
+      "originKind": "initialMap"
+    }
+  ],
+  "observationEdges": [
+    {
+      "id": "inlet-east",
+      "fromCellId": 85,
+      "toCellId": 86
+    },
+    {
+      "id": "east-along-rock",
+      "fromCellId": 86,
+      "toCellId": 87
+    },
+    {
+      "id": "east-turn-south",
+      "fromCellId": 87,
+      "toCellId": 103
+    },
+    {
+      "id": "east-bypass",
+      "fromCellId": 103,
+      "toCellId": 119
+    },
+    {
+      "id": "below-rock",
+      "fromCellId": 119,
+      "toCellId": 135
+    },
+    {
+      "id": "near-wet-route",
+      "fromCellId": 101,
+      "toCellId": 117
+    },
+    {
+      "id": "outlet-approach",
+      "fromCellId": 168,
+      "toCellId": 184
+    }
+  ],
+  "observationPoints": [
+    {
+      "id": "dry-inlet",
+      "label": "乾いた入口",
+      "cellId": 85
+    },
+    {
+      "id": "near-wet-soil",
+      "label": "先に湿っている土",
+      "cellId": 117
+    },
+    {
+      "id": "light-bud",
+      "label": "光の中心のつぼみ",
+      "cellId": 135
+    },
+    {
+      "id": "shadow-bud",
+      "label": "岩陰のつぼみ",
+      "cellId": 136
+    },
+    {
+      "id": "wind-sheltered",
+      "label": "風陰の湿った土",
+      "cellId": 122
+    },
+    {
+      "id": "wind-exposed",
+      "label": "風が通る湿った土",
+      "cellId": 154
+    },
+    {
+      "id": "seed-center",
+      "label": "一粒の種の中心",
+      "cellId": 152
+    },
+    {
+      "id": "seed-moist-outer",
+      "label": "外側の適湿な土",
+      "cellId": 137
+    },
+    {
+      "id": "seed-dry-outer",
+      "label": "外側の乾き気味の土",
+      "cellId": 150
+    },
+    {
+      "id": "outlet",
+      "label": "浅い排出口",
+      "cellId": 184
+    }
+  ],
+  "limitations": [
+    "Static light exposure is authored map data, not computed solar shadows.",
+    "Stone ground is non-solid; only # cells obstruct water and the wind ray.",
+    "Visual readability, Unity implementation and device performance are not validated by the reference arithmetic.",
+    "No guaranteed outcome sequence or guaranteed bloom time in normal play."
+  ],
+  "expandedCellsEncoding": {
+    "columns": [
+      "cellId",
+      "height",
+      "solid01",
+      "soilCapacity",
+      "infiltrationPerTick",
+      "plantable01",
+      "lightExposureQ",
+      "lightOccluderCellId",
+      "initialSoilWater",
+      "initialSurfaceWater",
+      "evaporationRemainder",
+      "meanLight"
+    ],
+    "encoding": "UTF-8 compact JSON array of integer/null arrays in cellId order; no whitespace or trailing newline",
+    "sha256": "0cfa7ef56a3ebc82d798d9fecaa2af1664b23b17e3a4287665158bcab5255072"
+  }
+}

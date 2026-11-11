@@ -1234,3 +1234,106 @@ git diff --check: exit 0
 - `docs/unity-garden/content/simulation-fixtures.v0.2.json`
 - `docs/unity-garden/content/oracle-catalog.v0.2.json`
 - `PROGRESS.md`
+
+---
+
+## G0: Unity箱庭設計 v0.3 — 庭の配置と一投の体験 (2026-11-11)
+
+### 完了したこと
+
+- 続けて設計を磨く依頼に対応し、G0の設計資料・候補データを改訂した。Unity runtime、既存アプリ、依存関係、CIの実装は追加・変更していない。
+- 16×16の初期庭「静かな流域」をJSONへ具体化。浅い水入口、乾湿の違い、岩、石の流路、四つの初期植物、4作用点、一つの排出口を固定し、同じJSONからSVG配置図を作成した。
+- v0.2の計算profileと16成分fixtureを変更せず、全庭の独立したPython整数参照を実行。8単発、7投の順序比較、drop/rain各200投、事前に固定したseed 0〜15各24投の全結果をreportへ残した。
+- 同じ水の一投目・二投目で、入口吸水160→47、光中心の土の吸水35→39を得た。初稿から入口1セルの容量・初期水だけを調整し、その調整内容と同じseed集合を使ったことを明記した。
+- 種→柔らかい光と逆順は、同じ80tick・最終土中水566で成長866／400。風の同距離2地点は、岩陰と露出で土中水950→910／950→850になった。数値の単位・基礎成長・経路証拠の限界も記載した。
+- 初回の案内、横画面の構成、8つのUI状態、面番号と系統への意図、設定の持続、声の自己申告と手入力の範囲、演出省略、履歴、来場者交代をEXPERIENCEへまとめた。毎投の確認やカード開封を要求しない。
+- Coreの確定終状態と途中再生を区別。画面が次のPreparedのbeforeRevision/hashに対応してから配面を公開し、新しいpressだけを受け付ける。省略・閉じる・連打を次回の投擲予約にしない。
+- 同runの未終端roundを最大一つとし、異なるroundIdから同じ庭へ並行解決する経路を閉じた。開始状態参照とjournal headを区別し、後着の提示記録だけで状態不整合としない。
+- 全域のSurfaceFlowObservedは一つのglobal groupに固定。文章の完全な根拠束の同点、二粒の種の必要な補助焦点、配面の列挙・乱数消費順、種のID、stateHashの対象を具体化した。
+- 全投擲で進む40tick・基礎光・開始状態と、今回の局所入力を関係図で区別。入力範囲外の成長を、同roundという理由だけで今回の出目の直接効果へ結ばない。
+- 文書・mapはv0.3、数式profile・成分fixture・24文の本文はv0.2を維持。catalogはselectionPolicyVersionだけをoracle-focus.v0.3へ更新した。
+
+### 完了基準の結果（実際のコマンド出力）
+
+検証環境: Node `v24.22.1` / pnpm `10.34.9`。既存CIのpnpm 10系列に合わせ、`npx --yes --package=pnpm@10.34.9 pnpm <script>`で実行。既存コードと依存・lockは未変更。
+
+```text
+pnpm typecheck
+> tsc -b --noEmit
+exit 0
+
+pnpm test
+Test Files  41 passed (41)
+     Tests  183 passed (183)
+exit 0
+
+pnpm build
+> tsc -b && vite build
+vite v8.1.4 building client environment for production...
+102 modules transformed.
+built in 195ms
+exit 0
+
+全庭の設計用参照算術（Python整数演算。Unity実行ではない）
+totalRoundResolutions: 799
+totalTickUpdates: 31960
+allTickWaterBalancesZero: true
+allStatesInProfileBounds: true
+mappingCapsCheckedForRounds: 384
+oracleCardFacesDrawn: 384
+fullEventAggregatorExecuted: false
+oracleMessageSelectionExecuted: false
+
+python check_design_v03.py
+Markdown files: 10; local links: 79; JSON examples: 1; JSON design files: 5
+Catalog: 24 unique templates / 4 input fallbacks / 6 cards; all predicates defined
+Recipes: 8; equal water total=1200; non-overlapping seed bands; profile thresholds consistent
+Scope: 15 documentation/data files; PROGRESS append-only
+Errors: 0
+v0.3 data: 256 cells / 4 initial plants / 4 anchors / 1 drain / 7 observation edges; map, expanded cells, profile and reference hashes match
+Reference report: 799 resolutions / 31960 ticks; all 16 runs retained; 384 face/recipe/card conversions and mapping caps checked
+Version isolation: numeric profile and 16 component fixtures unchanged; 24 catalog bodies unchanged, selector metadata only
+SVG: map SHA and all cell/anchor/plant/observation-edge metadata match
+v0.3 checks: passed; Unity runtime/device not tested
+
+git diff --check: exit 0
+```
+
+- 既存の`jeep-sqlite`依存による`crypto` browser externalization警告あり。ビルドは成功し、該当依存は変更していない。
+- SVGを描画して確認し、方角表示と見出しの重なり、作用点と初期植物の印の重なりを修正した。Unity画面の確認ではない。
+- 参照reportのhashは診断用の整数行列hash。正式なWorldSnapshot.stateHash、content hash、journal hashとは区別している。
+- 別の読み取りレビューで、候補順・乱数消費順、profileの計算順と係数、799投の内訳、種と光の結果、map/profile/scriptのhashを照合した。独立した第二シミュレータの一致試験ではない。
+
+### 不変条件の確認
+
+- `DESIGN.md` / `PROTOCOL_FREEZE.md` / `AGENTS.md`、既存runtime、台帳、統計、依存関係、CIを変更していない。旧実験の確証解析と新しいD6ゲームの設計を混在させていない。
+- `PROGRESS.md`は直前mainの全内容を保持し末尾追記。各データをdesignCandidateとし、設計参照・実装済み・実機確認を区別した。
+- 配面と出目を意図・カード・開花・演出の都合で補正していない。全16列を記録し、成長が進まない投擲も除外していない。
+- 保存済み結果の再抽選、カード欠測による既知出目の除外、読了確認、保存確認を毎投要求する経路を追加していない。
+
+### 要確定・申し送り
+
+- 次の実装入口はG1。一つの展示対象へ起動できるUnity projectを作り、記録と復元の最小経路を通してから、G2で同じmap/profile/入力をC#で照合する。
+- Pythonの31,960tickで水収支・範囲を確認したが、Unity/Core一致、C# checked Int64、保存障害、全イベント集約・文章選定、Mono/IL2CPP、スマホ・Steam実機は未検証。
+- 200連続注水の初排出はdrop41投目/rain37投目、累計排出35,082/40,116。注入直後の水深とtick完了後の水深の描画、無限継続での安定性、美術上許容できる水位は別の確認事項。
+- 16列の初開花2〜3投は、初期つぼみと全庭の基礎成長の寄与を含む。最終花5〜13、整数成長のない投擲は合計16回、24投では全列排出0。この集合はmap調整にも使っており、独立した検証標本・実プレイの成功率・祈りの効果の根拠ではない。
+- 初期配置、横画面の寸法、再生速度、静かなFX/SEは候補。G3で三つの自然観察場面とEXPERIENCEの10場面を実機確認し、美しさ・可読性・操作の静けさを判断する。
+- 外部乱数、音声文字起こし、同期、ストア一般公開は最小展示の成立条件へ追加していない。展示端末、Editor/パッケージの固定、署名・配布環境と旧Issue #16は引き続き別の残件。
+
+### 触ったファイル
+
+- `README.md`
+- `docs/unity-garden/README.md`
+- `docs/unity-garden/EXPERIENCE.md`
+- `docs/unity-garden/GARDEN_LAYOUT.md`
+- `docs/unity-garden/GAMEPLAY.md`
+- `docs/unity-garden/SIMULATION.md`
+- `docs/unity-garden/DATA_CONTRACT.md`
+- `docs/unity-garden/ARCHITECTURE.md`
+- `docs/unity-garden/ROADMAP.md`
+- `docs/unity-garden/VALIDATION.md`
+- `docs/unity-garden/content/garden-map.v0.3.json`
+- `docs/unity-garden/content/garden-reference-report.v0.3.json`
+- `docs/unity-garden/content/garden-layout.v0.3.svg`
+- `docs/unity-garden/content/oracle-catalog.v0.2.json`
+- `PROGRESS.md`
