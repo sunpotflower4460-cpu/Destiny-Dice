@@ -30,6 +30,7 @@ namespace DestinyGarden.Application
         public int EcologyGrowth; // growth added by residents
         public int Harmony = -1;  // 0..8 (ecology.v2); -1 for older records
         public int Star;          // 0, 5, 7 or 8
+        public List<EcologicalLink> Relations = new List<EcologicalLink>(); // ecology.v4; absent in old records
         public List<string> Germinated = new List<string>(); // species that took root this roll (ecology.v3)
     }
 
@@ -104,6 +105,14 @@ namespace DestinyGarden.Application
                             {
                                 if (ecod.TryGetValue("harmony", out object hv)) s.Harmony = WorldStateSerializer.ToInt(hv);
                                 if (ecod.TryGetValue("star", out object sv)) s.Star = WorldStateSerializer.ToInt(sv);
+                                if (ecod.TryGetValue("relations", out object rl) && rl is IEnumerable links)
+                                    foreach (IDictionary<string, object> link in links)
+                                        s.Relations.Add(new EcologicalLink
+                                        {
+                                            Kind = link["kind"] as string, Actor = link["actor"] as string, Species = link["species"] as string,
+                                            FromCell = WorldStateSerializer.ToInt(link["fromCell"]), ToCell = WorldStateSerializer.ToInt(link["toCell"]),
+                                            Amount = WorldStateSerializer.ToInt(link["amount"])
+                                        });
                                 foreach (var v in (IEnumerable)ecod["visits"])
                                     if (v is IDictionary<string, object> vd && vd["kind"] is string vk) s.EcologyKinds.Add(vk);
                                 foreach (var ef in (IEnumerable)ecod["effects"])

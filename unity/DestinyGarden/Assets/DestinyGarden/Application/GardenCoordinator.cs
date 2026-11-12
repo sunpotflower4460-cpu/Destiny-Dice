@@ -68,6 +68,7 @@ namespace DestinyGarden.Application
         {
             RunId = _ids.NewId("run");
             State = WorldState.CreateInitial();
+            State.Ecosystem = EcosystemState.CreateInitial();
             PreferenceMode = "auto"; PreferenceSiteId = null;
             _weatherEntropyByPeriod.Clear();
             _luckyEarned = false; LuckySevenOffered = false;
@@ -75,6 +76,8 @@ namespace DestinyGarden.Application
             _writer.Append("RunStarted", RunId, null, new Dictionary<string, object>
             {
                 ["gameId"] = "destiny-garden",
+                ["ecologyPolicyVersion"] = LivingEcosystem.RulesVersion,
+                ["floraPolicyVersion"] = Flora.RulesVersion,
                 ["runLifecycleVersion"] = RuleVersions.RunLifecycle,
                 ["simulationProfile"] = RuleVersions.SimulationProfile,
                 ["mapVersion"] = RuleVersions.Map,

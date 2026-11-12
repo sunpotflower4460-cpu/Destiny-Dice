@@ -261,6 +261,7 @@ namespace DestinyGarden.Presentation
         {
             var eco = outcome.Ecology;
             if (eco == null) return null;
+            if (eco.PostState.Ecosystem != null) return EcologyObservations.Highlight(eco.Relations);
             bool Seeded(string kind) => eco.Effects.Exists(e => e.Seed && e.Kind == kind);
             bool Fed(string kind) => eco.Effects.Exists(e => !e.Seed && e.Kind == kind && e.Amount > 0);
             if (Fed(Ecology.Spirit)) return "……かすかな光が、花のほうへ降りていった。";
@@ -292,7 +293,8 @@ namespace DestinyGarden.Presentation
         /// <summary>Residents follow the domain's Ecology.Presence over the saved state and rolled history.</summary>
         private void UpdateButterflies(List<RoundSummary> history)
         {
-            var presence = Ecology.Presence(_coordinator.State, _coordinator.CurrentWeather, new List<string>(_coordinator.RolledRecipes), null);
+            string lastRecipe = _coordinator.RolledRecipes.Count > 0 ? _coordinator.RolledRecipes[_coordinator.RolledRecipes.Count - 1] : null;
+            var presence = Ecology.Presence(_coordinator.State, _coordinator.CurrentWeather, new List<string>(_coordinator.RolledRecipes), lastRecipe);
             _life.ShowPresence(presence, _coordinator.State);
             var kinds = new List<string>();
             foreach (var v in presence) kinds.Add(v.Kind);
@@ -385,7 +387,9 @@ namespace DestinyGarden.Presentation
             var discovered = new HashSet<string>();
             foreach (var r in history) foreach (var g in r.Germinated) discovered.Add(g);
             foreach (var p in _coordinator.State.Plants) if (p.Species != null) discovered.Add(p.Species);
-            _ui.ShowGuide(discovered);
+            var residents = new HashSet<string>();
+            foreach (var r in history) foreach (string kind in r.EcologyKinds) residents.Add(kind);
+            _ui.ShowGuide(discovered, _coordinator.State, residents);
             UpdateButterflies(history);
             float vitality = Vitality();
             _vitalityNow = vitality;

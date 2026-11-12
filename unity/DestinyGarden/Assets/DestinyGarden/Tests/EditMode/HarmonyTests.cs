@@ -80,7 +80,13 @@ namespace DestinyGarden.Tests
         public void Mycorrhiza_SharesHarmonyScaledGrowth_OnlyToYoungPlants_AndKeepsWater()
         {
             var coord = new GardenCoordinator(new Memory(), new FixedEntropy("myco"), new SequentialIds());
-            coord.CreateRun();
+            // This fixture covers frozen ecology.v2/v3 growth sharing. New gardens share finite
+            // nutrients instead; LivingEcosystemTests covers that separate policy.
+            coord.Restore(new JournalReadResult { ChainValid = true, Entries = new List<JournalEntry>
+            {
+                new JournalEntry { Kind = "RunStarted", RunId = "legacy", Payload = new Dictionary<string, object>
+                { ["initialState"] = WorldStateSerializer.ToPayload(WorldState.CreateInitial()) } }
+            } });
             coord.Prepare();
             int shared = 0;
             for (int i = 0; i < 60; i++)

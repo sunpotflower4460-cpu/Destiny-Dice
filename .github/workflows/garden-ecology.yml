@@ -1,0 +1,20 @@
+name: Garden ecology
+on:
+  push:
+    branches: [main]
+    paths: ['unity/DestinyGarden/Assets/DestinyGarden/**', 'tools/ecology-check/**', '.github/workflows/garden-ecology.yml']
+  pull_request:
+    paths: ['unity/DestinyGarden/Assets/DestinyGarden/**', 'tools/ecology-check/**', '.github/workflows/garden-ecology.yml']
+permissions:
+  contents: read
+jobs:
+  domain:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Run real garden C# domain and journal tests
+        run: dotnet test tools/ecology-check/Ecology.Check.csproj --configuration Release --nologo --verbosity normal

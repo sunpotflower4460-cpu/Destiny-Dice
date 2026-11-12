@@ -2067,3 +2067,49 @@ Git diff whitespace check: pass
 - Presentation: IslandSeed.cs・CameraRig.cs（新規）、IslandTerrain.cs、IslandFlora.cs、GardenView.cs、GardenBootstrap.cs、GardenUi.cs、GardenWonders.cs、SkyClock.cs
 - Tests: PresentationTests.cs
 - docs/jam-submission/、PROGRESS.md
+
+## Ecology v4: 生態系の循環と多様性を深める（2026-11-12）
+### 完了したこと
+- 本人の依頼「ひとつひとつの生態系や自然の関係性の深みや種類を可能な限りブラッシュアップ」を、生態系v4の一つの改修として実装。仕様は `docs/unity-garden/ECOSYSTEM_V4.md`。
+- 花を15→24種に。シロツメクサ・カラスノエンドウ・ノコギリソウ・タイム・ハッカ・サクラソウ・スミレ・ミソハギ・アキノキリンソウを追加。硬さ・排水・湿り・光・蜜源の好みと、根粒菌・地表の覆い・背の高い株の陰・結実の得意な時期を共通データから扱う。
+- 岩陰・草木の陰・水辺・乾いた草地・花の草地。湿りと葉の覆いを履歴として保存し、成熟した住み場所を一投の水だけで作らない。高い株が育つと新しい陰が生まれ、株が退場すると居場所も変わる。
+- 蜂・蝶が直接種を作る旧v3を、新規庭では受粉→数歩後の結実→有限の種の散布に変更。小鳥は実、風は風散布の種、他は自然落下。親と厳密に同種、親種が育つ空き地にだけ散布。各投2粒を上限に経路を巡回する。
+- 落ち葉→きのこ・ミミズ・トビムシ・カタツムリ→養分→成長の循環。分解は落ち葉から同量を引き、菌根は豊かな根から乏しい根へ同量を移す。根粒菌と雨の養分は外部供給として分ける。水収支と元の `Simulation.Resolve` は変更しない。
+- アブラムシの局所的な群れと、テントウムシ・ハナアブ・クモ・カエル・小鳥の捕食。餌・葉の隠れ場所・花・持続した湿りを組み合わせ、存在する獲物だけを減らす。新しい住人7種。
+- 株ごとの負担と回復、花後の休息と再成長、寿命と土への還元。混雑・養分不足・小虫・不適合な居場所が負担になり、解消すれば回復。96投で巡る四つの時期が種の実りに作用する。
+- 関係を `Resolved.ecology.relations` に保存し、現在の一行と履歴を同じ投影で表示。図鑑には今の環境、土の循環、出会った住人と植物の役割を表示。図鑑と全投の履歴をスクロール可能に。隠れたパネル更新でもScrollRectを取得する。
+- 新種の形・色、ハナアブの飛行、地表の住人と落ち葉を追加。地表の住人は1メッシュで描画し、所有メッシュ・マテリアルを解放。衰弱は色に、実際の菌根の養分移動は根元の光に反映。
+- `RunStarted` でv4を記録し、新しい庭だけ適用。古い庭はv3で続け、初期状態・24投後の旧ハッシュを改修前 `ac12b67` の実行から採取して照合する。
+- 実際のUnity C# Domain / Application / Infrastructureと既存テストを直接動かす .NET 8 検証プロジェクト、CIを追加。表示・ゲームコードの写経はしない。
+### 完了基準の結果（実行出力）
+```text
+dotnet test tools/ecology-check/Ecology.Check.csproj --configuration Release
+Passed! - Failed: 0, Passed: 50, Skipped: 0, Total: 50
+```
+- 内訳: 既存のエンジン非依存テスト36＋生態v4の14。`PresentationTests.cs` の5テストはUnityが必要なので、この実行には含めない。
+- 4庭×240投（計960投）: 24/24種、追加した7住人を含む全ての自然住人と11種の関係イベントが発生。240投後の株数36・36・42・37、最初の120投の散布25・26・28・16粒。水の不変、2粒上限、個体・資源・履歴の範囲、保存復帰を検証。
+- 旧初期状態 `c27986226e09f89eca6906985d1f65739ee8e9a369dec7cc3df958a2658513b1`、旧24投後 `b7448dd6b371601884ca452f99b9956fd115ab8ae75f374c3a500ff856999d60` と一致。
+```text
+pnpm typecheck
+$ tsc -b --noEmit                 (exit 0)
+pnpm test
+Test Files 41 passed (41)
+Tests      183 passed (183)
+pnpm build
+vite v8.1.4 building client environment for production...
+✓ 102 modules transformed.
+✓ built in 278ms
+```
+- 既存アプリ365日・願い120件の `pnpm simulate` は `ok: true, networkRequests: 0`。レポートの既存golden `ef9462dd6dbf7e4852f66f3527d1c33c59b5ffcb8017ebac9b004284cb6cc24e` と一致。`verify-export` 成功、再生成レポートを `cmp` で一致確認。
+- C#9構文検査: Unity内の50ファイル、構文エラー0（Unityの型解決・ビルドを意味しない）。`git diff --check` 成功。
+- 既存実験の `src/`、凍結プロトコル、台帳の計算・書き込み経路は変更していない。生態の偶然は保存済みbytesのみ。過去の状態の再解釈・ジャーナルの削除・編集は追加していない。
+### 未確認・申し送り
+- **この環境にはUnityエディタ／実行可能なWebGLビルドがないため、Unityコンパイル・全EditModeテスト・WebGL書き出し・3D表示・操作・音・fpsは未検証。** 上記50件は.NETでの実C#ドメイン検証であり、Unityテスト実行済みとは扱わない。
+- Unity 6000.3.23f1で全EditMode実行後、WebGLで新しい来場者→複数投→図鑑と全履歴のホイール/タッチスクロール→再読込を確認する。旧ジャーナルを開いた際はv3のまま、次の来場者ではv4になることも確認する。地表の住人のサイズ、遅いGPUの負荷、花の再開花、長文の折返しは画面確認が必要。
+- 実ストア・itch.io提出用ビルドや画像は更新していない。新しい規則の実プレイでの心地よさは、上記の960投による規則検証に加えてUnityで確認が必要。
+### 触ったファイル
+- Domain: EcosystemState.cs、EcosystemSerializer.cs、LivingEcosystem.cs、EcologyObservations.cs（新規）、Ecology.cs、Flora.cs、GardenTypes.cs、CanonicalJson.cs
+- Application: GardenCoordinator.cs、HistoryProjector.cs
+- Presentation: EcosystemResidents.cs（新規）、GardenLife.cs、GardenUi.cs、GardenBootstrap.cs、GardenView.cs、PlantForms.cs、IslandHarmony.cs
+- Tests: LivingEcosystemTests.cs（新規）、HarmonyTests.cs（旧版のテストを旧状態から起動）
+- tools/ecology-check/、.github/workflows/garden-ecology.yml、.gitignore、docs/unity-garden/ECOLOGY.md・ECOSYSTEM_V4.md、PROGRESS.md

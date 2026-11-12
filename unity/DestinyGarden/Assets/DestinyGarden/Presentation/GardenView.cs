@@ -984,7 +984,8 @@ namespace DestinyGarden.Presentation
                 occupied.Add(plant.CellId);
                 // Rebuild when the stage changes or the plant has grown visibly (every 250 growth).
                 bool suited = PlantSuited(plant, state);
-                int shownKey = (int)plant.Stage * 100 + plant.Growth / 250 + (suited ? 0 : 10000);
+                int shownKey = (int)plant.Stage * 100 + plant.Growth / 250 + (suited ? 0 : 10000) +
+                    (DestinyGarden.Domain.Flora.IndexOf(plant.Species) + 1) * 100000;
                 if (_plantStageShown[plant.CellId] != shownKey || _plantViews[plant.CellId] == null)
                 {
                     DestroyPlantView(_plantViews[plant.CellId]);
@@ -1049,6 +1050,7 @@ namespace DestinyGarden.Presentation
         private static bool PlantSuited(PlantState plant, WorldState state)
         {
             var t = DestinyGarden.Domain.Flora.Get(plant.Species);
+            if (state != null && state.Ecosystem != null && state.Ecosystem.Cycles.TryGetValue(plant.PlantId, out var life) && life.Stress >= 12) return false;
             return t == null || state == null || plant.Stage == PlantStage.Seed || DestinyGarden.Domain.Flora.Fits(t, state, plant.CellId);
         }
 

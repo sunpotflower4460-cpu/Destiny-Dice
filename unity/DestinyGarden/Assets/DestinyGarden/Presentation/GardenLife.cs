@@ -26,6 +26,9 @@ namespace DestinyGarden.Presentation
             public float Phase, Retarget, FlapSpeed, FlapAngle, Speed;
         }
 
+        private EcosystemResidents _ecosystemResidents;
+        private readonly List<Flier> _hoverflies = new List<Flier>();
+        private readonly List<int> _hoverflyCells = new List<int>();
         private readonly List<Flier> _bees = new List<Flier>();
         private readonly List<Flier> _dragonflies = new List<Flier>();
         private readonly List<int> _beeCells = new List<int>();
@@ -62,6 +65,10 @@ namespace DestinyGarden.Presentation
             _dew = Particles("Dew", 80, new Color(0.85f, 0.97f, 1f, 0.9f), 0.05f, 1.6f, 3330);
             _seedGlints = Particles("SeedGlints", 60, new Color(1f, 0.92f, 0.60f, 1f), 0.08f, 1.4f, 3340);
 
+            var residents = new GameObject("EcosystemResidents");
+            residents.transform.SetParent(transform, false);
+            _ecosystemResidents = residents.AddComponent<EcosystemResidents>();
+            for (int i = 0; i < 2; i++) _hoverflies.Add(MakeFlier("Hoverfly" + i, bodyBee, beeWing, 0.38f, 48f, 35f, 1.2f, i + 9));
             BuildBird();
             BuildFish();
         }
@@ -213,6 +220,11 @@ namespace DestinyGarden.Presentation
         public void ShowPresence(List<EcologyVisit> visits, WorldState state)
         {
             EcologyVisit Get(string k) => visits?.Find(v => v.Kind == k);
+            _ecosystemResidents.Show(visits, state, View);
+            _hoverflyCells.Clear();
+            var hoverfly = Get(LivingEcosystem.Hoverfly);
+            if (hoverfly != null) _hoverflyCells.AddRange(hoverfly.Cells);
+            SetFliers(_hoverflies, hoverfly != null);
             _beeCells.Clear();
             var bee = Get(Ecology.Bee);
             if (bee != null) _beeCells.AddRange(bee.Cells);
@@ -453,6 +465,7 @@ namespace DestinyGarden.Presentation
             if (!ReducedMotion)
             {
                 UpdateFliers(_bees, _beeCells, 0.55f, t, dt, true);
+                UpdateFliers(_hoverflies, _hoverflyCells, 0.5f, t, dt, false);
                 UpdateFliers(_dragonflies, _puddleCells, 0.9f, t, dt, false);
             }
             foreach (var kv in _emitters)

@@ -281,8 +281,7 @@ namespace DestinyGarden.Presentation
         private void BuildPanels(Transform canvas)
         {
             _historyPanel = MakePanel(canvas, new Vector2(880f, 560f));
-            _historyText = MakeText(_historyPanel.transform, new Vector2(0.5f, 0.5f), Vector2.zero,
-                new Vector2(820f, 500f), 19, TextAnchor.UpperLeft);
+            _historyText = MakeScrollableText(_historyPanel.transform, new Vector2(820f, 500f), 19);
             _historyPanel.SetActive(false);
 
             _graphPanel = MakePanel(canvas, new Vector2(920f, 480f));
@@ -300,8 +299,7 @@ namespace DestinyGarden.Presentation
             _graphPanel.SetActive(false);
 
             _guidePanel = MakePanel(canvas, new Vector2(1000f, 600f));
-            _guideText = MakeText(_guidePanel.transform, new Vector2(0.5f, 0.5f), Vector2.zero,
-                new Vector2(940f, 560f), 16, TextAnchor.UpperLeft);
+            _guideText = MakeScrollableText(_guidePanel.transform, new Vector2(940f, 560f), 18);
             _guideText.supportRichText = true;
             _guidePanel.SetActive(false);
 
@@ -332,6 +330,40 @@ namespace DestinyGarden.Presentation
             MakeChip(_settingsPanel.transform, new Vector2(0.5f, 0.5f), new Vector2(110f, -70f),
                 new Vector2(160f, 48f), "閉じる", 19, () => _settingsPanel.SetActive(false));
             _settingsPanel.SetActive(false);
+        }
+
+        private Text MakeScrollableText(Transform parent, Vector2 size, int fontSize)
+        {
+            var viewport = new GameObject("ScrollableText", typeof(RectTransform), typeof(Image), typeof(RectMask2D), typeof(ScrollRect));
+            viewport.transform.SetParent(parent, false);
+            var rect = viewport.GetComponent<RectTransform>();
+            rect.sizeDelta = size;
+            viewport.GetComponent<Image>().color = Color.clear;
+            var text = MakeText(viewport.transform, new Vector2(0.5f, 1f), Vector2.zero, size, fontSize, TextAnchor.UpperLeft);
+            text.rectTransform.anchorMin = new Vector2(0f, 1f);
+            text.rectTransform.anchorMax = Vector2.one;
+            text.rectTransform.pivot = new Vector2(0.5f, 1f);
+            text.rectTransform.sizeDelta = new Vector2(0f, size.y);
+            text.raycastTarget = false;
+            text.supportRichText = true;
+            text.horizontalOverflow = HorizontalWrapMode.Wrap;
+            text.verticalOverflow = VerticalWrapMode.Overflow;
+            text.lineSpacing = 1.15f;
+            var scroll = viewport.GetComponent<ScrollRect>();
+            scroll.viewport = rect; scroll.content = text.rectTransform;
+            scroll.horizontal = false; scroll.vertical = true;
+            scroll.movementType = ScrollRect.MovementType.Clamped;
+            scroll.scrollSensitivity = 36f;
+            return text;
+        }
+
+        private static void SetScrollableText(Text text, string value)
+        {
+            text.text = value;
+            var scroll = text.GetComponentInParent<ScrollRect>(true);
+            text.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical,
+                Mathf.Max(scroll.viewport.rect.height, text.preferredHeight + 20f));
+            scroll.verticalNormalizedPosition = 1f;
         }
 
         private Sprite _rounded;
@@ -453,36 +485,36 @@ namespace DestinyGarden.Presentation
             ShowResidents(null);
         }
 
-        public static string ResidentLabelJa(string kind)
-        {
-            switch (kind)
-            {
-                case "bee": return "花蜂";
-                case "butterfly": return "蝶";
-                case "moss": return "光る苔";
-                case "firefly": return "蛍";
-                case "mushroom": return "きのこ";
-                case "worm": return "ミミズ";
-                case "dragonfly": return "トンボ";
-                case "bird": return "小鳥";
-                case "fluff": return "綿毛";
-                case "dew": return "露";
-                default: return null;
-            }
-        }
+        public static string ResidentLabelJa(string kind) => EcologyObservations.ResidentLabel(kind);
 
         private int _harmony = -1;
         private GameObject _guidePanel;
         private Text _guideText;
 
         /// <summary>Field guide: the species this garden has met, described from their rule data.</summary>
-        public void ShowGuide(ICollection<string> discovered)
+        public void ShowGuide(ICollection<string> discovered, WorldState state = null, ICollection<string> residents = null)
         {
             if (_guideText == null) return;
             var sb = new StringBuilder();
-            sb.AppendLine($"<b>図鑑</b>　この庭に現れた花 {discovered.Count}/{Flora.All.Length}　<color=#9aa8a4>（条件と働きは庭の決まりそのもの）</color>");
-            foreach (var t in Flora.All)
+            bool living = state != null && state.Ecosystem != null;
+            int total = living ? Flora.All.Length : Flora.LegacySpeciesCount;
+            sb.AppendLine($"<b>庭の図鑑</b>　この庭に現れた花 {discovered.Count}/{total}　<color=#9aa8a4>上下にスクロール</color>");
+            if (living)
             {
+                sb.AppendLine("<color=#a8e6c8>" + EcologyObservations.HabitatSummary(state) + "</color>\n");
+                sb.AppendLine("<b>つながりを育てる</b>\n花に昆虫が訪れると受粉し、数投かけて実ります。種は親と同じ種類を受け継ぎ、合う土へ。\n花は休み、寿命を終えた株は落ち葉になり、分解者が次の芽の養分へ戻します。\n水辺は湿りが続くと、草木の陰は背の高い株が育つと生まれます。投数で巡る四つの時期も、結実の量に影響します。\n");
+                sb.AppendLine("<b>この庭で出会った小さな命</b>");
+                foreach (string kind in new[] { Ecology.Bee, Ecology.Butterfly, LivingEcosystem.Hoverfly, Ecology.Bird,
+                    Ecology.Mushroom, Ecology.Worm, LivingEcosystem.Springtail, LivingEcosystem.Snail,
+                    LivingEcosystem.Aphid, LivingEcosystem.Ladybird, LivingEcosystem.Spider, LivingEcosystem.Frog,
+                    Ecology.Dragonfly, Ecology.Moss, Ecology.Firefly })
+                    if (residents != null && residents.Contains(kind))
+                        sb.AppendLine("<color=#ffe2a6>" + ResidentLabelJa(kind) + "</color>　" + EcologyObservations.ResidentGuide(kind));
+                sb.AppendLine("\n<b>花の条件と役割</b>　庭の中の決まりを記したもの");
+            }
+            for (int i = 0; i < total; i++)
+            {
+                var t = Flora.All[i];
                 if (!discovered.Contains(t.Id)) { sb.AppendLine("<color=#7d8a87>？？？</color>"); continue; }
                 var parts = new List<string>();
                 parts.Add(t.MaxHardness >= 900 ? "硬い土でも育つ" : t.MaxHardness >= 700 ? "ふつうの土" : t.MaxHardness >= 500 ? "やわらかめの土" : "とてもやわらかい土");
@@ -501,8 +533,9 @@ namespace DestinyGarden.Presentation
                 if (t.WindSeed) works.Add("綿毛で旅する");
                 sb.AppendLine($"<color=#ffe2a6>{t.LabelJa}</color>　{string.Join("・", parts)}" +
                               (works.Count > 0 ? $"　<color=#a8e6c8>→ {string.Join("・", works)}</color>" : ""));
+                if (living) sb.AppendLine("　<color=#b7cdc3>" + PlantStrategies.Describe(t.Id) + "</color>\n");
             }
-            _guideText.text = sb.ToString();
+            SetScrollableText(_guideText, sb.ToString());
         }
         private Text _composition;
 
@@ -534,7 +567,8 @@ namespace DestinyGarden.Presentation
                 }
             _residents.text = "<color=#cfe6dc>庭の気配</color>" +
                 (_harmony >= 0 ? $"　<color=#ffe2a6>☯ 調和 {_harmony}/8</color>" : "") + "\n" +
-                (names.Count > 0 ? string.Join("・", names) : "<color=#9aa8a4>まだ静か</color>");
+                (names.Count > 0 ? string.Join("・", names.GetRange(0, Math.Min(6, names.Count))) +
+                    (names.Count > 6 ? $" ほか{names.Count - 6}種" : "") : "<color=#9aa8a4>まだ静か</color>");
         }
 
         private void BuildTitleCard(Transform canvas)
@@ -646,8 +680,8 @@ namespace DestinyGarden.Presentation
         public void RefreshHistory(List<RoundSummary> history)
         {
             var sb = new StringBuilder();
-            sb.AppendLine("記録（新しい順）");
-            for (int i = history.Count - 1; i >= 1 && i > history.Count - 7; i--) // last 6 rolls fit the panel
+            sb.AppendLine("記録（新しい順・上下にスクロール）");
+            for (int i = history.Count - 1; i >= 1; i--) // scroll through every saved roll
             {
                 var r = history[i];
                 sb.AppendLine($"{r.WorldRevision}投目 {WeatherLabel(r.WeatherId)} {SiteLabel(r.SiteId)} " +
@@ -659,10 +693,12 @@ namespace DestinyGarden.Presentation
                 if (lives.Count > 0 || r.EcologySeeds > 0 || r.Harmony >= 0)
                     sb.AppendLine("　〔" + string.Join("・", lives) + "〕" + (r.EcologySeeds > 0 ? $" 種がこぼれた ×{r.EcologySeeds}" : "") +
                                   (r.Harmony >= 0 ? $"　☯{r.Harmony}" : ""));
+                string relationship = EcologyObservations.Highlight(r.Relations);
+                if (relationship != null) sb.AppendLine("　<color=#a8e6c8>" + relationship + "</color>");
                 if (!string.IsNullOrEmpty(r.MessageText)) sb.AppendLine("　" + r.MessageText);
             }
             if (history.Count <= 1) sb.AppendLine("まだ記録がありません。");
-            _historyText.text = sb.ToString();
+            SetScrollableText(_historyText, sb.ToString());
             RefreshGraph(history);
         }
 
