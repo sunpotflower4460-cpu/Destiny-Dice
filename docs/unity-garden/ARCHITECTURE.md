@@ -1,7 +1,7 @@
 # Unity箱庭 — アーキテクチャ
 
-状態: 設計案 v0.6 / Unity未実装
-作成日: 2026-11-11
+状態: 設計案 v0.7 / Unity未実装
+更新日: 2026-11-12
 対象: 新しい箱庭ゲームのUnity版。今回の変更は設計資料のみ。
 
 ## 1. 適用範囲と正となる文書
@@ -14,6 +14,7 @@ Unity版は新しいschema・保存領域・セッション識別子を持ち、
 画面の進行と操作は[EXPERIENCE.md](EXPERIENCE.md)、初期庭の配置候補と参照計算は[GARDEN_LAYOUT.md](GARDEN_LAYOUT.md)にまとめる。
 天候・局所入力・持ち越す庭の状態の関係は[WEATHER.md](WEATHER.md)を入口とし、合成する式はSIMULATIONを参照する。
 Unity project、C#コード、package、CI設定、ネイティブ設定は、この設計phaseでは作成しない。
+現行の採用候補と適用順は[CURRENT_DESIGN.md](CURRENT_DESIGN.md)、原本とhashの索引は[design-manifest.v0.7.json](content/design-manifest.v0.7.json)を使う。文書版と各アルゴリズム・contentの版を一つの番号へまとめない。
 
 ## 2. 一つの計算モデルと四つの責務
 
@@ -49,8 +50,9 @@ port名は実装時の命名候補。record名・状態名はDATA_CONTRACTに従
 初期版の復元は短いjournalを検証走査して行い、最後の`Resolved`と未完了のroundを取り戻す。走査時間・容量を実測して必要な場合にのみ、破棄して再生成できるcheckpointを足す。復元手順・意図の先行確定・single-writerは省略しない。
 
 `docs/unity-garden/content/`のJSONは実装時の照合用の設計資料。現時点ではUnityのloaderも検証器もない。採用時にはschemaと値を検証し、runへ固定するcontentに変換する。
-v0.6はv0.2の数値profile、v0.3の静的な庭配置、weather-profile.v0.4、oracle-catalog.v0.5にtarget-profile.v0.6とplant-appearance-profile.v0.6を重ねる。天候・group生成はv0.4、文章選定はoracle-focus.v0.5を保つ。場所と配面はtarget-sites.v0.6 / dynamic-faces.v0.6、見た目はbirth-appearance.v0.6として区別する。旧mapの初期セルhashや旧参照結果を、天候を含む正式なWorldSnapshotのhashへ読み替えない。
+v0.7はv0.2の数値profile、v0.3の静的な庭配置、weather-profile.v0.4、target-profile.v0.6を保ち、oracle-catalog.v0.7を使う。天候・group生成はv0.4、場所と配面はtarget-sites.v0.6 / dynamic-faces.v0.6。oracle-focus.v0.7はv0.5の順位を継承し、岩陰の未変化文の焦点を同じcellのLightReceivedへ固定する。見た目を採用する場合だけplant-appearance-profile.v0.6 / birth-appearance.v0.6を接続する。未採用ならappearanceProjectionVersion=nullとし、未使用profileをrunの必須内容参照にしない。旧mapの初期セルhashや旧参照結果を、天候を含む正式なWorldSnapshotのhashへ読み替えない。
 文書版・地図版・計算版を一つの番号だと扱わず、contentManifestに各実体とhashを残す。参照計算reportは照合用であり、通常プレイの出目列や成長結果を供給するassetにはしない。
+G0のdesign-manifestは原本byte列の索引で、実装時のRunStarted.contentManifestとは別にする。採用・変換後のcontentをdurable保存し、その実体のhashをrunへ固定する。基礎profile、天候、場所の上書きは各explicitReplacementsに限定し、任意のJSON deep mergeで規則を組み合わせない。
 
 G1〜G3の通常経路は静的mapから新しい庭を作ることと、同じrunの保存済みsnapshotへ戻ること。別runの庭のimport・forkを展示版に実装しない。開発fixtureの合成初期状態は明示したfixtureとして扱い、通常の新庭や過去の種の履歴へ混ぜない。
 
@@ -136,6 +138,7 @@ v0.6では公開だけでなく、次のPreparationStartedも結果再生の終�
 
 | record | この層が守ること |
 |---|---|
+| RunSwitchRequested | 交代要求・固定した次run IDと内容計画を保存し、通常UIの公開権と旧run内部の処理所有権を分ける |
 | CareFocusChanged | 任意の場所設定をrun単位で追記。現在のPreparedとworldRevisionを変更しない |
 | PreparationStarted | 配面の取得前にround・事前状態・場所設定のsourceRefを固定 |
 | WeatherEntropyCommitted | run内の同一期で一意の32byteを、解釈前に保存する。取消後も同一期の準備から再利用 |
@@ -147,6 +150,8 @@ v0.6では公開だけでなく、次のPreparationStartedも結果再生の終�
 | OutcomeCommitted | 実際に確定した出目・出所を再利用可能にする |
 | Resolved | 計算後の全状態、天候とダイスそれぞれの実適用証拠を含め、同じ試行の二重適用を防ぐ |
 | PresentationReceipt | アプリの提示処理の段階を記録。人が読んだ・理解したことの証拠とはしない |
+
+来場者交代はDATA_CONTRACTのRunSwitchRequested→旧roundの終端→RunClosed→対応する新RunStartedへ従う。一つのwriter/coordinatorがrunをまたぐ交代も直列化する。交代中は新しいRoll・場所変更・準備を止め、旧runの既存取得・保存・解決だけを正しく閉じる。旧callbackを画面の世代変更だけで捨てて既知結果を失わず、内部の結果を通常画面へ再公開することもない。起動時は保存した交代関係をたどり、ファイルの更新時刻や別のactive-run cacheだけで庭を選ばない。RunClosed後は旧runへlate Receiptも追記しない。
 
 OutcomeCommittedは計算を許可する境界。出目・カード・庭・文章の結果表示と、新しい庭の公開はResolvedの保存成功後に行う。
 表示を閉じる、演出を飛ばす、端末を回すといった操作は再抽選・再適用を呼ばない。
@@ -229,6 +234,7 @@ UIに触れた指を庭への地点選択としても解釈する二重入力を
 縦横比の違いはカメラ範囲・UI配置で吸収し、計算格子や出目確率を変更しない。
 デスクトップではクリック操作、ウィンドウサイズ変更、フォーカス移動を確認する。
 exportの共有先選択は各OSのadapterへ渡し、Domainにファイルダイアログを持たせない。
+JSON exportは対象runのプレイを再構成する原本segment・回復診断・固定contentのbundle、CSVは人が一覧・集計を読むためのprojectionとする。来場者exportは現在runに限定し、交代元への参照を理由に前の人のjournal・本文を自動同梱しない。範囲外参照はscope_outside_exportとして残し、選択run内の検証と交代履歴全体の検証を分ける。全runの照合は運営側が明示した範囲で行う。CSVからraw材料・原本byte・全参照を完全に復元できるとは扱わない。export時の対象run・検証済みhead・原本の取込みbyte範囲を固定し、書出し中の追記を途中まで混ぜず、cutoffと未完了状態を出力へ含める。具体的な原本保持と検証範囲はDATA_CONTRACTに従う。
 
 ### 8.1 最初のグラフは固定した三つの見方にする
 

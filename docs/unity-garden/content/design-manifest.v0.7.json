@@ -1,0 +1,213 @@
+{
+  "documentKind": "current-garden-design-manifest",
+  "schemaVersion": "design-manifest.v0.7",
+  "status": "designCandidate",
+  "implementationStatus": "notImplementedInUnity",
+  "designVersion": "0.7",
+  "date": "2026-11-12",
+  "pathBase": "docs/unity-garden",
+  "hashMeaning": "SHA-256 of exact repository file bytes, not a JCS WorldSnapshot stateHash or a runtime-converted content hash.",
+  "scope": "G0 source index. This is not RunStarted.contentManifest, a Unity loader, or a shipping configuration.",
+  "policies": {
+    "runLifecycleVersion": "run-switch.v0.7",
+    "weatherPolicyVersion": "weather-episodes.v0.4",
+    "targetPolicyVersion": "target-sites.v0.6",
+    "mappingPolicyVersion": "dynamic-faces.v0.6",
+    "groupingVersion": "observation-groups.v0.4",
+    "selectionPolicyVersion": "oracle-focus.v0.7",
+    "optionalAppearanceProjectionVersion": "birth-appearance.v0.6"
+  },
+  "applicationOrder": [
+    "simulation",
+    "map",
+    "weather",
+    "targets",
+    "oracle",
+    "appearanceIfAdopted"
+  ],
+  "overrideBoundary": "Only weather.explicitReplacements and targets.explicitReplacements override the base. Do not deep-merge arbitrary fields or use historical anchors with the current target policy.",
+  "runtimeCandidates": [
+    {
+      "id": "simulation",
+      "path": "content/simulation-profile.v0.2.json",
+      "sha256": "7615b63c32d1e67c74b8c42e7a491859ca6c9e430e49e91b37d9a534f5e0f6c6",
+      "byteLength": 15682,
+      "purpose": "naturalRules",
+      "required": true,
+      "adoptionGate": "G2",
+      "schemaVersion": "simulation-profile-v0.2"
+    },
+    {
+      "id": "map",
+      "path": "content/garden-map.v0.3.json",
+      "sha256": "fbf85d3c8278d4bd7eb6fdb06982923c5b039d1aad86596922742371a374fe20",
+      "byteLength": 10009,
+      "purpose": "staticInitialWorld",
+      "required": true,
+      "adoptionGate": "G1/G2",
+      "schemaVersion": "garden-map.v0.3"
+    },
+    {
+      "id": "weather",
+      "path": "content/weather-profile.v0.4.json",
+      "sha256": "9aa3f20ec4dbc41d14d6beb4fa7437304647a9c8256f9facb4d6d1923d31d1b6",
+      "byteLength": 9015,
+      "purpose": "weatherExtension",
+      "required": true,
+      "adoptionGate": "G1/G2",
+      "schemaVersion": "weather-profile.v0.4"
+    },
+    {
+      "id": "targets",
+      "path": "content/target-profile.v0.6.json",
+      "sha256": "dd72a71da076a597f34085b003ee02f05660d1801410c3df17f9517c91a7cb2a",
+      "byteLength": 6788,
+      "purpose": "targetAndMappingExtension",
+      "required": true,
+      "adoptionGate": "G1/G2",
+      "schemaVersion": "target-profile.v0.6"
+    },
+    {
+      "id": "oracle",
+      "path": "content/oracle-catalog.v0.7.json",
+      "sha256": "c93040df8e1b46934ba352fc578ff0e08c66cf73c67b7a23cb50cd140f1d6210",
+      "byteLength": 14897,
+      "purpose": "deckOrderAndMessages",
+      "required": true,
+      "adoptionGate": "G3",
+      "schemaVersion": "oracle-catalog.v0.7"
+    },
+    {
+      "id": "appearance",
+      "path": "content/plant-appearance-profile.v0.6.json",
+      "sha256": "eebcb8f49dbe835c97edab66f655396512f5a602c649f5de0e9eb15655f48fb2",
+      "byteLength": 3308,
+      "purpose": "optionalBirthAppearance",
+      "required": false,
+      "adoptionGate": "G3AfterCoreExperience",
+      "schemaVersion": "plant-appearance-profile.v0.6"
+    }
+  ],
+  "verificationReferences": [
+    {
+      "id": "component-fixtures",
+      "path": "content/simulation-fixtures.v0.2.json",
+      "sha256": "7f3204e82fee007545c0e9f74b0ca54606a2213be529cb7eb4b15311d00cd7a6",
+      "byteLength": 31146,
+      "purpose": "componentExpectedValues",
+      "schemaVersion": "simulation-fixtures-v0.2"
+    },
+    {
+      "id": "legacy-garden-report",
+      "path": "content/garden-reference-report.v0.3.json",
+      "sha256": "5a5ad433b8d58a0f6335dd4f35d1d95727c7f4af78d1d5feaf46c858dd66f36e",
+      "byteLength": 105095,
+      "purpose": "legacyAnchorRegression",
+      "schemaVersion": "garden-reference-report.v0.3"
+    },
+    {
+      "id": "legacy-weather-report",
+      "path": "content/weather-reference-report.v0.4.json",
+      "sha256": "038757ce2a01720bb3d07bb08f84de8900b23d04abf60a0def8456af9cea1669",
+      "byteLength": 246071,
+      "purpose": "legacyAnchorWeatherRegression",
+      "schemaVersion": "weather-reference.v0.4"
+    },
+    {
+      "id": "ranking-fixtures",
+      "path": "content/oracle-selection-fixtures.v0.5.json",
+      "sha256": "bba8727b605211b0136a1c5a05b1b33939115b1af446da30059c95efc61dc2f7",
+      "byteLength": 55689,
+      "purpose": "inheritedRankingOnly",
+      "schemaVersion": "oracle-selection-fixtures.v0.5"
+    },
+    {
+      "id": "diversity-report",
+      "path": "content/diversity-reference-report.v0.6.json",
+      "sha256": "e764c47615c2983336e022a26de1156428f8c0b62d8516d240fe0017b7d25acd",
+      "byteLength": 298899,
+      "purpose": "currentTargetDiversityReference",
+      "schemaVersion": "diversity-reference.v0.6"
+    },
+    {
+      "id": "binding-fixtures",
+      "path": "content/oracle-binding-fixtures.v0.7.json",
+      "sha256": "ff2893093793f6b729bc0774f5e66c66a732f335936c3cdb120a7d9eeed20445",
+      "byteLength": 8812,
+      "purpose": "syntheticPredicateExpectationsOnly",
+      "schemaVersion": "oracle-binding-fixtures.v0.7"
+    },
+    {
+      "id": "water-stress-report",
+      "path": "content/water-stress-reference-report.v0.7.json",
+      "sha256": "bfe7df8492cdc8553b05768d47c0fa5ce09b519896a642387e3ab2f919a586c4",
+      "byteLength": 209106,
+      "purpose": "currentTargetForcedRainReference",
+      "schemaVersion": "water-stress-reference-report.v0.7"
+    },
+    {
+      "id": "legacy-layout",
+      "path": "content/garden-layout.v0.3.svg",
+      "sha256": "4eb00c775c881c06c8e60cb158c3d9a0a3b159811b9a5a4489e56a2de6155053",
+      "byteLength": 44841,
+      "purpose": "staticMapAndHistoricalAnchorsIllustration"
+    },
+    {
+      "id": "diversity-calculator",
+      "path": "reference/diversity_v06.py",
+      "sha256": "2e2af0ad82435698d0bb9d4be336a6b93a15071cd252f3f06ba85d2cc63d9096",
+      "byteLength": 41384,
+      "purpose": "designReferenceCalculatorOnly"
+    },
+    {
+      "id": "water-stress-calculator",
+      "path": "reference/water_stress_v07.py",
+      "sha256": "4e24277234263514791a56d93a6858713289c40071d41275ee5f465c38d2e122",
+      "byteLength": 13038,
+      "purpose": "designReferenceCalculatorOnly"
+    }
+  ],
+  "historicalReferences": [
+    {
+      "id": "oracle-history-v0.2",
+      "path": "content/oracle-catalog.v0.2.json",
+      "sha256": "b961a3e78665ea73f92c241f341b93304e35cbae3e8d368c8a62f972525108ef",
+      "byteLength": 12171,
+      "purpose": "historicalCatalogDoNotAdopt",
+      "schemaVersion": "oracle-catalog.v0.2"
+    },
+    {
+      "id": "oracle-history-v0.4",
+      "path": "content/oracle-catalog.v0.4.json",
+      "sha256": "68b1bdb4fa1db1cd36d8a63e13ba8de279708e93806583d910fd56e2bbc0e497",
+      "byteLength": 14385,
+      "purpose": "historicalCatalogDoNotAdopt",
+      "schemaVersion": "oracle-catalog.v0.4"
+    },
+    {
+      "id": "oracle-history-v0.5",
+      "path": "content/oracle-catalog.v0.5.json",
+      "sha256": "59e377831723d6e58928d5a0d51ff1ecb7e8ef37f2960087e1b2620ad156235c",
+      "byteLength": 14488,
+      "purpose": "historicalCatalogDoNotAdopt",
+      "schemaVersion": "oracle-catalog.v0.5"
+    }
+  ],
+  "appearanceNotAdopted": {
+    "runAppearanceProjectionVersion": null,
+    "includeAppearanceProfileInRunContentManifest": false
+  },
+  "notRuntimeAssets": [
+    "verificationReferences",
+    "historicalReferences"
+  ],
+  "runtimeAdoption": "Validate and persist the adopted/converted content bytes before RunStarted. Store their actual runtime hashes plus provenance; do not substitute these source hashes for changed bytes.",
+  "unfixedAtG0": [
+    "Unity exact patch and packages",
+    "journal frame encoding and device durability",
+    "C# serializer and adopted runtime schema versions",
+    "art and audio assets",
+    "device performance and visual acceptance"
+  ],
+  "verificationCommand": "python docs/unity-garden/reference/check_current_design.py"
+}

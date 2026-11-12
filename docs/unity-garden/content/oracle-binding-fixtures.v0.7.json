@@ -1,0 +1,312 @@
+{
+  "documentKind": "oracle-binding-design-fixtures",
+  "schemaVersion": "oracle-binding-fixtures.v0.7",
+  "status": "designCandidate",
+  "implementationStatus": "notImplementedInUnity",
+  "createdDate": "2026-11-12",
+  "catalogFile": "oracle-catalog.v0.7.json",
+  "catalogSha256": "c93040df8e1b46934ba352fc578ff0e08c66cf73c67b7a23cb50cd140f1d6210",
+  "selectionPolicyVersion": "oracle-focus.v0.7",
+  "entryId": "message.plant.shadowed_bud",
+  "scope": "Six synthetic candidate-eligibility/focus examples only. Minimal predicate evidence, not complete Resolved/SimulationEvent DTOs and not natural simulation outputs.",
+  "expectedResultsStatus": "design expectations, not results from a Unity selector",
+  "notCovered": [
+    "natural simulation",
+    "complete event aggregation",
+    "full predicate evaluator",
+    "final ranking across all messages",
+    "Unity rendering and persistence"
+  ],
+  "cases": [
+    {
+      "caseId": "same_cell_light_bud_stays",
+      "description": "同じ岩陰のつぼみへ追加光が届き、成長してもbud段階を保つ。",
+      "inputElement": "light",
+      "subject": {
+        "plantId": "fixture:bud:135",
+        "cellId": 135,
+        "beforeStage": "bud",
+        "afterStage": "bud",
+        "beforeGrowth": 1700,
+        "afterGrowth": 1800
+      },
+      "lightRangeCellIds": [
+        135
+      ],
+      "mapEvidence": {
+        "cellId": 135,
+        "lightExposureQ": 600,
+        "lightOccluderCellId": 120,
+        "solidCellIds": [
+          120
+        ]
+      },
+      "lightReceivedEvidence": [
+        {
+          "eventId": "fixture:LightReceived:135",
+          "kind": "LightReceived",
+          "cellId": 135,
+          "firstTick": 1,
+          "lastTick": 40,
+          "additionalEffectiveLightQ": 150,
+          "cumulativeAdditionalEffectiveLight": 6000
+        }
+      ],
+      "observationGroups": [
+        {
+          "groupId": "fixture:LightReceived:135",
+          "kind": "LightReceived",
+          "cellIds": [
+            135
+          ],
+          "eventIds": [
+            "fixture:LightReceived:135"
+          ]
+        }
+      ],
+      "expected": {
+        "candidateEligible": true,
+        "focusGroupId": "fixture:LightReceived:135",
+        "reason": "Both predicates bind to cell135; the focus is its real LightReceived group."
+      }
+    },
+    {
+      "caseId": "zero_additional_light",
+      "description": "光の範囲内でも完全遮光で追加実効光は0。",
+      "inputElement": "light",
+      "subject": {
+        "plantId": "fixture:bud:135",
+        "cellId": 135,
+        "beforeStage": "bud",
+        "afterStage": "bud",
+        "beforeGrowth": 1700,
+        "afterGrowth": 1700
+      },
+      "lightRangeCellIds": [
+        135
+      ],
+      "mapEvidence": {
+        "cellId": 135,
+        "lightExposureQ": 0,
+        "lightOccluderCellId": 120,
+        "solidCellIds": [
+          120
+        ]
+      },
+      "lightReceivedEvidence": [],
+      "observationGroups": [],
+      "expected": {
+        "candidateEligible": false,
+        "focusGroupId": null,
+        "reason": "No positive same-cell LightReceived evidence; do not create an unchanged-state group."
+      }
+    },
+    {
+      "caseId": "light_only_at_other_cell",
+      "description": "つぼみはcell135、追加光の証拠とgroupは別のcell136だけ。",
+      "inputElement": "light",
+      "subject": {
+        "plantId": "fixture:bud:135",
+        "cellId": 135,
+        "beforeStage": "bud",
+        "afterStage": "bud",
+        "beforeGrowth": 1700,
+        "afterGrowth": 1800
+      },
+      "lightRangeCellIds": [
+        135,
+        136
+      ],
+      "mapEvidence": {
+        "cellId": 135,
+        "lightExposureQ": 600,
+        "lightOccluderCellId": 120,
+        "solidCellIds": [
+          120
+        ]
+      },
+      "lightReceivedEvidence": [
+        {
+          "eventId": "fixture:LightReceived:136",
+          "kind": "LightReceived",
+          "cellId": 136,
+          "firstTick": 1,
+          "lastTick": 40,
+          "additionalEffectiveLightQ": 50,
+          "cumulativeAdditionalEffectiveLight": 2000
+        }
+      ],
+      "observationGroups": [
+        {
+          "groupId": "fixture:LightReceived:136",
+          "kind": "LightReceived",
+          "cellIds": [
+            136
+          ],
+          "eventIds": [
+            "fixture:LightReceived:136"
+          ]
+        }
+      ],
+      "expected": {
+        "candidateEligible": false,
+        "focusGroupId": null,
+        "reason": "Do not combine a bud at cell135 with positive light or a focus group at cell136."
+      }
+    },
+    {
+      "caseId": "bud_became_flower",
+      "description": "同じ場所に光は届いたが、つぼみは花へ進んだ。",
+      "inputElement": "light",
+      "subject": {
+        "plantId": "fixture:bud:135",
+        "cellId": 135,
+        "beforeStage": "bud",
+        "afterStage": "flower",
+        "beforeGrowth": 1700,
+        "afterGrowth": 2500
+      },
+      "lightRangeCellIds": [
+        135
+      ],
+      "mapEvidence": {
+        "cellId": 135,
+        "lightExposureQ": 600,
+        "lightOccluderCellId": 120,
+        "solidCellIds": [
+          120
+        ]
+      },
+      "lightReceivedEvidence": [
+        {
+          "eventId": "fixture:LightReceived:135",
+          "kind": "LightReceived",
+          "cellId": 135,
+          "firstTick": 1,
+          "lastTick": 40,
+          "additionalEffectiveLightQ": 150,
+          "cumulativeAdditionalEffectiveLight": 6000
+        }
+      ],
+      "observationGroups": [
+        {
+          "groupId": "fixture:LightReceived:135",
+          "kind": "LightReceived",
+          "cellIds": [
+            135
+          ],
+          "eventIds": [
+            "fixture:LightReceived:135"
+          ]
+        }
+      ],
+      "expected": {
+        "candidateEligible": false,
+        "focusGroupId": null,
+        "reason": "The after stage is flower; the unchanged-bud predicate is false."
+      }
+    },
+    {
+      "caseId": "rock_evidence_missing",
+      "description": "追加光とbud維持は確認できるが、実在する岩による影の根拠がない。",
+      "inputElement": "light",
+      "subject": {
+        "plantId": "fixture:bud:135",
+        "cellId": 135,
+        "beforeStage": "bud",
+        "afterStage": "bud",
+        "beforeGrowth": 1700,
+        "afterGrowth": 1800
+      },
+      "lightRangeCellIds": [
+        135
+      ],
+      "mapEvidence": {
+        "cellId": 135,
+        "lightExposureQ": 600,
+        "lightOccluderCellId": null,
+        "solidCellIds": []
+      },
+      "lightReceivedEvidence": [
+        {
+          "eventId": "fixture:LightReceived:135",
+          "kind": "LightReceived",
+          "cellId": 135,
+          "firstTick": 1,
+          "lastTick": 40,
+          "additionalEffectiveLightQ": 150,
+          "cumulativeAdditionalEffectiveLight": 6000
+        }
+      ],
+      "observationGroups": [
+        {
+          "groupId": "fixture:LightReceived:135",
+          "kind": "LightReceived",
+          "cellIds": [
+            135
+          ],
+          "eventIds": [
+            "fixture:LightReceived:135"
+          ]
+        }
+      ],
+      "expected": {
+        "candidateEligible": false,
+        "focusGroupId": null,
+        "reason": "Do not attribute shade to a rock without the pinned map evidence."
+      }
+    },
+    {
+      "caseId": "zero_growth_but_lit_bud",
+      "description": "整数成長0でも同じつぼみへの追加光とbud維持を確認できる。",
+      "inputElement": "light",
+      "subject": {
+        "plantId": "fixture:bud:135",
+        "cellId": 135,
+        "beforeStage": "bud",
+        "afterStage": "bud",
+        "beforeGrowth": 1700,
+        "afterGrowth": 1700
+      },
+      "lightRangeCellIds": [
+        135
+      ],
+      "mapEvidence": {
+        "cellId": 135,
+        "lightExposureQ": 600,
+        "lightOccluderCellId": 120,
+        "solidCellIds": [
+          120
+        ]
+      },
+      "lightReceivedEvidence": [
+        {
+          "eventId": "fixture:LightReceived:135",
+          "kind": "LightReceived",
+          "cellId": 135,
+          "firstTick": 1,
+          "lastTick": 40,
+          "additionalEffectiveLightQ": 150,
+          "cumulativeAdditionalEffectiveLight": 6000
+        }
+      ],
+      "observationGroups": [
+        {
+          "groupId": "fixture:LightReceived:135",
+          "kind": "LightReceived",
+          "cellIds": [
+            135
+          ],
+          "eventIds": [
+            "fixture:LightReceived:135"
+          ]
+        }
+      ],
+      "expected": {
+        "candidateEligible": true,
+        "focusGroupId": "fixture:LightReceived:135",
+        "reason": "Growth delta is not required. State the closed bud without inventing a failure reason."
+      }
+    }
+  ]
+}

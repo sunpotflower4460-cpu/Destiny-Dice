@@ -1,6 +1,6 @@
 # Unity箱庭 — 体験・動的な6面・表現・言葉
 
-設計版: 0.6 / 2026-11-11。Unity実装・実機の体験検証は未実施。基礎の自然モデルv0.2、天候・合成規則v0.4、28文と文章選定v0.5を保ち、三つの作用場所と任意の選択を加える。場所・入力の順番・残った庭の状態が次の展開へつながる設計とし、詳細は[DIVERSITY.md](./DIVERSITY.md)にまとめる。
+設計版: 0.7 / 2026-11-12。Unity実装・実機の体験検証は未実施。基礎の自然モデルv0.2、天候・合成規則v0.4、三つの作用場所v0.6を維持する。文章の本文28本とv0.5の順位は保ち、v0.7では岩陰のつぼみを述べる文の焦点を同じ場所への実際の追加光へ結び付ける。場所・入力の順番・残った庭の状態による分岐は[DIVERSITY.md](./DIVERSITY.md)、現行の組合せは[CURRENT_DESIGN.md](./CURRENT_DESIGN.md)を参照する。
 
 ## 0. この文書の位置づけ
 
@@ -307,10 +307,10 @@ WaterEnteredのgroupIdは`roundId + ":WaterEntered:" + sourceKind + ":" + minCel
 
 ### 7.2 選定の順序
 
-`selectionPolicyVersion=oracle-focus.v0.5`は、カードとの対応を保ちながら、その範囲で直近に使っていない事実文を先に見る。成立条件や対象・時点の束縛を、文章の新しさで緩めない。
+`selectionPolicyVersion=oracle-focus.v0.7`は、v0.5の順位・group候補数・補助の選び方を継承する。カードとの対応を保ちながら、その範囲で直近に使っていない事実文を先に見る。v0.7の変更は§7.3の岩陰のつぼみの文に、同cellへの正の追加光と対応する焦点を要求すること。成立条件や対象・時点の束縛を、文章の新しさで緩めない。
 
 1. 保存対象となる実イベント・入力・状態差分から、その回の事実とObservationGroupを作る。カード未成立は通常rankingへ入らず、§7.1の基本文経路へ進む。
-2. `kind=factual`だけを対象に、`allowedElements`、全`requiresAll`、`forbiddenFlags`、§7.3の完全な束縛を検査する。fallbackは通常候補へ混ぜない。成立した`messageId + focusGroupId`ごとに最小bindingKeyの束縛を一つ採用し、以下ではこれを「文章候補」と呼ぶ。
+2. `kind=factual`だけを対象に、`allowedElements`、全`requiresAll`、`forbiddenFlags`、§7.3の完全な束縛を検査する。entryに`focusBinding`があれば、その制約を満たす実在groupだけを焦点にする。fallbackは通常候補へ混ぜない。成立した`messageId + focusGroupId`ごとに最小bindingKeyの束縛を一つ採用し、以下ではこれを「文章候補」と呼ぶ。
 3. **全文章候補**から、下表の三つの枠を求める。同じgroupは重複を除き、空き枠を埋め直さず、最大3groupにする。
 4. そのgroupへ結び付く文章候補を最終順位で比較し、1位を主焦点と本文にする。第2枠へ全候補の最終順位1位を必ず含めるため、中間のgroup制限でその候補を落とさない。
 5. input_pairの必須相手を優先して補助を一つ決める。それ以外は残る注目候補groupの固定重要度1位、なければnullにする。
@@ -340,9 +340,9 @@ input_pairが二つのgroupを必要とするときは、§7.3で定めた二つ
 同じカードに合う「雨の中に、光が差しました。」を直近に使い、今回も成立する別の光の事実文が未使用なら、その別文を先に選べる。全候補が直近に使われているときはpriorityと固定ID順へ戻る。一つの事実文しか成立しない場合や、カード対応を優先した結果は同文の継続も許す。過去文を削除したり、言い換えだけを乱数で増やしたりしない。
 同じ大きな成長があっても、根なら土の吸水、調和なら水と光の成立条件など、事実があるときは見る角度を変えられる。根拠がないときまでカードらしい説明を作らず、カード・出目・自然の変化を文章に合わせて変更しない。
 
-現行候補は[oracle-catalog.v0.5.json](./content/oracle-catalog.v0.5.json)の28本。4入力fallbackと24本の事実条件付き文章を持つ。v0.4の全entryをそのまま維持し、選定policyのmetadataだけを更新する。旧catalogは過去の設計資料として残す。
+現行候補は[oracle-catalog.v0.7.json](./content/oracle-catalog.v0.7.json)の28本。4入力fallbackと24本の事実条件付き文章を持つ。v0.5から全本文・ID・タグ・priorityを保ち、`message.plant.shadowed_bud`だけに`light_reached_focus`と同cellのLightReceivedへ限定する`focusBinding`を追加する。他の27entryは同一。旧catalogは過去の設計資料として残し、旧runの文・条件・焦点へ新しい制約を遡及適用しない。
 JSONは`status=designCandidate`であり、Unityの選定器・画面での読みやすさは未検証。G3で内容と条件を検証して採用する。
-選定順位だけの合成例を[oracle-selection-fixtures.v0.5.json](./content/oracle-selection-fixtures.v0.5.json)へ置く。ここでは成立済みの根拠と束縛の順序キーを入力する。自然計算や同cell/tickの述語判定を実行したfixtureではない。
+選定順位だけの合成例は[oracle-selection-fixtures.v0.5.json](./content/oracle-selection-fixtures.v0.5.json)を継承する。ここでは成立済みの根拠と束縛の順序キーを入力する。自然計算や同cell/tickの述語判定を実行したfixtureではない。v0.7で追加した候補成立・焦点の6例は[oracle-binding-fixtures.v0.7.json](./content/oracle-binding-fixtures.v0.7.json)へ分ける。これは合成した最小根拠と期待値であり、Unity選定器の実行結果や完全なResolved DTOではない。
 出目番号は保存済み配面を介して系統・recipeへ解釈する。文中へ出す量や位置を、カードの印象から補完しない。外部AIとの通信なしで一巡でき、実行時の自由生成は別の設計・版で扱う。
 
 ### 7.3 述語と根拠の契約
@@ -353,6 +353,8 @@ JSONは`status=designCandidate`であり、Unityの選定器・画面での読�
 選んだ束縛先を`predicateBindings`へ残す。存在しないイベント、未実装の証拠、未知の値は成立とみなさない。
 
 catalogの`scope=focus`は、主groupの対象cell/plantに少なくとも一つの述語根拠を結び付け、他kindの根拠も同じ対象へ束縛する意味とする。別groupを参照した場合はsupportingGroupIdsへ保存する。
+`message.plant.shadowed_bud`だけは`focusBinding.eventKind=LightReceived / subject=sameCellAsShadowedBud / requiresPositiveAdditionalEffectiveLight=true`を追加制約にする。事前・終状態ともbudである同じ個体のcellへ、今回の正のダイス追加実効光が届いた実イベントを束縛し、そのeventを含むLightReceived groupを焦点にする。groupが複数セルを含んでも対象個体・光の根拠は同じcellを保つ。GrowthObservedなど別kindのgroupをこの文の焦点へ代用しない。
+状態比較だけから「変わらなかった」という新イベントやgroupを生成しない。完全遮光で追加光0、別cellの光だけ、岩の根拠欠落、budからflowerへの変化では、この文を候補外にする。整数成長0でも、同cellへの追加光とbud維持が確認できれば候補にできる。成長が止まった理由や失敗をこの文へ付け足さない。この制約は他の文の焦点候補を狭めるものではない。
 新しい`weather_rain_reached_focus`と`plant_from_earlier_seed`は補助条件であり、この二つだけではfocusを与えない。天候の4文は、組み合わせるLightReceived・WindReceived・SeedPlaced・Germinatedのgroupを焦点にする。雨の全域groupへ焦点を広げず、WeatherApplicationEvidenceや個体の出自へのsourceRefsをpredicateBindingsに残す。
 SurfaceFlowObservedのglobal groupを焦点にする場合は、全域の流れそのものを対象にする。全域集計を任意のcell/plantへ束縛し直して他の局所条件と合成しない。
 `scope=input_pair`だけは、同じ種入力で生成された二つのcell/plantを集合として扱う。二つが別groupならgroupId昇順の先頭を焦点、もう一方をsupportingとし、無関係な種や前の回の種を数えない。
@@ -387,7 +389,7 @@ SurfaceFlowObservedのglobal groupを焦点にする場合は、全域の流れ�
 | `bud_formed` | 同一plantのBudFormedの閾値越えが今回記録された |
 | `bloomed` | 同一plantのBloomedの閾値越えが今回記録された |
 | `soil_and_light_sufficient_during_growth` | 同じ植物のfirstPositiveGrowthEvidenceでmoistureFactorQ・effectiveLightQ・growthDeltaが正。保存profileから同tickのlightFactorも正と確認できる |
-| `shadowed_bud_unchanged` | 今回の光の範囲にある岩陰の同じplantが事前・終状態ともbud。遮蔽値・段階比較を確認し、イベント欠落から推測しない |
+| `shadowed_bud_unchanged` | 今回の光の範囲にある岩陰の同じplantが事前・終状態ともbud。遮蔽値・実在solidの根拠・段階比較を確認し、イベント欠落から推測しない。この状態述語自体はgroupを作らず、v0.7の当該文は同cellのlight_reached_focusとLightReceived焦点を追加で必要とする |
 | `weather_rain_reached_focus` | 今回のWeatherApplicationEvidenceで焦点cellへの正の雨の実適用tickが確認できる。天候名だけでは成立しない。§7.4の相手の出来事と同cell・所定の同tick/区間関係を満たす補助条件 |
 | `plant_from_earlier_seed` | stateBeforeの同じplantIdがoriginKind=seedInputで、seedSourceRoundIdが今回と異なる。その過去roundの保存済みSeedPlacedが同じplantId/cellIdを持つと確認できる。初期map個体・今回の種・不明な出自は不成立。過去の入力順の対応であり、過去の水の寄与は意味しない |
 
@@ -436,6 +438,7 @@ profileやrecordが破損して適用自体を確認できなければ、成功�
 - 6面の保存前に投擲できず、意図の確定前に出目を先取りしない。
 - 水が2面・3面・0面の配面で、目標の確率と未設定の扱いが一致する。
 - 実際に発芽していない場面では発芽した文章が選ばれず、基本文で継続できる。
+- 岩陰の未変化文は同じbudへの正の追加光を示すLightReceived groupを焦点にする。追加光0・別cell・開花済み・岩根拠欠落を候補外にし、成長0だけを失敗と判断しない。
 - 同じカードが続いても再抽選せず、同じカードに対応する未使用の事実文を選べる。唯一の事実しかなければ同文を許可する。
 - 全文章候補で最終順位1位のgroupが、最大3groupの選抜でも残る。カード一致候補がない場合も同じ順序で決まる。
 - 全候補既出、直近Resolvedの重複、Prepared後の後着record、同点のgroup/binding、input_pairの必須補助で再開後も同じ文章と焦点になる。

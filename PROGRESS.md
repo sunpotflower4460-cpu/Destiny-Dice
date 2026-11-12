@@ -1648,3 +1648,103 @@ PROGRESS: append-only; git diff --check: pass
 - docs/unity-garden/ARCHITECTURE.md、ROADMAP.md、VALIDATION.md
 - docs/unity-garden/content/target-profile.v0.6.json、plant-appearance-profile.v0.6.json、diversity-reference-report.v0.6.json（新規）
 - docs/unity-garden/reference/diversity_v06.py（新規G0参照）
+
+
+## Gate0: Unity箱庭の全体接続を設計 v0.7 へ更新 (2026-11-12)
+
+### 完了したこと
+
+- 依頼「さらに設計全体を見渡して改善できそうなところを探して改善」に対し、体験・自然・保存契約を横断監査した。新しいゲーム機能より、現行の組合せと実装時に食い違う境界を修正した。今回もG0の設計・候補資料・参照計算だけを扱う。
+- `CURRENT_DESIGN.md`と`design-manifest.v0.7.json`を現行の入口へ追加。基礎v0.2、map v0.3、天候v0.4、場所/配面v0.6、文章v0.7の適用順を明記した。原本19件は実行時採用候補5件＋任意外観1件、検証用10件、旧catalog3件へ分類し、byte長・SHA-256を固定。設計原本のhashと、変換後のRunStarted.contentManifestを混同しない。
+- 新しいrunLifecycleVersion=run-switch.v0.7を定義。明示的な庭の交代はRunSwitchRequestedで次run IDと初期計画を保存し、旧round終端→RunClosed→指定した新RunStartedへ進む。交代中の通常UI公開と旧取得の内部処理を分け、旧結果を失わず前の人の本文を再公開しない。要求未保存の終了は受理済みとは呼ばない。
+- 新genesisの部分frameを保全して同じtargetRunIdへ回復する境界、閉鎖後のlate Receipt拒否、計画作成元plannedByとgenesis作成元の実値の分離を追加した。実際のI/O・プロセス終了による実装試験は将来条件である。
+- JSONは対象runのプレイを再構成する監査bundle、CSVは閲覧用projectionと明記。排他下でcutoff headとsegment byte範囲/hashを固定し、書出し中の追記を混ぜない。来場者exportへ交代元の本文を自動同梱せず、範囲外の交代参照はscope_outside_exportとして未照合範囲を残す。
+- 旧catalog v0.5の28本文・ID・タグ・priorityを維持し、27entryは同一。岩陰のつぼみを述べる1entryだけにlight_reached_focusと同cell LightReceivedのfocusBindingを追加。oracle-focus.v0.7はv0.5の順位・直近比較・group上限を継承する。旧runの文章は再選定しない。
+- 同cellの光/追加光0/別cell/開花/岩根拠欠落/成長0の6つの合成期待例を追加。完全な述語実装や自然計算の結果ではなく、設計の最小根拠と期待値を照合する資料とした。
+- 三地点×水2recipe×強制小雨を、初期mapからそれぞれ200投、合計1,200投・48,000tickで参照した。旧入口の400投を新地点の検証へ流用しない。新scriptは固定したv0.6数値kernelをimportし、既定/--verifyは読取比較、--jsonは標準出力だけで保存操作を持たない。
+- Readyの場所変更は公開中の一投を保ち、その後の準備から反映する、と要約を統一。既存23受入場面を自動照合・実端末運用・人の知覚へ対応させ、人の通し確認をH1〜H5へまとめた。三地点の同じ種、同材料12投の分岐、数値差があっても同じseed段階の対照をV1〜V3として具体化した。
+- 外観未採用のrunは版null・profile参照なしと明記。目標変更の集計は構造化したkind/targetだけを比較し、方法や本文だけの変更を混ぜない。
+- 既存実験のAGENTS/DESIGN/PROTOCOL_FREEZE、src、依存、CI設定、過去のcontent・参照scriptを変更していない。
+
+### 完了基準の結果（実際のコマンド出力）
+
+既存アプリの必須gateは、pnpm 10.34.9を`npx --yes --package=pnpm@10.34.9 pnpm ...`で実行した。依存の更新はしていない。
+
+```text
+pnpm typecheck
+> tsc -b --noEmit
+exit 0
+
+pnpm test
+RUN v4.1.10
+Test Files 41 passed (41)
+Tests 183 passed (183)
+Duration 3.12s
+exit 0
+
+pnpm build
+vite v8.1.4
+102 modules transformed
+built in 329ms
+exit 0
+```
+
+buildは既知のjeep-sqlite由来crypto browser externalization警告を出したが成功。npmのhttp-proxy設定警告もあった。既存Webの成功をUnityの成功とは扱わない。
+
+```text
+python docs/unity-garden/reference/check_current_design.py
+Verified design v0.7 source index: 19 pinned artifacts; 5 required + 1 optional runtime candidates.
+Catalog: 28 entries, 27 unchanged, 1 restricted; 6 synthetic evidence examples consistent.
+Stress report arithmetic: 1200 saved rows checked; natural simulation is verified separately.
+Documents: 13 Markdown files, 213 local links/anchors, 115 tables.
+No files written. Unity, journal recovery, full predicates, rendering and device checks remain unexecuted.
+exit 0
+```
+
+新しい参照scriptは`/tmp`から絶対パスで実行して再現を確認した。
+
+```text
+python /workspace/scratch/fbca1c923960/destiny-dice/docs/unity-garden/reference/water_stress_v07.py --verify
+Verified water stress v0.7: 6 runs, 1200 rounds, 48000 ticks; all water balances zero; bounds valid; no files written.
+exit 0
+```
+
+全6列の全tick・全round・累積で水収支残差0、状態と端数は既定範囲内。注入は各列746,000（天候506,000＋ダイス240,000）。最大セル地表水は注入直後込み1,368、tick終了時769。全6列200投後の土中水は容量合計54,200へ達した。最初の排水は入口7/7投、岩陰5/4投、ひらけた土4/4投（しずく/小さな雨の順）。長雨の過湿や、花が咲かなかった列も保持し、結果に合わせた係数変更はしていない。
+
+参照reportの全1,200行を別の読み取り処理で再集計し、前後の水収支、源別注入和、各列合計、初排水投、最大水位を照合した。これは追加の自然計算1,200投ではなく、保存済みreportの再集計である。旧v0.6の2,052投は今回は再実行せず、原本とhashを保持した。
+
+```text
+Legacy content/reference: 15 files byte-identical against 2312460
+  13 JSON + 1 SVG + reference/diversity_v06.py
+G0 scope: README / PROGRESS append / docs/unity-garden only
+App dependencies and frozen experiment protocol: unchanged
+DATA: 34 future acceptance items; links / JSON example / tables valid
+EXPERIENCE: 23 acceptance IDs covered once by evidence mapping; V1/V2/V3 agree with the v0.6 report
+PROGRESS: append-only
+Git diff whitespace check: pass
+```
+
+新原本のSHA-256:
+
+- oracle-catalog.v0.7.json: c93040df8e1b46934ba352fc578ff0e08c66cf73c67b7a23cb50cd140f1d6210 (14,897 bytes)
+- oracle-binding-fixtures.v0.7.json: ff2893093793f6b729bc0774f5e66c66a732f335936c3cdb120a7d9eeed20445 (8,812 bytes)
+- reference/water_stress_v07.py: 4e24277234263514791a56d93a6858713289c40071d41275ee5f465c38d2e122 (13,038 bytes)
+- water-stress-reference-report.v0.7.json: bfe7df8492cdc8553b05768d47c0fa5ce09b519896a642387e3ab2f919a586c4 (209,106 bytes)
+
+### 要確定・申し送り（次フェーズへ）
+
+- **Unity project・C#・画面・音・実機ビルドは未実装。** 次はCURRENT_DESIGNから現行組合せを確認し、ROADMAPのG1へ進む。今回の設計資料と既存183testsをUnity完成としない。
+- RunSwitchRequested・genesis回復・exportのcutoffと範囲分離は設計のみ。G1で実I/O・強制終了・二重command・更新後の対応版・初回genesis（交代要求なし）も確認する。保存していない交代要求を復元できるとは保証しない。
+- 自然参照は既存kernelの再利用であり、独立した第二実装との一致ではない。C# checked動作、全SimulationEvent/述語/文章選定、UI cue、永続化、無期限の安定性は未確認。
+- G2で新しい6列の全状態・水収支をC#で照合する。G3では全土が満水になる長雨の水面・植物の視認性も確認する。モデル単位を現実のcmや秒の保証へ置換しない。
+- 40個体の成熟54ケース、花の外観の実機識別、H1〜H5とV1〜V3は将来の受入で、今回の自然投数に加算しない。初期つぼみ・成長cap・播種範囲・自動リセットなしの方針を維持した。
+- 候補manifestの原本hashと実行時に変換したcontent hashを区別する。実体を検証して採用するまで、loaderや保存互換性が完成したとは扱わない。旧runを現在の規則で再解釈しない。
+
+### 触ったファイル
+
+- README.md、PROGRESS.md（追記）
+- docs/unity-garden/CURRENT_DESIGN.md（新規）、README.md、ARCHITECTURE.md、DATA_CONTRACT.md
+- docs/unity-garden/DIVERSITY.md、EXPERIENCE.md、GAMEPLAY.md、GARDEN_LAYOUT.md
+- docs/unity-garden/ROADMAP.md、SIMULATION.md、VALIDATION.md、WEATHER.md
+- docs/unity-garden/content/design-manifest.v0.7.json、oracle-catalog.v0.7.json、oracle-binding-fixtures.v0.7.json、water-stress-reference-report.v0.7.json（新規）
+- docs/unity-garden/reference/check_current_design.py、water_stress_v07.py（新規G0参照・静的照合）
