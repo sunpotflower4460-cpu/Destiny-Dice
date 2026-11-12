@@ -1,6 +1,6 @@
 # 庭の自然モデル
 
-設計版0.7 / `designCandidate`。v0.2の水・土・蒸発・成長の整数式、v0.4の天候合成、v0.6の三地点から確定した作用先を維持する。v0.7では三地点それぞれへの連続最大注水を参照し、旧入口だけの確認と区別する。水・風・光・種の位置関係から結果を求める、小さな整数モデルの仕様である。**Unityの実装・実機試験は未実施。** 現実の流体、気象、植物生理を精密に再現したという主張ではない。
+設計版0.8 / `designCandidate`。v0.2の水・土・蒸発・成長の整数式、v0.4の天候合成、v0.6の三地点から確定した作用先を維持する。v0.7の三地点への連続注水参照に加え、v0.8では最初の正の成長tickの計算根拠を保存し、同じ場所・時点の関係を辿れるようにする。水・風・光・種の位置関係から結果を求める、小さな整数モデルの仕様である。**Unityの実装・実機試験は未実施。** 現実の流体、気象、植物生理を精密に再現したという主張ではない。
 
 [simulation-profile.v0.2.json](./content/simulation-profile.v0.2.json)を基底profileとし、[weather-profile.v0.4.json](./content/weather-profile.v0.4.json)がhashで参照して天候・合成・配面need・注水上限を明示的に拡張する。上書き対象は拡張profileのexplicitReplacementsに限る。矛盾や未知の基底hashは設定検証を失敗させる。G2で採用した両profile・地図・計算版のcontent hashをrunへ固定し、途中で差し替えない。
 
@@ -325,9 +325,50 @@ SurfaceFlowObservedは全庭で一件のまま保存し、表示でも一つのg
 
 雨と光・風・種を組み合わせた文は、同じcellと実際の雨pulse tickを根拠にする。具体的な時間関係と、前の投擲で置かれた同じplantの参照はGAMEPLAYの述語へ従う。経過区間が同じだけで、水の由来や開花への単独原因を作らない。
 
-GrowthObserved.firstPositiveGrowthEvidenceはtick、soilWater、soilCapacity、moistureFactorQ、effectiveLightQ、growthDeltaを持つ。ここでgrowthDeltaは上限適用後のpostGrowth-beforeGrowth。別tickの湿りと光を結び付けず、同じ個体・同じ成長tickの根拠にする。
+GrowthObserved.firstPositiveGrowthEvidenceはtick、soilWater、soilCapacity、moistureFactorQ、effectiveLightQ、growthDeltaを持つ。ここでsoilWaterはそのtickの蒸発後、growthDeltaは上限適用後のpostGrowth-beforeGrowth。別tickの湿りと光を結び付けず、同じ個体・同じ成長tickの根拠にする。v0.8の新runでは、次節の局所計算根拠を追加する。
 
 eventIdはround・種類・対象から安定して作り、WaterEnteredではsourceKindも含める。追加乱数を使わない。配列順はfirstTick、kindのordinal順、sourceKindのordinal順（ない種類は空文字）、対象cellId/plantId順で固定する。閾値の一度だけの記録とUnityによる再提示を区別する。
+
+### 9.1 同じtickの計算を辿る成長の根拠 v0.8
+
+新runに`simulationEvidenceVersion=local-growth-witness.v0.8`を固定する。これは**保存する計算根拠の拡張**で、自然の式・係数・乱数・イベントID・grouping・28文の本文や順位を変えない。基底profile v0.2の`firstPositiveGrowthEvidenceFields`に記載された六項目を引き継ぎ、下表を加える明示的な拡張である。原本profileや旧runの保存事実を上書きしない。
+
+全庭の蒸発合計と、ある植物の成長量が同じroundに記録されているだけでは、その植物の「風→蒸発→湿り→成長」を結べない。そこで既存の`GrowthObserved.firstPositiveGrowthEvidence`へ、**同じ個体・セルで整数成長が初めて正になった一tick**の入力・計算値を残す。一投につき一個体に最大一つで、40tick全履歴や新しいjournal recordを増やさない。正の整数成長がない個体には、この根拠やGrowthObservedを作らない。
+
+| 項目 | 同じtickで保存する値・参照 |
+|---|---|
+| `tick`, `cellId`, `plantId` | 親GrowthObservedの対象。tickは親のfirstTickと一致し、そのroundの最初の正の整数成長tick |
+| `beforeEvaporation` | `{surfaceWater, soilWater, remainder}`。流れ・排出・吸水が終わり、蒸発を始める直前の値。remainderは蒸発端数 |
+| `effectiveLightQ`, `effectiveWindQ` | 天候とダイスを合成し、上限・遮蔽を適用した、このセル・tickの値 |
+| `evaporation` | `{demand, surfaceAmount, soilAmount, remainderAfter}`。要求量と、地表・土から実際に引いた量を分ける |
+| `soilWater`, `soilCapacity`, `moistureFactorQ` | 蒸発後の土中水、固定容量、その土中水から求めた成長係数。既存soilWaterの意味を変更しない |
+| `growthBefore`, `growthAfter` | それぞれ`{growth, remainder}`。今回tickの成長前後であり、round全体のbefore/postGrowthとは区別 |
+| `growthDelta` | `growthAfter.growth - growthBefore.growth`。上限適用後の実増加で、必ず正 |
+| `fieldEvidenceRefs` | 同じResolvedのWeatherApplicationEvidenceの場への参照と、正のダイス追加実効光・風がある場合のInputApplicationEvidenceへの参照。各参照のcell・適用区間が証拠tickに一致 |
+
+`fieldEvidenceRefs`は天候の場とダイス追加分を区別する。天候の光・風が0でも天候の参照を保持する。ダイスの追加実効量が0、対象外、またはその系統の入力がなければ、該当するダイス場の参照はnullにする。正の追加分があれば対応する実適用証拠を参照し、「天候だけの実効値＋追加実効量＝このtickの合成実効値」を照合する。予定量、別セルのReceived、現在の画面の天候で補完しない。
+
+同じResolved内部への参照にはローカルな対象ID・path等を使い、自分自身の未確定entryHashをpayloadへ埋め込まない。具体的な保存DTOはG1で固定し、保存後の関係図projectionが外側に`{seq,entryHash}`を付ける。内部参照が曖昧な複数候補へ解決される形は受け入れない。
+
+検証は§7〜8の同じ整数式で、蒸発要求、地表優先の実量、蒸発後の土、湿り係数、成長と両端数を照合する。水が蒸発前から0なら要求・実量・蒸発端数を0として計算を省略する。実蒸発で水が尽きた場合も蒸発端数0とし、引けなかった整数要求を次へ繰り越さない。成長の端数は別物であり、乾湿による停止では保持し、成長上限2500に達した場合だけ0にする。
+
+この局所根拠は、吸水前や過去の注水の由来を記録したものではない。蒸発前の水には混合した水や以前の蓄積が含まれ得る。また、正の整数成長には以前の成長端数も入る。今回の風・光だけが何単位の成長を生んだか、風がなければ咲かなかったか、という寄与量や反実仮想は求めない。
+
+関係図は「この植物で最初に成長が進んだtick」と範囲を示し、保存された計算への依存だけを結ぶ。
+
+- 実蒸発0でも、正の風と成長が同時に存在できる。式への入力と、実際に水を減らした量を区別し、「風で土が乾いた」としない。
+- 地表水だけが蒸発したtickでは、土から引いた量0を保つ。全庭・全roundの蒸発を、その根元の土から失われた量へ読み替えない。
+- GrowthObservedのround増加量や、後のBloomedのtickを、この一tickの値へ置き換えない。段階越えはそれ自体の個体・tick・直前直後growthを使う。
+- 成長0、成熟個体、旧版で局所根拠を保存していない回は、存在する入力・場・状態・イベントまで表示し、欠けた中間の依存線を補わない。根拠がないことを、蒸発や作用がなかった証明にしない。
+- v0.8で必須の根拠が欠ける、参照先の対象・tickが違う、または算術が矛盾する場合は検証エラーとし、推測した値で通常結果へ直さない。旧版で項目を持たないこととは区別する。
+
+[growth-witness-fixtures.v0.8.json](./content/growth-witness-fixtures.v0.8.json)は独立した単セルの明示期待値12例と、対象・tick・源の束縛19例を持つ。過湿、乾燥、地表水だけの蒸発、実蒸発0、整数へ丸まらない成長、以前の端数、成長上限・成熟を含む。[growth_witness_v08.py](./reference/growth_witness_v08.py)は固定hashのprofileを読み、12算術例と6受理・13拒否の合成根拠を読み取り専用で照合する。
+
+```sh
+python docs/unity-garden/reference/growth_witness_v08.py --verify
+```
+
+これは全庭計算・実際のSimulationEvent生成・関係図投影・保存・Unityの検証結果ではない。fixtureの天候・入力の場は合成した根拠であり、参照先との一致を調べることと、その場が実際の地図・減衰・遮蔽・scheduleから生成されたことの確認は別である。親eventのfirstTickとの一致は照合するが、40tickを通じて本当に最初の正のtickを選んだかは、G2のイベント集約器で別に確認する。全roundの算術参照数へ、この単セル12例や合成束縛例を加算しない。
 
 ### 述語の正はGAMEPLAY
 

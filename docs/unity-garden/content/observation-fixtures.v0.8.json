@@ -1,0 +1,1925 @@
+{
+  "documentKind": "synthetic-prevalidated-observation-fixtures-not-journal",
+  "schemaVersion": "observation-fixtures.v0.8",
+  "status": "designCandidate",
+  "implementationStatus": "notImplementedInUnity",
+  "projectionVersion": "round-observation.v0.8",
+  "date": "2026-11-12",
+  "scope": [
+    "Hand-authored small snapshots and cutoff-scoped, upstream-verified semantic summaries.",
+    "Every supplied intent/outcome/resolved/card summary is already reduced to the same cutoff; filtering preparationSeq here does not validate the timing of its source records or exclude later sub-records from a real journal.",
+    "Two-cell examples are not legal complete production map snapshots.",
+    "saved_material means upstream has already validated and derived the face; no raw entropy decoding is performed here.",
+    "cutoffSeq is a symbolic fixture boundary; production query additionally carries the verified cutoff entryHash.",
+    "No natural simulation, journal/hash/transition verification, causal edges, Unity, or measured player data.",
+    "Expected column values are manually specified; reversing input collection order must not change the projection."
+  ],
+  "metricColumns": [
+    "surfaceWaterTotal",
+    "soilWaterTotal",
+    "growthTotal",
+    "growthSinceStart",
+    "growthThisRound",
+    "plantCount",
+    "flowerCount"
+  ],
+  "comparisonColumns": [
+    "recordOrdinal",
+    "eligibleOrdinal",
+    "observedMatch",
+    "chanceNumerator",
+    "chanceDenominator",
+    "cumulativeMatches",
+    "cumulativeChanceNumerator"
+  ],
+  "countColumns": [
+    "preparationCount",
+    "acquisitionStartedCount",
+    "knownOutcomeCount",
+    "resolvedCount",
+    "drawUnresolvedTerminalCount",
+    "drawPendingCount",
+    "abandonedBeforeAcquisitionCount",
+    "preparationInterruptedCount",
+    "comparableCount",
+    "zeroProbabilityIntentCount",
+    "certainProbabilityIntentCount",
+    "unstructuredIntentCount",
+    "structuredUnknownCount",
+    "noIntentCommittedCount",
+    "filteredOutCount"
+  ],
+  "snapshots": {
+    "initial": {
+      "cells": [
+        {
+          "soilCapacity": 200,
+          "soilWater": 200,
+          "surfaceWater": 0
+        },
+        {
+          "soilCapacity": 1000,
+          "soilWater": 200,
+          "surfaceWater": 0
+        }
+      ],
+      "plants": [
+        {
+          "growth": 500,
+          "stage": "sprout"
+        },
+        {
+          "growth": 1700,
+          "stage": "bud"
+        }
+      ]
+    },
+    "after_growth": {
+      "cells": [
+        {
+          "soilCapacity": 200,
+          "soilWater": 198,
+          "surfaceWater": 2
+        },
+        {
+          "soilCapacity": 1000,
+          "soilWater": 202,
+          "surfaceWater": 0
+        }
+      ],
+      "plants": [
+        {
+          "growth": 510,
+          "stage": "sprout"
+        },
+        {
+          "growth": 1720,
+          "stage": "bud"
+        }
+      ]
+    },
+    "second_growth": {
+      "cells": [
+        {
+          "soilCapacity": 200,
+          "soilWater": 195,
+          "surfaceWater": 4
+        },
+        {
+          "soilCapacity": 1000,
+          "soilWater": 205,
+          "surfaceWater": 0
+        }
+      ],
+      "plants": [
+        {
+          "growth": 520,
+          "stage": "sprout"
+        },
+        {
+          "growth": 1730,
+          "stage": "bud"
+        }
+      ]
+    },
+    "zero_growth": {
+      "cells": [
+        {
+          "soilCapacity": 200,
+          "soilWater": 197,
+          "surfaceWater": 0
+        },
+        {
+          "soilCapacity": 1000,
+          "soilWater": 203,
+          "surfaceWater": 0
+        }
+      ],
+      "plants": [
+        {
+          "growth": 500,
+          "stage": "sprout"
+        },
+        {
+          "growth": 1700,
+          "stage": "bud"
+        }
+      ]
+    },
+    "seed_added": {
+      "cells": [
+        {
+          "soilCapacity": 200,
+          "soilWater": 200,
+          "surfaceWater": 1
+        },
+        {
+          "soilCapacity": 1000,
+          "soilWater": 200,
+          "surfaceWater": 0
+        }
+      ],
+      "plants": [
+        {
+          "growth": 500,
+          "stage": "sprout"
+        },
+        {
+          "growth": 1700,
+          "stage": "bud"
+        },
+        {
+          "growth": 0,
+          "stage": "seed"
+        }
+      ]
+    }
+  },
+  "cases": [
+    {
+      "caseId": "initial_only",
+      "purpose": "初期成長を0へ潰さず、投擲の観測がないことを示す。",
+      "initialSnapshot": "initial",
+      "query": {
+        "gameId": "synthetic-garden",
+        "runId": "initial_only",
+        "cutoffSeq": 999,
+        "recordOrdinalRange": null,
+        "comparisonFilters": {
+          "method": null,
+          "outcomeSource": null
+        }
+      },
+      "rounds": [],
+      "expected": {
+        "initialMetrics": [
+          0,
+          400,
+          2200,
+          0,
+          null,
+          2,
+          0
+        ],
+        "initialPointVisible": true,
+        "recordOrdinals": [],
+        "gardenPoints": [],
+        "comparisonPoints": [],
+        "weatherApplications": [],
+        "counts": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "comparisonEmptyReason": "no_draw_yet"
+      }
+    },
+    {
+      "caseId": "prepared_only",
+      "purpose": "自動準備だけで振った回として数えない。",
+      "initialSnapshot": "initial",
+      "query": {
+        "gameId": "synthetic-garden",
+        "runId": "prepared_only",
+        "cutoffSeq": 999,
+        "recordOrdinalRange": null,
+        "comparisonFilters": {
+          "method": null,
+          "outcomeSource": null
+        }
+      },
+      "rounds": [
+        {
+          "roundId": "synthetic-round-1",
+          "preparationSeq": 10,
+          "prepared": true,
+          "weatherId": "clear",
+          "intent": null,
+          "acquisitionStarted": false,
+          "outcome": {
+            "status": "unknown",
+            "faceId": null,
+            "source": null
+          },
+          "terminal": null,
+          "resolved": null,
+          "cardStatus": "not_recorded",
+          "presentationReceipt": false
+        }
+      ],
+      "expected": {
+        "initialMetrics": [
+          0,
+          400,
+          2200,
+          0,
+          null,
+          2,
+          0
+        ],
+        "initialPointVisible": true,
+        "recordOrdinals": [
+          1
+        ],
+        "gardenPoints": [
+          null
+        ],
+        "comparisonPoints": [
+          null
+        ],
+        "weatherApplications": [
+          "planned"
+        ],
+        "counts": [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0
+        ],
+        "comparisonEmptyReason": "no_draw_yet"
+      }
+    },
+    {
+      "caseId": "no_intention",
+      "purpose": "既定の意図なしでも庭の歩みはあり、比較は0件。",
+      "initialSnapshot": "initial",
+      "query": {
+        "gameId": "synthetic-garden",
+        "runId": "no_intention",
+        "cutoffSeq": 999,
+        "recordOrdinalRange": null,
+        "comparisonFilters": {
+          "method": null,
+          "outcomeSource": null
+        }
+      },
+      "rounds": [
+        {
+          "roundId": "synthetic-round-1",
+          "preparationSeq": 10,
+          "prepared": true,
+          "weatherId": "clear",
+          "intent": {
+            "kind": "none",
+            "method": "prayer",
+            "matchingFaceIds": null
+          },
+          "acquisitionStarted": true,
+          "outcome": {
+            "status": "committed",
+            "faceId": 1,
+            "source": "local"
+          },
+          "terminal": "resolved",
+          "resolved": {
+            "beforeSnapshot": "initial",
+            "postSnapshot": "after_growth",
+            "worldRevision": 1
+          },
+          "cardStatus": "drawn",
+          "presentationReceipt": false
+        }
+      ],
+      "expected": {
+        "initialMetrics": [
+          0,
+          400,
+          2200,
+          0,
+          null,
+          2,
+          0
+        ],
+        "initialPointVisible": true,
+        "recordOrdinals": [
+          1
+        ],
+        "gardenPoints": [
+          [
+            2,
+            400,
+            2230,
+            30,
+            30,
+            2,
+            0
+          ]
+        ],
+        "comparisonPoints": [
+          null
+        ],
+        "weatherApplications": [
+          "applied"
+        ],
+        "counts": [
+          1,
+          1,
+          1,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0
+        ],
+        "comparisonEmptyReason": "no_eligible_known_target"
+      }
+    },
+    {
+      "caseId": "free_text_only",
+      "purpose": "祈りラベルと自由文から事後の当たり条件を作らない。",
+      "initialSnapshot": "initial",
+      "query": {
+        "gameId": "synthetic-garden",
+        "runId": "free_text_only",
+        "cutoffSeq": 999,
+        "recordOrdinalRange": null,
+        "comparisonFilters": {
+          "method": null,
+          "outcomeSource": null
+        }
+      },
+      "rounds": [
+        {
+          "roundId": "synthetic-round-1",
+          "preparationSeq": 10,
+          "prepared": true,
+          "weatherId": "clear",
+          "intent": {
+            "kind": "freeText",
+            "method": "prayer",
+            "matchingFaceIds": null,
+            "freeText": "小さな光を感じたい"
+          },
+          "acquisitionStarted": true,
+          "outcome": {
+            "status": "committed",
+            "faceId": 1,
+            "source": "local"
+          },
+          "terminal": "resolved",
+          "resolved": {
+            "beforeSnapshot": "initial",
+            "postSnapshot": "after_growth",
+            "worldRevision": 1
+          },
+          "cardStatus": "drawn",
+          "presentationReceipt": false
+        }
+      ],
+      "expected": {
+        "initialMetrics": [
+          0,
+          400,
+          2200,
+          0,
+          null,
+          2,
+          0
+        ],
+        "initialPointVisible": true,
+        "recordOrdinals": [
+          1
+        ],
+        "gardenPoints": [
+          [
+            2,
+            400,
+            2230,
+            30,
+            30,
+            2,
+            0
+          ]
+        ],
+        "comparisonPoints": [
+          null
+        ],
+        "weatherApplications": [
+          "applied"
+        ],
+        "counts": [
+          1,
+          1,
+          1,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0
+        ],
+        "comparisonEmptyReason": "no_eligible_known_target"
+      }
+    },
+    {
+      "caseId": "no_matching_face",
+      "purpose": "該当面0を比較へ含めず、庭の変化は保つ。",
+      "initialSnapshot": "initial",
+      "query": {
+        "gameId": "synthetic-garden",
+        "runId": "no_matching_face",
+        "cutoffSeq": 999,
+        "recordOrdinalRange": null,
+        "comparisonFilters": {
+          "method": null,
+          "outcomeSource": null
+        }
+      },
+      "rounds": [
+        {
+          "roundId": "synthetic-round-1",
+          "preparationSeq": 10,
+          "prepared": true,
+          "weatherId": "clear",
+          "intent": {
+            "kind": "element",
+            "method": "prayer",
+            "matchingFaceIds": []
+          },
+          "acquisitionStarted": true,
+          "outcome": {
+            "status": "committed",
+            "faceId": 4,
+            "source": "local"
+          },
+          "terminal": "resolved",
+          "resolved": {
+            "beforeSnapshot": "initial",
+            "postSnapshot": "after_growth",
+            "worldRevision": 1
+          },
+          "cardStatus": "drawn",
+          "presentationReceipt": false
+        }
+      ],
+      "expected": {
+        "initialMetrics": [
+          0,
+          400,
+          2200,
+          0,
+          null,
+          2,
+          0
+        ],
+        "initialPointVisible": true,
+        "recordOrdinals": [
+          1
+        ],
+        "gardenPoints": [
+          [
+            2,
+            400,
+            2230,
+            30,
+            30,
+            2,
+            0
+          ]
+        ],
+        "comparisonPoints": [
+          null
+        ],
+        "weatherApplications": [
+          "applied"
+        ],
+        "counts": [
+          1,
+          1,
+          1,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "comparisonEmptyReason": "no_eligible_known_target"
+      }
+    },
+    {
+      "caseId": "known_committed_unresolved",
+      "purpose": "出目は既知、庭の解決なし。比較点あり、庭の点はnull。",
+      "initialSnapshot": "initial",
+      "query": {
+        "gameId": "synthetic-garden",
+        "runId": "known_committed_unresolved",
+        "cutoffSeq": 999,
+        "recordOrdinalRange": null,
+        "comparisonFilters": {
+          "method": null,
+          "outcomeSource": null
+        }
+      },
+      "rounds": [
+        {
+          "roundId": "synthetic-round-1",
+          "preparationSeq": 10,
+          "prepared": true,
+          "weatherId": "clear",
+          "intent": {
+            "kind": "element",
+            "method": "prayer",
+            "matchingFaceIds": [
+              2,
+              5
+            ]
+          },
+          "acquisitionStarted": true,
+          "outcome": {
+            "status": "committed",
+            "faceId": 2,
+            "source": "local"
+          },
+          "terminal": null,
+          "resolved": null,
+          "cardStatus": "drawn",
+          "presentationReceipt": false
+        }
+      ],
+      "expected": {
+        "initialMetrics": [
+          0,
+          400,
+          2200,
+          0,
+          null,
+          2,
+          0
+        ],
+        "initialPointVisible": true,
+        "recordOrdinals": [
+          1
+        ],
+        "gardenPoints": [
+          null
+        ],
+        "comparisonPoints": [
+          [
+            1,
+            1,
+            1,
+            2,
+            6,
+            1,
+            2
+          ]
+        ],
+        "weatherApplications": [
+          "planned"
+        ],
+        "counts": [
+          1,
+          1,
+          1,
+          0,
+          0,
+          1,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "comparisonEmptyReason": null
+      }
+    },
+    {
+      "caseId": "known_material_unresolved",
+      "purpose": "上流で保存材料から確定した出目は未Outcome/Resolvedでも採用。カード失敗をD6欠測にしない。",
+      "initialSnapshot": "initial",
+      "query": {
+        "gameId": "synthetic-garden",
+        "runId": "known_material_unresolved",
+        "cutoffSeq": 999,
+        "recordOrdinalRange": null,
+        "comparisonFilters": {
+          "method": null,
+          "outcomeSource": null
+        }
+      },
+      "rounds": [
+        {
+          "roundId": "synthetic-round-1",
+          "preparationSeq": 10,
+          "prepared": true,
+          "weatherId": "clear",
+          "intent": {
+            "kind": "element",
+            "method": "prayer",
+            "matchingFaceIds": [
+              2,
+              5
+            ]
+          },
+          "acquisitionStarted": true,
+          "outcome": {
+            "status": "saved_material",
+            "faceId": 1,
+            "source": "local"
+          },
+          "terminal": null,
+          "resolved": null,
+          "cardStatus": "unavailable",
+          "presentationReceipt": false
+        }
+      ],
+      "expected": {
+        "initialMetrics": [
+          0,
+          400,
+          2200,
+          0,
+          null,
+          2,
+          0
+        ],
+        "initialPointVisible": true,
+        "recordOrdinals": [
+          1
+        ],
+        "gardenPoints": [
+          null
+        ],
+        "comparisonPoints": [
+          [
+            1,
+            1,
+            0,
+            2,
+            6,
+            0,
+            2
+          ]
+        ],
+        "weatherApplications": [
+          "planned"
+        ],
+        "counts": [
+          1,
+          1,
+          1,
+          0,
+          0,
+          1,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "comparisonEmptyReason": null
+      }
+    },
+    {
+      "caseId": "unknown_terminal",
+      "purpose": "結果不明を一致0や成長0で埋めない。",
+      "initialSnapshot": "initial",
+      "query": {
+        "gameId": "synthetic-garden",
+        "runId": "unknown_terminal",
+        "cutoffSeq": 999,
+        "recordOrdinalRange": null,
+        "comparisonFilters": {
+          "method": null,
+          "outcomeSource": null
+        }
+      },
+      "rounds": [
+        {
+          "roundId": "synthetic-round-1",
+          "preparationSeq": 10,
+          "prepared": true,
+          "weatherId": "clear",
+          "intent": {
+            "kind": "element",
+            "method": "prayer",
+            "matchingFaceIds": [
+              2,
+              5
+            ]
+          },
+          "acquisitionStarted": true,
+          "outcome": {
+            "status": "unknown",
+            "faceId": null,
+            "source": null
+          },
+          "terminal": "interrupted_unresolved",
+          "resolved": null,
+          "cardStatus": "not_recorded",
+          "presentationReceipt": false
+        }
+      ],
+      "expected": {
+        "initialMetrics": [
+          0,
+          400,
+          2200,
+          0,
+          null,
+          2,
+          0
+        ],
+        "initialPointVisible": true,
+        "recordOrdinals": [
+          1
+        ],
+        "gardenPoints": [
+          null
+        ],
+        "comparisonPoints": [
+          null
+        ],
+        "weatherApplications": [
+          "planned"
+        ],
+        "counts": [
+          1,
+          1,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0
+        ],
+        "comparisonEmptyReason": "no_known_outcome"
+      }
+    },
+    {
+      "caseId": "card_unavailable_resolved",
+      "purpose": "カードだけ失敗し、Receiptがなくても既知出目と庭を残す。",
+      "initialSnapshot": "initial",
+      "query": {
+        "gameId": "synthetic-garden",
+        "runId": "card_unavailable_resolved",
+        "cutoffSeq": 999,
+        "recordOrdinalRange": null,
+        "comparisonFilters": {
+          "method": null,
+          "outcomeSource": null
+        }
+      },
+      "rounds": [
+        {
+          "roundId": "synthetic-round-1",
+          "preparationSeq": 10,
+          "prepared": true,
+          "weatherId": "clear",
+          "intent": {
+            "kind": "face",
+            "method": "prayer",
+            "matchingFaceIds": [
+              1
+            ]
+          },
+          "acquisitionStarted": true,
+          "outcome": {
+            "status": "committed",
+            "faceId": 1,
+            "source": "local"
+          },
+          "terminal": "resolved",
+          "resolved": {
+            "beforeSnapshot": "initial",
+            "postSnapshot": "after_growth",
+            "worldRevision": 1
+          },
+          "cardStatus": "unavailable",
+          "presentationReceipt": false
+        }
+      ],
+      "expected": {
+        "initialMetrics": [
+          0,
+          400,
+          2200,
+          0,
+          null,
+          2,
+          0
+        ],
+        "initialPointVisible": true,
+        "recordOrdinals": [
+          1
+        ],
+        "gardenPoints": [
+          [
+            2,
+            400,
+            2230,
+            30,
+            30,
+            2,
+            0
+          ]
+        ],
+        "comparisonPoints": [
+          [
+            1,
+            1,
+            1,
+            1,
+            6,
+            1,
+            1
+          ]
+        ],
+        "weatherApplications": [
+          "applied"
+        ],
+        "counts": [
+          1,
+          1,
+          1,
+          1,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "comparisonEmptyReason": null
+      }
+    },
+    {
+      "caseId": "known_zero_growth",
+      "purpose": "検証済みの整数成長0はnullへ変えない。",
+      "initialSnapshot": "initial",
+      "query": {
+        "gameId": "synthetic-garden",
+        "runId": "known_zero_growth",
+        "cutoffSeq": 999,
+        "recordOrdinalRange": null,
+        "comparisonFilters": {
+          "method": null,
+          "outcomeSource": null
+        }
+      },
+      "rounds": [
+        {
+          "roundId": "synthetic-round-1",
+          "preparationSeq": 10,
+          "prepared": true,
+          "weatherId": "clear",
+          "intent": {
+            "kind": "face",
+            "method": "prayer",
+            "matchingFaceIds": [
+              2
+            ]
+          },
+          "acquisitionStarted": true,
+          "outcome": {
+            "status": "committed",
+            "faceId": 1,
+            "source": "local"
+          },
+          "terminal": "resolved",
+          "resolved": {
+            "beforeSnapshot": "initial",
+            "postSnapshot": "zero_growth",
+            "worldRevision": 1
+          },
+          "cardStatus": "drawn",
+          "presentationReceipt": false
+        }
+      ],
+      "expected": {
+        "initialMetrics": [
+          0,
+          400,
+          2200,
+          0,
+          null,
+          2,
+          0
+        ],
+        "initialPointVisible": true,
+        "recordOrdinals": [
+          1
+        ],
+        "gardenPoints": [
+          [
+            0,
+            400,
+            2200,
+            0,
+            0,
+            2,
+            0
+          ]
+        ],
+        "comparisonPoints": [
+          [
+            1,
+            1,
+            0,
+            1,
+            6,
+            0,
+            1
+          ]
+        ],
+        "weatherApplications": [
+          "applied"
+        ],
+        "counts": [
+          1,
+          1,
+          1,
+          1,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "comparisonEmptyReason": null
+      }
+    },
+    {
+      "caseId": "mixed_prefix",
+      "purpose": "取消・欠測・既知未解決の位置を詰めず、同一比較集合の累計は分子1+2+3=6。",
+      "initialSnapshot": "initial",
+      "query": {
+        "gameId": "synthetic-garden",
+        "runId": "mixed_prefix",
+        "cutoffSeq": 999,
+        "recordOrdinalRange": null,
+        "comparisonFilters": {
+          "method": null,
+          "outcomeSource": null
+        }
+      },
+      "rounds": [
+        {
+          "roundId": "synthetic-round-1",
+          "preparationSeq": 10,
+          "prepared": false,
+          "weatherId": null,
+          "intent": null,
+          "acquisitionStarted": false,
+          "outcome": {
+            "status": "unknown",
+            "faceId": null,
+            "source": null
+          },
+          "terminal": "preparation_interrupted",
+          "resolved": null,
+          "cardStatus": "not_recorded",
+          "presentationReceipt": false
+        },
+        {
+          "roundId": "synthetic-round-2",
+          "preparationSeq": 20,
+          "prepared": true,
+          "weatherId": "clear",
+          "intent": {
+            "kind": "none",
+            "method": "prayer",
+            "matchingFaceIds": null
+          },
+          "acquisitionStarted": false,
+          "outcome": {
+            "status": "unknown",
+            "faceId": null,
+            "source": null
+          },
+          "terminal": "abandoned_before_acquisition",
+          "resolved": null,
+          "cardStatus": "not_recorded",
+          "presentationReceipt": false
+        },
+        {
+          "roundId": "synthetic-round-3",
+          "preparationSeq": 30,
+          "prepared": true,
+          "weatherId": "clear",
+          "intent": {
+            "kind": "face",
+            "method": "prayer",
+            "matchingFaceIds": [
+              1
+            ]
+          },
+          "acquisitionStarted": true,
+          "outcome": {
+            "status": "committed",
+            "faceId": 1,
+            "source": "local"
+          },
+          "terminal": "resolved",
+          "resolved": {
+            "beforeSnapshot": "initial",
+            "postSnapshot": "after_growth",
+            "worldRevision": 1
+          },
+          "cardStatus": "drawn",
+          "presentationReceipt": false
+        },
+        {
+          "roundId": "synthetic-round-4",
+          "preparationSeq": 40,
+          "prepared": true,
+          "weatherId": "clear",
+          "intent": {
+            "kind": "element",
+            "method": "prayer",
+            "matchingFaceIds": [
+              1,
+              4
+            ]
+          },
+          "acquisitionStarted": true,
+          "outcome": {
+            "status": "unknown",
+            "faceId": null,
+            "source": null
+          },
+          "terminal": "interrupted_unresolved",
+          "resolved": null,
+          "cardStatus": "not_recorded",
+          "presentationReceipt": false
+        },
+        {
+          "roundId": "synthetic-round-5",
+          "preparationSeq": 50,
+          "prepared": true,
+          "weatherId": "clear",
+          "intent": {
+            "kind": "element",
+            "method": "prayer",
+            "matchingFaceIds": [
+              2,
+              5
+            ]
+          },
+          "acquisitionStarted": true,
+          "outcome": {
+            "status": "committed",
+            "faceId": 3,
+            "source": "local"
+          },
+          "terminal": "resolved",
+          "resolved": {
+            "beforeSnapshot": "after_growth",
+            "postSnapshot": "second_growth",
+            "worldRevision": 2
+          },
+          "cardStatus": "unavailable",
+          "presentationReceipt": false
+        },
+        {
+          "roundId": "synthetic-round-6",
+          "preparationSeq": 60,
+          "prepared": true,
+          "weatherId": "clear",
+          "intent": {
+            "kind": "element",
+            "method": "prayer",
+            "matchingFaceIds": [
+              3,
+              5,
+              6
+            ]
+          },
+          "acquisitionStarted": true,
+          "outcome": {
+            "status": "saved_material",
+            "faceId": 5,
+            "source": "local"
+          },
+          "terminal": null,
+          "resolved": null,
+          "cardStatus": "drawn",
+          "presentationReceipt": false
+        }
+      ],
+      "expected": {
+        "initialMetrics": [
+          0,
+          400,
+          2200,
+          0,
+          null,
+          2,
+          0
+        ],
+        "initialPointVisible": true,
+        "recordOrdinals": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6
+        ],
+        "gardenPoints": [
+          null,
+          null,
+          [
+            2,
+            400,
+            2230,
+            30,
+            30,
+            2,
+            0
+          ],
+          null,
+          [
+            4,
+            400,
+            2250,
+            50,
+            20,
+            2,
+            0
+          ],
+          null
+        ],
+        "comparisonPoints": [
+          null,
+          null,
+          [
+            3,
+            1,
+            1,
+            1,
+            6,
+            1,
+            1
+          ],
+          null,
+          [
+            5,
+            2,
+            0,
+            2,
+            6,
+            1,
+            3
+          ],
+          [
+            6,
+            3,
+            1,
+            3,
+            6,
+            2,
+            6
+          ]
+        ],
+        "weatherApplications": [
+          "not_prepared",
+          "planned",
+          "applied",
+          "planned",
+          "applied",
+          "planned"
+        ],
+        "counts": [
+          6,
+          4,
+          3,
+          2,
+          1,
+          1,
+          1,
+          1,
+          3,
+          0,
+          0,
+          1,
+          1,
+          1,
+          0
+        ],
+        "comparisonEmptyReason": null
+      }
+    },
+    {
+      "caseId": "method_filter",
+      "purpose": "比較の方法filterは庭の履歴と横位置を削らない。",
+      "initialSnapshot": "initial",
+      "query": {
+        "gameId": "synthetic-garden",
+        "runId": "method_filter",
+        "cutoffSeq": 999,
+        "recordOrdinalRange": null,
+        "comparisonFilters": {
+          "method": "prayer",
+          "outcomeSource": "local"
+        }
+      },
+      "rounds": [
+        {
+          "roundId": "synthetic-round-1",
+          "preparationSeq": 10,
+          "prepared": true,
+          "weatherId": "clear",
+          "intent": {
+            "kind": "face",
+            "method": "prayer",
+            "matchingFaceIds": [
+              1
+            ]
+          },
+          "acquisitionStarted": true,
+          "outcome": {
+            "status": "committed",
+            "faceId": 1,
+            "source": "local"
+          },
+          "terminal": "resolved",
+          "resolved": {
+            "beforeSnapshot": "initial",
+            "postSnapshot": "after_growth",
+            "worldRevision": 1
+          },
+          "cardStatus": "drawn",
+          "presentationReceipt": false
+        },
+        {
+          "roundId": "synthetic-round-2",
+          "preparationSeq": 20,
+          "prepared": true,
+          "weatherId": "clear",
+          "intent": {
+            "kind": "element",
+            "method": "asIs",
+            "matchingFaceIds": [
+              2,
+              5
+            ]
+          },
+          "acquisitionStarted": true,
+          "outcome": {
+            "status": "committed",
+            "faceId": 3,
+            "source": "local"
+          },
+          "terminal": "resolved",
+          "resolved": {
+            "beforeSnapshot": "after_growth",
+            "postSnapshot": "second_growth",
+            "worldRevision": 2
+          },
+          "cardStatus": "drawn",
+          "presentationReceipt": false
+        }
+      ],
+      "expected": {
+        "initialMetrics": [
+          0,
+          400,
+          2200,
+          0,
+          null,
+          2,
+          0
+        ],
+        "initialPointVisible": true,
+        "recordOrdinals": [
+          1,
+          2
+        ],
+        "gardenPoints": [
+          [
+            2,
+            400,
+            2230,
+            30,
+            30,
+            2,
+            0
+          ],
+          [
+            4,
+            400,
+            2250,
+            50,
+            20,
+            2,
+            0
+          ]
+        ],
+        "comparisonPoints": [
+          [
+            1,
+            1,
+            1,
+            1,
+            6,
+            1,
+            1
+          ],
+          null
+        ],
+        "weatherApplications": [
+          "applied",
+          "applied"
+        ],
+        "counts": [
+          2,
+          2,
+          2,
+          2,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "comparisonEmptyReason": null
+      }
+    },
+    {
+      "caseId": "middle_range",
+      "purpose": "途中範囲の横位置は2のまま。初期分と直前Resolvedを用いて成長50/20を区別。",
+      "initialSnapshot": "initial",
+      "query": {
+        "gameId": "synthetic-garden",
+        "runId": "middle_range",
+        "cutoffSeq": 999,
+        "recordOrdinalRange": [
+          2,
+          2
+        ],
+        "comparisonFilters": {
+          "method": null,
+          "outcomeSource": null
+        }
+      },
+      "rounds": [
+        {
+          "roundId": "synthetic-round-1",
+          "preparationSeq": 10,
+          "prepared": true,
+          "weatherId": "clear",
+          "intent": {
+            "kind": "face",
+            "method": "prayer",
+            "matchingFaceIds": [
+              1
+            ]
+          },
+          "acquisitionStarted": true,
+          "outcome": {
+            "status": "committed",
+            "faceId": 1,
+            "source": "local"
+          },
+          "terminal": "resolved",
+          "resolved": {
+            "beforeSnapshot": "initial",
+            "postSnapshot": "after_growth",
+            "worldRevision": 1
+          },
+          "cardStatus": "drawn",
+          "presentationReceipt": false
+        },
+        {
+          "roundId": "synthetic-round-2",
+          "preparationSeq": 20,
+          "prepared": true,
+          "weatherId": "clear",
+          "intent": {
+            "kind": "element",
+            "method": "asIs",
+            "matchingFaceIds": [
+              2,
+              5
+            ]
+          },
+          "acquisitionStarted": true,
+          "outcome": {
+            "status": "committed",
+            "faceId": 3,
+            "source": "local"
+          },
+          "terminal": "resolved",
+          "resolved": {
+            "beforeSnapshot": "after_growth",
+            "postSnapshot": "second_growth",
+            "worldRevision": 2
+          },
+          "cardStatus": "drawn",
+          "presentationReceipt": false
+        }
+      ],
+      "expected": {
+        "initialMetrics": [
+          0,
+          400,
+          2200,
+          0,
+          null,
+          2,
+          0
+        ],
+        "initialPointVisible": false,
+        "recordOrdinals": [
+          2
+        ],
+        "gardenPoints": [
+          [
+            4,
+            400,
+            2250,
+            50,
+            20,
+            2,
+            0
+          ]
+        ],
+        "comparisonPoints": [
+          [
+            2,
+            1,
+            0,
+            2,
+            6,
+            0,
+            2
+          ]
+        ],
+        "weatherApplications": [
+          "applied"
+        ],
+        "counts": [
+          1,
+          1,
+          1,
+          1,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "comparisonEmptyReason": null
+      }
+    },
+    {
+      "caseId": "certain_target_boundary",
+      "purpose": "p=1は比較対象外。現行配面では生じない合成projection境界例。",
+      "initialSnapshot": "initial",
+      "query": {
+        "gameId": "synthetic-garden",
+        "runId": "certain_target_boundary",
+        "cutoffSeq": 999,
+        "recordOrdinalRange": null,
+        "comparisonFilters": {
+          "method": null,
+          "outcomeSource": null
+        }
+      },
+      "rounds": [
+        {
+          "roundId": "synthetic-round-1",
+          "preparationSeq": 10,
+          "prepared": true,
+          "weatherId": "clear",
+          "intent": {
+            "kind": "element",
+            "method": "prayer",
+            "matchingFaceIds": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6
+            ]
+          },
+          "acquisitionStarted": true,
+          "outcome": {
+            "status": "committed",
+            "faceId": 4,
+            "source": "local"
+          },
+          "terminal": "resolved",
+          "resolved": {
+            "beforeSnapshot": "initial",
+            "postSnapshot": "after_growth",
+            "worldRevision": 1
+          },
+          "cardStatus": "drawn",
+          "presentationReceipt": false
+        }
+      ],
+      "expected": {
+        "initialMetrics": [
+          0,
+          400,
+          2200,
+          0,
+          null,
+          2,
+          0
+        ],
+        "initialPointVisible": true,
+        "recordOrdinals": [
+          1
+        ],
+        "gardenPoints": [
+          [
+            2,
+            400,
+            2230,
+            30,
+            30,
+            2,
+            0
+          ]
+        ],
+        "comparisonPoints": [
+          null
+        ],
+        "weatherApplications": [
+          "applied"
+        ],
+        "counts": [
+          1,
+          1,
+          1,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0
+        ],
+        "comparisonEmptyReason": "no_eligible_known_target"
+      },
+      "boundaryScope": "future-or-synthetic-projection-only-not-current-mapping"
+    },
+    {
+      "caseId": "empty_filter",
+      "purpose": "filter後0件を失敗や0%と表示しない。庭の点は保つ。",
+      "initialSnapshot": "initial",
+      "query": {
+        "gameId": "synthetic-garden",
+        "runId": "empty_filter",
+        "cutoffSeq": 999,
+        "recordOrdinalRange": null,
+        "comparisonFilters": {
+          "method": "spoken",
+          "outcomeSource": null
+        }
+      },
+      "rounds": [
+        {
+          "roundId": "synthetic-round-1",
+          "preparationSeq": 10,
+          "prepared": true,
+          "weatherId": "clear",
+          "intent": {
+            "kind": "face",
+            "method": "prayer",
+            "matchingFaceIds": [
+              1
+            ]
+          },
+          "acquisitionStarted": true,
+          "outcome": {
+            "status": "committed",
+            "faceId": 1,
+            "source": "local"
+          },
+          "terminal": "resolved",
+          "resolved": {
+            "beforeSnapshot": "initial",
+            "postSnapshot": "after_growth",
+            "worldRevision": 1
+          },
+          "cardStatus": "drawn",
+          "presentationReceipt": false
+        },
+        {
+          "roundId": "synthetic-round-2",
+          "preparationSeq": 20,
+          "prepared": true,
+          "weatherId": "clear",
+          "intent": {
+            "kind": "element",
+            "method": "asIs",
+            "matchingFaceIds": [
+              2,
+              5
+            ]
+          },
+          "acquisitionStarted": true,
+          "outcome": {
+            "status": "committed",
+            "faceId": 3,
+            "source": "local"
+          },
+          "terminal": "resolved",
+          "resolved": {
+            "beforeSnapshot": "after_growth",
+            "postSnapshot": "second_growth",
+            "worldRevision": 2
+          },
+          "cardStatus": "drawn",
+          "presentationReceipt": false
+        }
+      ],
+      "expected": {
+        "initialMetrics": [
+          0,
+          400,
+          2200,
+          0,
+          null,
+          2,
+          0
+        ],
+        "initialPointVisible": true,
+        "recordOrdinals": [
+          1,
+          2
+        ],
+        "gardenPoints": [
+          [
+            2,
+            400,
+            2230,
+            30,
+            30,
+            2,
+            0
+          ],
+          [
+            4,
+            400,
+            2250,
+            50,
+            20,
+            2,
+            0
+          ]
+        ],
+        "comparisonPoints": [
+          null,
+          null
+        ],
+        "weatherApplications": [
+          "applied",
+          "applied"
+        ],
+        "counts": [
+          2,
+          2,
+          2,
+          2,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          2
+        ],
+        "comparisonEmptyReason": "no_matching_records"
+      }
+    },
+    {
+      "caseId": "new_seed_zero_growth",
+      "purpose": "新たな種の個体数増加と成長0を区別し、平均値低下を成長の後退にしない。",
+      "initialSnapshot": "initial",
+      "query": {
+        "gameId": "synthetic-garden",
+        "runId": "new_seed_zero_growth",
+        "cutoffSeq": 999,
+        "recordOrdinalRange": null,
+        "comparisonFilters": {
+          "method": null,
+          "outcomeSource": null
+        }
+      },
+      "rounds": [
+        {
+          "roundId": "synthetic-round-1",
+          "preparationSeq": 10,
+          "prepared": true,
+          "weatherId": "clear",
+          "intent": {
+            "kind": "element",
+            "method": "prayer",
+            "matchingFaceIds": [
+              1,
+              2
+            ]
+          },
+          "acquisitionStarted": true,
+          "outcome": {
+            "status": "committed",
+            "faceId": 2,
+            "source": "local"
+          },
+          "terminal": "resolved",
+          "resolved": {
+            "beforeSnapshot": "initial",
+            "postSnapshot": "seed_added",
+            "worldRevision": 1
+          },
+          "cardStatus": "drawn",
+          "presentationReceipt": false
+        }
+      ],
+      "expected": {
+        "initialMetrics": [
+          0,
+          400,
+          2200,
+          0,
+          null,
+          2,
+          0
+        ],
+        "initialPointVisible": true,
+        "recordOrdinals": [
+          1
+        ],
+        "gardenPoints": [
+          [
+            1,
+            400,
+            2200,
+            0,
+            0,
+            3,
+            0
+          ]
+        ],
+        "comparisonPoints": [
+          [
+            1,
+            1,
+            1,
+            2,
+            6,
+            1,
+            2
+          ]
+        ],
+        "weatherApplications": [
+          "applied"
+        ],
+        "counts": [
+          1,
+          1,
+          1,
+          1,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "comparisonEmptyReason": null
+      }
+    }
+  ]
+}

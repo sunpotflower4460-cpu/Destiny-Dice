@@ -1748,3 +1748,99 @@ Git diff whitespace check: pass
 - docs/unity-garden/ROADMAP.md、SIMULATION.md、VALIDATION.md、WEATHER.md
 - docs/unity-garden/content/design-manifest.v0.7.json、oracle-catalog.v0.7.json、oracle-binding-fixtures.v0.7.json、water-stress-reference-report.v0.7.json（新規）
 - docs/unity-garden/reference/check_current_design.py、water_stress_v07.py（新規G0参照・静的照合）
+
+
+## Gate0: Unity箱庭 — 初回作成と観察の接続 v0.8 (2026-11-12)
+
+### 完了したこと
+
+ユーザーの「さらに設計全体を見渡して改善できそうなところを探して改善」に対応するG0設計更新。設計の全体を、保存契約・自然の根拠・体験と観察の三方向で再点検した。Unity本体、C#、既存React実験のコード・凍結プロトコル・依存・CI設定は変更していない。
+
+- **初回作成を保存境界へ接続した。** runLifecycleVersion=run-entry.v0.8は正常なrun-switch.v0.7の交代を継承し、最初の庭にも不変のRunCreationPlanを使う。内容保存→plan受理→固定targetRunIdのgenesisの順。planの未受理、genesis途中、完全保存後の応答消失を区別し、原本を残して一つの受理済み計画へ戻る。planの一意性再検査と保存は同じ排他区間に置く。
+- **障害後の新庭を明示した経路に限定した。** recoveryFreshは、一意に特定できる現在の故障runを保全し、本人／運営者が明示した場合だけ静的mapから作る。原本診断・検証済みheadまたはnullを保持し、偽のRunClosedや失った出目・snapshotの補完を行わない。通常交代の回復待ち・曖昧な分岐を救済の名目で上書きしない。旧版にplanやentryKindを後付けしない。
+- **作成planとexportの範囲を結んだ。** 現在runのplanと未完genesisは監査bundleへ含め、前の故障runの本文・原本診断は来場者exportへ自動展開しない。scope_outside_exportと現在run内の検証範囲を保ち、運営の原本回収と区別した。
+- **観察の共通投影を追加した。** OBSERVATION.mdのround-observation.v0.8で、PreparationStarted順のrecordOrdinal、正常解決のworldRevision、比較対象のeligibleOrdinalを分ける。準備中断・取消・結果不明も元の位置を保持し、横軸を「記録の順」とする。cutoff・範囲・filterをmetadataへ固定し、三つの記録画面とCSVに同じ投影を使う。
+- **庭の初期点・量・空欄を固定した。** 地表水と土中水、初期分を含む成長合計、初期から／今回の増分、個体数／花数を定義した。初期4個体の成長合計4,400を新しい成果にしない。未Resolvedはnullで線を切り、保存済み成長0は0。既知出目があれば庭の未解決やカード・Receipt欠落を理由に比較から落とさない。
+- **目標なしの遊びと比較0件の入口を揃えた。** 庭の歩みを既定にし、未投擲・結果不明・目標なし・該当面なし・filter後0件を短い案内で区別する。0件を0%の成功率へ置き換えず、意図入力を必須にしない。基準の累積は同じ対象集合の整数分子÷6で保持する。
+- **局所の自然の関係へ保存根拠を付けた。** simulationEvidenceVersion=local-growth-witness.v0.8として、既存GrowthObserved.firstPositiveGrowthEvidenceへ同cell・plant・tickの蒸発前の水／端数、実効光・風、要求／地表／土の蒸発、成長前後／端数、実適用への参照を加える。一投につき一個体に最大一つ。最初の正の整数成長tickの例を、一投全体や開花tick・風の寄与率へ読み替えない。自分自身のentryHashをpayloadに含める循環参照も避ける。
+- **実蒸発0・地表だけの蒸発・成熟を説明へ反映した。** 風と成長が正でも、そのtickに土が乾くとは限らない。成長0や旧版の根拠不足では、確認できる入力・状態・出来事までを表示する。新しい自然イベント、計算式、係数、乱数、catalog本文・順位は追加／変更していない。
+- **実装の入口を更新した。** manifest v0.8は24原本を索引化し、必須5＋任意外観1のruntime候補はv0.7と同一の実体を保つ。新しい合成例・参照Pythonは照合用途として分ける。GAMEPLAYの初期景観を芽2・つぼみ2・地表水0・石の流路へ揃え、WEATHERの旧catalog案内を現行v0.7へ修正した。EXPERIENCEの23受け入れ場面とH1〜H5を維持し、既存の履歴・知覚確認へ投影の確認を組み込んだ。
+
+### 完了基準の結果（コマンド出力の要約）
+
+pnpm 10.34.9の既存cacheを使い、`npx --offline --yes --package=pnpm@10.34.9 pnpm ...`で実行した。新規依存の取得・更新は行っていない。
+
+```text
+pnpm typecheck
+> tsc -b --noEmit
+exit 0
+
+pnpm test
+RUN v4.1.10
+Test Files 41 passed (41)
+Tests 183 passed (183)
+Duration 3.57s
+exit 0
+
+pnpm build
+vite v8.1.4
+102 modules transformed
+built in 293ms
+exit 0
+```
+
+既知のjeep-sqliteによるcrypto browser externalization警告、npmのhttp-proxy設定警告は今回も出た。build自体は成功。既存Webの確認をUnityの成功とは扱わない。
+
+```text
+python docs/unity-garden/reference/check_current_design.py
+Verified design v0.8 source index: 24 pinned artifacts; 5 required + 1 optional runtime candidates unchanged.
+Catalog: 28 entries, 27 unchanged, 1 restricted; 6 synthetic evidence examples consistent.
+Stress report arithmetic: 1200 saved rows checked; natural simulation is verified separately.
+Documents: 14 Markdown files, 238 local links/anchors, 124 tables.
+Run entry and local evidence policies indexed; projection and scalar fixtures have separate read-only checks.
+No files written. Unity, journal recovery, full predicates, rendering and device checks remain unexecuted.
+exit 0
+
+python docs/unity-garden/reference/observation_v08.py --verify
+Verified observation v0.8: 16 synthetic cases; exact numerator/6, stable positions, null/zero and counts agree.
+Inputs assume upstream verified facts. No journal, entropy, nature, graph edges or Unity executed. No files written.
+exit 0
+
+python docs/unity-garden/reference/growth_witness_v08.py --verify
+Verified growth witness v0.8: 12 scalar goldens; 6 accepted and 13 rejected synthetic bindings.
+No files written. Full simulation, first-positive selection, graph projection, journal, C# and Unity remain unexecuted.
+exit 0
+```
+
+投影の16例は手で指定した期待値と照合し、入力collectionの逆順でも同じ結果だった。`python -O`では成功表示前に停止することも確認した（想定どおりexit 1）。合成要約の各fieldは既にcutoff時点へ絞られたものと仮定する。referenceはPreparationStarted以外の各recordの時刻切出し、raw entropy復元、JCS/hash検証を実装していない。
+
+局所算術12例は正の整数成長6例・成長0の6例。根拠19例は受理6・拒否13で、cell・plant・tick・round・源・実効量・算術不一致を区別した。場は合成資料であり、地図・遮蔽・scheduleから実イベントを生成した証拠ではない。親event.firstTickとの一致と、40tickを通じて本当に最初だったことの検証も区別する。
+
+```text
+Preserved 20 baseline content/reference artifacts byte-for-byte against d27c676
+  17 JSON + 1 SVG + reference/diversity_v06.py + reference/water_stress_v07.py
+G0 scope: README / PROGRESS append / docs/unity-garden only
+App dependencies and frozen experiment protocol: unchanged
+DATA: 41 future acceptance items; creation/switch/recovery and export scopes specified
+EXPERIENCE: 23 acceptance scenes retained; H1-H5 retained
+Git diff whitespace check: pass
+```
+
+旧自然参照の2,052投・強制注水1,200投は再計算していない。数式・入力原本・旧scriptが無変更であることをbyte比較し、現行checkerで既存注水reportの全1,200行の保存収支を再集計した。新しい単セル例や静的照合を、全庭シミュレーションの追加投数へ加算していない。ledger追記・source保持・意図の先行確定・欠測を補わない既存の不変ルールに反するruntimeコードは追加していない。
+
+### 要確定・申し送り（次フェーズへ）
+
+- **Unity project・C#・画面・音・実機ビルドは未実装。** G1はCURRENT_DESIGNの採用範囲を読み、対象端末の薄い保存・復帰ループから開始する。
+- RunCreationPlan／genesis／recoveryFreshのframe byte形式、flush、実際のプロセス間排他と停止点はG1で固定・故障試験する。未受理の初回操作が必ず同じIDに戻るとは保証しない。正常交代の保存境界は維持する。
+- G2は実際の40tickから局所witnessを生成し、同じ自然終状態・最初の正のtick・場の出所が一致することをC#で照合する。G0の単セル例を全イベント集約やC# checkedの合格にしない。
+- G3は検証済みの実journalを同じcutoffへreduceし、JSON監査bundleから画面・CSVへ同じ投影を再構成する。今回のcheckerは上流で検証済みと仮定した合成要約を使う。
+- 実装後の41受け入れ、EXPERIENCEの23場面、成熟庭54ケース、出生時外観、H1〜H5、V1〜V3は未実施。数値の正しさと、美しさ・日本語・音・実機性能を別の証拠で確認する。
+- 最初に花を咲かせるための再抽選、意図から成功への後付け分類、常設池や別種の木は追加しない。既存の公平な抽選・蓄積する庭・任意の意図という基本操作を保持する。
+
+### 触ったファイル
+
+- README.md、PROGRESS.md（追記）
+- docs/unity-garden/README.md、CURRENT_DESIGN.md、ARCHITECTURE.md、DATA_CONTRACT.md、EXPERIENCE.md、GAMEPLAY.md、ROADMAP.md、SIMULATION.md、VALIDATION.md、WEATHER.md
+- docs/unity-garden/OBSERVATION.md（新規）
+- docs/unity-garden/content/design-manifest.v0.8.json、observation-fixtures.v0.8.json、growth-witness-fixtures.v0.8.json（新規）
+- docs/unity-garden/reference/check_current_design.py（更新）、observation_v08.py、growth_witness_v08.py（新規G0参照）

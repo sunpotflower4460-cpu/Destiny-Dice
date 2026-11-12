@@ -1,6 +1,6 @@
 # Unity箱庭 — アーキテクチャ
 
-状態: 設計案 v0.7 / Unity未実装
+状態: 設計案 v0.8 / Unity未実装
 更新日: 2026-11-12
 対象: 新しい箱庭ゲームのUnity版。今回の変更は設計資料のみ。
 
@@ -14,7 +14,7 @@ Unity版は新しいschema・保存領域・セッション識別子を持ち、
 画面の進行と操作は[EXPERIENCE.md](EXPERIENCE.md)、初期庭の配置候補と参照計算は[GARDEN_LAYOUT.md](GARDEN_LAYOUT.md)にまとめる。
 天候・局所入力・持ち越す庭の状態の関係は[WEATHER.md](WEATHER.md)を入口とし、合成する式はSIMULATIONを参照する。
 Unity project、C#コード、package、CI設定、ネイティブ設定は、この設計phaseでは作成しない。
-現行の採用候補と適用順は[CURRENT_DESIGN.md](CURRENT_DESIGN.md)、原本とhashの索引は[design-manifest.v0.7.json](content/design-manifest.v0.7.json)を使う。文書版と各アルゴリズム・contentの版を一つの番号へまとめない。
+現行の採用候補と適用順は[CURRENT_DESIGN.md](CURRENT_DESIGN.md)、原本とhashの索引は[design-manifest.v0.8.json](content/design-manifest.v0.8.json)を使う。文書版と各アルゴリズム・contentの版を一つの番号へまとめない。検証済みの履歴を画面へ変換する共通投影は[OBSERVATION.md](OBSERVATION.md)に従う。
 
 ## 2. 一つの計算モデルと四つの責務
 
@@ -50,11 +50,13 @@ port名は実装時の命名候補。record名・状態名はDATA_CONTRACTに従
 初期版の復元は短いjournalを検証走査して行い、最後の`Resolved`と未完了のroundを取り戻す。走査時間・容量を実測して必要な場合にのみ、破棄して再生成できるcheckpointを足す。復元手順・意図の先行確定・single-writerは省略しない。
 
 `docs/unity-garden/content/`のJSONは実装時の照合用の設計資料。現時点ではUnityのloaderも検証器もない。採用時にはschemaと値を検証し、runへ固定するcontentに変換する。
-v0.7はv0.2の数値profile、v0.3の静的な庭配置、weather-profile.v0.4、target-profile.v0.6を保ち、oracle-catalog.v0.7を使う。天候・group生成はv0.4、場所と配面はtarget-sites.v0.6 / dynamic-faces.v0.6。oracle-focus.v0.7はv0.5の順位を継承し、岩陰の未変化文の焦点を同じcellのLightReceivedへ固定する。見た目を採用する場合だけplant-appearance-profile.v0.6 / birth-appearance.v0.6を接続する。未採用ならappearanceProjectionVersion=nullとし、未使用profileをrunの必須内容参照にしない。旧mapの初期セルhashや旧参照結果を、天候を含む正式なWorldSnapshotのhashへ読み替えない。
+v0.8はv0.2の数値profile、v0.3の静的な庭配置、weather-profile.v0.4、target-profile.v0.6を保ち、oracle-catalog.v0.7を使う。天候・group生成はv0.4、場所と配面はtarget-sites.v0.6 / dynamic-faces.v0.6。oracle-focus.v0.7はv0.5の順位を継承し、岩陰の未変化文の焦点を同じcellのLightReceivedへ固定する。見た目を採用する場合だけplant-appearance-profile.v0.6 / birth-appearance.v0.6を接続する。未採用ならappearanceProjectionVersion=nullとし、未使用profileをrunの必須内容参照にしない。旧mapの初期セルhashや旧参照結果を、天候を含む正式なWorldSnapshotのhashへ読み替えない。
 文書版・地図版・計算版を一つの番号だと扱わず、contentManifestに各実体とhashを残す。参照計算reportは照合用であり、通常プレイの出目列や成長結果を供給するassetにはしない。
 G0のdesign-manifestは原本byte列の索引で、実装時のRunStarted.contentManifestとは別にする。採用・変換後のcontentをdurable保存し、その実体のhashをrunへ固定する。基礎profile、天候、場所の上書きは各explicitReplacementsに限定し、任意のJSON deep mergeで規則を組み合わせない。
 
 G1〜G3の通常経路は静的mapから新しい庭を作ることと、同じrunの保存済みsnapshotへ戻ること。別runの庭のimport・forkを展示版に実装しない。開発fixtureの合成初期状態は明示したfixtureとして扱い、通常の新庭や過去の種の履歴へ混ぜない。
+
+`run-entry.v0.8`の初回・明示的な救済用RunCreationPlanは、同じ保存adapterが扱う不変の作成資料である。汎用の第二journalや、上書きできるactive-run設定は加えない。通常交代は既存のRunSwitchRequestedを使い、作成計画と競合する二重の要求経路を作らない。
 
 ## 3. Unity projectの予定配置
 
@@ -98,6 +100,8 @@ Domainは明示的なstep数と入力から次の状態を求め、描画フレ�
 実際の人の操作時刻や描画回数まで同一になる、という主張ではない。
 表示側が遅れた場合も、Coreのstepを黙って捨てたり、出目を再取得したりしない。
 同一端末での再実行と、異なる端末・scripting backend間の再実行は別に確認する。
+
+`local-growth-witness.v0.8`は同じ計算の最初の正の整数成長tickを記録する。風・光、蒸発前後の水、端数、成長前後と参照を既存のGrowthObservedへ付け、関係図はその局所根拠だけを使う。別の自然計算、全tickの永続trace、成長ボーナスは加えない。同じResolved内の参照は安定した局所識別子を使い、まだ決まっていない自分自身のentryHashをpayloadに埋め込まない。
 
 ### 4.2 サイコロ表示との関係
 
@@ -153,7 +157,7 @@ v0.6では公開だけでなく、次のPreparationStartedも結果再生の終�
 
 来場者交代はDATA_CONTRACTのRunSwitchRequested→旧roundの終端→RunClosed→対応する新RunStartedへ従う。一つのwriter/coordinatorがrunをまたぐ交代も直列化する。交代中は新しいRoll・場所変更・準備を止め、旧runの既存取得・保存・解決だけを正しく閉じる。旧callbackを画面の世代変更だけで捨てて既知結果を失わず、内部の結果を通常画面へ再公開することもない。起動時は保存した交代関係をたどり、ファイルの更新時刻や別のactive-run cacheだけで庭を選ばない。RunClosed後は旧runへlate Receiptも追記しない。
 
-OutcomeCommittedは計算を許可する境界。出目・カード・庭・文章の結果表示と、新しい庭の公開はResolvedの保存成功後に行う。
+OutcomeCommittedは計算を許可する境界。出目・カード・更新後の庭・文章の結果表示はResolvedの保存成功後に行う。新runの初期庭はRunStartedの保存・検証後に公開する。
 表示を閉じる、演出を飛ばす、端末を回すといった操作は再抽選・再適用を呼ばない。
 短い反応の経過を保持する場合も、同じCore計算から生成した表示データとして扱う。
 保存形式に存在しない独自の「適用済みフラグ」を別ファイルへ足して整合性を分散させない。
@@ -181,6 +185,8 @@ payloadの数値制約と正規化の詳細はDATA_CONTRACTに集約する。
 復元は検証済みのrecordから行い、head checkpointだけで確定結果を判断しない。
 
 地図・ルール・文章集をcontent blobとして保存する場合は、実体の保存・hash検証・durable確認を完了してから、その参照を`RunStarted`へ書く。hashだけを保存し、実体を後から用意する順序にしない。
+
+初回と障害後の明示的な新庭では、この内容保存の後にRunCreationPlanを受理し、固定されたtargetRunIdのgenesisを作る。完全なplanと未完genesisの区別、同じ計画への再開、旧障害の原本保全、起動時の一意な継続先はDATA_CONTRACTを正とする。planの不完全末尾も成功扱いにしない。正常な旧runを閉じられない救済経路に、架空のRunClosedを追加しない。
 
 Resolvedのfull post-stateが自然状態の回復点になる。自然状態の表示はそこから再生成する。出生時外観や履歴のprojectionは、元のSeedPlaced・同回Prepared.weatherContext・固定style profileなど、定義された過去の原本も参照する。最後のsnapshotだけで全履歴を再構築できるとは扱わない。
 checksum/hashエラーを空の新規庭として無言で置き換えない。
@@ -240,11 +246,15 @@ JSON exportは対象runのプレイを再構成する原本segment・回復診�
 
 | 見方 | 最小の表示 | 元になる記録 |
 |---|---|---|
-| 庭の歩み | round順の天候帯、水量・植物の成長の推移、各回のダイス入力記号 | RunStarted、Prepared.weatherContext、Resolvedの状態・収支 |
+| 庭の歩み | 準備開始順の位置を保つ天候帯、水量・植物の成長の推移、各回のダイス入力記号 | RunStarted、Prepared.weatherContext、Resolvedの状態・収支 |
 | 意図と出目 | 比較できる抽選の累積一致数と基準値、対象数・p=0/1・欠測 | IntentCommitted、確定した出目 |
 | 一投のつながり | 開始時の庭・天候・ダイス入力から、同じ場所の状態と出来事へつなぐ固定配置 | WeatherContext、両方の実適用証拠、resolvedParameters、イベント根拠、ruleId |
 
-最初から汎用ノードエディタや自動配置の物理演算を作らず、見たい回を選ぶと同じ配置へ具体的な量と場所を入れる。例えば「風→蒸発180→土中水950から770→成長184」は、その回に実際に保存された値の場合だけ表示する。別の場所の平均を一つの因果連鎖へつなげない。
+三つの画面とCSVは[OBSERVATION.md](OBSERVATION.md)の同じ投影を使う。cutoff・対象範囲・投影版を固定し、PreparationStarted順のrecordOrdinalと正常解決のworldRevisionを区別する。庭の未解決はnull、保存済みの成長差0は0として扱い、出目だけ既知の回を比較から落とさない。比較対象0件の案内も同じ条件で決め、各画面が独自に「成功率」を作らない。
+
+風・蒸発・湿り・成長の依存は、SIMULATIONの同じcell・tickの局所根拠から作る。その例を一投全体の寄与率や反実仮想へ広げない。証拠がない区間・旧版・成長0の回では、確認できる入力・状態・出来事までを示す。
+
+見たい回を選ぶと、固定した配置へ具体的な量と場所を入れる。局所の設計例なら「このtickの風→土からの蒸発4→土中水900から896→成長が2進んだ」のように、同じ根拠の値を入れる。実表示は保存済みwitnessの値を使い、40tick全体の蒸発・成長合計を、この一tickの連鎖へ置き換えない。汎用ノードエディタや別の物理演算は初期版へ加えない。
 
 自然モデルの計算依存を表すedgeと、意図・カード・文章が同じroundに記録された対応を表すedgeは意味を分ける。カードから開花への計算依存edgeを作らない。詳細にはruleIdと根拠イベントへ辿れる参照を持たせ、別の成功台帳を追加しない。履歴にある過去の庭と、現在操作中の庭は表示上も区別する。
 全投擲で庭全体が40tick進むため、初期の水分・成長と基礎光も計算への入力に含める。今回の追加作用が届かない植物の成長を、同roundという理由だけで出目の直接効果へ結ばない。詳細の根拠条件はDATA_CONTRACT§8に従う。

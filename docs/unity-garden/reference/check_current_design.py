@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Read-only G0 consistency checks for the v0.7 design source index.
+"""Read-only G0 consistency checks for the v0.8 design source index.
 
 Checks source pins, permitted profile composition, the limited catalog change,
 synthetic evidence examples, reference-report totals, and local document links.
 Does not run Unity, simulate journal recovery, or implement a complete selector.
+New projection and local-growth arithmetic examples have their own checkers.
 No dependencies outside the Python standard library; no file writes.
 """
 import hashlib
@@ -16,7 +17,7 @@ from urllib.parse import unquote, urlsplit
 DESIGN = Path(__file__).resolve().parents[1]
 REPO = DESIGN.parents[1]
 CONTENT = DESIGN / "content"
-MANIFEST = CONTENT / "design-manifest.v0.7.json"
+MANIFEST = CONTENT / "design-manifest.v0.8.json"
 
 
 def require(condition, message):
@@ -43,7 +44,7 @@ def resolve_source(base, relative):
 
 def validate_manifest():
     manifest = read_json(MANIFEST)
-    require(manifest["schemaVersion"] == "design-manifest.v0.7", "Manifest schema")
+    require(manifest["schemaVersion"] == "design-manifest.v0.8", "Manifest schema")
     require(manifest["status"] == "designCandidate", "Manifest must remain candidate")
     require(manifest["implementationStatus"] == "notImplementedInUnity", "Implementation boundary")
     require(manifest["pathBase"] == "docs/unity-garden", "Manifest path base")
@@ -84,9 +85,24 @@ def validate_manifest():
     require(data["weather"]["mappingPolicyVersion"] == "dynamic-faces.v0.4" and
             policies["mappingPolicyVersion"] == "dynamic-faces.v0.6", "Explicit mapping override")
     require(policies["groupingVersion"] == "observation-groups.v0.4", "Group policy")
-    require(policies["runLifecycleVersion"] == "run-switch.v0.7", "Lifecycle policy")
+    require(policies["runLifecycleVersion"] == "run-entry.v0.8", "Lifecycle policy")
+    require(policies["simulationEvidenceVersion"] == "local-growth-witness.v0.8", "Local evidence policy")
+    require(manifest["projectionPolicies"] == {"roundObservation": "round-observation.v0.8"},
+            "Observation is a derived projection policy")
+    previous = read_json(CONTENT / "design-manifest.v0.7.json")
+    require(manifest["runtimeCandidates"] == previous["runtimeCandidates"],
+            "v0.8 preserves all six runtime candidate inputs")
+    require(manifest["applicationOrder"] == previous["applicationOrder"] and
+            manifest["overrideBoundary"] == previous["overrideBoundary"], "No natural-rule override")
+    for key, value in previous["policies"].items():
+        if key != "runLifecycleVersion":
+            require(policies[key] == value, f"Preserved policy: {key}")
     contract = (DESIGN / "DATA_CONTRACT.md").read_text(encoding="utf-8")
-    require("run-switch.v0.7" in contract and "runLifecycleVersion" in contract, "Lifecycle contract missing")
+    require("run-entry.v0.8" in contract and "RunCreationPlan" in contract, "Lifecycle contract missing")
+    require("local-growth-witness.v0.8" in contract and "simulationEvidenceVersion" in contract,
+            "Saved local-evidence version missing")
+    require("round-observation.v0.8" in (DESIGN / "OBSERVATION.md").read_text(encoding="utf-8"),
+            "Observation contract missing")
     for role, fields in [("weather", ["baseProfile", "mapReuse"]),
                          ("targets", ["baseProfile", "mapReuse", "weatherProfile"])]:
         for field in fields:
@@ -244,10 +260,11 @@ def main():
     synthetic_cases = validate_synthetic_bindings()
     stress_rows = validate_stress_report()
     docs, links, tables = validate_documents()
-    print(f"Verified design v0.7 source index: {pins} pinned artifacts; 5 required + 1 optional runtime candidates.")
+    print(f"Verified design v0.8 source index: {pins} pinned artifacts; 5 required + 1 optional runtime candidates unchanged.")
     print(f"Catalog: 28 entries, 27 unchanged, 1 restricted; {synthetic_cases} synthetic evidence examples consistent.")
     print(f"Stress report arithmetic: {stress_rows} saved rows checked; natural simulation is verified separately.")
     print(f"Documents: {docs} Markdown files, {links} local links/anchors, {tables} tables.")
+    print("Run entry and local evidence policies indexed; projection and scalar fixtures have separate read-only checks.")
     print("No files written. Unity, journal recovery, full predicates, rendering and device checks remain unexecuted.")
 
 
