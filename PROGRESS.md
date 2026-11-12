@@ -1988,3 +1988,24 @@ Git diff whitespace check: pass
 ### 触ったファイル
 - Presentation: IslandTerrain.cs（新規）、GardenView.cs、GardenUi.cs、GardenWonders.cs、GardenLife.cs、SacredAtmosphere.cs、ProceduralArt.cs、GardenBootstrap.cs
 - docs/jam-submission/（SUBMISSION.md、cover.png、screenshot-1〜5）、PROGRESS.md（本追記）
+
+## Jam v5: 生きている瓶の島 — 調和・菌根・植物の条件と関係・遷移（2026-11-12 夜）
+### 完了したこと
+- 計画（~/.claude/plans/8-5-8-wiggly-dream.md）と本人の追加講評（菌根は見えなくてよい、瓶は遠くから見える程度、植物の条件と関係、草はもじゃもじゃより「生きるために生えている」、瓶と土と水から始まり自分だけの庭へ、虹は相当ラッキーだがジャム向けにやや出やすく）を反映。
+- 規則（docs/unity-garden/ECOLOGY.md §6・§7）: 調和 harmony.v2（陰陽・4つの恵み・命・住人の多様さ・咲く種の多様さ、0〜8、芒星 5/7/8）、菌根の分け合い（ecology.v2）、植物15種の条件と働き（flora.v1/ecology.v3: 土の硬さ・水捌け・湿り・光、蝶と蜂の好み、土をやわらげる／水捌けを変える、親の種を受け継ぐ芽吹き、合う場所で育つ）。種は `PlantState.Species` として保存（未設定なら書き出さないので旧状態のハッシュは不変）。虹の八 rainbow.v2（七の目＋同じ一投で蕾か開花、または七芒星以上）。
+- 見せ方: カスタムシェーダー3種（Foliage/Glow/Glass）。島は裸の土・泉・川から始まり、保存状態の生命度（投数・花・調和）で水辺から緑が広がり、苔→草→野の花→木→木陰の植物→最後に泉のそばの小さな家。植生は条件の合う場所にだけ、まばらに。花15種の形（花びらメッシュ）。格子を消す歪み場。出目は島全体を渡って届く（水は泉から川を下る等）。菌根は見えない（分けられた株にだけ淡い光）。瓶は遠景で見える。開始時は瓶全体を見せてから庭へ寄る。虹の八は空中で大きく、カメラが引いて瓶の肩が見える。
+- UI: 庭の気配に ☯調和、庭の歩みに「いま咲いている花」、関係を一行で（例「やわらいだ土に、ユリが根づいた」「小鳥の落とした種から、野ばらの芽」— その一投で実際に起きた時だけ）。
+### 完了基準の結果（コマンド出力の要約）
+- Unity EditMode tests: green（36 passed）
+- WebGL: Succeeded、zip 22,155,414 bytes。ヘッドレス Chromium で20投の通しプレイ、コンソールエラー0、60fps。
+- 計測: 虹の八 約36投に1回、調和の平均 約5、120投で11種が出現。
+### 要確定・申し送り（次フェーズへ）
+- 本人: 音の実聴、itch.io へのアップロードと提出、SUBMISSION.md の Team と画像生成ツール名。main へのマージは本人確認後。
+- 遅いGPU・Safari・スマホでの描画速度は未確認（植生の密度は IslandFlora の step で調整可能）。
+### 触ったファイル
+- Domain: Harmony.cs・Flora.cs（新規）、Ecology.cs、LuckySeven.cs、GardenTypes.cs、CanonicalJson.cs
+- Application: GardenCoordinator.cs（前段で）、HistoryProjector.cs
+- Presentation: IslandFlora.cs・FoliageMesh.cs・PlantForms.cs・IslandHarmony.cs（新規）、GardenView.cs、IslandTerrain.cs、SacredAtmosphere.cs、GardenWonders.cs、GardenUi.cs、GardenBootstrap.cs
+- Shaders: DGFoliage/DGGlow/DGGlass（新規）、Editor/BuildScripts.cs
+- Tests: HarmonyTests.cs・FloraTests.cs（新規）、EcologyTests.cs、LuckySevenTests.cs
+- docs/unity-garden/ECOLOGY.md、docs/jam-submission/（SUBMISSION.md・cover・screenshot-1〜5）、PROGRESS.md

@@ -23,6 +23,8 @@ namespace DestinyGarden.Presentation
         private GardenLife _life;
         private IslandHarmony _islandHarmony;
         private int _harmonyNow = -1, _lastStar = -1;
+        private Vector3 _homePos;
+        private Quaternion _homeRot;
         private bool _butterfliesShown;
         private bool _captureNoUi;
         private string _intentKind = "none";
@@ -104,10 +106,20 @@ namespace DestinyGarden.Presentation
             _ui.ShowIntentSelection(_intentKind, _intentValue);
             _ui.ShowSiteSelection(_coordinator.PreferenceMode, _coordinator.PreferenceSiteId);
             RefreshAll();
+            _view.Flora.Snap();
             _ui.ShowStatus(_coordinator.LuckySevenOffered && !_coordinator.LuckySevenAdded
                 ? "七つめの面が、そっと現れている。"
                 : "公開された面を見て、サイコロを振ってください。");
             _ui.ShowTitleCard(true);
+            // Begin seeing the whole bottle; glide in to the garden when the visitor begins.
+            var cam = _view.ViewCamera;
+            var homePos = cam.transform.position;
+            var homeRot = cam.transform.rotation;
+            _homePos = homePos; _homeRot = homeRot;
+            var farPos = new Vector3(7.5f, 13.6f, -13.5f);
+            var farRot = Quaternion.LookRotation(new Vector3(7.5f, 4.6f, 9.0f) - farPos, Vector3.up);
+            cam.transform.SetPositionAndRotation(farPos, farRot);
+            _ui.OnTitleClosed = () => StartCoroutine(GlideCamera(cam, farPos, farRot, homePos, homeRot, 3.2f));
 
             // QA hook (explicit launch arguments only; never active in normal play):
             // -dgAutoRolls N performs N honest rolls through the coordinator,
@@ -125,6 +137,17 @@ namespace DestinyGarden.Presentation
                 if (args[i] == "-dgAutoRolls") int.TryParse(args[i + 1], out autoRolls);
             }
             if (capturePath != null) StartCoroutine(CaptureRoutine(capturePath, autoRolls, wonders));
+        }
+
+        private static IEnumerator GlideCamera(Camera cam, Vector3 p0, Quaternion r0, Vector3 p1, Quaternion r1, float seconds)
+        {
+            for (float t = 0f; t < seconds; t += Time.deltaTime)
+            {
+                float k = Mathf.SmoothStep(0f, 1f, t / seconds);
+                cam.transform.SetPositionAndRotation(Vector3.Lerp(p0, p1, k), Quaternion.Slerp(r0, r1, k));
+                yield return null;
+            }
+            cam.transform.SetPositionAndRotation(p1, r1);
         }
 
         private void Update()
@@ -160,8 +183,9 @@ namespace DestinyGarden.Presentation
             var state = _coordinator.State;
             int flowers = 0;
             foreach (var p in state.Plants) if (p.Stage == PlantStage.Flower) flowers++;
-            return 0.30f + 0.30f * Mathf.Min(1f, state.WorldRevision / 30f) + 0.25f * Mathf.Min(1f, flowers / 12f)
-                   + 0.15f * Mathf.Max(0, _harmonyNow) / 8f;
+            // From bottle, soil and water to a living island: rolls (prayers), flowers and harmony.
+            return 0.04f + 0.40f * Mathf.Min(1f, state.WorldRevision / 24f) + 0.30f * Mathf.Min(1f, flowers / 10f)
+                   + 0.26f * Mathf.Max(0, _harmonyNow) / 8f;
         }
 
         /// <summary>
@@ -251,7 +275,9 @@ namespace DestinyGarden.Presentation
         private IEnumerator CaptureRoutine(string path, int autoRolls, bool wonders)
         {
             _view.ReducedMotion = true;
+            _ui.OnTitleClosed = null;
             _ui.ShowTitleCard(false);
+            _view.ViewCamera.transform.SetPositionAndRotation(_homePos, _homeRot);
             RollOutcome last = null;
             for (int i = 0; i < autoRolls; i++)
             {
@@ -263,6 +289,7 @@ namespace DestinyGarden.Presentation
             }
             if (last != null) { _view.SetDiceFace(last.FaceId); _ui.ShowMessage(last.Message, last); }
             RefreshAll(last != null ? last.FaceId : 0);
+            _view.Flora.Snap();
             if (wonders)
             {
                 var tops = new List<Vector3>();
@@ -315,7 +342,9 @@ namespace DestinyGarden.Presentation
             var history = HistoryProjector.Project(read.Entries, _coordinator.RunId);
             _ui.RefreshHistory(history);
             UpdateButterflies(history);
-            _view.Flora.SetVitality(Vitality());
+            float vitality = Vitality();
+            _view.Flora.SetVitality(vitality);
+            _view.SetGroundVitality(vitality);
         }
 
         private IEnumerator RollFlow()
@@ -357,7 +386,7 @@ namespace DestinyGarden.Presentation
             _ui.ShowMessage(outcome.Message, outcome);
             RefreshAll(outcome.FaceId);
             _view.SetLuckyDice(outcome.LuckySeven);
-            bool rainbow = LuckySeven.IsRainbow(outcome.LuckySeven, outcome.Simulation);
+            bool rainbow = LuckySeven.IsRainbow(outcome.LuckySeven, outcome.Simulation, outcome.Ecology);
             if (rainbow) StartCoroutine(_wonders.PlayRainbowEight());
             StartCoroutine(_life.PlayRollEffects(outcome.Ecology));
             StartCoroutine(_islandHarmony.PlayPulses(outcome));

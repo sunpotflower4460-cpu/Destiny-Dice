@@ -14,7 +14,27 @@ namespace DestinyGarden.Presentation
     public sealed class IslandFlora : MonoBehaviour
     {
         private Material _mat;
-        private float _vitality = 0.30f, _target = 0.30f;
+        private float _vitality = 0.02f, _target = 0.02f;
+        public float Vitality => _vitality;
+
+        // Succession: the vitality at which each kind can first live here. Pioneers at the water
+        // come first, then grasses spreading from damp ground, meadow flowers, and only after the
+        // trees have grown, the plants of their shade.
+        private static readonly float[] Stage =
+        {
+            0.22f, // ShortGrass
+            0.46f, // TallGrass
+            0.34f, // Clover
+            0.05f, // Moss
+            0.64f, // Fern
+            0.08f, // Reed
+            0.28f, // SeaPink
+            0.40f, // Thyme
+            0.72f, // Bluebell
+            0.50f, // Wildflower
+            0.12f, // Lichen
+            0.56f, // Toadstool
+        };
         private float _gust;
         public bool ReducedMotion;
 
@@ -37,7 +57,7 @@ namespace DestinyGarden.Presentation
             var chunks = new FoliageMesh[4];
             for (int i = 0; i < chunks.Length; i++) chunks[i] = new FoliageMesh();
             var rng = new System.Random(7123);
-            const float step = 0.24f;
+            const float step = 0.34f; // sparse: each plant has room to live
             int kinds = System.Enum.GetValues(typeof(Kind)).Length;
             var weights = new float[kinds];
             for (float gz = -3.0f; gz <= 18.0f; gz += step)
@@ -53,7 +73,6 @@ namespace DestinyGarden.Presentation
                     if (river < 0.42f) continue;
                     float bed = IslandTerrain.DistanceToBed(x, z);
                     if (bed < 0.58f) continue;
-                    if (rng.NextDouble() > 0.80) continue; // bare earth here and there
 
                     float shore = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(8.6f, 10.0f, d));
                     float shade = IslandTerrain.ShadeAt(x, z);
@@ -75,15 +94,25 @@ namespace DestinyGarden.Presentation
                     weights[(int)Kind.Wildflower] = 0.55f * meadow * Colony(x, z, 10, 0.5f);
                     weights[(int)Kind.Lichen] = 0.8f * shade * hi * Colony(x, z, 11, 0.8f);
                     weights[(int)Kind.Toadstool] = 0.32f * shade * wet * Colony(x, z, 12, 0.9f);
+                    // A plant grows here only if some kind can truly live here; then one of the kinds
+                    // that suit this spot best (within half of the best) takes it.
+                    float bestW = 0f;
+                    for (int k = 0; k < kinds; k++) bestW = Mathf.Max(bestW, weights[k]);
+                    if (bestW < 0.55f) continue;
                     float total = 0f;
-                    for (int k = 0; k < kinds; k++) total += weights[k];
-                    if (total <= 0.01f) continue;
+                    for (int k = 0; k < kinds; k++) if (weights[k] >= bestW * 0.5f) total += weights[k];
                     double pick = rng.NextDouble() * total;
                     int kind = 0;
-                    for (float acc = 0f; kind < kinds; kind++) { acc += weights[kind]; if (pick < acc) break; }
+                    for (float acc = 0f; kind < kinds; kind++)
+                    {
+                        if (weights[kind] < bestW * 0.5f) continue;
+                        acc += weights[kind];
+                        if (pick < acc) break;
+                    }
                     if (kind >= kinds) kind = kinds - 1;
                     float suit = Mathf.Clamp01(weights[kind] / 1.6f);
-                    float threshold = Mathf.Clamp((float)rng.NextDouble() * 0.72f + (1f - suit) * 0.32f - 0.06f, 0f, 0.97f);
+                    float near = (Kind)kind == Kind.Moss || (Kind)kind == Kind.Reed ? Mathf.Min(0.16f, river * 0.035f) : 0f;
+                    float threshold = Mathf.Clamp(Stage[kind] + (1f - suit) * 0.16f + near + (float)rng.NextDouble() * 0.10f, 0.02f, 0.98f);
 
                     var b = chunks[(x < 7.5f ? 0 : 1) + (z < 7.5f ? 0 : 2)];
                     var p = new Vector3(x, h - 0.01f, z);
@@ -113,7 +142,7 @@ namespace DestinyGarden.Presentation
             {
                 case Kind.ShortGrass:
                 {
-                    int n = 3 + rng.Next(3);
+                    int n = 2 + rng.Next(2);
                     var baseC = new Color(0.22f, 0.42f, 0.22f) * tone;
                     var tipC = Color.Lerp(new Color(0.46f, 0.70f, 0.36f), new Color(0.58f, 0.74f, 0.40f), R()) * tone;
                     for (int i = 0; i < n; i++)
@@ -122,7 +151,7 @@ namespace DestinyGarden.Presentation
                 }
                 case Kind.TallGrass:
                 {
-                    int n = 4 + rng.Next(3);
+                    int n = 3 + rng.Next(2);
                     var baseC = new Color(0.30f, 0.46f, 0.26f) * tone;
                     var tipC = new Color(0.74f, 0.74f, 0.50f) * tone;
                     for (int i = 0; i < n; i++)
@@ -286,12 +315,19 @@ namespace DestinyGarden.Presentation
         /// <summary>Target vitality 0..1 derived from the saved garden; the island grows toward it.</summary>
         public void SetVitality(float target) => _target = Mathf.Clamp01(target);
 
+        /// <summary>Show the saved vitality at once (on load, in captures) instead of growing toward it.</summary>
+        public void Snap()
+        {
+            _vitality = _target;
+            Shader.SetGlobalFloat("_DGVitality", _vitality);
+        }
+
         /// <summary>A gust of wind across the whole island (for a wind blessing).</summary>
         public void Gust() => _gust = 1f;
 
         private void Update()
         {
-            _vitality = Mathf.MoveTowards(_vitality, _target, Time.deltaTime * 0.06f);
+            _vitality = Mathf.MoveTowards(_vitality, _target, Time.deltaTime * 0.05f);
             Shader.SetGlobalFloat("_DGVitality", _vitality);
             _gust = Mathf.MoveTowards(_gust, 0f, Time.deltaTime * 0.35f);
             Shader.SetGlobalFloat("_DGWindGust", ReducedMotion ? 0f : _gust);

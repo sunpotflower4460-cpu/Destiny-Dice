@@ -198,7 +198,7 @@ namespace DestinyGarden.Tests
                     rolls++;
                     if (o.IntentMatched) matched++;
                     if (o.LuckySeven) sevenRolled++;
-                    if (LuckySeven.IsRainbow(o.LuckySeven, o.Simulation)) rainbows++;
+                    if (LuckySeven.IsRainbow(o.LuckySeven, o.Simulation, o.Ecology)) rainbows++;
                     rolled.Add(o.RecipeId);
                     if (NatureBalance.AllElementsWithinWindow(rolled)) butterflyRounds++;
                     foreach (var v in o.Ecology.Visits)

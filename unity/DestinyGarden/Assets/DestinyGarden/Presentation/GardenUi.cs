@@ -504,20 +504,21 @@ namespace DestinyGarden.Presentation
             title.color = new Color(1f, 0.90f, 0.66f);
             var sub = MakeText(panel.transform, new Vector2(0.5f, 1f), new Vector2(0f, -116f), new Vector2(980f, 40f), 24,
                 TextAnchor.MiddleCenter);
-            sub.text = "運命の庭 — 今この瞬間の運を振る、聖なる庭";
+            sub.text = "運命の庭 — 瓶の中の土と水から、あなただけの庭へ";
             sub.color = new Color(0.80f, 0.92f, 0.95f);
-            var body = MakeText(panel.transform, new Vector2(0.5f, 1f), new Vector2(0f, -176f), new Vector2(940f, 150f), 21,
+            var body = MakeText(panel.transform, new Vector2(0.5f, 1f), new Vector2(0f, -170f), new Vector2(960f, 160f), 20,
                 TextAnchor.UpperLeft);
             body.supportRichText = true;
             body.text =
+                "・瓶の中の土と水から、あなただけの庭が育っていきます。\n" +
                 "・空と庭の状態が、サイコロの<b>6つの面</b>（水・風・光・種の恵み）を毎回決めます。\n" +
-                "・面を選んで<b>願い</b>をかけ、<b>サイコロを振る</b>。出た恵みで庭が育ち、短い言葉が届きます。\n" +
-                "・庭には小さな命が訪れ、種を運び、土を肥やします。何が起きるかは、庭しだい。\n" +
+                "・面を選んで<b>願い</b>をかけ、<b>サイコロを振る</b>。その一投が祈りになります。\n" +
+                "・植物は生きられる場所に根づき、生き物が種を運び、島はひとつの命のように育ちます。\n" +
                 "・<color=#ffd36b>ときおり、願いが形になることがあります。</color>";
             var en = MakeText(panel.transform, new Vector2(0.5f, 1f), new Vector2(0f, -340f), new Vector2(940f, 70f), 17,
                 TextAnchor.UpperLeft);
-            en.text = "The sky and your garden decide the six faces of the die. Choose a face, make a wish, and roll.\n" +
-                      "Small lives visit, carry seeds and enrich the soil. Now and then, a wish takes shape.";
+            en.text = "From earth and water in a sealed bottle, a garden of your own grows. Each roll is a prayer:\n" +
+                      "plants take root only where they can live, small lives carry seeds, and the island grows as one.";
             en.color = new Color(0.78f, 0.84f, 0.86f);
             var tap = MakeText(panel.transform, new Vector2(0.5f, 0f), new Vector2(0f, 26f), new Vector2(600f, 36f), 20,
                 TextAnchor.MiddleCenter);
@@ -529,9 +530,14 @@ namespace DestinyGarden.Presentation
             panelButton.onClick.AddListener(() => ShowTitleCard(false));
         }
 
+        public Action OnTitleClosed;
+
         public void ShowTitleCard(bool show)
         {
-            if (_titleCard != null) _titleCard.SetActive(show);
+            if (_titleCard == null) return;
+            bool wasOpen = _titleCard.activeSelf;
+            _titleCard.SetActive(show);
+            if (wasOpen && !show) OnTitleClosed?.Invoke();
         }
 
         public void ShowIntentSelection(string kind, string value)

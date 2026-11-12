@@ -193,17 +193,20 @@ namespace DestinyGarden.Presentation
         private const float BakeMin = -5.5f, BakeSize = 26f;
         private static Vector2 BakeUv(float x, float z) => new Vector2((x - BakeMin) / BakeSize, (z - BakeMin) / BakeSize);
 
-        // Kept from the bake so the garden beds can be repainted with live soil moisture.
-        private static Color[] _bakePixels, _preEarth;
-        private static float[] _earthMask, _shade;
+        // Kept from the bake so the ground can be repainted: bare earth greening with the island's
+        // vitality (from the water outward), and the beds coloured by live soil moisture.
+        private static Color[] _bakePixels, _meadow, _bare;
+        private static float[] _earthMask, _shade, _greenAt, _bankF, _shoreF;
         private static List<KeyValuePair<int, float>>[] _bedWeights;
         private static Texture2D _bakeTex;
+        private static readonly Color Sand = new Color(0.86f, 0.80f, 0.64f);
+        private static readonly Color Bank = new Color(0.26f, 0.40f, 0.28f);
 
         /// <summary>
-        /// Repaints the earth of the beds from the saved soil moisture: dry pale earth through to dark
-        /// wet earth, blended smoothly between cells (no mounds, no seams).
+        /// Repaints the island ground: bare earth greens as vitality rises (near the water first);
+        /// the beds take their colour from the saved soil moisture, blended smoothly between cells.
         /// </summary>
-        public static void PaintBeds(WorldState state, Color dry, Color moist, Color wet)
+        public static void PaintBeds(WorldState state, Color dry, Color moist, Color wet, float vitality)
         {
             if (_bakeTex == null || state == null) return;
             var m = new float[GardenMapData.CellCount];
@@ -211,36 +214,41 @@ namespace DestinyGarden.Presentation
                 if (GardenMapData.SoilCapacity[c] > 0) m[c] = (float)state.SoilWater[c] / GardenMapData.SoilCapacity[c];
             for (int i = 0; i < _bakePixels.Length; i++)
             {
+                float green = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(_greenAt[i], _greenAt[i] + 0.22f, vitality));
+                var col = Color.Lerp(_bare[i], _meadow[i], green);
                 var list = _bedWeights[i];
-                if (list == null) continue;
-                float sw = 0f, sm = 0f;
-                foreach (var kv in list) { sw += kv.Value; sm += kv.Value * m[kv.Key]; }
-                float moisture = sw > 0f ? sm / sw : 0.5f;
-                Color earth = moisture < 0.45f ? Color.Lerp(dry, moist, moisture / 0.45f)
-                    : Color.Lerp(moist, wet, Mathf.Clamp01((moisture - 0.45f) / 0.40f));
-                var col = Color.Lerp(_preEarth[i], earth, _earthMask[i]) * _shade[i];
+                if (list != null)
+                {
+                    float sw = 0f, sm = 0f;
+                    foreach (var kv in list) { sw += kv.Value; sm += kv.Value * m[kv.Key]; }
+                    float moisture = sw > 0f ? sm / sw : 0.5f;
+                    Color earth = moisture < 0.45f ? Color.Lerp(dry, moist, moisture / 0.45f)
+                        : Color.Lerp(moist, wet, Mathf.Clamp01((moisture - 0.45f) / 0.40f));
+                    col = Color.Lerp(col, earth, _earthMask[i]);
+                }
+                col = Color.Lerp(col, Bank, _bankF[i] * 0.8f * green);
+                col = Color.Lerp(col, Sand, _shoreF[i]);
+                col *= _shade[i];
                 _bakePixels[i] = new Color(col.r, col.g, col.b, 1f);
             }
             _bakeTex.SetPixels(_bakePixels);
             _bakeTex.Apply();
         }
 
-        /// <summary>Top-down colour of the island: meadow, moss, earth around the garden, pale shore, river banks.</summary>
+        /// <summary>Top-down colour of the island (bare at first; see PaintBeds for the living state).</summary>
         public static Texture2D BakeColor()
         {
             const int size = 512;
             var tex = new Texture2D(size, size, TextureFormat.RGBA32, true) { name = "IslandColor", wrapMode = TextureWrapMode.Clamp };
-            var c = new Color[size * size];
-            _preEarth = new Color[size * size];
-            _earthMask = new float[size * size];
-            _shade = new float[size * size];
-            _bedWeights = new List<KeyValuePair<int, float>>[size * size];
+            int n = size * size;
+            _bakePixels = new Color[n]; _meadow = new Color[n]; _bare = new Color[n];
+            _earthMask = new float[n]; _shade = new float[n]; _greenAt = new float[n]; _bankF = new float[n]; _shoreF = new float[n];
+            _bedWeights = new List<KeyValuePair<int, float>>[n];
             var meadow = new Color(0.47f, 0.63f, 0.45f);
             var meadowLight = new Color(0.64f, 0.76f, 0.54f);
             var moss = new Color(0.30f, 0.46f, 0.30f);
-            var earth = new Color(0.40f, 0.31f, 0.22f);
-            var sand = new Color(0.86f, 0.80f, 0.64f);
-            var bank = new Color(0.26f, 0.38f, 0.28f);
+            var soilA = new Color(0.62f, 0.52f, 0.40f);
+            var soilB = new Color(0.50f, 0.42f, 0.33f);
             for (int py = 0; py < size; py++)
                 for (int px = 0; px < size; px++)
                 {
@@ -248,17 +256,18 @@ namespace DestinyGarden.Presentation
                     float d = Vector2.Distance(new Vector2(x, z), Center);
                     float n1 = ProceduralArt.Fbm(x * 0.55f, z * 0.55f, 71, 4);
                     float n2 = ProceduralArt.Fbm(x * 2.4f, z * 2.4f, 72, 3);
-                    var col = Color.Lerp(meadow, meadowLight, Mathf.SmoothStep(0.35f, 0.75f, n1));
-                    col = Color.Lerp(col, moss, Mathf.SmoothStep(0.55f, 0.85f, n2) * 0.55f);
-                    // Earth under the beds as soft organic patches (round falloff + noise), never square.
-                    int cx0 = Mathf.RoundToInt(x), cz0 = Mathf.RoundToInt(z);
-                    float soilNear = DistanceToBed(x, z);
-                    float wobble = (n1 - 0.5f) * 0.5f;
                     int pi = py * size + px;
-                    _preEarth[pi] = col;
-                    float mask = Mathf.SmoothStep(1.05f + wobble, 0.30f + wobble, soilNear) * (0.34f + 0.26f * n2);
-                    _earthMask[pi] = mask;
-                    if (mask > 0.001f)
+                    var col = Color.Lerp(meadow, meadowLight, Mathf.SmoothStep(0.35f, 0.75f, n1));
+                    _meadow[pi] = Color.Lerp(col, moss, Mathf.SmoothStep(0.55f, 0.85f, n2) * 0.55f);
+                    float r = DistanceToRiver(x, z);
+                    var bare = Color.Lerp(soilA, soilB, Mathf.SmoothStep(0.3f, 0.7f, n2));
+                    _bare[pi] = Color.Lerp(bare, new Color(0.42f, 0.36f, 0.29f), Mathf.SmoothStep(1.6f, 0.5f, r) * 0.7f);
+                    // Life spreads from the water: greening starts by the river and the spring.
+                    _greenAt[pi] = Mathf.Clamp(0.06f + Mathf.Min(0.42f, r * 0.045f) + (n1 - 0.5f) * 0.16f, 0.02f, 0.70f);
+                    // Earth under the beds as soft organic patches with a wide, noisy edge (never a frame).
+                    int cx0 = Mathf.RoundToInt(x), cz0 = Mathf.RoundToInt(z);
+                    // Bed density: a smooth sum over nearby soil cells (no per-cell spots), edged with noise.
+                    float wobble = (n1 - 0.5f) * 0.5f;
                     {
                         var weights = new List<KeyValuePair<int, float>>();
                         for (int dz = -3; dz <= 3; dz++)
@@ -268,24 +277,24 @@ namespace DestinyGarden.Presentation
                                 if (cx < 0 || cx > 15 || cz < 0 || cz > 15 || GardenMapData.SoilCapacity[cz * 16 + cx] == 0) continue;
                                 float dd = Vector2.Distance(new Vector2(x, z), Warp(cz * 16 + cx));
                                 if (dd > 3.2f) continue;
-                                // Very wide soft kernel: moisture flows across the beds, no cell pattern.
                                 float w = Mathf.Exp(-dd * dd / (2f * 1.35f * 1.35f));
                                 weights.Add(new KeyValuePair<int, float>(cz * 16 + cx, w));
                             }
-                        if (weights.Count > 0) _bedWeights[pi] = weights;
+                        float density = 0f;
+                        foreach (var kv in weights) density += kv.Value;
+                        float mask = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.6f, 3.2f, density + wobble * 2f)) * (0.40f + 0.26f * n2);
+                        _earthMask[pi] = mask;
+                        if (weights.Count > 0 && mask > 0.001f) _bedWeights[pi] = weights;
                     }
-                    col = Color.Lerp(col, earth, mask);
-                    float r = DistanceToRiver(x, z);
-                    col = Color.Lerp(col, bank, Mathf.SmoothStep(1.4f, 0.5f, r) * 0.8f);
+                    _bankF[pi] = Mathf.SmoothStep(1.4f, 0.5f, r);
                     float shore = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(ShoreStart - 0.4f, ShoreStart + 1.0f, d));
-                    col = Color.Lerp(col, sand, shore * (0.85f + 0.15f * n2));
-                    _shade[py * size + px] = 0.92f + 0.16f * n2;
-                    col *= 0.92f + 0.16f * n2;
-                    c[py * size + px] = new Color(col.r, col.g, col.b, 1f);
+                    _shoreF[pi] = shore * (0.85f + 0.15f * n2);
+                    _shade[pi] = 0.92f + 0.16f * n2;
+                    var bareCol = Color.Lerp(_bare[pi], Sand, _shoreF[pi]) * _shade[pi];
+                    _bakePixels[pi] = new Color(bareCol.r, bareCol.g, bareCol.b, 1f);
                 }
-            tex.SetPixels(c);
+            tex.SetPixels(_bakePixels);
             tex.Apply();
-            _bakePixels = c;
             _bakeTex = tex;
             return tex;
         }

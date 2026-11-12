@@ -18,24 +18,28 @@ Destiny Garden
 
 ## 2. Short description (English)
 
-> **A tiny sacred garden on a round island in a glowing sea** — a small closed world,
-> like a garden in a bottle, with a spring, a little river and a ring of seven lights. The sky and the state of
-> your garden decide the six faces of the die — water, wind, light or seed — so the
-> die is different every time you look at it. Choose a face, make a wish, and roll.
+> **A garden in a bottle that becomes your own.** It begins with a sealed glass vessel
+> floating on a glowing sea: bare earth, a spring and a little river, four first shoots.
 >
-> Then the garden's small lives take over. Bees and butterflies carry pollen, a
-> little bird drops seeds from somewhere, fluff rides the wind; moss glows in the
-> rock shade, fireflies and mushrooms feed the soil, earthworms work below. What you
-> set in motion grows into an ecosystem you never quite planned.
+> Each roll of the die is a prayer. The sky and the state of your garden decide what the
+> six faces will bring — water, wind, light or seed — and where it falls. Choose a face,
+> make a wish, and roll.
 >
-> And now and then, a wish takes shape: faint spirits carry nourishment down to the
-> plants, and a seventh face appears on the die.
+> Then the island answers as one living whole. Fifteen kinds of flowers each grow only
+> where they can live: some take hard ground, some need soft, wet or well-drained soil,
+> some love the shade. Dandelions break the earth for lilies; sunflowers and lavender
+> drain it; irises hold the water. Bees and butterflies visit the flowers they love and
+> carry their seed onward; birds drop berries; fluff rides the wind. Moss, then grass,
+> then meadow, then trees spread from the water — and when the garden is mature, a small
+> house by the spring. Underground, the roots share what they have. No two gardens grow
+> the same.
 >
-> Made for the Official Unity Game Jam 2026. Theme: **Lucky Number** — every roll
-> is the luck of this moment. When a wish comes true, the next roll may add a 7th
-> face, the **Lucky Seven**: the blessing the garden needs most, at double
-> strength, rolled fair at 1 in 7. If the Lucky Seven makes a flower bloom, a
-> rainbow figure-8 rises over the garden and angels ascend.
+> Made for the Official Unity Game Jam 2026. Theme: **Lucky Number** — every roll is the
+> luck of this moment. Harmony is read from the last eight rolls (yin and yang, the four
+> blessings and the fifth that appears when all are present); the island's star grows
+> from five points to seven to eight. When a wish comes true, the next roll may add a
+> 7th face, the **Lucky Seven**, rolled fair at 1 in 7 — and if the garden answers it,
+> a rainbow figure-8 rises into the air above the bottle.
 
 Note on the text: the game UI and oracle messages are in **Japanese**; the title
 card has an English summary. Add this line to the page:
@@ -55,9 +59,9 @@ Mouse or touch only. No keyboard needed. Click the title card to begin.
 | **願いをかける** (left of the roll button) | Opens the wish drawer; shows your current wish. |
 | In the drawer: **意図なし / 水 / 風 / 光 / 種** | Wish for no element, or for water / wind / light / seed. Wishing never changes the faces. |
 | In the drawer: **おまかせ / 入口 / 岩陰 / ひらけた土** | Where the next roll's blessing lands (auto / inlet / rock shade / open soil). |
-| **庭の気配** (panel, bottom right) | Which small lives are in the garden right now. |
+| **庭の気配** (panel, bottom right) | Which small lives are in the garden right now, and its harmony ☯ n/8. |
 | **記録** (right menu) | Your last rolls, oracles, and what the small lives did. |
-| **庭の歩み** (right menu) | Graph of water and growth, with the honest "by chance" line for wishes. |
+| **庭の歩み** (right menu) | The flowers in bloom now, the harmony, and a graph of water and growth with the honest "by chance" line for wishes. |
 | **書き出し** (right menu) | Export records. Not available in the web version. |
 | **次の来場者** (right menu) | Start a new garden. |
 | **設定** (right menu) | Volume, mute, reduced motion, hide UI for 4 seconds. |
@@ -73,7 +77,7 @@ Sound starts after your first click or tap (browser rule).
 
 ## 5. Credits
 
-All 3D shapes, creatures, textures and sounds are generated in code at runtime. No
+All 3D shapes, plants, creatures, textures, shaders and sounds are made in code for this game. No
 Asset Store packages, no external models, textures, music or sound files.
 
 - **Font: Noto Serif JP** (Regular) — Google / Adobe, SIL Open Font License 1.1.
@@ -112,14 +116,14 @@ Asset Store packages, no external models, textures, music or sound files.
 
 - Cover image: [cover.png](cover.png) — 1260×1000 (itch.io ratio 630:500, 2× size)
 - Screenshots (1920×1080):
-  - [screenshot-1.png](screenshot-1.png) — the round island after 16 rolls, quiet HUD (WebGL build in Chromium)
-  - [screenshot-2.png](screenshot-2.png) — the rainbow figure-8 of light over a garden in bloom (macOS build of
-    the same code, QA capture `-dgWonders -dgNoUi`; the moment itself is rare in play)
-  - [screenshot-3.png](screenshot-3.png) — title card explaining the game (WebGL)
-  - [screenshot-4.png](screenshot-4.png) — the Lucky Seven added: seven faces, each 1/7; wish drawer open (WebGL)
-  - [screenshot-5.png](screenshot-5.png) — first view with the wish drawer (WebGL)
+  - [screenshot-1.png](screenshot-1.png) — after 20 rolls in light rain: meadow, trees, flowers, a relationship line (WebGL)
+  - [screenshot-2.png](screenshot-2.png) — the rainbow figure-8 in the air above the bottle (macOS build of the same code,
+    QA capture `-dgWonders -dgNoUi`; the moment itself is rare in play)
+  - [screenshot-3.png](screenshot-3.png) — opening: the whole bottle, bare earth and water, with the title card (WebGL)
+  - [screenshot-4.png](screenshot-4.png) — roll 0: bare earth, the spring and river, four first shoots (macOS, no UI)
+  - [screenshot-5.png](screenshot-5.png) — 庭の歩み: the flowers in bloom, harmony, and the honest wish meter (WebGL)
 
-Suggested order on the page: 1, 2, 4, 3 (5 is optional).
+Suggested order on the page: 3, 4, 1, 2, 5 (from the bottle to a garden of your own).
 
 ## 8. itch.io page settings
 
@@ -131,16 +135,15 @@ Suggested order on the page: 1, 2, 4, 3 (5 is optional).
 - Genre: Simulation / Classification: Games
 - Tags: unity, relaxing, garden, dice, mystical, Japanese
 
-## 9. Build and verification record (2026-11-12, final of the day)
+## 9. Build and verification record (2026-11-12 night)
 
-- Build: `BuildScripts.BuildWebGL` (Unity 6000.3.23f1, batchmode), gzip + decompression fallback,
-  custom template `Assets/WebGLTemplates/DestinyGarden` (16:9 letterbox, IndexedDB auto-persist).
-- Zip: `unity/DestinyGarden/Builds/DestinyGarden-WebGL.zip`, 22,119,849 bytes (22.1 MB), `index.html` at the root.
-  Earlier fallbacks kept next to it: `DestinyGarden-WebGL-v1-safe.zip` (first jam build),
-  `DestinyGarden-WebGL-v2-ecology.zip` (before the visual rework).
-- Unity EditMode tests: 25 passed.
-- Play-through in headless Chromium (Metal/ANGLE): title card → wish drawer → 16 rolls with wishes →
-  Lucky Seven offered and taken → records, garden journey, help → reload. **0 console errors**;
-  the garden is still there after reload.
+- Branch `feature/jam-living-island`. Zip: `unity/DestinyGarden/Builds/DestinyGarden-WebGL.zip`, 22,155,414 bytes,
+  `index.html` at the root. Earlier fallbacks next to it: v1-safe, v2-ecology, v4-flora, v5-living-island (= current).
+- Unity EditMode tests: 36 passed (core, Lucky Seven, ecology, harmony & mycorrhiza, flora).
+- Headless Chromium: title → wish drawer → 20 rolls → Lucky Seven taken → records, journey, help → reload.
+  **0 console errors**, **60 fps** at the start and after 12 rolls (1280×720, this iMac's GPU).
+- Measured rates (720 rolls, policy: wish for the most common blessing, always take the 7th face):
+  wish matched 45%, Lucky Seven rolled 6%, rainbow figure-8 about 1 in 36 rolls; harmony mean ≈5;
+  species seen in 120 rolls: 11 of 15.
 - Audio: "Audio context resumed" after the first click. Not listened to — check by ear before submitting.
-- Not tested: Safari, Firefox, phones, the real itch.io page.
+- Not tested: Safari, Firefox, phones, slower GPUs, the real itch.io page.

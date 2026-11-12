@@ -46,8 +46,8 @@ namespace DestinyGarden.Presentation
             sea.GetComponent<MeshRenderer>().receiveShadows = true;
 
             // Drifting glints on the water.
-            _sparkleMat = Transparent(sprite, ProceduralArt.SparkleTexture(), new Color(1f, 0.92f, 0.78f, 0.75f), 2990);
-            _sparkleMat.mainTextureScale = new Vector2(16f, 16f);
+            _sparkleMat = Transparent(sprite, ProceduralArt.SparkleTexture(), new Color(1f, 0.95f, 0.85f, 0.32f), 2990);
+            _sparkleMat.mainTextureScale = new Vector2(30f, 30f);
             MakeDisc("SeaGlints", 46f, SeaLevel + 0.02f, _sparkleMat);
 
             // Light hugging the shoreline of the island.
@@ -193,7 +193,7 @@ namespace DestinyGarden.Presentation
             _star.material = IslandHarmony.GlowMaterial(null, Color.white, 3001);
             _star.useWorldSpace = false;
             _star.loop = true;
-            _star.widthMultiplier = 0.06f;
+            _star.widthMultiplier = 0.035f;
             _star.shadowCastingMode = ShadowCastingMode.Off;
             _star.positionCount = 0;
         }
@@ -275,14 +275,14 @@ namespace DestinyGarden.Presentation
             {
                 _starAlpha = Mathf.MoveTowards(_starAlpha, _starTarget, Time.deltaTime * 0.4f);
                 float breathe = 0.75f + 0.25f * Mathf.Sin(t * 0.8f);
-                var sc = new Color(1f, 0.88f, 0.60f, 0.55f * _starAlpha * breathe);
+                var sc = new Color(1f, 0.86f, 0.55f, 0.20f * _starAlpha * breathe);
                 _star.startColor = sc; _star.endColor = sc;
             }
             if (_sparkleMat != null)
             {
                 _sparkleMat.mainTextureOffset = ReducedMotion ? Vector2.zero : new Vector2(t * 0.006f, t * 0.004f);
                 var c = _sparkleMat.color;
-                c.a = 0.55f + 0.25f * Mathf.Sin(t * 0.9f);
+                c.a = 0.22f + 0.10f * Mathf.Sin(t * 0.9f);
                 _sparkleMat.color = c;
             }
             if (_seaMat != null && !ReducedMotion)

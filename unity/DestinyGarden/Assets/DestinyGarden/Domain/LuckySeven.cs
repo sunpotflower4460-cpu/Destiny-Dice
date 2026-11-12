@@ -97,12 +97,27 @@ namespace DestinyGarden.Domain
             return false;
         }
 
-        /// <summary>The rainbow figure-eight appears when the Lucky Seven was rolled and a flower bloomed.</summary>
+        /// <summary>rainbow.v1: the Lucky Seven was rolled and a flower bloomed in the natural simulation.</summary>
         public static bool IsRainbow(bool luckySevenRolled, SimulationResult sim)
         {
             if (!luckySevenRolled || sim == null) return false;
             foreach (var e in sim.Events) if (e.Kind == "Bloomed") return true;
             return false;
+        }
+
+        /// <summary>
+        /// rainbow.v2: the Lucky Seven was rolled and the garden answered in the same roll: a bud
+        /// formed or a flower bloomed (by the weather and blessing, or by its small lives), or the
+        /// island reached the seven- or eight-pointed star of harmony.
+        /// </summary>
+        public static bool IsRainbow(bool luckySevenRolled, SimulationResult sim, EcologyResult eco)
+        {
+            if (!luckySevenRolled) return false;
+            if (IsRainbow(true, sim)) return true;
+            if (eco == null) return false;
+            foreach (var e in eco.Events) if (e.Kind == "Bloomed" || e.Kind == "BudFormed") return true;
+            if (sim != null) foreach (var e in sim.Events) if (e.Kind == "BudFormed") return true;
+            return eco.Harmony != null && eco.Harmony.Star >= 7;
         }
     }
 

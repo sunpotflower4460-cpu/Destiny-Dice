@@ -88,6 +88,16 @@ namespace DestinyGarden.Presentation
         public Transform DiceTransform => _dice != null ? _dice.transform : null;
         public Camera ViewCamera { get; private set; }
         public IslandFlora Flora { get; private set; }
+        private float _groundVitality = 0.02f;
+        private WorldState _lastState;
+
+        /// <summary>The ground greens with the island's vitality (repainted only when it changes).</summary>
+        public void SetGroundVitality(float vitality)
+        {
+            if (Mathf.Abs(vitality - _groundVitality) < 0.005f) return;
+            _groundVitality = vitality;
+            if (_lastState != null) IslandTerrain.PaintBeds(_lastState, DrySoil, MoistSoil, WetSoil, _groundVitality);
+        }
         private Color _sunBase = new Color(1.0f, 0.86f, 0.66f);
         private float _balance;
 
@@ -349,6 +359,7 @@ namespace DestinyGarden.Presentation
             }
 
             BuildTrees(shader);
+            BuildCottage(shader);
 
             // Drifting mist sheets around the board.
             var mistShader = Shader.Find("Sprites/Default") ?? unlit;
@@ -416,7 +427,7 @@ namespace DestinyGarden.Presentation
             blossom.SetColor("_EmissionColor", new Color(0.25f, 0.16f, 0.18f));
             var spots = new (float angle, float radius, float size, int kind)[]
             {
-                (70f, 8.4f, 1.15f, 1), (95f, 7.6f, 0.95f, 0), (118f, 8.6f, 1.25f, 2), (140f, 7.9f, 0.85f, 0),
+                (70f, 8.4f, 1.15f, 1), (86f, 7.6f, 0.95f, 0), (124f, 8.6f, 1.25f, 2), (142f, 7.9f, 0.85f, 0),
                 (35f, 8.3f, 0.9f, 2), (165f, 8.2f, 1.0f, 1), (12f, 8.0f, 0.7f, 3), (188f, 7.6f, 0.65f, 3),
                 (55f, 7.2f, 0.6f, 3), (128f, 7.0f, 0.55f, 3)
             };
@@ -428,7 +439,11 @@ namespace DestinyGarden.Presentation
                 var root = new GameObject(spots[i].kind == 3 ? "Shrub" : "Tree").transform;
                 root.SetParent(transform);
                 root.position = new Vector3(x, IslandTerrain.Height(x, z) - 0.04f, z);
-                root.localScale = Vector3.one * spots[i].size;
+                root.localScale = Vector3.zero;
+                // Grows in with the island: shrubs first, then trees, the blossom tree last.
+                float thr = spots[i].kind == 3 ? 0.40f + (i % 4) * 0.03f
+                    : spots[i].kind == 2 ? 0.78f + (i % 2) * 0.04f : 0.54f + (i % 5) * 0.035f;
+                _growers.Add(new Grower { T = root, Size = spots[i].size, Threshold = thr });
                 IslandTerrain.AddShade(x, z, (spots[i].kind == 3 ? 0.9f : 1.7f) * spots[i].size);
                 GameObject Ball(Material m, Vector3 p, float r)
                 {
@@ -460,6 +475,65 @@ namespace DestinyGarden.Presentation
                 Ball(crownMat, new Vector3(-0.38f, 1.48f, -0.16f), 0.70f);
                 Ball(spots[i].kind == 2 ? leafA : crownMat, new Vector3(0.05f, 1.98f, -0.10f), 0.62f);
                 _swaying.Add(new KeyValuePair<Transform, float>(root, i * 0.8f));
+            }
+        }
+
+        private sealed class Grower { public Transform T; public float Size; public float Threshold; }
+        private readonly List<Grower> _growers = new List<Grower>();
+
+        /// <summary>A small cottage by the spring that appears when the garden has matured.</summary>
+        private void BuildCottage(Shader shader)
+        {
+            float a = 104f * Mathf.Deg2Rad, r = 8.2f;
+            float x = 7.5f + Mathf.Cos(a) * r, z = 7.5f + Mathf.Sin(a) * r;
+            var root = new GameObject("Cottage").transform;
+            root.SetParent(transform);
+            root.position = new Vector3(x, IslandTerrain.Height(x, z) - 0.03f, z);
+            root.rotation = Quaternion.Euler(0f, 200f, 0f);
+            root.localScale = Vector3.zero;
+            var wall = Lit(shader, ProceduralArt.StoneTexture(), 0.12f);
+            wall.color = new Color(0.92f, 0.88f, 0.80f);
+            var roof = Lit(shader, ProceduralArt.MossTexture(), 0.1f);
+            roof.color = new Color(0.46f, 0.60f, 0.44f);
+            var wood = Lit(shader, ProceduralArt.WoodTexture(), 0.1f);
+            wood.color = new Color(0.55f, 0.40f, 0.30f);
+            var glow = Lit(shader, null, 0.3f);
+            glow.color = new Color(1f, 0.82f, 0.50f);
+            glow.EnableKeyword("_EMISSION");
+            glow.SetColor("_EmissionColor", new Color(2.4f, 1.6f, 0.7f));
+            GameObject Box(Material m, Vector3 p, Vector3 sc, Vector3 rot)
+            {
+                var g = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                Destroy(g.GetComponent<Collider>());
+                g.transform.SetParent(root, false);
+                g.transform.localPosition = p; g.transform.localScale = sc; g.transform.localRotation = Quaternion.Euler(rot);
+                g.GetComponent<MeshRenderer>().material = m;
+                return g;
+            }
+            Box(wall, new Vector3(0f, 0.28f, 0f), new Vector3(0.95f, 0.56f, 0.72f), Vector3.zero);
+            Box(roof, new Vector3(0f, 0.70f, 0.20f), new Vector3(1.10f, 0.06f, 0.56f), new Vector3(38f, 0f, 0f));
+            Box(roof, new Vector3(0f, 0.70f, -0.20f), new Vector3(1.10f, 0.06f, 0.56f), new Vector3(-38f, 0f, 0f));
+            Box(wood, new Vector3(0.18f, 0.20f, -0.365f), new Vector3(0.22f, 0.38f, 0.02f), Vector3.zero);
+            Box(glow, new Vector3(-0.22f, 0.32f, -0.365f), new Vector3(0.18f, 0.16f, 0.02f), Vector3.zero);
+            Box(wall, new Vector3(0.32f, 0.86f, 0.10f), new Vector3(0.12f, 0.30f, 0.12f), Vector3.zero);
+            var lampObj = new GameObject("CottageLight");
+            lampObj.transform.SetParent(root, false);
+            lampObj.transform.localPosition = new Vector3(-0.22f, 0.4f, -0.7f);
+            var lamp = lampObj.AddComponent<Light>();
+            lamp.type = LightType.Point; lamp.color = new Color(1f, 0.78f, 0.45f); lamp.range = 2.2f; lamp.intensity = 1.2f;
+            _growers.Add(new Grower { T = root, Size = 1.0f, Threshold = 0.86f });
+            IslandTerrain.AddShade(x, z, 1.0f);
+        }
+
+        private void UpdateGrowers()
+        {
+            if (Flora == null) return;
+            float v = Flora.Vitality;
+            foreach (var g in _growers)
+            {
+                float k = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((v - g.Threshold) / 0.16f));
+                g.T.localScale = Vector3.one * (g.Size * k);
+                g.T.gameObject.SetActive(k > 0.001f);
             }
         }
 
@@ -644,6 +718,8 @@ namespace DestinyGarden.Presentation
             return ps;
         }
 
+        private void LateUpdate() => UpdateGrowers();
+
         private void Update()
         {
             if (ReducedMotion) return;
@@ -673,7 +749,8 @@ namespace DestinyGarden.Presentation
 
         public void Show(WorldState state, WeatherDefinition weather)
         {
-            IslandTerrain.PaintBeds(state, DrySoil, MoistSoil, WetSoil);
+            _lastState = state;
+            IslandTerrain.PaintBeds(state, DrySoil, MoistSoil, WetSoil, _groundVitality);
             for (int id = 0; id < 256; id++)
             {
                 if (GardenMapData.SoilCapacity[id] > 0)
