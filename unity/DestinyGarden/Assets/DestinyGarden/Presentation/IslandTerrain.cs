@@ -135,15 +135,23 @@ namespace DestinyGarden.Presentation
             float d = Vector2.Distance(new Vector2(x, z), Center);
             float h = GridHeight(x, z);
             float outer = Outer(d);
-            float hills = (ProceduralArt.Fbm(x * 0.22f + 3.1f, z * 0.22f + 7.7f, 913, 3) - 0.45f) * 0.9f;
+            float hills = (ProceduralArt.Fbm(x * 0.22f + 3.1f, z * 0.22f + 7.7f, 913, 3) - 0.45f) * 1.5f;
             h += hills * outer;
+            // Low hills behind the garden and a gentle rim: the island is a shallow bowl with the garden at its heart.
+            float back = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(11.0f, 15.8f, z)) * outer;
+            h += back * (0.55f + 0.5f * ProceduralArt.Fbm(x * 0.28f + 9f, z * 0.28f + 2f, 931, 2));
+            float rim = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(7.4f, 8.9f, d)) * 0.32f;
+            h += rim;
             // Shore: fall into the sea.
             float shore = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(ShoreStart, ShoreEnd, d));
             h = Mathf.Lerp(h, SeaLevel - 0.7f, shore);
-            // River bed.
+            // River bed, cut deeper where it crosses the hills and the rim.
             float r = DistanceToRiver(x, z);
             float carve = Mathf.SmoothStep(1f, 0f, Mathf.InverseLerp(0.25f, 1.0f, r)) * outer;
-            h -= carve * 0.22f;
+            h -= carve * (0.22f + (rim + back * 0.7f) * 0.9f);
+            // The spring pool.
+            float sp = Vector2.Distance(new Vector2(x, z), RiverPath[0]);
+            h -= 0.30f * Mathf.SmoothStep(1f, 0f, Mathf.InverseLerp(0.3f, 1.1f, sp));
             return h;
         }
 
@@ -247,8 +255,9 @@ namespace DestinyGarden.Presentation
             var meadow = new Color(0.47f, 0.63f, 0.45f);
             var meadowLight = new Color(0.64f, 0.76f, 0.54f);
             var moss = new Color(0.30f, 0.46f, 0.30f);
-            var soilA = new Color(0.62f, 0.52f, 0.40f);
-            var soilB = new Color(0.50f, 0.42f, 0.33f);
+            var soilA = new Color(0.52f, 0.47f, 0.38f);
+            var soilB = new Color(0.43f, 0.40f, 0.33f);
+            var clay = new Color(0.68f, 0.62f, 0.50f);
             for (int py = 0; py < size; py++)
                 for (int px = 0; px < size; px++)
                 {
@@ -261,9 +270,10 @@ namespace DestinyGarden.Presentation
                     _meadow[pi] = Color.Lerp(col, moss, Mathf.SmoothStep(0.55f, 0.85f, n2) * 0.55f);
                     float r = DistanceToRiver(x, z);
                     var bare = Color.Lerp(soilA, soilB, Mathf.SmoothStep(0.3f, 0.7f, n2));
+                    bare = Color.Lerp(bare, clay, Mathf.SmoothStep(0.55f, 0.8f, n1) * 0.55f); // pale clay patches
                     _bare[pi] = Color.Lerp(bare, new Color(0.42f, 0.36f, 0.29f), Mathf.SmoothStep(1.6f, 0.5f, r) * 0.7f);
                     // Life spreads from the water: greening starts by the river and the spring.
-                    _greenAt[pi] = Mathf.Clamp(0.06f + Mathf.Min(0.42f, r * 0.045f) + (n1 - 0.5f) * 0.16f, 0.02f, 0.70f);
+                    _greenAt[pi] = Mathf.Clamp(0.05f + Mathf.Min(0.30f, r * 0.034f) + (n1 - 0.5f) * 0.14f, 0.02f, 0.52f);
                     // Earth under the beds as soft organic patches with a wide, noisy edge (never a frame).
                     int cx0 = Mathf.RoundToInt(x), cz0 = Mathf.RoundToInt(z);
                     // Bed density: a smooth sum over nearby soil cells (no per-cell spots), edged with noise.

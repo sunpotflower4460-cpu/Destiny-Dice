@@ -5,6 +5,7 @@
         "DestinyGarden.Domain",
         "DestinyGarden.Application",
         "DestinyGarden.Infrastructure",
+        "DestinyGarden.Presentation",
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner"
     ],

@@ -23,6 +23,9 @@ namespace DestinyGarden.Presentation
         private GardenLife _life;
         private IslandHarmony _islandHarmony;
         private int _harmonyNow = -1, _lastStar = -1;
+        private readonly QualityMonitor _quality = new QualityMonitor();
+        private float _vitalityNow;
+        private bool _birdsNow;
         private Vector3 _homePos;
         private Quaternion _homeRot;
         private bool _butterfliesShown;
@@ -98,6 +101,7 @@ namespace DestinyGarden.Presentation
             {
                 if (_busy) return;
                 if (_coordinator.AddLuckySeven() == null) return;
+                _audio.PlayLuckySeven();
                 ShowPreparedFaces();
                 _ui.ShowStatus("七つめの面が加わった。どの面も 1/7。");
             };
@@ -107,6 +111,7 @@ namespace DestinyGarden.Presentation
             _ui.ShowSiteSelection(_coordinator.PreferenceMode, _coordinator.PreferenceSiteId);
             RefreshAll();
             _view.Flora.Snap();
+            _view.SnapClock();
             _ui.ShowStatus(_coordinator.LuckySevenOffered && !_coordinator.LuckySevenAdded
                 ? "七つめの面が、そっと現れている。"
                 : "公開された面を見て、サイコロを振ってください。");
@@ -117,7 +122,7 @@ namespace DestinyGarden.Presentation
             var homeRot = cam.transform.rotation;
             _homePos = homePos; _homeRot = homeRot;
             var farPos = new Vector3(7.5f, 13.6f, -13.5f);
-            var farRot = Quaternion.LookRotation(new Vector3(7.5f, 4.6f, 9.0f) - farPos, Vector3.up);
+            var farRot = Quaternion.LookRotation(new Vector3(7.5f, 5.6f, 9.0f) - farPos, Vector3.up);
             cam.transform.SetPositionAndRotation(farPos, farRot);
             _ui.OnTitleClosed = () => StartCoroutine(GlideCamera(cam, farPos, farRot, homePos, homeRot, 3.2f));
 
@@ -153,7 +158,9 @@ namespace DestinyGarden.Presentation
         private void Update()
         {
             if (_view == null) return;
-            if (_atmosphere != null) _atmosphere.ReducedMotion = _view.ReducedMotion;
+            if (_atmosphere != null) { _atmosphere.ReducedMotion = _view.ReducedMotion; _atmosphere.SetSky(_view.Sky, _view.Phase); }
+            if (_audio != null) _audio.SetScene(_vitalityNow, _harmonyNow, _birdsNow, _view.Sky.Night);
+            if (_quality.Feed(Time.unscaledDeltaTime)) _view.ApplyQuality(_quality.Level);
             if (_wonders != null) _wonders.ReducedMotion = _view.ReducedMotion;
             if (_life != null) _life.ReducedMotion = _view.ReducedMotion;
             if (_view.Flora != null) _view.Flora.ReducedMotion = _view.ReducedMotion;
@@ -184,7 +191,7 @@ namespace DestinyGarden.Presentation
             int flowers = 0;
             foreach (var p in state.Plants) if (p.Stage == PlantStage.Flower) flowers++;
             // From bottle, soil and water to a living island: rolls (prayers), flowers and harmony.
-            return 0.04f + 0.40f * Mathf.Min(1f, state.WorldRevision / 24f) + 0.30f * Mathf.Min(1f, flowers / 10f)
+            return 0.09f + 0.38f * Mathf.Min(1f, state.WorldRevision / 24f) + 0.30f * Mathf.Min(1f, flowers / 10f)
                    + 0.26f * Mathf.Max(0, _harmonyNow) / 8f;
         }
 
@@ -215,6 +222,7 @@ namespace DestinyGarden.Presentation
             _atmosphere.SetStar(star);
             _view.SetBalance(live.Yin, live.Yang);
             _islandHarmony.ShowNetwork(_coordinator.State, value);
+            if (_lastStar >= 0 && star > _lastStar) _audio.PlayStarUp(star);
             if (_lastStar >= 0 && star > _lastStar && !_busy)
                 _ui.ShowStatus(star == 8 ? "島が、八つの光に包まれた。" : star == 7 ? "七つの灯が、星のかたちに結ばれた。" : "海の灯が、五つの光で結ばれた。");
             _lastStar = star;
@@ -261,6 +269,7 @@ namespace DestinyGarden.Presentation
             var kinds = new List<string>();
             foreach (var v in presence) kinds.Add(v.Kind);
             _ui.ShowResidents(kinds);
+            _birdsNow = kinds.Contains("bird");
             UpdateHarmony(history, kinds.Count);
             bool active = presence.Exists(v => v.Kind == Ecology.Butterfly);
             var tops = new List<Vector3>();
@@ -290,6 +299,7 @@ namespace DestinyGarden.Presentation
             if (last != null) { _view.SetDiceFace(last.FaceId); _ui.ShowMessage(last.Message, last); }
             RefreshAll(last != null ? last.FaceId : 0);
             _view.Flora.Snap();
+            _view.SnapClock();
             if (wonders)
             {
                 var tops = new List<Vector3>();
@@ -347,6 +357,9 @@ namespace DestinyGarden.Presentation
             _ui.ShowGuide(discovered);
             UpdateButterflies(history);
             float vitality = Vitality();
+            _vitalityNow = vitality;
+            _view.SetClock(_coordinator.State.WorldRevision, false);
+            _ui.SetRollPulse(_coordinator.State.WorldRevision == 0);
             _view.Flora.SetVitality(vitality);
             _view.SetGroundVitality(vitality);
         }
@@ -391,7 +404,8 @@ namespace DestinyGarden.Presentation
             RefreshAll(outcome.FaceId);
             _view.SetLuckyDice(outcome.LuckySeven);
             bool rainbow = LuckySeven.IsRainbow(outcome.LuckySeven, outcome.Simulation, outcome.Ecology);
-            if (rainbow) StartCoroutine(_wonders.PlayRainbowEight());
+            if (rainbow) { StartCoroutine(_wonders.PlayRainbowEight()); _audio.PlayRainbow(); }
+            StartCoroutine(_life.PlayGrowthMoments(outcome, _audio));
             StartCoroutine(_life.PlayRollEffects(outcome.Ecology));
             StartCoroutine(_islandHarmony.PlayPulses(outcome));
             var sown = new List<Vector3>();

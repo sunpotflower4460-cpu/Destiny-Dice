@@ -73,6 +73,7 @@ namespace DestinyGarden.Presentation
         private Material _mossMat;
         private Material _groundMat;
         private Material _riverMat;
+        private Material _fallMat;
         public Vector3 PerchPoint { get; private set; } = new Vector3(7.2f, 2.95f, 16.4f);
         private Mesh[] _rockMeshes;
         private Mesh[] _discMeshes;
@@ -105,6 +106,61 @@ namespace DestinyGarden.Presentation
         }
         private Color _sunBase = new Color(1.0f, 0.86f, 0.66f);
         private float _balance;
+
+        // ---- time of day (SkyClock), weather and quality
+        private SkyState _sky = SkyClock.Evaluate(SkyClock.PhaseFor(0f));
+        private float _clockRolls, _clockTarget;
+        private WeatherId _weatherId = WeatherId.Clear;
+        private Material _skyMat;
+        private Bloom _bloom;
+        private DepthOfField _dof;
+        private UniversalAdditionalCameraData _camData;
+        private Light _cottageLamp;
+        public SkyState Sky => _sky;
+        public void SnapClock() { _clockRolls = _clockTarget; ApplySky(); }
+        public float Phase => SkyClock.PhaseFor(_clockRolls);
+
+        /// <summary>The island's hour follows the saved rolls; transitions glide, or snap on load.</summary>
+        public void SetClock(float rolls, bool snap)
+        {
+            _clockTarget = rolls;
+            if (snap) { _clockRolls = rolls; ApplySky(); }
+        }
+
+        private void ApplySky()
+        {
+            if (_sun == null) return;
+            _sky = SkyClock.Evaluate(SkyClock.PhaseFor(_clockRolls));
+            float grey = _weatherId == WeatherId.Drizzle ? 0.6f : _weatherId == WeatherId.Cloudy ? 0.25f : 0f;
+            float wi = _weatherId == WeatherId.Clear ? 1f : _weatherId == WeatherId.Cloudy ? 0.8f : 0.7f;
+            _sunBase = Color.Lerp(_sky.Sun, new Color(0.78f, 0.84f, 0.92f), grey);
+            _sun.intensity = _sky.SunIntensity * wi;
+            _sun.transform.rotation = Quaternion.Euler(_sky.Elevation, _sky.Azimuth, 0f);
+            _fill.color = _sky.Fill;
+            _fill.intensity = _sky.FillIntensity * (_weatherId == WeatherId.Clear ? 1f : 1.25f);
+            RenderSettings.ambientLight = _sky.Ambient * (_weatherId == WeatherId.Drizzle ? 0.94f : 1f);
+            RenderSettings.fogColor = _sky.Haze;
+            if (ViewCamera != null) ViewCamera.backgroundColor = _sky.Haze;
+            if (_skyMat != null) _skyMat.SetColor("_BaseColor", _sky.Haze * 1.25f);
+            if (_bloom != null && _qualityLevel < 2) _bloom.intensity.value = 0.85f * _sky.Bloom;
+            if (_lightShaft != null) _lightShaft.SetActive(_weatherId == WeatherId.Clear && _sky.Night < 0.5f);
+            if (_cottageLamp != null) _cottageLamp.intensity = 0.3f + 1.7f * _sky.Night;
+            ApplyBalance();
+        }
+
+        // ---- quality steps for slow GPUs (QualityMonitor decides; see GardenBootstrap)
+        private int _qualityLevel;
+
+        public void ApplyQuality(int level)
+        {
+            _qualityLevel = level;
+            if (_dof != null) _dof.active = level < 1;
+            if (_camData != null) _camData.antialiasing = level < 1 ? AntialiasingMode.SubpixelMorphologicalAntiAliasing : AntialiasingMode.None;
+            if (_sun != null) _sun.shadows = level < 2 ? LightShadows.Soft : LightShadows.None;
+            if (_bloom != null) _bloom.active = level < 3;
+            var asset = UniversalRenderPipeline.asset;
+            if (asset != null) asset.renderScale = level >= 3 ? 0.7f : 1f;
+        }
 
         /// <summary>Yin and yang of the recent rolls tint the light: yin cooler, yang warmer (subtle).</summary>
         public void SetBalance(int yin, int yang)
@@ -217,6 +273,7 @@ namespace DestinyGarden.Presentation
             cam.backgroundColor = Mist;
             cam.fieldOfView = 41f;
             var camData = camObj.AddComponent<UniversalAdditionalCameraData>();
+            _camData = camData;
             camData.renderPostProcessing = true;
             camData.antialiasing = AntialiasingMode.SubpixelMorphologicalAntiAliasing;
             camData.antialiasingQuality = AntialiasingQuality.High;
@@ -226,6 +283,7 @@ namespace DestinyGarden.Presentation
             volume.isGlobal = true;
             var profile = ScriptableObject.CreateInstance<VolumeProfile>();
             var bloom = profile.Add<Bloom>(true);
+            _bloom = bloom;
             bloom.intensity.value = 0.85f;
             bloom.threshold.value = 0.78f;
             bloom.scatter.value = 0.72f;
@@ -238,6 +296,7 @@ namespace DestinyGarden.Presentation
             split.highlights.value = new Color(0.86f, 0.70f, 0.50f);
             split.balance.value = -12f;
             var dof = profile.Add<DepthOfField>(true);
+            _dof = dof;
             dof.mode.value = DepthOfFieldMode.Gaussian;
             dof.gaussianStart.value = 25f;
             dof.gaussianEnd.value = 48f;
@@ -298,7 +357,8 @@ namespace DestinyGarden.Presentation
             sky.transform.position = new Vector3(7.5f, 0, 7.5f);
             sky.transform.localScale = Vector3.one * 90f;
             var skyMat = new Material(unlit);
-            skyMat.SetTexture("_BaseMap", ProceduralArt.SkyGradient());
+            _skyMat = skyMat;
+            skyMat.SetTexture("_BaseMap", ProceduralArt.SkyTint());
             skyMat.SetInt("_Cull", (int)UnityEngine.Rendering.CullMode.Front);
             sky.GetComponent<Renderer>().material = skyMat;
             sky.GetComponent<Renderer>().shadowCastingMode = ShadowCastingMode.Off;
@@ -336,6 +396,57 @@ namespace DestinyGarden.Presentation
             springLight.range = 4.5f;
             springLight.intensity = 1.6f;
             springLight.shadows = LightShadows.None;
+
+            // The spring: a glowing pool under a small cascade falling from a rock behind it.
+            {
+                float sy = IslandTerrain.Height(spring.x, spring.y);
+                var pool = new GameObject("SpringPool");
+                pool.transform.SetParent(transform);
+                pool.transform.position = new Vector3(spring.x, sy + 0.08f, spring.y);
+                pool.AddComponent<MeshFilter>().sharedMesh = ProceduralArt.DiscMesh(0.95f, 32);
+                var poolMat = new Material(Shader.Find("Sprites/Default") ?? unlit);
+                poolMat.SetTexture("_MainTex", ProceduralArt.GlowSprite());
+                poolMat.color = new Color(0.50f, 0.92f, 1f, 0.9f);
+                poolMat.renderQueue = 2992;
+                var pr = pool.AddComponent<MeshRenderer>();
+                pr.material = poolMat;
+                pr.shadowCastingMode = ShadowCastingMode.Off;
+                var cliff = new GameObject("SpringRock");
+                cliff.transform.SetParent(transform);
+                cliff.transform.position = new Vector3(spring.x + 0.1f, sy + 0.62f, spring.y + 1.0f);
+                cliff.transform.localScale = new Vector3(1.5f, 1.7f, 1.2f);
+                cliff.transform.rotation = Quaternion.Euler(0f, 20f, 0f);
+                cliff.AddComponent<MeshFilter>().sharedMesh = _rockMeshes[1];
+                var cr = cliff.AddComponent<MeshRenderer>();
+                cr.material = _rockMat;
+                cr.shadowCastingMode = ShadowCastingMode.On;
+                IslandTerrain.AddShade(spring.x, spring.y + 1.0f, 1.2f);
+                var fall = GameObject.CreatePrimitive(PrimitiveType.Quad);
+                Destroy(fall.GetComponent<Collider>());
+                fall.name = "SpringFall";
+                fall.transform.SetParent(transform);
+                fall.transform.position = new Vector3(spring.x + 0.1f, sy + 0.62f, spring.y + 0.26f);
+                fall.transform.localScale = new Vector3(0.45f, 1.1f, 1f);
+                _fallMat = new Material(Shader.Find("Sprites/Default") ?? unlit);
+                _fallMat.SetTexture("_MainTex", ProceduralArt.RiverTexture());
+                _fallMat.color = new Color(0.85f, 0.97f, 1f, 0.9f);
+                _fallMat.renderQueue = 2993;
+                fall.GetComponent<MeshRenderer>().material = _fallMat;
+                var mistObj = new GameObject("SpringMist");
+                mistObj.transform.SetParent(transform);
+                mistObj.transform.position = new Vector3(spring.x + 0.1f, sy + 0.2f, spring.y + 0.2f);
+                var mist = mistObj.AddComponent<ParticleSystem>();
+                var mm = mist.main;
+                mm.maxParticles = 30; mm.startLifetime = 1.8f; mm.startSpeed = 0.18f; mm.startSize = new ParticleSystem.MinMaxCurve(0.3f, 0.6f);
+                mm.startColor = new Color(0.9f, 0.98f, 1f, 0.22f);
+                mm.simulationSpace = ParticleSystemSimulationSpace.World;
+                var me = mist.emission; me.rateOverTime = 7f;
+                var ms = mist.shape; ms.shapeType = ParticleSystemShapeType.Sphere; ms.radius = 0.3f;
+                var mmat = new Material(Shader.Find("Sprites/Default") ?? unlit);
+                mmat.SetTexture("_MainTex", ProceduralArt.MistSprite());
+                mmat.renderQueue = 3120;
+                mistObj.GetComponent<ParticleSystemRenderer>().material = mmat;
+            }
 
             // Stones along the shore and a few standing stones on the hills.
             var decor = new (float angle, float radius, float h, float w)[]
@@ -553,6 +664,7 @@ namespace DestinyGarden.Presentation
             lampObj.transform.localPosition = new Vector3(-0.22f, 0.4f, -0.7f);
             var lamp = lampObj.AddComponent<Light>();
             lamp.type = LightType.Point; lamp.color = new Color(1f, 0.78f, 0.45f); lamp.range = 2.2f; lamp.intensity = 1.2f;
+            _cottageLamp = lamp;
             _growers.Add(new Grower { T = root, Size = 1.0f, Threshold = 0.86f });
             IslandTerrain.AddShade(x, z, 1.0f);
         }
@@ -790,6 +902,11 @@ namespace DestinyGarden.Presentation
 
         private void Update()
         {
+            if (!Mathf.Approximately(_clockRolls, _clockTarget))
+            {
+                _clockRolls = Mathf.MoveTowards(_clockRolls, _clockTarget, Time.deltaTime * 0.45f);
+                ApplySky();
+            }
             if (ReducedMotion) return;
             float t = Time.time;
             for (int i = 0; i < _swaying.Count; i++)
@@ -804,6 +921,7 @@ namespace DestinyGarden.Presentation
                 var m = _mistPlanes[i];
                 m.position += new Vector3(Mathf.Sin(t * 0.07f + i * 1.7f), 0, Mathf.Cos(t * 0.05f + i)) * (0.12f * Time.deltaTime);
             }
+            if (_fallMat != null) _fallMat.mainTextureOffset = new Vector2(0f, Time.time * 0.7f);
             if (_riverMat != null)
             {
                 _riverMat.mainTextureOffset = new Vector2(0f, -t * 0.18f);
@@ -885,14 +1003,8 @@ namespace DestinyGarden.Presentation
 
             if (weather != null)
             {
-                _sun.intensity = weather.Id == WeatherId.Clear ? 2.40f
-                    : weather.Id == WeatherId.Cloudy ? 1.95f : 1.70f;
-                _sunBase = weather.Id == WeatherId.Drizzle
-                    ? new Color(0.78f, 0.84f, 0.92f) : new Color(1.0f, 0.86f, 0.66f);
-                ApplyBalance();
-                _fill.intensity = weather.Id == WeatherId.Clear ? 0.45f
-                    : weather.Id == WeatherId.Cloudy ? 0.55f : 0.65f;
-                _lightShaft.SetActive(weather.Id == WeatherId.Clear);
+                _weatherId = weather.Id;
+                ApplySky();
                 if (weather.Id == WeatherId.Drizzle) { if (!_rain.isPlaying) _rain.Play(); }
                 else if (_rain.isPlaying) _rain.Stop();
             }

@@ -34,6 +34,13 @@ Destiny Garden
 > house by the spring. Underground, the roots share what they have. No two gardens grow
 > the same.
 >
+> Time passes with every roll: the island moves from a clear morning through noon, gold
+> and dusk into a moonlit night (one day is sixteen rolls), and the light, the sea and the
+> sound change with it. A spring at the back of the island feeds the river through a small
+> waterfall. All the sound is synthesized in code: the sea, the stream, wind in the leaves,
+> birdsong and night insects grow with the island, a pad adds a voice with each step of
+> harmony, and every flower that opens rings its own note of one shared scale.
+>
 > Made for the Official Unity Game Jam 2026. Theme: **Lucky Number** — every roll is the
 > luck of this moment. Harmony is read from the last eight rolls (yin and yang, the four
 > blessings and the fifth that appears when all are present); the island's star grows
@@ -78,7 +85,7 @@ Sound starts after your first click or tap (browser rule).
 
 ## 5. Credits
 
-All 3D shapes, plants, creatures, textures, shaders and sounds are made in code for this game. No
+All 3D shapes, plants, creatures, textures, shaders, music and sounds are made in code for this game (no audio files). No
 Asset Store packages, no external models, textures, music or sound files.
 
 - **Font: Noto Serif JP** (Regular) — Google / Adobe, SIL Open Font License 1.1.
@@ -117,14 +124,14 @@ Asset Store packages, no external models, textures, music or sound files.
 
 - Cover image: [cover.png](cover.png) — 1260×1000 (itch.io ratio 630:500, 2× size)
 - Screenshots (1920×1080):
-  - [screenshot-1.png](screenshot-1.png) — after 20 rolls: meadow, trees of several kinds, flowers, a relationship line (WebGL)
-  - [screenshot-2.png](screenshot-2.png) — the rainbow figure-8 in the air above the bottle (macOS build of the same code,
-    QA capture `-dgWonders -dgNoUi`; the moment itself is rare in play)
+  - [screenshot-1.png](screenshot-1.png) — after 20 rolls, midday: meadow, trees, flowers (WebGL)
+  - [screenshot-2.png](screenshot-2.png) — the rainbow figure-8 in the air above the bottle, the sun in the sky
+    (macOS build of the same code, QA capture `-dgWonders -dgNoUi`; the moment itself is rare in play)
   - [screenshot-3.png](screenshot-3.png) — opening: the whole bottle, bare earth and water, with the title card (WebGL)
-  - [screenshot-4.png](screenshot-4.png) — roll 0: bare earth, the spring and river, four first shoots (macOS, no UI)
-  - [screenshot-5.png](screenshot-5.png) — 図鑑 (field guide) after 10 rolls: 10/15 flowers met, what each needs and does (WebGL)
+  - [screenshot-4.png](screenshot-4.png) — roll 0: bare earth, the spring with its waterfall, the river, four first shoots (macOS, no UI)
+  - [screenshot-5.png](screenshot-5.png) — roll 12: the same island on its first moonlit night (macOS, no UI)
 
-Suggested order on the page: 3, 4, 1, 2, 5 (from the bottle to a garden of your own).
+Suggested order on the page: 3, 4, 1, 5, 2 (from the bottle to a garden of your own, through a day and a night).
 
 ## 8. itch.io page settings
 
@@ -136,15 +143,18 @@ Suggested order on the page: 3, 4, 1, 2, 5 (from the bottle to a garden of your 
 - Genre: Simulation / Classification: Games
 - Tags: unity, relaxing, garden, dice, mystical, Japanese
 
-## 9. Build and verification record (2026-11-12 night)
+## 9. Build and verification record (2026-11-13 morning)
 
-- Branch `feature/jam-living-island`. Zip: `unity/DestinyGarden/Builds/DestinyGarden-WebGL.zip`, 22,155,414 bytes,
-  `index.html` at the root. Earlier fallbacks next to it: v1-safe, v2-ecology, v4-flora, v5-living-island (= current).
-- Unity EditMode tests: 36 passed (core, Lucky Seven, ecology, harmony & mycorrhiza, flora).
+- Branch `feature/jam-living-island`. Zip: `unity/DestinyGarden/Builds/DestinyGarden-WebGL.zip`, 22,180,011 bytes,
+  `index.html` at the root. Earlier fallbacks next to it: v1-safe, v2-ecology, v4-flora, v5-living-island, v6-polish.
+- Unity EditMode tests: 40 passed (core, Lucky Seven, ecology, harmony & mycorrhiza, flora, audio, sky clock, quality monitor).
 - Headless Chromium: title → wish drawer → 20 rolls → Lucky Seven taken → records, journey, help → reload.
   **0 console errors**, **60 fps** at the start and after 12 rolls (1280×720, this iMac's GPU).
-- Measured rates (720 rolls, policy: wish for the most common blessing, always take the 7th face):
-  wish matched 45%, Lucky Seven rolled 6%, rainbow figure-8 about 1 in 36 rolls; harmony mean ≈5;
-  species seen in 120 rolls: 11 of 15.
-- Audio: "Audio context resumed" after the first click. Not listened to — check by ear before submitting.
+- Sound: every sound was written to WAV and measured with claude-music-ear (24 files): no clipping, no DC offset,
+  peaks −4 to −10 dBFS, background layers −33 to −39 LUFS and event sounds −18 to −26 LUFS in the mix.
+  Two things measured and fixed: sea hiss was 11–14 dB too present (now 20–30 dB down), one plucked string had DC offset.
+  **Not listened to by ear** — check by ear before submitting.
+- Quality guard: if the average frame rate stays under 30 fps for 3 s (after a 5 s warm-up), the game steps down
+  (no depth of field and no antialiasing → no shadows → no bloom and 70% render scale). Logic is unit-tested;
+  never triggered here (60 fps), so the lower steps are **not seen on a real slow GPU**.
 - Not tested: Safari, Firefox, phones, slower GPUs, the real itch.io page.

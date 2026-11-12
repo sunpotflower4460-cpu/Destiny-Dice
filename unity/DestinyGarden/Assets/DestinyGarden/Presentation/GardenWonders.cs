@@ -291,7 +291,7 @@ namespace DestinyGarden.Presentation
             Vector3 camPos0 = cam.transform.position;
             Quaternion camRot0 = cam.transform.rotation;
             Vector3 camPos1 = new Vector3(7.5f, 13.2f, -12.5f);
-            Quaternion camRot1 = Quaternion.LookRotation(new Vector3(7.5f, 5.2f, 9.0f) - camPos1, Vector3.up);
+            Quaternion camRot1 = Quaternion.LookRotation(new Vector3(7.5f, 6.4f, 9.0f) - camPos1, Vector3.up);
             if (!ReducedMotion) StartCoroutine(MoveCamera(cam, camPos0, camRot0, camPos1, camRot1, 2.6f));
             root.rotation = Quaternion.LookRotation((center - camPos1).normalized, Vector3.up);
 

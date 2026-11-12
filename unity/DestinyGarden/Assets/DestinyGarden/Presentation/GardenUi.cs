@@ -360,6 +360,14 @@ namespace DestinyGarden.Presentation
 
         public void SetRollEnabled(bool enabled) => _rollButton.interactable = enabled;
 
+        private bool _rollPulse = true;
+        /// <summary>A gentle breathing of the roll button until the first roll (so a new visitor knows where to begin).</summary>
+        public void SetRollPulse(bool on)
+        {
+            _rollPulse = on;
+            if (!on && _rollButton != null) _rollButton.transform.localScale = Vector3.one;
+        }
+
         public void ShowHeader(string weatherLabel, string siteLabel, int revision)
         {
             _header.text = $"空: {weatherLabel}　届け先: {siteLabel}　{revision}投目まで記録";
@@ -421,6 +429,8 @@ namespace DestinyGarden.Presentation
 
         private void Update()
         {
+            if (_rollPulse && _rollButton != null)
+                _rollButton.transform.localScale = Vector3.one * (1f + 0.035f * (0.5f + 0.5f * Mathf.Sin(Time.unscaledTime * 3.2f)));
             if (_luckyChipMode == "offer" && _faceChips[6] != null)
             {
                 float k = 0.5f + 0.5f * Mathf.Sin(Time.unscaledTime * 4f);

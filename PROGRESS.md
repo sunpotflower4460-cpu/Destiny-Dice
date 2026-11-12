@@ -2027,3 +2027,23 @@ Git diff whitespace check: pass
 - Presentation: TreeForms.cs（新規）、FoliageMesh.cs、GardenView.cs、GardenUi.cs、GardenBootstrap.cs、IslandFlora.cs
 - Application: HistoryProjector.cs
 - docs/jam-submission/（SUBMISSION.md・cover・screenshot-1〜5）、PROGRESS.md
+
+## Jam v7: 時の流れ・音・地形・開花の瞬間・品質ガード（2026-11-13 朝）
+### 完了したこと
+- 時の流れ（Presentation/SkyClock.cs）: 投数だけで決まる朝→昼→金色の午後→夕→月夜（1日=16投）。太陽・補助光・環境光・霞・海の色・ブルーム・七つの灯・光の粒が連動。空に太陽・月・星（瓶を引いた視点・始まりの視点で見える）。夜は泉の家の灯りが強まる。保存された投数から決まるので同じ庭は同じ時刻に見える。
+- 音（Presentation/AudioSynth.cs・GardenAudio.cs）: すべてコード合成。海・川・葉ずれ・小鳥・夜の虫が島の生命度に応じて育ち、調和が上がるごとに和音（パッド）の声が増える。D長調ペンタトニックで統一。花が咲くたびに種ごとの音が鳴る（種15種×3オクターブ）、芽吹き・幸運の七・星の段階・虹に専用の音。小さなホール残響つき。
+- 音の実測（claude-music-ear、24ファイル）: クリップ0、DCなし、ピーク −4〜−10 dBFS、背景 −33〜−39 LUFS／出来事 −18〜−26 LUFS。海の高域が強すぎ（−11〜−14 dB）、弦にDC（−49.8 dB）があったので修正し、再測定で全24ファイル警告なし。**耳での確認は未実施。**
+- 地形: 奥の丘・縁・川の谷を深く。泉に光る池と小さな滝・霧。
+- 花が開く瞬間: 開いた花は種の色で光と花びらを散らし、その種の音を鳴らす（1投4つまで）。芽吹きは小さな光。
+- 品質ガード（QualityMonitor）: 平均30fps未満が3秒続くと段階的に軽くする（被写界深度とAA→影→ブルームと描画70%）。判定ロジックはテスト済み。この環境は60fpsで作動せず、軽い側の見た目は実機未確認。
+- 最初のロールボタンがゆっくり呼吸して始め方を示す。
+### 完了基準の結果（コマンド出力の要約）
+- Unity EditMode tests: green（40 passed）
+- WebGL: Succeeded、zip 22,180,011 bytes。ヘッドレス Chromium で20投の通しプレイ、コンソールエラー0、60fps。
+### 要確定・申し送り
+- 本人: 音の実聴（特に音量バランス）、itch.io への提出、Team と画像生成ツール名。
+- 遅いGPU・Safari・スマホは未確認。
+### 触ったファイル
+- Presentation: SkyClock.cs・AudioSynth.cs（新規）、GardenAudio.cs、GardenView.cs、SacredAtmosphere.cs、IslandTerrain.cs、GardenLife.cs、GardenBootstrap.cs、GardenUi.cs、GardenWonders.cs、PlantForms.cs、ProceduralArt.cs
+- Tests: PresentationTests.cs（新規）、asmdef
+- docs/jam-submission/、PROGRESS.md

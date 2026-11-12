@@ -26,6 +26,79 @@ namespace DestinyGarden.Presentation
         private float _starAlpha, _starTarget;
         private const float RingRadius = 13.4f;
         private Material _bottleMat;
+        private Material _orbMat;
+        private ParticleSystem _motes;
+        private Material _starsMat, _sunMat, _moonMat;
+        private Transform _sun, _moon;
+        private float _night;
+        private Vector3 _orbBase = new Vector3(3.4f, 2.8f, 1.6f);
+
+        /// <summary>The sea, the lights and the sky follow the hour (SkyClock).</summary>
+        public void SetSky(SkyState sky, float phase)
+        {
+            _night = sky.Night;
+            if (_seaMat != null)
+            {
+                _seaMat.SetColor("_EmissionColor", sky.SeaTint);
+                _seaMat.SetColor("_BaseColor", Color.Lerp(Color.white, new Color(0.62f, 0.72f, 1f), sky.Night * 0.7f));
+            }
+            if (_orbMat != null) _orbMat.SetColor("_EmissionColor", (Vector4)_orbBase * (0.85f + 0.9f * sky.Night));
+            if (_motes != null) { var e = _motes.emission; e.rateOverTime = 10f + 28f * sky.Night; }
+            if (_starsMat != null) _starsMat.color = new Color(1f, 1f, 1f, Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.35f, 0.9f, sky.Night)) * 0.9f);
+            PlaceBody(_sun, _sunMat, SkyClock.BodyPosition(phase, false), sky.Sun, 1f - sky.Night);
+            PlaceBody(_moon, _moonMat, SkyClock.BodyPosition(phase, true), new Color(0.86f, 0.92f, 1f), sky.Night);
+        }
+
+        private static void PlaceBody(Transform t, Material m, Vector3 pos, Color color, float strength)
+        {
+            if (t == null) return;
+            t.position = pos;
+            float up = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(3.0f, 7f, pos.y));
+            m.color = new Color(color.r, color.g, color.b, 0.85f * up * Mathf.Clamp01(strength * 1.4f));
+        }
+
+        /// <summary>Stars, a sun and a moon in the sky behind the island (seen when the camera draws back).</summary>
+        private void BuildCelestial()
+        {
+            var glow = ProceduralArt.GlowSprite();
+            var starsObj = new GameObject("Stars");
+            starsObj.transform.SetParent(transform, false);
+            var ps = starsObj.AddComponent<ParticleSystem>();
+            var main = ps.main;
+            main.playOnAwake = false; main.loop = false; main.maxParticles = 220;
+            main.simulationSpace = ParticleSystemSimulationSpace.World;
+            main.startSpeed = 0f; main.startLifetime = 1e7f;
+            var em = ps.emission; em.enabled = false;
+            var rng = new System.Random(2026);
+            for (int i = 0; i < 200; i++)
+            {
+                float az = (float)rng.NextDouble() * Mathf.PI, el = 0.18f + (float)rng.NextDouble() * 1.1f;
+                var dir = new Vector3(Mathf.Cos(az) * Mathf.Cos(el), Mathf.Sin(el), Mathf.Sin(az) * Mathf.Cos(el));
+                ps.Emit(new ParticleSystem.EmitParams
+                {
+                    position = Center + dir * 38f, velocity = Vector3.zero, startLifetime = 1e7f,
+                    startSize = 0.5f + (float)rng.NextDouble() * 0.9f,
+                    startColor = new Color(1f, 0.95f, 0.9f, 0.35f + (float)rng.NextDouble() * 0.65f)
+                }, 1);
+            }
+            _starsMat = IslandHarmony.GlowMaterial(glow, new Color(1f, 1f, 1f, 0f), 2980);
+            starsObj.GetComponent<ParticleSystemRenderer>().material = _starsMat;
+
+            Transform Disc(string name, float size, out Material mat, int queue)
+            {
+                var q = GameObject.CreatePrimitive(PrimitiveType.Quad);
+                Destroy(q.GetComponent<Collider>());
+                q.name = name;
+                q.transform.SetParent(transform, false);
+                q.transform.localScale = Vector3.one * size;
+                mat = IslandHarmony.GlowMaterial(glow, new Color(1f, 1f, 1f, 0f), queue);
+                q.GetComponent<MeshRenderer>().material = mat;
+                q.AddComponent<Billboard>();
+                return q.transform;
+            }
+            _sun = Disc("Sun", 11f, out _sunMat, 2985);
+            _moon = Disc("Moon", 5f, out _moonMat, 2986);
+        }
 
         public void Build()
         {
@@ -60,6 +133,7 @@ namespace DestinyGarden.Presentation
             BuildMotes(sprite);
             BuildStar();
             BuildBottle();
+            BuildCelestial();
         }
 
         private GameObject MakeDisc(string name, float radius, float y, Material mat)
@@ -112,6 +186,7 @@ namespace DestinyGarden.Presentation
             var orbMat = new Material(lit) { color = new Color(1f, 0.95f, 0.85f) };
             orbMat.EnableKeyword("_EMISSION");
             orbMat.SetColor("_EmissionColor", new Color(3.4f, 2.8f, 1.6f));
+            _orbMat = orbMat;
             var glowTex = ProceduralArt.GlowSprite();
             for (int i = 0; i < 7; i++)
             {
@@ -180,6 +255,7 @@ namespace DestinyGarden.Presentation
             mat.SetTexture("_MainTex", ProceduralArt.GlowSprite());
             mat.renderQueue = 3200;
             obj.GetComponent<ParticleSystemRenderer>().material = mat;
+            _motes = ps;
             ps.Play();
         }
 

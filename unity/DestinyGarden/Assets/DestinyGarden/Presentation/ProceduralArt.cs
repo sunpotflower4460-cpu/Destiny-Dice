@@ -300,6 +300,13 @@ namespace DestinyGarden.Presentation
             return mesh;
         }
 
+        /// <summary>White-to-grey vertical gradient (horizon bright, zenith darker); tinted by the sky colour.</summary>
+        public static Texture2D SkyTint() => MakeTex("SkyTint", 64, (u, v) =>
+        {
+            float k = Mathf.Lerp(1f, 0.45f, Mathf.SmoothStep(0.5f, 1f, v));
+            return new Color(k, k, k, 1f);
+        }, false);
+
         public static Texture2D SkyGradient() => MakeTex("Sky", 64, (u, v) =>
             Color.Lerp(new Color(0.05f, 0.14f, 0.18f), new Color(0.01f, 0.03f, 0.05f), v), false);
 

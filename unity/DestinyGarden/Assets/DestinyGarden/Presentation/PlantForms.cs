@@ -63,6 +63,17 @@ namespace DestinyGarden.Presentation
             P(0.92f, Leaves.Fine, Bloom.Trumpet, Green, new Color(0.86f, 0.84f, 0.74f), new Color(1f, 0.72f, 0.78f), new Color(1f, 0.98f, 0.94f), new Color(0.80f, 0.48f, 0.20f), 6, 0.20f, 0.06f, -0.55f, 0.35f, 0.02f),
         };
 
+        /// <summary>The colour a flower of this saved species shows when it opens (for the opening burst).</summary>
+        public static Color BloomColor(string speciesId)
+        {
+            if (speciesId != null && ById.TryGetValue(speciesId, out var sp))
+            {
+                var pr = Profiles[(int)sp];
+                return Color.Lerp(pr.PetalBase, pr.PetalTip, 0.5f);
+            }
+            return new Color(1f, 0.9f, 0.7f);
+        }
+
         public static string LabelJa(Species s)
         {
             switch (s)

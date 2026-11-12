@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
+using DestinyGarden.Application;
 using DestinyGarden.Domain;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -303,6 +304,47 @@ namespace DestinyGarden.Presentation
             new Dictionary<ParticleSystem, KeyValuePair<List<int>, float>>();
 
         /// <summary>Right after a roll: seeds carried, nourishment glints, fish, petals.</summary>
+        /// <summary>
+        /// The moments the garden grows: each flower that opened in this roll bursts in its own colour and
+        /// rings its own note; a seed that sprouted glints softly. Only events that were saved are shown,
+        /// a few at a time so a busy roll stays quiet.
+        /// </summary>
+        public IEnumerator PlayGrowthMoments(RollOutcome o, GardenAudio audio)
+        {
+            if (o == null || o.Simulation == null) yield break;
+            var events = new List<GardenEvent>(o.Simulation.Events);
+            if (o.Ecology != null) events.AddRange(o.Ecology.Events);
+            var post = o.Ecology != null ? o.Ecology.PostState : o.Simulation.PostState;
+            int blooms = 0, sprouts = 0;
+            foreach (var e in events)
+            {
+                if (e.Kind == "Bloomed" && blooms < 4)
+                {
+                    blooms++;
+                    var plant = post.PlantAt(e.CellId);
+                    string sp = plant != null ? plant.Species : null;
+                    int idx = Mathf.Max(0, DestinyGarden.Domain.Flora.IndexOf(sp));
+                    var c = PlantForms.BloomColor(sp);
+                    if (audio != null) audio.PlayBloom(idx);
+                    var at = View.CellTop(e.CellId) + Vector3.up * 0.5f;
+                    _seedGlints.transform.position = at;
+                    _seedGlints.Emit(new ParticleSystem.EmitParams { startColor = new Color(c.r, c.g, c.b, 1f) }, 22);
+                    _petals.transform.position = at;
+                    _petals.Emit(new ParticleSystem.EmitParams { startColor = new Color(c.r, c.g, c.b, 0.95f) }, 9);
+                    yield return new WaitForSeconds(ReducedMotion ? 0.05f : 0.24f);
+                }
+                else if (e.Kind == "Germinated" && sprouts < 2)
+                {
+                    sprouts++;
+                    var plant = post.PlantAt(e.CellId);
+                    int idx = Mathf.Max(0, DestinyGarden.Domain.Flora.IndexOf(plant != null ? plant.Species : null));
+                    if (audio != null && blooms == 0) audio.PlaySprout(idx);
+                    _seedGlints.transform.position = View.CellTop(e.CellId) + Vector3.up * 0.2f;
+                    _seedGlints.Emit(new ParticleSystem.EmitParams { startColor = new Color(0.8f, 1f, 0.7f, 1f) }, 7);
+                }
+            }
+        }
+
         public IEnumerator PlayRollEffects(EcologyResult eco)
         {
             if (eco == null) yield break;
