@@ -50,3 +50,4 @@ unity/*/UserSettings/
 unity/*/*.csproj
 unity/*/*.sln
 unity/*/*.slnx
+unity/*/.utmp/
