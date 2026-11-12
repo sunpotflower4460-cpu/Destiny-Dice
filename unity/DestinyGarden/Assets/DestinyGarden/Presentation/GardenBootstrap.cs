@@ -291,6 +291,11 @@ namespace DestinyGarden.Presentation
             bool rainbow = LuckySeven.IsRainbow(outcome.LuckySeven, outcome.Simulation);
             if (rainbow) StartCoroutine(_wonders.PlayRainbowEight());
             StartCoroutine(_life.PlayRollEffects(outcome.Ecology));
+            var sown = new List<Vector3>();
+            foreach (var ev in outcome.Simulation.Events)
+                if (ev.Kind == "SeedPlaced") sown.Add(_view.CellTop(ev.CellId) + Vector3.up * 0.05f);
+            if (sown.Count > 0 && _view.DiceTransform != null)
+                StartCoroutine(_life.PlaySowing(_view.DiceTransform.position + Vector3.up * 0.4f, sown, () => _audio.PlayGrowthAccent()));
             var spirit = outcome.Ecology != null ? outcome.Ecology.Visit(Ecology.Spirit) : null;
             if (spirit != null)
             {

@@ -18,7 +18,8 @@ Destiny Garden
 
 ## 2. Short description (English)
 
-> **A tiny sacred garden on an island in a twilight sea.** The sky and the state of
+> **A tiny sacred garden on a round island in a glowing sea** — a small closed world,
+> like a garden in a bottle, with a spring, a little river and a ring of seven lights. The sky and the state of
 > your garden decide the six faces of the die — water, wind, light or seed — so the
 > die is different every time you look at it. Choose a face, make a wish, and roll.
 >
@@ -49,10 +50,11 @@ Mouse or touch only. No keyboard needed. Click the title card to begin.
 | Button (Japanese label) | What it does |
 | --- | --- |
 | **サイコロを振る** (big button, bottom centre) | Roll the die. |
-| Face chips (coloured by blessing: blue water, green wind, gold light, brown seed) | This round's faces. Tap one to wish for that number. A blessing on several faces comes up more often. |
+| Face pills (row above the roll button, coloured by blessing: blue water, green wind, gold light, brown seed) | This round's faces. Tap one to wish for that number. A blessing on several faces comes up more often. |
 | **★ 七つめの面を加える** (gold chip, only after a wish came true) | Add the 7th face, the Lucky Seven, to this roll. All seven faces are then 1 in 7. |
-| **意図なし / 水 / 風 / 光 / 種** | Wish for no element, or for water / wind / light / seed. Wishing never changes the faces. |
-| **おまかせ / 入口 / 岩陰 / ひらけた土** | Where the next roll's blessing lands (auto / inlet / rock shade / open soil). |
+| **願いをかける** (left of the roll button) | Opens the wish drawer; shows your current wish. |
+| In the drawer: **意図なし / 水 / 風 / 光 / 種** | Wish for no element, or for water / wind / light / seed. Wishing never changes the faces. |
+| In the drawer: **おまかせ / 入口 / 岩陰 / ひらけた土** | Where the next roll's blessing lands (auto / inlet / rock shade / open soil). |
 | **庭の気配** (panel, bottom right) | Which small lives are in the garden right now. |
 | **記録** (right menu) | Your last rolls, oracles, and what the small lives did. |
 | **庭の歩み** (right menu) | Graph of water and growth, with the honest "by chance" line for wishes. |
@@ -108,17 +110,16 @@ Asset Store packages, no external models, textures, music or sound files.
 
 ## 7. Images
 
-All taken from the WebGL build running in Chromium (1920×1080), fresh garden.
-
 - Cover image: [cover.png](cover.png) — 1260×1000 (itch.io ratio 630:500, 2× size)
-- Screenshots:
-  - [screenshot-1.png](screenshot-1.png) — after 10 rolls: the oracle for the rolled face, flowers in bloom
-  - [screenshot-2.png](screenshot-2.png) — wishing on a number before rolling
-  - [screenshot-3.png](screenshot-3.png) — the moment of a roll (blessing landing on the board)
-  - [screenshot-4.png](screenshot-4.png) — drizzle weather: same garden idea, different sky, different faces
-  - [screenshot-5.png](screenshot-5.png) — a new garden, roll 0
+- Screenshots (1920×1080):
+  - [screenshot-1.png](screenshot-1.png) — the round island after 16 rolls, quiet HUD (WebGL build in Chromium)
+  - [screenshot-2.png](screenshot-2.png) — the rainbow figure-8 of light over a garden in bloom (macOS build of
+    the same code, QA capture `-dgWonders -dgNoUi`; the moment itself is rare in play)
+  - [screenshot-3.png](screenshot-3.png) — title card explaining the game (WebGL)
+  - [screenshot-4.png](screenshot-4.png) — the Lucky Seven added: seven faces, each 1/7; wish drawer open (WebGL)
+  - [screenshot-5.png](screenshot-5.png) — first view with the wish drawer (WebGL)
 
-Suggested order on the page: 1, 4, 2, 3 (5 is optional).
+Suggested order on the page: 1, 2, 4, 3 (5 is optional).
 
 ## 8. itch.io page settings
 
@@ -130,24 +131,16 @@ Suggested order on the page: 1, 4, 2, 3 (5 is optional).
 - Genre: Simulation / Classification: Games
 - Tags: unity, relaxing, garden, dice, mystical, Japanese
 
-## 9. Build and verification record (2026-11-12)
+## 9. Build and verification record (2026-11-12, final of the day)
 
-- Build: `BuildScripts.BuildWebGL` (Unity 6000.3.23f1, batchmode), gzip +
-  decompression fallback, custom template `Assets/WebGLTemplates/DestinyGarden`.
-- Rebuild: from `unity/DestinyGarden`
-  `Unity -batchmode -quit -projectPath . -buildTarget WebGL -executeMethod DestinyGarden.EditorTools.BuildScripts.BuildWebGL`,
-  then `cd Builds/WebGL && zip -qr -X ../DestinyGarden-WebGL.zip . -x ".*"`.
-- Zip: 21,996,735 bytes (22.0 MB), 6 files, `index.html` at the root.
-- Play-through in headless Chromium (Metal/ANGLE), served from localhost:
-  load ≈ 9 s; wish on a face, roll ×3, oracle, Records, Garden journey,
-  Export (web message), Settings — **0 console errors**.
-- Save: after reload the header still showed "3投目まで記録" and the same faces
-  (IndexedDB persistence through `autoSyncPersistentDataPath`).
-- Frames 1280×720, 960×760 and 1400×600 all letterbox to 16:9, nothing cropped.
-- Audio: the browser log shows "Audio context resumed" after the first click.
-  Sound was **not listened to** (headless) — check by ear once before submitting.
+- Build: `BuildScripts.BuildWebGL` (Unity 6000.3.23f1, batchmode), gzip + decompression fallback,
+  custom template `Assets/WebGLTemplates/DestinyGarden` (16:9 letterbox, IndexedDB auto-persist).
+- Zip: `unity/DestinyGarden/Builds/DestinyGarden-WebGL.zip`, 22,119,849 bytes (22.1 MB), `index.html` at the root.
+  Earlier fallbacks kept next to it: `DestinyGarden-WebGL-v1-safe.zip` (first jam build),
+  `DestinyGarden-WebGL-v2-ecology.zip` (before the visual rework).
+- Unity EditMode tests: 25 passed.
+- Play-through in headless Chromium (Metal/ANGLE): title card → wish drawer → 16 rolls with wishes →
+  Lucky Seven offered and taken → records, garden journey, help → reload. **0 console errors**;
+  the garden is still there after reload.
+- Audio: "Audio context resumed" after the first click. Not listened to — check by ear before submitting.
 - Not tested: Safari, Firefox, phones, the real itch.io page.
-
-Known layout issues present before the WebGL work (not fixed, game unchanged):
-a two-line oracle message touches the header line; the caption under the
-"庭の歩み" graph overlaps the bars.

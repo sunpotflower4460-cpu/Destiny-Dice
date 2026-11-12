@@ -1965,3 +1965,26 @@ Git diff whitespace check: pass
 - Presentation: GardenBootstrap.cs、GardenUi.cs、GardenView.cs、ProceduralArt.cs、SacredAtmosphere.cs・GardenWonders.cs・GardenLife.cs（新規）
 - Tests: LuckySevenTests.cs、EcologyTests.cs（新規）
 - docs/unity-garden/ECOLOGY.md（新規）、docs/jam-submission/、PROGRESS.md（本追記）
+
+## Jam v3: 見た目の磨き込み — 丸い聖なる島・川・種の多様さ・静かなUI (2026-11-12)
+### 完了したこと
+- 本人の講評（世俗的な虹→神秘的に、暗い、四角い盤面、花が一種類で配置が一定、瓶の中の世界・凹凸・川、透明感、左下の表示は裏へ）を受けて見た目を作り直した。ゲームの規則・保存・シミュレーションは変更なし。
+- 島: 16×16 の盤面とセルの立方体・木枠をやめ、丸い一枚の地形（Presentation/IslandTerrain.cs）に。庭の範囲では各セルのモデル高さをそのまま通るので、植物・水たまり・演出の位置はシミュレーションと一致。外側は丘と砂浜、海へ。
+- 川: 庭の後ろの泉から西の海へ流れる景観としての川（水のモデルには含めない）。泉の光、流れるテクスチャ。
+- 苗床: 土の盛り上がりメッシュをやめ、島の表面テクスチャに土を描き込む方式に（各セルの湿りを滑らかに補間、毎投更新）。継ぎ目・格子感なし。
+- 花: 6種（サイコロ由来・初期はコスモス／デイジー／ホタルブクロ、生き物が運んだ種はキンポウゲ／ラベンダー／野ばら）。株ごとの高さ・傾き・位置の揺らぎ。
+- 島の木と低木、牧草の群生、小さな野花、小石。明るく透明感のある色調（霞・露出・海の浅瀬・彩度控えめ）。
+- 虹の八: 線で描くのをやめ、淡いプリズムの光として空気から凝結し、呼吸し、上へ溶ける演出に。天使は小さく淡く。
+- UI: 面は中央の細い列、「願いをかける」で引き出し（願う恵み・届け先）を開閉。ガラス調の半透明パネル、ふちの光、文字の影。画面の縁に瓶のガラス越しのような光。
+- 種まきの瞬間: サイコロ由来の種はサイコロから光の弧で土へ降り、着地で小さな音。
+### 完了基準の結果（コマンド出力の要約）
+- Unity EditMode tests: green（25 passed）
+- WebGL: Succeeded、zip 22,119,849 bytes。ヘッドレス Chromium で16投の通しプレイ・七の取得・再読み込み、コンソールエラー0。
+- macOS player（QA撮影用）: Succeeded。手元の台帳は毎回バックアップから復元（SHA一致）。
+### 要確定・申し送り（次フェーズへ）
+- 本人: 音を耳で確認、itch.io へのアップロードと提出、SUBMISSION.md の Team と生成AI開示の [ ]。
+- 虹の八は約80投に1回（変更なし）。
+- QA撮影は macOS player の `-batchmode` で行う（画面ロック中は通常起動だと描画が止まる）。
+### 触ったファイル
+- Presentation: IslandTerrain.cs（新規）、GardenView.cs、GardenUi.cs、GardenWonders.cs、GardenLife.cs、SacredAtmosphere.cs、ProceduralArt.cs、GardenBootstrap.cs
+- docs/jam-submission/（SUBMISSION.md、cover.png、screenshot-1〜5）、PROGRESS.md（本追記）

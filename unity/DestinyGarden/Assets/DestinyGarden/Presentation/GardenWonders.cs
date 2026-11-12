@@ -198,10 +198,10 @@ namespace DestinyGarden.Presentation
             main.maxParticles = 80;
             main.startLifetime = new ParticleSystem.MinMaxCurve(5.0f, 7.0f);
             main.startSpeed = 0f;
-            main.startSize = new ParticleSystem.MinMaxCurve(0.38f, 0.66f);
+            main.startSize = new ParticleSystem.MinMaxCurve(0.30f, 0.52f);
             main.gravityModifier = -0.035f;
             main.simulationSpace = ParticleSystemSimulationSpace.World;
-            main.startColor = new Color(1f, 0.98f, 0.92f, 0.85f);
+            main.startColor = new Color(1f, 0.97f, 0.90f, 0.42f);
             var emission = _angels.emission;
             emission.rateOverTime = 0f;
             var sheet = _angels.textureSheetAnimation;
@@ -250,117 +250,140 @@ namespace DestinyGarden.Presentation
             return new Vector2(a * s * c / d, a * c / d);
         }
 
+        /// <summary>Soft prismatic band texture: transparent edges across the width, faint shimmer along it.</summary>
+        private static Texture2D _bandTex;
+        private static Texture2D BandTexture()
+        {
+            if (_bandTex != null) return _bandTex;
+            const int w = 64, h = 32;
+            _bandTex = new Texture2D(w, h, TextureFormat.RGBA32, false) { name = "Band", wrapMode = TextureWrapMode.Repeat };
+            var c = new Color[w * h];
+            for (int y = 0; y < h; y++)
+                for (int x = 0; x < w; x++)
+                {
+                    float across = Mathf.Sin(y / (float)(h - 1) * Mathf.PI);
+                    float shimmer = 0.80f + 0.20f * Mathf.Sin(x / (float)w * Mathf.PI * 6f);
+                    c[y * w + x] = new Color(1f, 1f, 1f, across * across * shimmer);
+                }
+            _bandTex.SetPixels(c);
+            _bandTex.Apply();
+            return _bandTex;
+        }
+
+        /// <summary>Pale spectral tint: the rainbow as light seen through mist, not paint.</summary>
+        private static Color Pale(Color c, float alpha) =>
+            new Color(Mathf.Lerp(c.r, 1f, 0.45f), Mathf.Lerp(c.g, 1f, 0.45f), Mathf.Lerp(c.b, 1f, 0.45f), alpha);
+
+        /// <summary>
+        /// The figure-eight of light. It does not draw itself like a stroke: it condenses out of
+        /// the air as a faint, breathing prism of light, angels half-seen within it, then rises
+        /// and dissolves into motes.
+        /// </summary>
         public IEnumerator PlayRainbowEight()
         {
             var cam = View != null ? View.ViewCamera : Camera.main;
             Vector3 center = new Vector3(7.5f, 3.0f, 7.5f);
-            Quaternion facing = Quaternion.LookRotation(cam.transform.forward, Vector3.up);
             var root = new GameObject("RainbowEight").transform;
             root.SetParent(transform);
             root.position = center;
-            root.rotation = facing;
+            root.rotation = Quaternion.LookRotation(cam.transform.forward, Vector3.up);
 
-            const int points = 140;
+            const int points = 160;
             const float baseA = 2.6f;
+            var tex = BandTexture();
             var lines = new List<LineRenderer>();
-            var mats = new List<Material>();
-            // Soft white halo behind the bands.
-            var haloObj = new GameObject("Halo");
-            haloObj.transform.SetParent(root, false);
-            haloObj.transform.localPosition = new Vector3(0f, 0f, 0.05f);
-            var halo = haloObj.AddComponent<LineRenderer>();
-            var haloMat = new Material(_sprite) { renderQueue = 3290 };
-            halo.material = haloMat;
-            halo.useWorldSpace = false;
-            halo.widthMultiplier = 1.25f;
-            halo.numCapVertices = 6;
-            halo.startColor = halo.endColor = new Color(1f, 0.97f, 0.9f, 0.10f);
-            halo.positionCount = 0;
-            for (int band = 0; band < Rainbow.Length; band++)
+            LineRenderer Band(string name, float width, int queue, float z)
             {
-                var obj = new GameObject("Band" + band);
+                var obj = new GameObject(name);
                 obj.transform.SetParent(root, false);
+                obj.transform.localPosition = new Vector3(0f, 0f, z);
                 var line = obj.AddComponent<LineRenderer>();
-                // Vertex-coloured bands stay vivid (lit lines shaded the rainbow grey).
-                var m = new Material(_sprite) { renderQueue = 3300 + band };
-                line.startColor = line.endColor = new Color(Rainbow[band].r, Rainbow[band].g, Rainbow[band].b, 0.92f);
+                var m = new Material(_sprite) { renderQueue = queue, mainTexture = tex };
                 line.material = m;
+                line.textureMode = LineTextureMode.Tile;
                 line.useWorldSpace = false;
-                line.loop = false;
-                line.widthMultiplier = 0.13f;
-                line.numCapVertices = 4;
+                line.loop = true;
+                line.widthMultiplier = width;
+                line.numCapVertices = 0;
                 line.shadowCastingMode = ShadowCastingMode.Off;
-                line.positionCount = 0;
-                lines.Add(line);
-                mats.Add(m);
+                line.positionCount = points;
+                return line;
             }
-
-            Vector3 PointOn(int band, int i)
+            Vector3 PointOn(float a, int i)
             {
-                float t = i / (float)(points - 1) * Mathf.PI * 2f;
-                var p = Eight(t, baseA + (3 - band) * 0.13f);
+                float t = i / (float)points * Mathf.PI * 2f;
+                var p = Eight(t, a);
                 return new Vector3(p.x, p.y, 0f);
             }
-
-            // Draw the eight, band by band, as it rises.
-            float draw = ReducedMotion ? 0.01f : 2.2f;
-            for (float time = 0f; time <= draw; time += Time.deltaTime)
+            // A wide veil of light first, then seven pale overlapping bands.
+            var veil = Band("Veil", 1.6f, 3290, 0.06f);
+            for (int i = 0; i < points; i++) veil.SetPosition(i, PointOn(baseA, i));
+            for (int band = 0; band < Rainbow.Length; band++)
             {
-                float k = Mathf.SmoothStep(0f, 1f, time / draw);
-                int count = Mathf.Max(2, Mathf.RoundToInt(points * k));
+                var line = Band("Band" + band, 0.30f, 3300 + band, -band * 0.004f);
+                for (int i = 0; i < points; i++) line.SetPosition(i, PointOn(baseA + (3 - band) * 0.085f, i));
+                lines.Add(line);
+            }
+
+            void SetAlpha(float k, float time)
+            {
+                veil.startColor = veil.endColor = new Color(1f, 0.97f, 0.92f, 0.09f * k);
                 for (int band = 0; band < lines.Count; band++)
                 {
-                    lines[band].positionCount = count;
-                    for (int i = 0; i < count; i++) lines[band].SetPosition(i, PointOn(band, i));
+                    float breathe = 0.85f + 0.15f * Mathf.Sin(time * 1.4f + band * 0.7f);
+                    lines[band].startColor = lines[band].endColor = Pale(Rainbow[band], 0.30f * k * breathe);
                 }
-                halo.positionCount = count;
-                for (int i = 0; i < count; i++) halo.SetPosition(i, PointOn(3, i));
-                var tip = root.TransformPoint(PointOn(3, count - 1));
-                _sparkles.transform.position = tip;
-                _sparkles.Emit(new ParticleSystem.EmitParams { startColor = Rainbow[Random.Range(0, 7)] }, 3);
+            }
+
+            // Condense out of the air.
+            float appear = ReducedMotion ? 0.01f : 3.2f;
+            for (float time = 0f; time < appear; time += Time.deltaTime)
+            {
+                float k = Mathf.SmoothStep(0f, 1f, time / appear);
+                SetAlpha(k, time);
+                root.localScale = Vector3.one * Mathf.Lerp(0.92f, 1f, k);
+                if (Random.value < 0.5f)
+                {
+                    _sparkles.transform.position = root.TransformPoint(PointOn(baseA, Random.Range(0, points)));
+                    _sparkles.Emit(new ParticleSystem.EmitParams { startColor = Pale(Rainbow[Random.Range(0, 7)], 0.8f) }, 1);
+                }
                 yield return null;
             }
 
-            // Angels rise from the eight.
-            int angels = 30;
-            for (int n = 0; n < angels; n++)
+            // Angels are glimpsed within the light, a few at a time.
+            for (int n = 0; n < 24; n++)
             {
                 float t = Random.Range(0f, Mathf.PI * 2f);
                 var local = Eight(t, baseA);
                 var pos = root.TransformPoint(new Vector3(local.x, local.y, 0f));
-                var vel = (root.TransformDirection(new Vector3(local.x, 0f, 0f)).normalized * Random.Range(0.25f, 0.7f))
-                          + Vector3.up * Random.Range(0.35f, 0.75f);
+                var vel = (root.TransformDirection(new Vector3(local.x, 0f, 0f)).normalized * Random.Range(0.12f, 0.35f))
+                          + Vector3.up * Random.Range(0.25f, 0.5f);
                 _angels.Emit(new ParticleSystem.EmitParams { position = pos, velocity = vel, applyShapeToPosition = false }, 1);
-                if (n % 3 == 0) yield return new WaitForSeconds(0.08f);
+                yield return new WaitForSeconds(0.14f);
             }
 
-            // Hold with a slow shimmer, then fade.
-            float hold = ReducedMotion ? 2f : 5.5f;
+            // Breathe, then rise and dissolve.
+            float hold = ReducedMotion ? 2f : 3.5f;
+            float elapsed = appear;
             for (float time = 0f; time < hold; time += Time.deltaTime)
             {
-                for (int band = 0; band < lines.Count; band++)
-                {
-                    float a = 0.80f + 0.15f * Mathf.Sin(time * 3f + band * 0.6f);
-                    lines[band].startColor = lines[band].endColor = new Color(Rainbow[band].r, Rainbow[band].g, Rainbow[band].b, a);
-                }
-                halo.startColor = halo.endColor = new Color(1f, 0.97f, 0.9f, 0.10f + 0.05f * Mathf.Sin(time * 2f));
-                if (Random.value < 0.6f)
-                {
-                    int i = Random.Range(0, points);
-                    _sparkles.transform.position = root.TransformPoint(PointOn(Random.Range(0, 7), i));
-                    _sparkles.Emit(new ParticleSystem.EmitParams { startColor = Color.white }, 2);
-                }
+                elapsed += Time.deltaTime;
+                SetAlpha(1f, elapsed);
                 yield return null;
             }
-            for (float time = 0f; time < 1.6f; time += Time.deltaTime)
+            float fade = 3.0f;
+            Vector3 start = root.position;
+            for (float time = 0f; time < fade; time += Time.deltaTime)
             {
-                float k = 1f - time / 1.6f;
-                for (int band = 0; band < lines.Count; band++)
+                elapsed += Time.deltaTime;
+                float k = 1f - Mathf.SmoothStep(0f, 1f, time / fade);
+                SetAlpha(k, elapsed);
+                root.position = start + Vector3.up * (time / fade) * 0.8f;
+                if (Random.value < 0.7f)
                 {
-                    lines[band].startColor = lines[band].endColor = new Color(Rainbow[band].r, Rainbow[band].g, Rainbow[band].b, 0.92f * k);
-                    lines[band].widthMultiplier = 0.13f * (0.4f + 0.6f * k);
+                    _sparkles.transform.position = root.TransformPoint(PointOn(baseA, Random.Range(0, points)));
+                    _sparkles.Emit(new ParticleSystem.EmitParams { startColor = new Color(1f, 0.96f, 0.88f, 0.7f) }, 1);
                 }
-                halo.startColor = halo.endColor = new Color(1f, 0.97f, 0.9f, 0.10f * k);
                 yield return null;
             }
             Destroy(root.gameObject);

@@ -47,16 +47,9 @@ namespace DestinyGarden.Presentation
 
             // Light hugging the shoreline of the island.
             _shoreMat = Transparent(sprite, ProceduralArt.ShoreGlow(), new Color(0.75f, 0.95f, 1f, 0.85f), 2995);
-            var shore = GameObject.CreatePrimitive(PrimitiveType.Quad);
-            shore.name = "ShoreGlow";
-            shore.transform.SetParent(transform);
-            shore.transform.position = Center + new Vector3(0f, SeaLevel + 0.03f, 0f);
-            shore.transform.rotation = Quaternion.Euler(90f, 0f, 0f);
-            shore.transform.localScale = new Vector3(31f, 31f, 1f);
-            Destroy(shore.GetComponent<Collider>());
-            var shoreRenderer = shore.GetComponent<MeshRenderer>();
-            shoreRenderer.material = _shoreMat;
-            shoreRenderer.shadowCastingMode = ShadowCastingMode.Off;
+            // Round shoreline: the island meets the sea at about 11 units from the centre.
+            _shoreMat.mainTexture = ProceduralArt.RingGlow(11.0f / 13f, 0.035f);
+            MakeDisc("ShoreGlow", 13f, SeaLevel + 0.03f, _shoreMat);
 
             BuildSevenLights(lit, sprite);
             BuildMotes(sprite);

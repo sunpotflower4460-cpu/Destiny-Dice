@@ -148,7 +148,7 @@ namespace DestinyGarden.Presentation
 
         private void BuildBird()
         {
-            _perch = new Vector3(7.2f, 2.95f, 16.4f);
+            _perch = View != null ? View.PerchPoint : new Vector3(7.2f, 2.95f, 16.4f);
             _bird = new GameObject("SmallBird").transform;
             _bird.SetParent(transform);
             _bird.position = _perch;
@@ -336,6 +336,32 @@ namespace DestinyGarden.Presentation
                         }
             }
             yield return null;
+        }
+
+        /// <summary>The die sows: each seed glides from the die to its cell and lands with a glint.</summary>
+        public IEnumerator PlaySowing(Vector3 from, List<Vector3> tops, System.Action onLand)
+        {
+            for (int i = 0; i < tops.Count; i++)
+            {
+                StartCoroutine(Sow(from, tops[i], onLand));
+                yield return new WaitForSeconds(0.25f);
+            }
+        }
+
+        private IEnumerator Sow(Vector3 from, Vector3 top, System.Action onLand)
+        {
+            float time = ReducedMotion ? 0.25f : 1.1f;
+            float lift = 1.6f + Vector3.Distance(from, top) * 0.12f;
+            for (float t = 0f; t < time; t += Time.deltaTime)
+            {
+                float k = Mathf.SmoothStep(0f, 1f, t / time);
+                _seedGlints.transform.position = Vector3.Lerp(from, top, k) + Vector3.up * Mathf.Sin(k * Mathf.PI) * lift;
+                _seedGlints.Emit(new ParticleSystem.EmitParams { startColor = new Color(1f, 0.90f, 0.62f, 0.95f) }, 1);
+                yield return null;
+            }
+            _seedGlints.transform.position = top + Vector3.up * 0.12f;
+            _seedGlints.Emit(new ParticleSystem.EmitParams { startColor = new Color(1f, 0.95f, 0.75f, 1f) }, 16);
+            onLand?.Invoke();
         }
 
         private IEnumerator SeedFall(Vector3 top, string carrier)

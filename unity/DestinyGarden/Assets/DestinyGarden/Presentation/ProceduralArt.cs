@@ -116,13 +116,25 @@ namespace DestinyGarden.Presentation
             float near = Mathf.Clamp01(1f - d * 1.15f);
             float swell = Fbm(u * 18f, v * 18f, 211, 4);
             float ripple = Mathf.Sin((u * 0.6f + v) * 140f + swell * 9f) * 0.5f + 0.5f;
-            var deep = new Color(0.010f, 0.030f, 0.075f);
-            var lagoon = new Color(0.040f, 0.230f, 0.300f);
+            var deep = new Color(0.05f, 0.16f, 0.27f);
+            var lagoon = new Color(0.20f, 0.62f, 0.66f);
             var c = Color.Lerp(deep, lagoon, near * near);
             c += new Color(0.05f, 0.09f, 0.12f) * (swell - 0.45f) * 0.9f;
             c += new Color(0.10f, 0.16f, 0.18f) * Mathf.Pow(ripple, 6f) * (0.25f + near * 0.6f);
             return new Color(Mathf.Max(0, c.r), Mathf.Max(0, c.g), Mathf.Max(0, c.b), 1f);
         }, false);
+
+        /// <summary>River water: soft banks across u, flowing light streaks along v (tiles along the flow).</summary>
+        public static Texture2D RiverTexture() => MakeTex("River", 128, (u, v) =>
+        {
+            float bank = Mathf.Sin(u * Mathf.PI);
+            float a = Mathf.Clamp01(bank * 1.6f) * 0.92f;
+            float streak = Fbm(u * 5f, v * 3f, 818, 3);
+            float glint = Mathf.Pow(Mathf.Clamp01(Fbm(u * 9f + 3f, v * 6f, 819, 2) * 1.6f - 0.6f), 3f);
+            var c = Color.Lerp(new Color(0.20f, 0.62f, 0.78f), new Color(0.55f, 0.90f, 0.98f), streak);
+            c = Color.Lerp(c, Color.white, glint * 0.8f);
+            return new Color(c.r, c.g, c.b, a);
+        });
 
         /// <summary>Scattered glints for a scrolling sparkle layer on the sea.</summary>
         public static Texture2D SparkleTexture() => MakeTex("Sparkle", 256, (u, v) =>
@@ -135,6 +147,16 @@ namespace DestinyGarden.Presentation
             float a = Mathf.Clamp01(1f - (Mathf.Abs(dx) * 4f + Mathf.Abs(dy) * 1.2f)) * (h - 0.8f) * 5f;
             return new Color(1f, 0.95f, 0.82f, a);
         });
+
+        /// <summary>Radial ring of soft light for the round island's shoreline (disc uv: 0.5 = centre, 1 = rim).</summary>
+        public static Texture2D RingGlow(float ringAt, float width) => MakeTex("RingGlow", 512, (u, v) =>
+        {
+            float r = Vector2.Distance(new Vector2(u, v), new Vector2(0.5f, 0.5f)) * 2f;
+            float foam = Mathf.Exp(-Mathf.Pow((r - ringAt) / width, 2f)) * 0.85f
+                         + Mathf.Exp(-Mathf.Pow((r - ringAt - width) / (width * 3f), 2f)) * 0.30f;
+            float n = Fbm(u * 40f, v * 40f, 404, 3);
+            return new Color(0.85f, 0.97f, 1f, Mathf.Clamp01(foam * (0.65f + n * 0.7f)));
+        }, false);
 
         /// <summary>Glow that hugs the outside of the square island (shoreline foam light).</summary>
         public static Texture2D ShoreGlow() => MakeTex("Shore", 256, (u, v) =>
@@ -226,6 +248,39 @@ namespace DestinyGarden.Presentation
             return tex;
         }
 
+        /// <summary>
+        /// Screen overlay that makes the view feel like looking into a glass vessel: a faint cool
+        /// rim of light at the edges and two soft curved reflections. Mostly transparent.
+        /// </summary>
+        public static Texture2D GlassEdge()
+        {
+            const int w = 320, h = 180;
+            var tex = new Texture2D(w, h, TextureFormat.RGBA32, false) { name = "GlassEdge", wrapMode = TextureWrapMode.Clamp };
+            var c = new Color[w * h];
+            for (int y = 0; y < h; y++)
+                for (int x = 0; x < w; x++)
+                {
+                    float u = x / (float)(w - 1), v = y / (float)(h - 1);
+                    // Elliptical vessel edge.
+                    float ex = (u - 0.5f) / 0.5f, ey = (v - 0.5f) / 0.5f;
+                    float r = Mathf.Sqrt(ex * ex * 0.92f + ey * ey * 1.05f);
+                    float rim = Mathf.Clamp01((r - 0.86f) / 0.40f);
+                    float a = rim * rim * 0.34f;
+                    var col = new Color(0.62f, 0.82f, 0.92f, a);
+                    // Curved reflections: left tall arc, right thin arc.
+                    float arcL = Mathf.Abs(u - (0.075f + 0.05f * Mathf.Pow(v - 0.5f, 2) * 4f));
+                    float sL = Mathf.Clamp01(1f - arcL / 0.016f) * Mathf.Clamp01(1f - Mathf.Abs(v - 0.52f) / 0.36f);
+                    float arcR = Mathf.Abs(u - (0.935f - 0.04f * Mathf.Pow(v - 0.5f, 2) * 4f));
+                    float sR = Mathf.Clamp01(1f - arcR / 0.008f) * Mathf.Clamp01(1f - Mathf.Abs(v - 0.60f) / 0.22f);
+                    float s = Mathf.Max(sL * 0.16f, sR * 0.12f);
+                    if (s > 0f) col = new Color(Mathf.Lerp(col.r, 1f, 0.7f), Mathf.Lerp(col.g, 1f, 0.7f), 1f, Mathf.Max(col.a, s));
+                    c[y * w + x] = col;
+                }
+            tex.SetPixels(c);
+            tex.Apply();
+            return tex;
+        }
+
         /// <summary>Flat disc mesh (radius r, rings x segments) with uv spanning [0,1] across the diameter.</summary>
         public static Mesh DiscMesh(float radius, int segments)
         {
@@ -256,9 +311,9 @@ namespace DestinyGarden.Presentation
                 float x = u * size, y = v * size;
                 float cx = Mathf.Clamp(x, radius, size - radius), cy = Mathf.Clamp(y, radius, size - radius);
                 float d = Vector2.Distance(new Vector2(x, y), new Vector2(cx, cy));
-                if (d > radius) return new Color(1, 1, 1, 0);
-                if (d > radius - 2) return new Color(0.75f, 0.85f, 0.85f, 0.85f);
-                return Color.white;
+                // Feathered glass edge, no bright rim (the rim read as a stock button).
+                float a = Mathf.Clamp01((radius - d) / 2.2f);
+                return new Color(1f, 1f, 1f, a);
             }, false);
         }
 

@@ -27,6 +27,27 @@ namespace DestinyGarden.Presentation
         private Button _rollButton;
         private readonly Button[] _faceChips = new Button[7];
         private string _luckyChipMode = "hidden"; // hidden | offer | face
+        private Button _wishToggle;
+        private GameObject _drawer;
+        private static float FaceWidth(int i) => i == 6 ? 204f : 128f;
+
+        /// <summary>Centres the visible face pills as one row (6, or 7 with the Lucky Seven).</summary>
+        private void LayoutFaces(int count)
+        {
+            const float gap = 10f;
+            float total = 0f;
+            for (int i = 0; i < count; i++) total += FaceWidth(i) + (i > 0 ? gap : 0f);
+            float x = -total / 2f;
+            for (int i = 0; i < 7; i++)
+            {
+                var rect = _faceChips[i].GetComponent<RectTransform>();
+                if (i < count)
+                {
+                    rect.anchoredPosition = new Vector2(x + FaceWidth(i) / 2f, 148f);
+                    x += FaceWidth(i) + gap;
+                }
+            }
+        }
         private Text _facesLabel;
         private GameObject _titleCard;
         private readonly Dictionary<string, Button> _intentChips = new Dictionary<string, Button>();
@@ -40,25 +61,49 @@ namespace DestinyGarden.Presentation
         public GardenAudio Audio;
         public GardenView View;
 
-        private static readonly Color PanelColor = new Color(0.015f, 0.05f, 0.07f, 0.92f);
-        private static readonly Color ChipColor = new Color(0.03f, 0.10f, 0.14f, 0.96f);
-        private static readonly Color ChipActive = new Color(0.75f, 0.45f, 0.12f, 1.0f);
-        private static readonly Color GoldText = new Color(0.018f, 0.010f, 0.002f);
+        // Glass palette: translucent deep water, pale gold for what is chosen.
+        private static readonly Color PanelColor = new Color(0.012f, 0.035f, 0.055f, 0.66f);
+        private static readonly Color ChipColor = new Color(0.02f, 0.05f, 0.075f, 0.46f);
+        private static readonly Color ChipActive = new Color(0.86f, 0.70f, 0.40f, 0.92f);
+        private static readonly Color GoldText = new Color(0.07f, 0.045f, 0.01f);
+        private static readonly Color Hairline = new Color(1f, 0.93f, 0.78f, 0.16f);
+        private static readonly Color GoldLine = new Color(1f, 0.82f, 0.48f, 0.85f);
         private static readonly Color TextColor = new Color(0.888f, 0.871f, 0.791f);
         private static readonly Color WishOutline = new Color(0.45f, 1f, 0.95f, 1f);
-        private static readonly Color LuckyGold = new Color(1f, 0.80f, 0.30f, 1f);
+        private static readonly Color LuckyGold = new Color(0.95f, 0.80f, 0.48f, 0.88f);
 
         /// <summary>One colour per blessing, shared by face chips and wish chips.</summary>
         public static Color ElementColor(string element)
         {
             switch (element)
             {
-                case "water": return new Color(0.05f, 0.21f, 0.38f, 0.96f);
-                case "wind": return new Color(0.06f, 0.25f, 0.21f, 0.96f);
-                case "light": return new Color(0.33f, 0.26f, 0.05f, 0.96f);
-                case "seed": return new Color(0.27f, 0.15f, 0.06f, 0.96f);
+                case "water": return new Color(0.05f, 0.16f, 0.29f, 0.72f);
+                case "wind": return new Color(0.05f, 0.19f, 0.16f, 0.72f);
+                case "light": return new Color(0.26f, 0.21f, 0.07f, 0.72f);
+                case "seed": return new Color(0.21f, 0.13f, 0.06f, 0.72f);
                 default: return ChipColor;
             }
+        }
+
+        /// <summary>Bright hairline for a blessing, so colour reads as an edge of light, not a block.</summary>
+        public static Color ElementLine(string element)
+        {
+            switch (element)
+            {
+                case "water": return new Color(0.45f, 0.78f, 1f, 0.55f);
+                case "wind": return new Color(0.50f, 0.95f, 0.78f, 0.55f);
+                case "light": return new Color(1f, 0.88f, 0.45f, 0.55f);
+                case "seed": return new Color(0.95f, 0.70f, 0.45f, 0.55f);
+                default: return Hairline;
+            }
+        }
+
+        private static void SetLine(Button chip, Color color, float width)
+        {
+            var o = chip.GetComponent<Outline>();
+            if (o == null) return;
+            o.effectColor = color;
+            o.effectDistance = new Vector2(width, -width);
         }
 
         private static string ElementOfRecipe(string recipeId) =>
@@ -92,6 +137,16 @@ namespace DestinyGarden.Presentation
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(1600, 900);
             canvasObj.AddComponent<GraphicRaycaster>();
+
+            // Glass vessel edge: drawn first so every control sits above it; never takes clicks.
+            var glass = new GameObject("GlassEdge");
+            glass.transform.SetParent(canvasObj.transform, false);
+            var glassImg = glass.AddComponent<RawImage>();
+            glassImg.texture = ProceduralArt.GlassEdge();
+            glassImg.raycastTarget = false;
+            var glassRect = glass.GetComponent<RectTransform>();
+            glassRect.anchorMin = Vector2.zero; glassRect.anchorMax = Vector2.one;
+            glassRect.offsetMin = Vector2.zero; glassRect.offsetMax = Vector2.zero;
             if (FindFirstObjectByType<UnityEngine.EventSystems.EventSystem>() == null)
             {
                 var es = new GameObject("EventSystem");
@@ -105,11 +160,11 @@ namespace DestinyGarden.Presentation
             _messageCard = MakeText(canvasObj.transform, new Vector2(0.5f, 1f), new Vector2(0f, -104f),
                 new Vector2(940f, 76f), 27, TextAnchor.MiddleCenter);
             AddBacking(_messageCard, new Vector2(18f, 6f));
-            _status = MakeText(canvasObj.transform, new Vector2(0.5f, 0f), new Vector2(0f, 144f),
-                new Vector2(560f, 34f), 19, TextAnchor.MiddleCenter);
+            _status = MakeText(canvasObj.transform, new Vector2(0.5f, 0f), new Vector2(0f, 214f),
+                new Vector2(720f, 30f), 18, TextAnchor.MiddleCenter);
             AddBacking(_status, new Vector2(12f, 4f));
 
-            // Face chips (tap = wish for that face number).
+            // Published faces: a slim centred row (tap = wish for that face). Laid out in ShowFaces.
             for (int i = 0; i < 7; i++)
             {
                 int face = i + 1;
@@ -119,45 +174,59 @@ namespace DestinyGarden.Presentation
                     if (_luckyChipMode == "offer") OnAddLuckySeven?.Invoke();
                     else if (_luckyChipMode == "face") OnIntentSelected?.Invoke("face", "7");
                 };
-                _faceChips[i] = MakeChip(canvasObj.transform, new Vector2(0f, 0f),
-                    new Vector2(24f + i * 148f, 180f), new Vector2(face == 7 ? 196f : 140f, 52f), "", 19, click);
-                var outline = _faceChips[i].gameObject.AddComponent<Outline>();
-                outline.effectColor = WishOutline;
-                outline.effectDistance = new Vector2(3f, -3f);
-                outline.enabled = false;
+                _faceChips[i] = MakeChip(canvasObj.transform, new Vector2(0.5f, 0f),
+                    new Vector2(0f, 148f), new Vector2(FaceWidth(i), 46f), "", 16, click);
             }
             _faceChips[6].gameObject.SetActive(false);
-            _facesLabel = MakeLabel(canvasObj.transform, new Vector2(24f, 236f), "", 16);
+            _facesLabel = MakeText(canvasObj.transform, new Vector2(0.5f, 0f), new Vector2(0f, 118f),
+                new Vector2(900f, 24f), 14, TextAnchor.MiddleCenter);
+            _facesLabel.color = new Color(0.86f, 0.92f, 0.90f, 0.85f);
 
-            // Intent family chips.
+            _rollButton = MakeChip(canvasObj.transform, new Vector2(0.5f, 0f),
+                new Vector2(0f, 36f), new Vector2(300f, 72f), "サイコロを振る", 26,
+                () => OnRoll?.Invoke());
+            _rollButton.GetComponent<Image>().color = new Color(0.035f, 0.06f, 0.08f, 0.62f);
+            _rollButton.GetComponentInChildren<Text>().color = new Color(1f, 0.89f, 0.64f);
+            SetLine(_rollButton, GoldLine, 2f);
+
+            // Wishes and destination live in a drawer, out of sight until wanted.
+            _wishToggle = MakeChip(canvasObj.transform, new Vector2(0.5f, 0f), new Vector2(-268f, 50f),
+                new Vector2(196f, 44f), "願いをかける", 17, () => _drawer.SetActive(!_drawer.activeSelf));
+            _drawer = new GameObject("WishDrawer");
+            _drawer.transform.SetParent(canvasObj.transform, false);
+            var drawerImg = _drawer.AddComponent<Image>();
+            drawerImg.sprite = Rounded;
+            drawerImg.type = Image.Type.Sliced;
+            drawerImg.color = new Color(PanelColor.r, PanelColor.g, PanelColor.b, 0.66f);
+            var drawerRect = _drawer.GetComponent<RectTransform>();
+            drawerRect.anchorMin = drawerRect.anchorMax = new Vector2(0f, 0f);
+            drawerRect.pivot = new Vector2(0f, 0f);
+            drawerRect.anchoredPosition = new Vector2(20f, 236f);
+            drawerRect.sizeDelta = new Vector2(660f, 208f);
+            var drawer = _drawer.transform;
+
             string[] intentKeys = { "none", "water", "wind", "light", "seed" };
             string[] intentLabels = { "意図なし", "水", "風", "光", "種" };
             for (int i = 0; i < intentKeys.Length; i++)
             {
                 string key = intentKeys[i];
-                _intentChips[key] = MakeChip(canvasObj.transform, new Vector2(0f, 0f),
-                    new Vector2(24f + i * 118f, 100f), new Vector2(110f, 46f), intentLabels[i], 19,
+                _intentChips[key] = MakeChip(drawer, new Vector2(0f, 0f),
+                    new Vector2(16f + i * 126f, 112f), new Vector2(118f, 44f), intentLabels[i], 18,
                     () => OnIntentSelected?.Invoke(key == "none" ? "none" : "family", key == "none" ? null : key));
             }
-            MakeLabel(canvasObj.transform, new Vector2(24f, 150f), "願う恵み（色は面と同じ）", 17);
+            MakeLabel(drawer, new Vector2(16f, 166f), "願う恵み（面の色と同じ）", 16);
 
-            // Site chips (apply from the next preparation).
             string[] siteKeys = { "auto", "inlet", "shade", "meadow" };
             string[] siteLabels = { "おまかせ", "入口", "岩陰", "ひらけた土" };
             for (int i = 0; i < siteKeys.Length; i++)
             {
                 string key = siteKeys[i];
-                _siteChips[key] = MakeChip(canvasObj.transform, new Vector2(0f, 0f),
-                    new Vector2(24f + i * 148f, 20f), new Vector2(140f, 46f), siteLabels[i], 19,
+                _siteChips[key] = MakeChip(drawer, new Vector2(0f, 0f),
+                    new Vector2(16f + i * 158f, 14f), new Vector2(150f, 44f), siteLabels[i], 18,
                     () => OnSiteSelected?.Invoke(key == "auto" ? "auto" : "fixed", key == "auto" ? null : key));
             }
-            MakeLabel(canvasObj.transform, new Vector2(24f, 70f), "次からの届け先", 17);
-
-            _rollButton = MakeChip(canvasObj.transform, new Vector2(0.5f, 0f),
-                new Vector2(0f, 62f), new Vector2(300f, 78f), "サイコロを振る", 27,
-                () => OnRoll?.Invoke());
-            _rollButton.GetComponent<Image>().color = new Color(0.694f, 0.392f, 0.076f, 1.0f);
-            _rollButton.GetComponentInChildren<Text>().color = GoldText;
+            MakeLabel(drawer, new Vector2(16f, 66f), "次からの届け先", 16);
+            _drawer.SetActive(false);
 
             // Right-side menu.
             MakeChip(canvasObj.transform, new Vector2(1f, 1f), new Vector2(-96f, -60f), new Vector2(150f, 48f),
@@ -188,7 +257,7 @@ namespace DestinyGarden.Presentation
             var img = bg.AddComponent<Image>();
             img.sprite = Rounded;
             img.type = Image.Type.Sliced;
-            img.color = new Color(PanelColor.r, PanelColor.g, PanelColor.b, 0.62f);
+            img.color = new Color(PanelColor.r, PanelColor.g, PanelColor.b, 0.34f);
             var src = text.GetComponent<RectTransform>();
             var rect = bg.GetComponent<RectTransform>();
             rect.anchorMin = src.anchorMin; rect.anchorMax = src.anchorMax;
@@ -287,9 +356,10 @@ namespace DestinyGarden.Presentation
         public void ShowFaces(string[] faces, int rolledFaceId, int wishedFaceId = 0)
         {
             int n = faces != null ? faces.Length : 6;
+            LayoutFaces(n == 7 || _luckyChipMode == "offer" ? 7 : 6);
             _facesLabel.text = n == 7
-                ? "今回の7面 — 7面目は「幸運の七」（その恵みが2倍）。どの面も1/7で出ます"
-                : "今回の6面 — 押すとその目を願う（同じ恵みの面が多いほど出やすい）";
+                ? "7面目は「幸運の七」（その恵みが2倍）。どの面も 1/7"
+                : "押した面に願いをかける・同じ恵みの面が多いほど出やすい";
             for (int i = 0; i < 7; i++)
             {
                 var chip = _faceChips[i];
@@ -304,7 +374,7 @@ namespace DestinyGarden.Presentation
                         label.text = "★ 七つめの面を加える";
                         chip.GetComponent<Image>().color = LuckyGold;
                         label.color = GoldText;
-                        chip.GetComponent<Outline>().enabled = false;
+                        SetLine(chip, GoldLine, 2f);
                         continue;
                     }
                     if (!present) continue;
@@ -314,9 +384,11 @@ namespace DestinyGarden.Presentation
                     : "";
                 bool rolled = rolledFaceId == i + 1;
                 bool wished = wishedFaceId == i + 1 && !rolled;
-                chip.GetComponent<Image>().color = rolled ? ChipActive
-                    : present ? ElementColor(ElementOfRecipe(faces[i])) : ChipColor;
-                chip.GetComponent<Outline>().enabled = wished;
+                string el = present ? ElementOfRecipe(faces[i]) : null;
+                chip.GetComponent<Image>().color = rolled ? ChipActive : present ? ElementColor(el) : ChipColor;
+                if (wished) SetLine(chip, WishOutline, 2.5f);
+                else if (i == 6 && present) SetLine(chip, GoldLine, 1.5f);
+                else SetLine(chip, present ? ElementLine(el) : Hairline, 1f);
                 label.color = rolled ? GoldText : i == 6 ? new Color(1f, 0.88f, 0.55f) : TextColor;
             }
         }
@@ -331,7 +403,7 @@ namespace DestinyGarden.Presentation
                 _faceChips[6].GetComponentInChildren<Text>().text = "★ 七つめの面を加える";
                 _faceChips[6].GetComponent<Image>().color = LuckyGold;
                 _faceChips[6].GetComponentInChildren<Text>().color = GoldText;
-                _faceChips[6].GetComponent<Outline>().enabled = false;
+                SetLine(_faceChips[6], GoldLine, 2f);
             }
         }
 
@@ -340,7 +412,7 @@ namespace DestinyGarden.Presentation
             if (_luckyChipMode == "offer" && _faceChips[6] != null)
             {
                 float k = 0.5f + 0.5f * Mathf.Sin(Time.unscaledTime * 4f);
-                _faceChips[6].GetComponent<Image>().color = Color.Lerp(LuckyGold, new Color(1f, 0.95f, 0.70f), k);
+                _faceChips[6].GetComponent<Image>().color = Color.Lerp(LuckyGold, new Color(1f, 0.93f, 0.75f, 0.95f), k);
             }
         }
 
@@ -440,10 +512,20 @@ namespace DestinyGarden.Presentation
 
         public void ShowIntentSelection(string kind, string value)
         {
+            if (_wishToggle != null)
+            {
+                string label = kind == "face" && value != null ? $"願い：{value}の目"
+                    : kind == "family" && value != null ? "願い：" + (value == "water" ? "水" : value == "wind" ? "風" : value == "light" ? "光" : "種")
+                    : "願いをかける";
+                _wishToggle.GetComponentInChildren<Text>().text = label;
+                bool wishing = kind == "face" || kind == "family";
+                SetLine(_wishToggle, wishing ? WishOutline : Hairline, wishing ? 1.5f : 1f);
+            }
             foreach (var kv in _intentChips)
             {
                 bool active = (kind == "none" && kv.Key == "none") || (kind == "family" && kv.Key == value);
                 kv.Value.GetComponent<Image>().color = active ? ChipActive : ElementColor(kv.Key);
+                SetLine(kv.Value, active ? GoldLine : ElementLine(kv.Key), active ? 1.5f : 1f);
                 kv.Value.GetComponentInChildren<Text>().color = active ? GoldText : TextColor;
             }
         }
@@ -454,6 +536,7 @@ namespace DestinyGarden.Presentation
             {
                 bool active = (mode == "auto" && kv.Key == "auto") || (mode == "fixed" && kv.Key == siteId);
                 kv.Value.GetComponent<Image>().color = active ? ChipActive : ChipColor;
+                SetLine(kv.Value, active ? GoldLine : Hairline, active ? 1.5f : 1f);
                 kv.Value.GetComponentInChildren<Text>().color = active ? GoldText : TextColor;
             }
         }
@@ -565,6 +648,9 @@ namespace DestinyGarden.Presentation
             text.color = TextColor;
             text.horizontalOverflow = HorizontalWrapMode.Wrap;
             text.verticalOverflow = VerticalWrapMode.Overflow;
+            var shadow = obj.AddComponent<Shadow>();
+            shadow.effectColor = new Color(0f, 0f, 0f, 0.55f);
+            shadow.effectDistance = new Vector2(1.2f, -1.2f);
             var rect = obj.GetComponent<RectTransform>();
             rect.anchorMin = rect.anchorMax = anchor;
             rect.pivot = anchor;
@@ -596,6 +682,9 @@ namespace DestinyGarden.Presentation
             rect.pivot = anchor;
             rect.anchoredPosition = pos;
             rect.sizeDelta = size;
+            var hair = obj.AddComponent<Outline>();
+            hair.effectColor = Hairline;
+            hair.effectDistance = new Vector2(1f, -1f);
             var button = obj.AddComponent<Button>();
             button.targetGraphic = img;
             button.onClick.AddListener(() => onClick?.Invoke());
