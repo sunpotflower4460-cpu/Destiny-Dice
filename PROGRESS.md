@@ -2009,3 +2009,21 @@ Git diff whitespace check: pass
 - Shaders: DGFoliage/DGGlow/DGGlass（新規）、Editor/BuildScripts.cs
 - Tests: HarmonyTests.cs・FloraTests.cs（新規）、EcologyTests.cs、LuckySevenTests.cs
 - docs/unity-garden/ECOLOGY.md、docs/jam-submission/（SUBMISSION.md・cover・screenshot-1〜5）、PROGRESS.md
+
+## Jam v6: 磨き込み — 木・祭壇のサイコロ・図鑑・弱る植物（2026-11-13 未明）
+### 完了したこと
+- 木を作り直した（Presentation/TreeForms.cs）: 広葉樹・花の木（花びらが舞う）・川辺の枝垂れ柳・針葉樹・低木。幹と枝のチューブ、葉の塊、Foliage シェーダーで揺れる。島の生命度で順に育つ（低木→木→花の木）。
+- 立石と岸の石に苔と地衣。サイコロは石の祭壇の上に浮かび、ゆっくり回り、祭壇が淡く光る。
+- 図鑑（右メニュー）: この庭に現れた花と、その条件（土の硬さ・水・光）と働き（土をやわらげる・水捌け・蝶と蜂・実・綿毛）。種のデータそのものから生成するので規則と食い違わない。未知の種は ？？？。
+- 植物の条件に合わない場所に立つ株は、淡く疲れた色に（`Flora.Fits` に基づく見せ方）。
+- 陰陽の光の色の偏りを半分に、背の高い草を少なく・遅く・緑に、地衣を控えめに。
+- 規則は変更なし（ECOLOGY.md §7 のまま）。
+### 完了基準の結果（コマンド出力の要約）
+- Unity EditMode tests: green（36 passed）
+- WebGL: Succeeded、zip 22,156,972 bytes。ヘッドレス Chromium で20投の通しプレイ、コンソールエラー0、60fps。図鑑パネルの表示を確認（10投で 10/15）。
+### 要確定・申し送り（次フェーズへ）
+- 本人: 音の実聴、itch.io への提出、SUBMISSION.md の Team と画像生成ツール名。
+### 触ったファイル
+- Presentation: TreeForms.cs（新規）、FoliageMesh.cs、GardenView.cs、GardenUi.cs、GardenBootstrap.cs、IslandFlora.cs
+- Application: HistoryProjector.cs
+- docs/jam-submission/（SUBMISSION.md・cover・screenshot-1〜5）、PROGRESS.md

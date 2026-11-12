@@ -66,6 +66,7 @@ Mouse or touch only. No keyboard needed. Click the title card to begin.
 | **次の来場者** (right menu) | Start a new garden. |
 | **設定** (right menu) | Volume, mute, reduced motion, hide UI for 4 seconds. |
 | **遊び方** (right menu) | Show the title card again. |
+| **図鑑** (right menu) | Field guide: the flowers your garden has met, what each needs (soil, water, light) and what it does (softens soil, drains, feeds butterflies…). Unmet ones stay ？？？. |
 
 Your garden is saved in the browser and is still there when you come back.
 Sound starts after your first click or tap (browser rule).
@@ -116,12 +117,12 @@ Asset Store packages, no external models, textures, music or sound files.
 
 - Cover image: [cover.png](cover.png) — 1260×1000 (itch.io ratio 630:500, 2× size)
 - Screenshots (1920×1080):
-  - [screenshot-1.png](screenshot-1.png) — after 20 rolls in light rain: meadow, trees, flowers, a relationship line (WebGL)
+  - [screenshot-1.png](screenshot-1.png) — after 20 rolls: meadow, trees of several kinds, flowers, a relationship line (WebGL)
   - [screenshot-2.png](screenshot-2.png) — the rainbow figure-8 in the air above the bottle (macOS build of the same code,
     QA capture `-dgWonders -dgNoUi`; the moment itself is rare in play)
   - [screenshot-3.png](screenshot-3.png) — opening: the whole bottle, bare earth and water, with the title card (WebGL)
   - [screenshot-4.png](screenshot-4.png) — roll 0: bare earth, the spring and river, four first shoots (macOS, no UI)
-  - [screenshot-5.png](screenshot-5.png) — 庭の歩み: the flowers in bloom, harmony, and the honest wish meter (WebGL)
+  - [screenshot-5.png](screenshot-5.png) — 図鑑 (field guide) after 10 rolls: 10/15 flowers met, what each needs and does (WebGL)
 
 Suggested order on the page: 3, 4, 1, 2, 5 (from the bottle to a garden of your own).
 

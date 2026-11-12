@@ -125,6 +125,34 @@ namespace DestinyGarden.Presentation
                     }
             }
 
+            /// <summary>A tapered tube along points (trunks, branches, willow strands).</summary>
+            public void Tube(IList<Vector3> pts, float r0, float r1, Color c0, Color c1, float sway0, float sway1, int sides = 6)
+            {
+                int start = V.Count;
+                for (int i = 0; i < pts.Count; i++)
+                {
+                    float t = pts.Count > 1 ? i / (float)(pts.Count - 1) : 0f;
+                    Vector3 dir = (i + 1 < pts.Count ? pts[i + 1] - pts[i] : pts[i] - pts[i - 1]).normalized;
+                    Vector3 side = Vector3.Cross(dir, Mathf.Abs(dir.y) > 0.95f ? Vector3.right : Vector3.up).normalized;
+                    Vector3 up = Vector3.Cross(side, dir).normalized;
+                    float r = Mathf.Lerp(r0, r1, t);
+                    var col = Color.Lerp(c0, c1, t); col.a = Mathf.Lerp(sway0, sway1, t);
+                    for (int s = 0; s < sides; s++)
+                    {
+                        float a = s / (float)sides * Mathf.PI * 2f;
+                        var n = side * Mathf.Cos(a) + up * Mathf.Sin(a);
+                        Add(pts[i] + n * r, n, col);
+                    }
+                }
+                for (int i = 0; i + 1 < pts.Count; i++)
+                    for (int s = 0; s < sides; s++)
+                    {
+                        int a = start + i * sides + s, b = start + i * sides + (s + 1) % sides;
+                        int c = a + sides, d = b + sides;
+                        T.Add(a); T.Add(c); T.Add(b); T.Add(b); T.Add(c); T.Add(d);
+                    }
+            }
+
             /// <summary>Ring of petals around a centre (helper for most blooms).</summary>
             public void Corolla(Vector3 center, int count, float yaw, float len, float wid, float lift, float cup,
                 Color baseC, Color tipC)

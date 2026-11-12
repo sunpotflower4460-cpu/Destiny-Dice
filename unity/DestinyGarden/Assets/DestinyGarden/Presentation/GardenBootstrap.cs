@@ -341,6 +341,10 @@ namespace DestinyGarden.Presentation
             var read = _journal.ReadAll();
             var history = HistoryProjector.Project(read.Entries, _coordinator.RunId);
             _ui.RefreshHistory(history);
+            var discovered = new HashSet<string>();
+            foreach (var r in history) foreach (var g in r.Germinated) discovered.Add(g);
+            foreach (var p in _coordinator.State.Plants) if (p.Species != null) discovered.Add(p.Species);
+            _ui.ShowGuide(discovered);
             UpdateButterflies(history);
             float vitality = Vitality();
             _view.Flora.SetVitality(vitality);

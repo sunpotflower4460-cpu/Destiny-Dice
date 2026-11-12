@@ -23,7 +23,7 @@ namespace DestinyGarden.Presentation
         private static readonly float[] Stage =
         {
             0.22f, // ShortGrass
-            0.46f, // TallGrass
+            0.56f, // TallGrass
             0.34f, // Clover
             0.05f, // Moss
             0.64f, // Fern
@@ -83,7 +83,7 @@ namespace DestinyGarden.Presentation
                     float meadow = (1f - shore) * (1f - bank * 0.7f) * (1f - shade * 0.6f);
 
                     weights[(int)Kind.ShortGrass] = (meadow + 0.2f) * Colony(x, z, 1, 0.45f);
-                    weights[(int)Kind.TallGrass] = 0.9f * meadow * (1f - shade) * Colony(x, z, 2, 0.38f);
+                    weights[(int)Kind.TallGrass] = 0.5f * meadow * (1f - shade) * Colony(x, z, 2, 0.38f);
                     weights[(int)Kind.Clover] = 0.7f * meadow * (0.4f + wet) * Colony(x, z, 3, 0.55f);
                     weights[(int)Kind.Moss] = (1.2f * shade * (0.4f + wet) + 0.35f * bank) * Colony(x, z, 4, 0.6f);
                     weights[(int)Kind.Fern] = 1.4f * shade * Colony(x, z, 5, 0.5f);
@@ -92,7 +92,7 @@ namespace DestinyGarden.Presentation
                     weights[(int)Kind.Thyme] = 1.2f * dry * (1f - shade) * Colony(x, z, 8, 0.5f);
                     weights[(int)Kind.Bluebell] = 1.0f * shade * (1f - bank) * Colony(x, z, 9, 0.65f);
                     weights[(int)Kind.Wildflower] = 0.55f * meadow * Colony(x, z, 10, 0.5f);
-                    weights[(int)Kind.Lichen] = 0.8f * shade * hi * Colony(x, z, 11, 0.8f);
+                    weights[(int)Kind.Lichen] = 0.35f * shade * hi * Colony(x, z, 11, 0.8f);
                     weights[(int)Kind.Toadstool] = 0.32f * shade * wet * Colony(x, z, 12, 0.9f);
                     // A plant grows here only if some kind can truly live here; then one of the kinds
                     // that suit this spot best (within half of the best) takes it.
@@ -153,7 +153,7 @@ namespace DestinyGarden.Presentation
                 {
                     int n = 3 + rng.Next(2);
                     var baseC = new Color(0.30f, 0.46f, 0.26f) * tone;
-                    var tipC = new Color(0.74f, 0.74f, 0.50f) * tone;
+                    var tipC = new Color(0.56f, 0.70f, 0.42f) * tone;
                     for (int i = 0; i < n; i++)
                     {
                         float h = 0.32f + R() * 0.24f;
@@ -289,7 +289,7 @@ namespace DestinyGarden.Presentation
                 }
                 case Kind.Lichen:
                 {
-                    var c = Color.Lerp(new Color(0.66f, 0.70f, 0.46f), new Color(0.56f, 0.66f, 0.60f), R());
+                    var c = Color.Lerp(new Color(0.76f, 0.80f, 0.52f), new Color(0.66f, 0.76f, 0.62f), R());
                     for (int i = 0; i < 2 + rng.Next(3); i++)
                     {
                         float r = 0.05f + R() * 0.08f;

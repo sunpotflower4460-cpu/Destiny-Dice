@@ -30,6 +30,7 @@ namespace DestinyGarden.Application
         public int EcologyGrowth; // growth added by residents
         public int Harmony = -1;  // 0..8 (ecology.v2); -1 for older records
         public int Star;          // 0, 5, 7 or 8
+        public List<string> Germinated = new List<string>(); // species that took root this roll (ecology.v3)
     }
 
     /// <summary>Projects verified journal entries of one run into display summaries.</summary>
@@ -108,6 +109,8 @@ namespace DestinyGarden.Application
                                 foreach (var ef in (IEnumerable)ecod["effects"])
                                     if (ef is IDictionary<string, object> efd)
                                     {
+                                        if (efd["kind"] as string == "germinate" && efd.TryGetValue("species", out object gsp) && gsp is string gs)
+                                            s.Germinated.Add(gs);
                                         if (efd["seed"] is bool sb && sb) s.EcologySeeds++;
                                         s.EcologyGrowth += WorldStateSerializer.ToInt(efd["amount"]);
                                     }

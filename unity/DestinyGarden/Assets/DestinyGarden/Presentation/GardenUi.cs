@@ -241,6 +241,8 @@ namespace DestinyGarden.Presentation
                 "設定", 20, () => TogglePanel(_settingsPanel));
             MakeChip(canvasObj.transform, new Vector2(1f, 1f), new Vector2(-96f, -350f), new Vector2(150f, 48f),
                 "遊び方", 20, () => ShowTitleCard(true));
+            MakeChip(canvasObj.transform, new Vector2(1f, 1f), new Vector2(-96f, -408f), new Vector2(150f, 48f),
+                "図鑑", 20, () => TogglePanel(_guidePanel));
 
             BuildGoals(canvasObj.transform);
             BuildPanels(canvasObj.transform);
@@ -294,6 +296,12 @@ namespace DestinyGarden.Presentation
             _composition.color = new Color(1f, 0.92f, 0.76f);
             _graphPanel.SetActive(false);
 
+            _guidePanel = MakePanel(canvas, new Vector2(1000f, 600f));
+            _guideText = MakeText(_guidePanel.transform, new Vector2(0.5f, 0.5f), Vector2.zero,
+                new Vector2(940f, 560f), 16, TextAnchor.UpperLeft);
+            _guideText.supportRichText = true;
+            _guidePanel.SetActive(false);
+
             _settingsPanel = MakePanel(canvas, new Vector2(520f, 340f));
             MakeLabel(_settingsPanel.transform, new Vector2(-220f, 110f), "音量", 20);
             var sliderObj = new GameObject("Volume");
@@ -346,6 +354,7 @@ namespace DestinyGarden.Presentation
             _historyPanel.SetActive(false);
             _graphPanel.SetActive(false);
             _settingsPanel.SetActive(false);
+            if (_guidePanel != null) _guidePanel.SetActive(false);
             panel.SetActive(show);
         }
 
@@ -450,6 +459,38 @@ namespace DestinyGarden.Presentation
         }
 
         private int _harmony = -1;
+        private GameObject _guidePanel;
+        private Text _guideText;
+
+        /// <summary>Field guide: the species this garden has met, described from their rule data.</summary>
+        public void ShowGuide(ICollection<string> discovered)
+        {
+            if (_guideText == null) return;
+            var sb = new StringBuilder();
+            sb.AppendLine($"<b>図鑑</b>　この庭に現れた花 {discovered.Count}/{Flora.All.Length}　<color=#9aa8a4>（条件と働きは庭の決まりそのもの）</color>");
+            foreach (var t in Flora.All)
+            {
+                if (!discovered.Contains(t.Id)) { sb.AppendLine("<color=#7d8a87>？？？</color>"); continue; }
+                var parts = new List<string>();
+                parts.Add(t.MaxHardness >= 900 ? "硬い土でも育つ" : t.MaxHardness >= 700 ? "ふつうの土" : t.MaxHardness >= 500 ? "やわらかめの土" : "とてもやわらかい土");
+                if (t.DrainMin >= 450) parts.Add("水捌けのよい所");
+                if (t.DrainMax <= 600) parts.Add("水の残る所");
+                if (t.MoistMin >= 450) parts.Add("湿った土");
+                if (t.MoistMax <= 700) parts.Add("乾きぎみ");
+                if (t.Light == 0) parts.Add("日向"); else if (t.Light == 2) parts.Add("日陰");
+                if (t.Butterfly >= 2) parts.Add("蝶が大好き"); else if (t.Butterfly == 1) parts.Add("蝶が好む"); else if (t.Butterfly < 0) parts.Add("<color=#ffb3a6>蝶が避ける</color>");
+                if (t.Bee >= 2) parts.Add("蜂が大好き");
+                var works = new List<string>();
+                if (t.Softens > 0) works.Add("土をやわらげる");
+                if (t.Drains > 0) works.Add("水捌けをよくする");
+                if (t.Drains < 0) works.Add("水を抱える");
+                if (t.Berries) works.Add("実を小鳥が運ぶ");
+                if (t.WindSeed) works.Add("綿毛で旅する");
+                sb.AppendLine($"<color=#ffe2a6>{t.LabelJa}</color>　{string.Join("・", parts)}" +
+                              (works.Count > 0 ? $"　<color=#a8e6c8>→ {string.Join("・", works)}</color>" : ""));
+            }
+            _guideText.text = sb.ToString();
+        }
         private Text _composition;
 
         /// <summary>What this garden has become: flowers in bloom now and its harmony.</summary>
