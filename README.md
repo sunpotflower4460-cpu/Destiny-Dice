@@ -2,7 +2,7 @@
 
 ## Unity箱庭ゲームの設計
 
-スマホ（iOS／Android）とSteam向けに展開する新しいゲーム企画は、[Destiny Garden設計 v0.7](./docs/unity-garden/README.md)にまとめています。晴れ・薄曇り・小雨が庭全体へ作用し、その空と庭の状況から毎回変わる6面を振る構成です。水・風・光・種の空間モデル、オラクル、神聖な音と光、自動記録、3日展示から製品化への計画を定義しています。[それぞれの庭が育つ仕組み](./docs/unity-garden/DIVERSITY.md)では、三つの届け先とおまかせ、履歴による分岐を扱います。実装の入口は[今作る設計と採用する組合せ](./docs/unity-garden/CURRENT_DESIGN.md)です。v0.7で交代中の復帰、文章と光の焦点、三地点の長期注水、人が確認する範囲を整えています。
+スマホ（iOS／Android）とSteam向けに展開する新しいゲーム企画は、[Destiny Garden設計 v0.8](./docs/unity-garden/README.md)にまとめています。晴れ・薄曇り・小雨が庭全体へ作用し、その空と庭の状況から毎回変わる6面を振る構成です。水・風・光・種の空間モデル、オラクル、神聖な音と光、自動記録、3日展示から製品化への計画を定義しています。[それぞれの庭が育つ仕組み](./docs/unity-garden/DIVERSITY.md)では、三つの届け先とおまかせ、履歴による分岐を扱います。実装の入口は[今作る設計と採用する組合せ](./docs/unity-garden/CURRENT_DESIGN.md)です。v0.8で初回作成の復帰、[記録画面の共通投影](./docs/unity-garden/OBSERVATION.md)、同じ場所・時点に基づく蒸発と成長の説明を整えています。
 
 **現在は設計段階です。Unityゲームの実装・実機検証・ストア公開は未実施です。** 以下は既存のReact／Capacitor製Intention Diceの説明で、Unity企画は既存実験の凍結プロトコルや保存データを変更しません。
 

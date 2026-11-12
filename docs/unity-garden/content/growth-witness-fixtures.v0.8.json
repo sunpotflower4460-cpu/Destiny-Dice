@@ -1,0 +1,1260 @@
+{
+  "documentKind": "growth-witness-design-fixtures",
+  "schemaVersion": "growth-witness-fixtures.v0.8",
+  "status": "designCandidate",
+  "implementationStatus": "notImplementedInUnity",
+  "date": "2026-11-12",
+  "simulationEvidenceVersion": "local-growth-witness.v0.8",
+  "profile": {
+    "file": "simulation-profile.v0.2.json",
+    "sha256": "7615b63c32d1e67c74b8c42e7a491859ca6c9e430e49e91b37d9a534f5e0f6c6"
+  },
+  "contract": "../SIMULATION.md#91-同じtickの計算を辿る成長の根拠-v08",
+  "scope": "Isolated scalar examples with synthetic effective-field evidence. These are not a complete Resolved DTO, an executable content profile, actual map events, a full natural simulation, or recorded gameplay.",
+  "reference": "../reference/growth_witness_v08.py --verify",
+  "referenceMeaning": "Checks explicit golden arithmetic and the stated local subject/tick/source bindings. It does not prove that the candidate tick is actually the first positive tick of a 40-tick run; an implementation must establish that from its event accumulator.",
+  "sourceReferenceMeaning": "Fixture-local string keys resolve synthetic sourceEvidence only. Runtime local refs must point into the same Resolved input/weather evidence without embedding that Resolved entryHash; the outer graph projection adds the durable record reference after commit.",
+  "expectedCounts": {
+    "arithmeticCases": 12,
+    "positiveArithmeticCases": 6,
+    "nonpositiveArithmeticCases": 6,
+    "bindingCases": 19,
+    "acceptedBindings": 6,
+    "rejectedBindings": 13
+  },
+  "arithmeticCases": [
+    {
+      "caseId": "wet_wind",
+      "purpose": "過湿域の土への蒸発と、そのtickの正の成長。",
+      "input": {
+        "cellId": 17,
+        "plantId": "fixture-plant",
+        "tick": 1,
+        "soilCapacity": 1000,
+        "beforeEvaporation": {
+          "surfaceWater": 0,
+          "soilWater": 900,
+          "remainder": 0
+        },
+        "effectiveLightQ": 500,
+        "effectiveWindQ": 1000,
+        "growthBefore": {
+          "growth": 1700,
+          "remainder": 0
+        }
+      },
+      "expected": {
+        "soilWater": 896,
+        "surfaceWaterAfterEvaporation": 0,
+        "evaporation": {
+          "demand": 4,
+          "surfaceAmount": 0,
+          "soilAmount": 4,
+          "remainderAfter": 500
+        },
+        "moistureQ": 896,
+        "moistureFactorQ": 216,
+        "growthDelta": 2,
+        "growthAfter": {
+          "growth": 1702,
+          "remainder": 700000
+        },
+        "positiveGrowthWitnessAllowed": true,
+        "stageTransitions": []
+      }
+    },
+    {
+      "caseId": "zero_evaporation",
+      "purpose": "追加風と成長があっても、このtickの実蒸発は0。",
+      "input": {
+        "cellId": 17,
+        "plantId": "fixture-plant",
+        "tick": 1,
+        "soilCapacity": 1000,
+        "beforeEvaporation": {
+          "surfaceWater": 0,
+          "soilWater": 550,
+          "remainder": 0
+        },
+        "effectiveLightQ": 300,
+        "effectiveWindQ": 125,
+        "growthBefore": {
+          "growth": 1700,
+          "remainder": 0
+        }
+      },
+      "expected": {
+        "soilWater": 550,
+        "surfaceWaterAfterEvaporation": 0,
+        "evaporation": {
+          "demand": 0,
+          "surfaceAmount": 0,
+          "soilAmount": 0,
+          "remainderAfter": 800
+        },
+        "moistureQ": 550,
+        "moistureFactorQ": 1000,
+        "growthDelta": 7,
+        "growthAfter": {
+          "growth": 1707,
+          "remainder": 500000
+        },
+        "positiveGrowthWitnessAllowed": true,
+        "stageTransitions": []
+      }
+    },
+    {
+      "caseId": "surface_only",
+      "purpose": "実蒸発4は全て地表水。土中水は600のまま。",
+      "input": {
+        "cellId": 17,
+        "plantId": "fixture-plant",
+        "tick": 1,
+        "soilCapacity": 1000,
+        "beforeEvaporation": {
+          "surfaceWater": 10,
+          "soilWater": 600,
+          "remainder": 0
+        },
+        "effectiveLightQ": 500,
+        "effectiveWindQ": 1000,
+        "growthBefore": {
+          "growth": 1700,
+          "remainder": 0
+        }
+      },
+      "expected": {
+        "soilWater": 600,
+        "surfaceWaterAfterEvaporation": 6,
+        "evaporation": {
+          "demand": 4,
+          "surfaceAmount": 4,
+          "soilAmount": 0,
+          "remainderAfter": 500
+        },
+        "moistureQ": 600,
+        "moistureFactorQ": 1000,
+        "growthDelta": 12,
+        "growthAfter": {
+          "growth": 1712,
+          "remainder": 500000
+        },
+        "positiveGrowthWitnessAllowed": true,
+        "stageTransitions": []
+      }
+    },
+    {
+      "caseId": "growth_cap",
+      "purpose": "raw increment25でも上限直前の実成長は1。到達後の端数は0。",
+      "input": {
+        "cellId": 17,
+        "plantId": "fixture-plant",
+        "tick": 1,
+        "soilCapacity": 1000,
+        "beforeEvaporation": {
+          "surfaceWater": 0,
+          "soilWater": 600,
+          "remainder": 0
+        },
+        "effectiveLightQ": 1000,
+        "effectiveWindQ": 0,
+        "growthBefore": {
+          "growth": 2499,
+          "remainder": 0
+        }
+      },
+      "expected": {
+        "soilWater": 599,
+        "surfaceWaterAfterEvaporation": 0,
+        "evaporation": {
+          "demand": 1,
+          "surfaceAmount": 0,
+          "soilAmount": 1,
+          "remainderAfter": 0
+        },
+        "moistureQ": 599,
+        "moistureFactorQ": 1000,
+        "growthDelta": 1,
+        "growthAfter": {
+          "growth": 2500,
+          "remainder": 0
+        },
+        "positiveGrowthWitnessAllowed": true,
+        "stageTransitions": [
+          "Bloomed"
+        ]
+      }
+    },
+    {
+      "caseId": "water_exhausted",
+      "purpose": "要求5、実蒸発1。水が尽きたら蒸発端数を0にし、成長端数は保持。",
+      "input": {
+        "cellId": 17,
+        "plantId": "fixture-plant",
+        "tick": 1,
+        "soilCapacity": 1000,
+        "beforeEvaporation": {
+          "surfaceWater": 0,
+          "soilWater": 1,
+          "remainder": 900
+        },
+        "effectiveLightQ": 500,
+        "effectiveWindQ": 1000,
+        "growthBefore": {
+          "growth": 200,
+          "remainder": 900000
+        }
+      },
+      "expected": {
+        "soilWater": 0,
+        "surfaceWaterAfterEvaporation": 0,
+        "evaporation": {
+          "demand": 5,
+          "surfaceAmount": 0,
+          "soilAmount": 1,
+          "remainderAfter": 0
+        },
+        "moistureQ": 0,
+        "moistureFactorQ": 0,
+        "growthDelta": 0,
+        "growthAfter": {
+          "growth": 200,
+          "remainder": 900000
+        },
+        "positiveGrowthWitnessAllowed": false,
+        "stageTransitions": []
+      }
+    },
+    {
+      "caseId": "already_dry",
+      "purpose": "処理前から水0なら蒸発計算を省略し、要求・実量・蒸発端数は0。",
+      "input": {
+        "cellId": 17,
+        "plantId": "fixture-plant",
+        "tick": 1,
+        "soilCapacity": 1000,
+        "beforeEvaporation": {
+          "surfaceWater": 0,
+          "soilWater": 0,
+          "remainder": 900
+        },
+        "effectiveLightQ": 500,
+        "effectiveWindQ": 1000,
+        "growthBefore": {
+          "growth": 200,
+          "remainder": 900000
+        }
+      },
+      "expected": {
+        "soilWater": 0,
+        "surfaceWaterAfterEvaporation": 0,
+        "evaporation": {
+          "demand": 0,
+          "surfaceAmount": 0,
+          "soilAmount": 0,
+          "remainderAfter": 0
+        },
+        "moistureQ": 0,
+        "moistureFactorQ": 0,
+        "growthDelta": 0,
+        "growthAfter": {
+          "growth": 200,
+          "remainder": 900000
+        },
+        "positiveGrowthWitnessAllowed": false,
+        "stageTransitions": []
+      }
+    },
+    {
+      "caseId": "rounded_growth",
+      "purpose": "湿りと光が正でも、75/1000000は整数成長0。GrowthObservedを作らない。",
+      "input": {
+        "cellId": 17,
+        "plantId": "fixture-plant",
+        "tick": 1,
+        "soilCapacity": 1000,
+        "beforeEvaporation": {
+          "surfaceWater": 0,
+          "soilWater": 101,
+          "remainder": 0
+        },
+        "effectiveLightQ": 1,
+        "effectiveWindQ": 0,
+        "growthBefore": {
+          "growth": 0,
+          "remainder": 0
+        }
+      },
+      "expected": {
+        "soilWater": 101,
+        "surfaceWaterAfterEvaporation": 0,
+        "evaporation": {
+          "demand": 0,
+          "surfaceAmount": 0,
+          "soilAmount": 0,
+          "remainderAfter": 1
+        },
+        "moistureQ": 101,
+        "moistureFactorQ": 3,
+        "growthDelta": 0,
+        "growthAfter": {
+          "growth": 0,
+          "remainder": 75
+        },
+        "positiveGrowthWitnessAllowed": false,
+        "stageTransitions": []
+      }
+    },
+    {
+      "caseId": "carried_growth_fraction",
+      "purpose": "以前の成長端数999950に今回75を加え、整数1・端数25となる。",
+      "input": {
+        "cellId": 17,
+        "plantId": "fixture-plant",
+        "tick": 1,
+        "soilCapacity": 1000,
+        "beforeEvaporation": {
+          "surfaceWater": 0,
+          "soilWater": 101,
+          "remainder": 0
+        },
+        "effectiveLightQ": 1,
+        "effectiveWindQ": 0,
+        "growthBefore": {
+          "growth": 0,
+          "remainder": 999950
+        }
+      },
+      "expected": {
+        "soilWater": 101,
+        "surfaceWaterAfterEvaporation": 0,
+        "evaporation": {
+          "demand": 0,
+          "surfaceAmount": 0,
+          "soilAmount": 0,
+          "remainderAfter": 1
+        },
+        "moistureQ": 101,
+        "moistureFactorQ": 3,
+        "growthDelta": 1,
+        "growthAfter": {
+          "growth": 1,
+          "remainder": 25
+        },
+        "positiveGrowthWitnessAllowed": true,
+        "stageTransitions": []
+      }
+    },
+    {
+      "caseId": "dry_stop_boundary",
+      "purpose": "土中水101から100へ。乾燥停止の境界はm<=100。",
+      "input": {
+        "cellId": 17,
+        "plantId": "fixture-plant",
+        "tick": 1,
+        "soilCapacity": 1000,
+        "beforeEvaporation": {
+          "surfaceWater": 0,
+          "soilWater": 101,
+          "remainder": 500
+        },
+        "effectiveLightQ": 500,
+        "effectiveWindQ": 0,
+        "growthBefore": {
+          "growth": 200,
+          "remainder": 999999
+        }
+      },
+      "expected": {
+        "soilWater": 100,
+        "surfaceWaterAfterEvaporation": 0,
+        "evaporation": {
+          "demand": 1,
+          "surfaceAmount": 0,
+          "soilAmount": 1,
+          "remainderAfter": 0
+        },
+        "moistureQ": 100,
+        "moistureFactorQ": 0,
+        "growthDelta": 0,
+        "growthAfter": {
+          "growth": 200,
+          "remainder": 999999
+        },
+        "positiveGrowthWitnessAllowed": false,
+        "stageTransitions": []
+      }
+    },
+    {
+      "caseId": "wet_stop_boundary",
+      "purpose": "湿り比950・光0では成長しない。既存の成長端数は残る。",
+      "input": {
+        "cellId": 17,
+        "plantId": "fixture-plant",
+        "tick": 1,
+        "soilCapacity": 1000,
+        "beforeEvaporation": {
+          "surfaceWater": 0,
+          "soilWater": 950,
+          "remainder": 999
+        },
+        "effectiveLightQ": 0,
+        "effectiveWindQ": 0,
+        "growthBefore": {
+          "growth": 200,
+          "remainder": 111000
+        }
+      },
+      "expected": {
+        "soilWater": 950,
+        "surfaceWaterAfterEvaporation": 0,
+        "evaporation": {
+          "demand": 0,
+          "surfaceAmount": 0,
+          "soilAmount": 0,
+          "remainderAfter": 999
+        },
+        "moistureQ": 950,
+        "moistureFactorQ": 0,
+        "growthDelta": 0,
+        "growthAfter": {
+          "growth": 200,
+          "remainder": 111000
+        },
+        "positiveGrowthWitnessAllowed": false,
+        "stageTransitions": []
+      }
+    },
+    {
+      "caseId": "dry_but_growing",
+      "purpose": "乾き気味の土の係数500を使う。適湿だったと説明しない。",
+      "input": {
+        "cellId": 17,
+        "plantId": "fixture-plant",
+        "tick": 1,
+        "soilCapacity": 1000,
+        "beforeEvaporation": {
+          "surfaceWater": 0,
+          "soilWater": 250,
+          "remainder": 0
+        },
+        "effectiveLightQ": 500,
+        "effectiveWindQ": 0,
+        "growthBefore": {
+          "growth": 200,
+          "remainder": 0
+        }
+      },
+      "expected": {
+        "soilWater": 250,
+        "surfaceWaterAfterEvaporation": 0,
+        "evaporation": {
+          "demand": 0,
+          "surfaceAmount": 0,
+          "soilAmount": 0,
+          "remainderAfter": 500
+        },
+        "moistureQ": 250,
+        "moistureFactorQ": 500,
+        "growthDelta": 6,
+        "growthAfter": {
+          "growth": 206,
+          "remainder": 250000
+        },
+        "positiveGrowthWitnessAllowed": true,
+        "stageTransitions": []
+      }
+    },
+    {
+      "caseId": "mature",
+      "purpose": "成熟個体の成長・端数・段階を保つ。正の成長証拠を作らない。",
+      "input": {
+        "cellId": 17,
+        "plantId": "fixture-plant",
+        "tick": 1,
+        "soilCapacity": 1000,
+        "beforeEvaporation": {
+          "surfaceWater": 0,
+          "soilWater": 600,
+          "remainder": 0
+        },
+        "effectiveLightQ": 500,
+        "effectiveWindQ": 0,
+        "growthBefore": {
+          "growth": 2500,
+          "remainder": 0
+        }
+      },
+      "expected": {
+        "soilWater": 600,
+        "surfaceWaterAfterEvaporation": 0,
+        "evaporation": {
+          "demand": 0,
+          "surfaceAmount": 0,
+          "soilAmount": 0,
+          "remainderAfter": 500
+        },
+        "moistureQ": 600,
+        "moistureFactorQ": 1000,
+        "growthDelta": 0,
+        "growthAfter": {
+          "growth": 2500,
+          "remainder": 0
+        },
+        "positiveGrowthWitnessAllowed": false,
+        "stageTransitions": []
+      }
+    }
+  ],
+  "bindingCases": [
+    {
+      "caseId": "valid_wet_wind",
+      "arithmeticCaseId": "wet_wind",
+      "fieldEvidenceRefs": {
+        "weather": "weather.field",
+        "diceLight": null,
+        "diceWind": "dice.wind"
+      },
+      "sourceEvidence": {
+        "weather.field": {
+          "roundId": "fixture-round",
+          "cellId": 17,
+          "firstTick": 1,
+          "lastTick": 40,
+          "evidenceKind": "WeatherApplicationEvidence",
+          "sourceKind": "weather",
+          "baseEffectiveLightQ": 500,
+          "baseEffectiveWindQ": 0
+        },
+        "dice.wind": {
+          "roundId": "fixture-round",
+          "cellId": 17,
+          "firstTick": 1,
+          "lastTick": 40,
+          "evidenceKind": "InputApplicationEvidence",
+          "sourceKind": "dice",
+          "elementId": "wind",
+          "additionalEffectiveQ": 1000
+        }
+      },
+      "patches": [],
+      "expected": {
+        "validPositiveGrowthWitness": true,
+        "rejection": null
+      }
+    },
+    {
+      "caseId": "valid_zero_evaporation",
+      "arithmeticCaseId": "zero_evaporation",
+      "fieldEvidenceRefs": {
+        "weather": "weather.field",
+        "diceLight": null,
+        "diceWind": "dice.wind"
+      },
+      "sourceEvidence": {
+        "weather.field": {
+          "roundId": "fixture-round",
+          "cellId": 17,
+          "firstTick": 1,
+          "lastTick": 40,
+          "evidenceKind": "WeatherApplicationEvidence",
+          "sourceKind": "weather",
+          "baseEffectiveLightQ": 300,
+          "baseEffectiveWindQ": 0
+        },
+        "dice.wind": {
+          "roundId": "fixture-round",
+          "cellId": 17,
+          "firstTick": 1,
+          "lastTick": 40,
+          "evidenceKind": "InputApplicationEvidence",
+          "sourceKind": "dice",
+          "elementId": "wind",
+          "additionalEffectiveQ": 125
+        }
+      },
+      "patches": [],
+      "expected": {
+        "validPositiveGrowthWitness": true,
+        "rejection": null
+      }
+    },
+    {
+      "caseId": "valid_surface_only",
+      "arithmeticCaseId": "surface_only",
+      "fieldEvidenceRefs": {
+        "weather": "weather.field",
+        "diceLight": null,
+        "diceWind": "dice.wind"
+      },
+      "sourceEvidence": {
+        "weather.field": {
+          "roundId": "fixture-round",
+          "cellId": 17,
+          "firstTick": 1,
+          "lastTick": 40,
+          "evidenceKind": "WeatherApplicationEvidence",
+          "sourceKind": "weather",
+          "baseEffectiveLightQ": 500,
+          "baseEffectiveWindQ": 0
+        },
+        "dice.wind": {
+          "roundId": "fixture-round",
+          "cellId": 17,
+          "firstTick": 1,
+          "lastTick": 40,
+          "evidenceKind": "InputApplicationEvidence",
+          "sourceKind": "dice",
+          "elementId": "wind",
+          "additionalEffectiveQ": 1000
+        }
+      },
+      "patches": [],
+      "expected": {
+        "validPositiveGrowthWitness": true,
+        "rejection": null
+      }
+    },
+    {
+      "caseId": "valid_capped_growth",
+      "arithmeticCaseId": "growth_cap",
+      "fieldEvidenceRefs": {
+        "weather": "weather.field",
+        "diceLight": "dice.light",
+        "diceWind": null
+      },
+      "sourceEvidence": {
+        "weather.field": {
+          "roundId": "fixture-round",
+          "cellId": 17,
+          "firstTick": 1,
+          "lastTick": 40,
+          "evidenceKind": "WeatherApplicationEvidence",
+          "sourceKind": "weather",
+          "baseEffectiveLightQ": 500,
+          "baseEffectiveWindQ": 0
+        },
+        "dice.light": {
+          "roundId": "fixture-round",
+          "cellId": 17,
+          "firstTick": 1,
+          "lastTick": 40,
+          "evidenceKind": "InputApplicationEvidence",
+          "sourceKind": "dice",
+          "elementId": "light",
+          "additionalEffectiveQ": 500
+        }
+      },
+      "patches": [],
+      "expected": {
+        "validPositiveGrowthWitness": true,
+        "rejection": null
+      }
+    },
+    {
+      "caseId": "valid_carried_fraction",
+      "arithmeticCaseId": "carried_growth_fraction",
+      "fieldEvidenceRefs": {
+        "weather": "weather.field",
+        "diceLight": null,
+        "diceWind": null
+      },
+      "sourceEvidence": {
+        "weather.field": {
+          "roundId": "fixture-round",
+          "cellId": 17,
+          "firstTick": 1,
+          "lastTick": 40,
+          "evidenceKind": "WeatherApplicationEvidence",
+          "sourceKind": "weather",
+          "baseEffectiveLightQ": 1,
+          "baseEffectiveWindQ": 0
+        }
+      },
+      "patches": [],
+      "expected": {
+        "validPositiveGrowthWitness": true,
+        "rejection": null
+      }
+    },
+    {
+      "caseId": "valid_no_dice_field",
+      "arithmeticCaseId": "dry_but_growing",
+      "fieldEvidenceRefs": {
+        "weather": "weather.field",
+        "diceLight": null,
+        "diceWind": null
+      },
+      "sourceEvidence": {
+        "weather.field": {
+          "roundId": "fixture-round",
+          "cellId": 17,
+          "firstTick": 1,
+          "lastTick": 40,
+          "evidenceKind": "WeatherApplicationEvidence",
+          "sourceKind": "weather",
+          "baseEffectiveLightQ": 500,
+          "baseEffectiveWindQ": 0
+        }
+      },
+      "patches": [],
+      "expected": {
+        "validPositiveGrowthWitness": true,
+        "rejection": null
+      }
+    },
+    {
+      "caseId": "wrong_subject_cell",
+      "arithmeticCaseId": "wet_wind",
+      "fieldEvidenceRefs": {
+        "weather": "weather.field",
+        "diceLight": null,
+        "diceWind": "dice.wind"
+      },
+      "sourceEvidence": {
+        "weather.field": {
+          "roundId": "fixture-round",
+          "cellId": 17,
+          "firstTick": 1,
+          "lastTick": 40,
+          "evidenceKind": "WeatherApplicationEvidence",
+          "sourceKind": "weather",
+          "baseEffectiveLightQ": 500,
+          "baseEffectiveWindQ": 0
+        },
+        "dice.wind": {
+          "roundId": "fixture-round",
+          "cellId": 17,
+          "firstTick": 1,
+          "lastTick": 40,
+          "evidenceKind": "InputApplicationEvidence",
+          "sourceKind": "dice",
+          "elementId": "wind",
+          "additionalEffectiveQ": 1000
+        }
+      },
+      "patches": [
+        {
+          "target": "witness",
+          "path": [
+            "cellId"
+          ],
+          "value": 18
+        }
+      ],
+      "expected": {
+        "validPositiveGrowthWitness": false,
+        "rejection": "subject_mismatch"
+      }
+    },
+    {
+      "caseId": "wrong_subject_plant",
+      "arithmeticCaseId": "wet_wind",
+      "fieldEvidenceRefs": {
+        "weather": "weather.field",
+        "diceLight": null,
+        "diceWind": "dice.wind"
+      },
+      "sourceEvidence": {
+        "weather.field": {
+          "roundId": "fixture-round",
+          "cellId": 17,
+          "firstTick": 1,
+          "lastTick": 40,
+          "evidenceKind": "WeatherApplicationEvidence",
+          "sourceKind": "weather",
+          "baseEffectiveLightQ": 500,
+          "baseEffectiveWindQ": 0
+        },
+        "dice.wind": {
+          "roundId": "fixture-round",
+          "cellId": 17,
+          "firstTick": 1,
+          "lastTick": 40,
+          "evidenceKind": "InputApplicationEvidence",
+          "sourceKind": "dice",
+          "elementId": "wind",
+          "additionalEffectiveQ": 1000
+        }
+      },
+      "patches": [
+        {
+          "target": "witness",
+          "path": [
+            "plantId"
+          ],
+          "value": "another-plant"
+        }
+      ],
+      "expected": {
+        "validPositiveGrowthWitness": false,
+        "rejection": "subject_mismatch"
+      }
+    },
+    {
+      "caseId": "not_first_positive_tick",
+      "arithmeticCaseId": "wet_wind",
+      "fieldEvidenceRefs": {
+        "weather": "weather.field",
+        "diceLight": null,
+        "diceWind": "dice.wind"
+      },
+      "sourceEvidence": {
+        "weather.field": {
+          "roundId": "fixture-round",
+          "cellId": 17,
+          "firstTick": 1,
+          "lastTick": 40,
+          "evidenceKind": "WeatherApplicationEvidence",
+          "sourceKind": "weather",
+          "baseEffectiveLightQ": 500,
+          "baseEffectiveWindQ": 0
+        },
+        "dice.wind": {
+          "roundId": "fixture-round",
+          "cellId": 17,
+          "firstTick": 1,
+          "lastTick": 40,
+          "evidenceKind": "InputApplicationEvidence",
+          "sourceKind": "dice",
+          "elementId": "wind",
+          "additionalEffectiveQ": 1000
+        }
+      },
+      "patches": [
+        {
+          "target": "witness",
+          "path": [
+            "tick"
+          ],
+          "value": 2
+        }
+      ],
+      "expected": {
+        "validPositiveGrowthWitness": false,
+        "rejection": "first_tick_mismatch"
+      }
+    },
+    {
+      "caseId": "wrong_field_cell",
+      "arithmeticCaseId": "wet_wind",
+      "fieldEvidenceRefs": {
+        "weather": "weather.field",
+        "diceLight": null,
+        "diceWind": "dice.wind"
+      },
+      "sourceEvidence": {
+        "weather.field": {
+          "roundId": "fixture-round",
+          "cellId": 17,
+          "firstTick": 1,
+          "lastTick": 40,
+          "evidenceKind": "WeatherApplicationEvidence",
+          "sourceKind": "weather",
+          "baseEffectiveLightQ": 500,
+          "baseEffectiveWindQ": 0
+        },
+        "dice.wind": {
+          "roundId": "fixture-round",
+          "cellId": 17,
+          "firstTick": 1,
+          "lastTick": 40,
+          "evidenceKind": "InputApplicationEvidence",
+          "sourceKind": "dice",
+          "elementId": "wind",
+          "additionalEffectiveQ": 1000
+        }
+      },
+      "patches": [
+        {
+          "target": "sources",
+          "path": [
+            "dice.wind",
+            "cellId"
+          ],
+          "value": 18
+        }
+      ],
+      "expected": {
+        "validPositiveGrowthWitness": false,
+        "rejection": "source_subject_mismatch"
+      }
+    },
+    {
+      "caseId": "wrong_field_interval",
+      "arithmeticCaseId": "wet_wind",
+      "fieldEvidenceRefs": {
+        "weather": "weather.field",
+        "diceLight": null,
+        "diceWind": "dice.wind"
+      },
+      "sourceEvidence": {
+        "weather.field": {
+          "roundId": "fixture-round",
+          "cellId": 17,
+          "firstTick": 1,
+          "lastTick": 40,
+          "evidenceKind": "WeatherApplicationEvidence",
+          "sourceKind": "weather",
+          "baseEffectiveLightQ": 500,
+          "baseEffectiveWindQ": 0
+        },
+        "dice.wind": {
+          "roundId": "fixture-round",
+          "cellId": 17,
+          "firstTick": 1,
+          "lastTick": 40,
+          "evidenceKind": "InputApplicationEvidence",
+          "sourceKind": "dice",
+          "elementId": "wind",
+          "additionalEffectiveQ": 1000
+        }
+      },
+      "patches": [
+        {
+          "target": "sources",
+          "path": [
+            "dice.wind",
+            "firstTick"
+          ],
+          "value": 2
+        }
+      ],
+      "expected": {
+        "validPositiveGrowthWitness": false,
+        "rejection": "source_tick_mismatch"
+      }
+    },
+    {
+      "caseId": "wrong_field_round",
+      "arithmeticCaseId": "wet_wind",
+      "fieldEvidenceRefs": {
+        "weather": "weather.field",
+        "diceLight": null,
+        "diceWind": "dice.wind"
+      },
+      "sourceEvidence": {
+        "weather.field": {
+          "roundId": "fixture-round",
+          "cellId": 17,
+          "firstTick": 1,
+          "lastTick": 40,
+          "evidenceKind": "WeatherApplicationEvidence",
+          "sourceKind": "weather",
+          "baseEffectiveLightQ": 500,
+          "baseEffectiveWindQ": 0
+        },
+        "dice.wind": {
+          "roundId": "fixture-round",
+          "cellId": 17,
+          "firstTick": 1,
+          "lastTick": 40,
+          "evidenceKind": "InputApplicationEvidence",
+          "sourceKind": "dice",
+          "elementId": "wind",
+          "additionalEffectiveQ": 1000
+        }
+      },
+      "patches": [
+        {
+          "target": "sources",
+          "path": [
+            "dice.wind",
+            "roundId"
+          ],
+          "value": "another-round"
+        }
+      ],
+      "expected": {
+        "validPositiveGrowthWitness": false,
+        "rejection": "source_round_mismatch"
+      }
+    },
+    {
+      "caseId": "wrong_field_source_kind",
+      "arithmeticCaseId": "wet_wind",
+      "fieldEvidenceRefs": {
+        "weather": "weather.field",
+        "diceLight": null,
+        "diceWind": "dice.wind"
+      },
+      "sourceEvidence": {
+        "weather.field": {
+          "roundId": "fixture-round",
+          "cellId": 17,
+          "firstTick": 1,
+          "lastTick": 40,
+          "evidenceKind": "WeatherApplicationEvidence",
+          "sourceKind": "weather",
+          "baseEffectiveLightQ": 500,
+          "baseEffectiveWindQ": 0
+        },
+        "dice.wind": {
+          "roundId": "fixture-round",
+          "cellId": 17,
+          "firstTick": 1,
+          "lastTick": 40,
+          "evidenceKind": "InputApplicationEvidence",
+          "sourceKind": "dice",
+          "elementId": "wind",
+          "additionalEffectiveQ": 1000
+        }
+      },
+      "patches": [
+        {
+          "target": "sources",
+          "path": [
+            "dice.wind",
+            "sourceKind"
+          ],
+          "value": "weather"
+        }
+      ],
+      "expected": {
+        "validPositiveGrowthWitness": false,
+        "rejection": "source_kind_mismatch"
+      }
+    },
+    {
+      "caseId": "missing_source",
+      "arithmeticCaseId": "wet_wind",
+      "fieldEvidenceRefs": {
+        "weather": "weather.field",
+        "diceLight": null,
+        "diceWind": "dice.wind"
+      },
+      "sourceEvidence": {
+        "weather.field": {
+          "roundId": "fixture-round",
+          "cellId": 17,
+          "firstTick": 1,
+          "lastTick": 40,
+          "evidenceKind": "WeatherApplicationEvidence",
+          "sourceKind": "weather",
+          "baseEffectiveLightQ": 500,
+          "baseEffectiveWindQ": 0
+        },
+        "dice.wind": {
+          "roundId": "fixture-round",
+          "cellId": 17,
+          "firstTick": 1,
+          "lastTick": 40,
+          "evidenceKind": "InputApplicationEvidence",
+          "sourceKind": "dice",
+          "elementId": "wind",
+          "additionalEffectiveQ": 1000
+        }
+      },
+      "patches": [
+        {
+          "target": "witness",
+          "path": [
+            "fieldEvidenceRefs",
+            "diceWind"
+          ],
+          "value": "missing.field"
+        }
+      ],
+      "expected": {
+        "validPositiveGrowthWitness": false,
+        "rejection": "source_missing"
+      }
+    },
+    {
+      "caseId": "zero_dice_addition",
+      "arithmeticCaseId": "wet_wind",
+      "fieldEvidenceRefs": {
+        "weather": "weather.field",
+        "diceLight": null,
+        "diceWind": "dice.wind"
+      },
+      "sourceEvidence": {
+        "weather.field": {
+          "roundId": "fixture-round",
+          "cellId": 17,
+          "firstTick": 1,
+          "lastTick": 40,
+          "evidenceKind": "WeatherApplicationEvidence",
+          "sourceKind": "weather",
+          "baseEffectiveLightQ": 500,
+          "baseEffectiveWindQ": 0
+        },
+        "dice.wind": {
+          "roundId": "fixture-round",
+          "cellId": 17,
+          "firstTick": 1,
+          "lastTick": 40,
+          "evidenceKind": "InputApplicationEvidence",
+          "sourceKind": "dice",
+          "elementId": "wind",
+          "additionalEffectiveQ": 1000
+        }
+      },
+      "patches": [
+        {
+          "target": "sources",
+          "path": [
+            "dice.wind",
+            "additionalEffectiveQ"
+          ],
+          "value": 0
+        }
+      ],
+      "expected": {
+        "validPositiveGrowthWitness": false,
+        "rejection": "nonpositive_dice_field"
+      }
+    },
+    {
+      "caseId": "omitted_dice_field",
+      "arithmeticCaseId": "wet_wind",
+      "fieldEvidenceRefs": {
+        "weather": "weather.field",
+        "diceLight": null,
+        "diceWind": "dice.wind"
+      },
+      "sourceEvidence": {
+        "weather.field": {
+          "roundId": "fixture-round",
+          "cellId": 17,
+          "firstTick": 1,
+          "lastTick": 40,
+          "evidenceKind": "WeatherApplicationEvidence",
+          "sourceKind": "weather",
+          "baseEffectiveLightQ": 500,
+          "baseEffectiveWindQ": 0
+        },
+        "dice.wind": {
+          "roundId": "fixture-round",
+          "cellId": 17,
+          "firstTick": 1,
+          "lastTick": 40,
+          "evidenceKind": "InputApplicationEvidence",
+          "sourceKind": "dice",
+          "elementId": "wind",
+          "additionalEffectiveQ": 1000
+        }
+      },
+      "patches": [
+        {
+          "target": "witness",
+          "path": [
+            "fieldEvidenceRefs",
+            "diceWind"
+          ],
+          "value": null
+        }
+      ],
+      "expected": {
+        "validPositiveGrowthWitness": false,
+        "rejection": "field_total_mismatch"
+      }
+    },
+    {
+      "caseId": "impossible_soil_removal",
+      "arithmeticCaseId": "wet_wind",
+      "fieldEvidenceRefs": {
+        "weather": "weather.field",
+        "diceLight": null,
+        "diceWind": "dice.wind"
+      },
+      "sourceEvidence": {
+        "weather.field": {
+          "roundId": "fixture-round",
+          "cellId": 17,
+          "firstTick": 1,
+          "lastTick": 40,
+          "evidenceKind": "WeatherApplicationEvidence",
+          "sourceKind": "weather",
+          "baseEffectiveLightQ": 500,
+          "baseEffectiveWindQ": 0
+        },
+        "dice.wind": {
+          "roundId": "fixture-round",
+          "cellId": 17,
+          "firstTick": 1,
+          "lastTick": 40,
+          "evidenceKind": "InputApplicationEvidence",
+          "sourceKind": "dice",
+          "elementId": "wind",
+          "additionalEffectiveQ": 1000
+        }
+      },
+      "patches": [
+        {
+          "target": "witness",
+          "path": [
+            "evaporation",
+            "soilAmount"
+          ],
+          "value": 5
+        }
+      ],
+      "expected": {
+        "validPositiveGrowthWitness": false,
+        "rejection": "arithmetic_mismatch"
+      }
+    },
+    {
+      "caseId": "rounded_growth_is_not_positive",
+      "arithmeticCaseId": "rounded_growth",
+      "fieldEvidenceRefs": {
+        "weather": "weather.field",
+        "diceLight": null,
+        "diceWind": null
+      },
+      "sourceEvidence": {
+        "weather.field": {
+          "roundId": "fixture-round",
+          "cellId": 17,
+          "firstTick": 1,
+          "lastTick": 40,
+          "evidenceKind": "WeatherApplicationEvidence",
+          "sourceKind": "weather",
+          "baseEffectiveLightQ": 1,
+          "baseEffectiveWindQ": 0
+        }
+      },
+      "patches": [],
+      "expected": {
+        "validPositiveGrowthWitness": false,
+        "rejection": "nonpositive_growth"
+      }
+    },
+    {
+      "caseId": "mature_is_not_positive",
+      "arithmeticCaseId": "mature",
+      "fieldEvidenceRefs": {
+        "weather": "weather.field",
+        "diceLight": null,
+        "diceWind": null
+      },
+      "sourceEvidence": {
+        "weather.field": {
+          "roundId": "fixture-round",
+          "cellId": 17,
+          "firstTick": 1,
+          "lastTick": 40,
+          "evidenceKind": "WeatherApplicationEvidence",
+          "sourceKind": "weather",
+          "baseEffectiveLightQ": 500,
+          "baseEffectiveWindQ": 0
+        }
+      },
+      "patches": [],
+      "expected": {
+        "validPositiveGrowthWitness": false,
+        "rejection": "nonpositive_growth"
+      }
+    }
+  ],
+  "notCovered": [
+    "generation of full SimulationEvent / ObservationGroup records",
+    "map, field falloff, shielding, injection, flow or infiltration",
+    "40-tick temporal aggregation and first-positive-tick selection",
+    "oracle predicate evaluation or ranking",
+    "journal append / recovery / hash verification",
+    "Unity / C# / rendering / device behavior",
+    "counterfactual or marginal wind-attributed growth"
+  ]
+}

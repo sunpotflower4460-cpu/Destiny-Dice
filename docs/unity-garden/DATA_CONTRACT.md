@@ -1,6 +1,6 @@
 # Unity Garden — 記録・復旧・観察のデータ契約
 
-設計版: **0.7 / designCandidate／Unity 実装・実機検証は未実施**。対象は新しい箱庭ゲームのみ。自然・天候・場所と配面の規則を保ち、来場者交代の保存・復帰、現在の採用版、監査用exportの境界を揃える。現行の組合せは[CURRENT_DESIGN.md](./CURRENT_DESIGN.md)を参照する。
+設計版: **0.8 / designCandidate／Unity 実装・実機検証は未実施**。対象は新しい箱庭ゲームのみ。自然・天候・場所と配面の規則を保ち、最初の庭と障害後の新しい庭の入口、同じ記録から作る観察画面、局所の成長根拠を具体化する。現行の組合せは[CURRENT_DESIGN.md](./CURRENT_DESIGN.md)を参照する。
 この文書は既存の `DESIGN.md` / `PROTOCOL_FREEZE.md` の実験・台帳を変更しない。
 数値パラメーター、ファイル I/O、C# の具体的な型は、後続の実装フェーズで検証する。
 
@@ -130,7 +130,7 @@ v0.6では前回の過程再生があれば終了または省略し、保存済�
 
 ## 3. 中断・再開・二重実行
 
-復旧入口では保存済みRunSwitchRequested・RunClosedを先に確認し、交代中なら§3.2の非公開の完結処理へ進む。次の表はroundの保存段階ごとの扱いであり、交代要求を無視して旧runの通常画面を開く規則ではない。
+復旧入口では保存済みRunCreationPlan・RunSwitchRequested・RunClosedを先に確認し、§3.3の一意な継続先を求める。交代中なら§3.2の非公開の完結処理へ進む。次の表はroundの保存段階ごとの扱いであり、保存済みの作成・交代要求を無視して旧runの通常画面を開く規則ではない。
 
 | 再開時に存在する最後の段階 | 回復規則 |
 |---|---|
@@ -191,7 +191,7 @@ CareFocusChangedはrun単位の`runId + commandId`で一意とする。複数の
 
 ### 3.2 来場者交代を、中断しても一つの新しい庭へつなぐ
 
-`RunSwitchRequested`は、新しい庭を始める明示操作を旧runへ保存する任意のrun単位recordである。通常の一投には追加しない。RunStartedの`runLifecycleVersion=run-switch.v0.7`として、受付済みの交代要求、旧runの閉鎖、次runのgenesisを次の順序へ固定する。この版を採用していない旧runへrecordや意味を黙って後付けせず、旧runの保存・復元は当時の版で扱う。
+`RunSwitchRequested`は、新しい庭を始める明示操作を旧runへ保存する任意のrun単位recordである。通常の一投には追加しない。現行の`runLifecycleVersion=run-entry.v0.8`は、この節の`run-switch.v0.7`の正常な交代規則をそのまま継承し、§3.3の初回作成と明示的な障害後の作成を加える。受付済みの交代要求、旧runの閉鎖、次runのgenesisは次の順序とする。旧runの保存・復元は当時の版で扱い、新しいrecordや意味を後付けしない。
 
 `RunSwitchRequested → 旧roundがあれば合法な終端 → RunClosed → 指定したtargetRunIdのRunStarted`
 
@@ -200,7 +200,7 @@ CareFocusChangedはrun単位の`runId + commandId`で一意とする。複数の
 3. writerは旧runが閉鎖済みでなく、競合する交代要求がないことを検査し、`RunSwitchRequested(commandId, reason, targetRunId, targetRunPlan, plannedBy)`を保存する。内容原本の永続化はこの参照recordより先とする。保存済み要求は変更せず、再開時の同梱contentへ差し替えない。
 4. 要求のdurable確認後は旧runを閉鎖待ちとして扱う。新しいPreparationStarted・Roll・Intent編集・CareFocusChangedを受け付けず、次項の既存roundの完結だけを内部で進める。旧runの本文・意図・結果を通常画面へ戻さない。
 5. 旧roundが終端になったことを確認し、`RunClosed`へ`switchRequestRef / targetRunId / closingHeadRef / lastWorldRevision`を保存する。closingHeadRefはこのRunClosed直前の完全なseq/hash。閉鎖後の旧runへ通常recordや後着PresentationReceiptを追記しない。
-6. `targetRunPlan`と旧RunClosedを照合して、固定したtargetRunIdへ一つのRunStartedを保存する。新genesisの`previousRunId / switchRequestRef / predecessorClosedRef`は同じ交代を指す。runをまたぐrecord参照は`{runId,seq,entryHash}`を必須とし、seqだけで別runのrecordへ結ばない。新runのseqは1、prevHashは64文字の0とし、旧runのheadを新runのprevHashへ流用しない。
+6. `targetRunPlan`と旧RunClosedを照合して、固定したtargetRunIdへ一つのRunStartedを保存する。v0.8の新genesisは`entryKind=switch`とし、`previousRunId / switchRequestRef / predecessorClosedRef`は同じ交代を指す。正常交代に別のRunCreationPlanを重ねない。runをまたぐrecord参照は`{runId,seq,entryHash}`を必須とし、seqだけで別runのrecordへ結ばない。新runのseqは1、prevHashは64文字の0とし、旧runのheadを新runのprevHashへ流用しない。
 7. 新runのgenesisと初期状態の保存・検証に成功してから、新しい庭の通常画面を開く。目標・方法・本文・操作時間・場所設定を旧runから継承せず、静的map・初期晴れ・既定autoの通常準備へ進む。旧runの片付けのために読了や追加の確認を求めない。
 
 RunStarted・RunSwitchRequested・RunClosedはそれぞれ`runId + eventType`で一つとする。交代commandの再送は`runId + commandId`で同じ要求記録へ収束する。同commandで異なる内容を送った場合は不正な再送として拒否する。別commandが交代中に来ても第二のtargetRunIdを割り当てず、既に進行中の交代を返す。新runを通常公開した後に、その新runで明示された別の新庭操作は別の交代である。
@@ -236,6 +236,60 @@ UIの公開権と、旧runの内部処理所有権は別とする。交代準備
 完全な要求frameを検証できれば、保存完了通知を返す前に終了していても受理済みとする。要求の保存が失敗した同processでは、中立の回復画面に留まり同commandの保存を回復する。新しい庭へ交代済みと表示したり、別のtargetRunIdで再試行したりしない。保存前のprocess終了だけは、記録されていない交代操作を保証できる境界ではない。運営は新しい庭の通常表示まで確認してから端末を次の来場者へ渡す。
 
 これは通常の明示的な新庭操作の契約である。§9.1の検証障害で旧runを書込み不能にした場合の保全・救済を、正常なRunClosedや交代完了へ偽装しない。
+
+### 3.3 最初の庭と、障害後に明示して始める庭
+
+`run-entry.v0.8`は、通常交代の旧runを持たない入口を次の三つに分ける。どの場合も新しい庭は静的mapから作り、表示前に一つの完全なRunStartedを保存する。
+
+既存RunStartedがある場合は、そこに保存されたrunLifecycleVersionで復元規則を選ぶ。genesis前なら、受理済み作成／交代計画に固定された作成先の版を使う。`run-switch.v0.7`の保存済みrun・交代先にv0.8のentryKind／creationPlanRefを要求せず、当時の参照契約で照合する。v0.8のRunCreationPlanが新規に作るtargetRunPlanはrun-entry.v0.8を持つ。旧runから新しい版のrunへ正常交代する場合も、旧閉鎖の版と新genesisの版をそれぞれ使う。
+
+| `entryKind` | 作成の根拠 | 保存する出所 |
+|---|---|---|
+| `initial` | 同gameIdに既存のrun・受理済み作成計画がない初回起動 | 受理済みRunCreationPlanへの参照。previousRunId・交代参照はなし |
+| `switch` | §3.2の正常な新庭操作 | RunSwitchRequestedとRunClosed。別の作成計画はなし |
+| `recoveryFresh` | 一意に特定できる現在runがintegrity_errorで書込み不能になり、原本保全後に運営者／本人が「新しい庭で続ける」を明示した場合 | RunCreationPlan、旧runの保存原本と検証範囲を示す診断参照。正常な交代参照はなし |
+
+RunCreationPlanは**一つの作成に一つの不変な保存artifact**であり、第二の汎用journal、seq=0のイベント、通常投擲の追加段階ではない。schemaは`run-creation-plan.v0.8`、内容は`gameId / creationId / targetRunId / entryKind / plannedAtUtc / plannedBy / targetRunPlan`とする。entryKindはinitialまたはrecoveryFreshだけで、後者では下記のrecoveryOriginを必須とする。targetRunPlanの固定範囲と、実際にgenesisを作るbuild・時刻を別に記録する規則は§3.2と同じとする。
+
+作成planには完全性を検査できるframeを使う。plan本文のJCSとそのSHA-256を同じframeに保持し、hash自身を本文のhash対象へ戻さない。原本全体は別にartifact ID・byte長・原本byte列のSHA-256で参照する。`creationPlanRef={artifactId,byteLength,sha256}`はjournalのseq/hash参照やsnapshotのstateHashではない。JCS・数値制約は§9と共有し、原本はdurable保存後に変更しない。具体的なframe byte構造とOSの永続化手段はG1で固定する。
+
+#### 作成計画の受理とgenesis
+
+1. 同じwriter/coordinatorの排他区間で既存の計画・run・交代関係を調べ、今回の入口が許可されることを確認する。新しいcreationIdとtargetRunIdを同じ作成commandへ一度だけ割り当てる。既存run IDの再利用や循環する出所を拒否する。
+2. targetRunPlanが参照する設定・地図・文章集などを検証してdurable保存する。recoveryFreshでは、書込みを止めた旧runの原本と診断も先に保全する。
+3. writerは受理済み計画・継続先の一意性を再確認し、同じ排他区間でRunCreationPlanを保存・検証する。連打・別commandで既存作成が進行中ならその処理へ収束させ、二つ目の計画を保存しない。完全なframeと内容を確認できた時点を受理とし、応答が返る前に終了しても受理済みとして扱う。この境界の前にRunStartedを書き始めない。
+4. 受理済み計画からだけ、固定targetRunIdへRunStartedを作る。`entryKind / creationPlanRef`、固定初期状態と内容、実際の実行元と時刻を保存する。seq=1・prevHash=64文字の0を保つ。途中frameは§9.3と同じ手順で保全し、同じ計画・同じtargetRunIdへ回復する。
+5. 完全なRunStartedを照合してから通常画面と最初の準備を公開する。既存の完全genesisがあればそれへ収束し、二つ目を作らない。初回の確認ボタンや追加の設定入力は要求しない。
+
+同processの保存再試行は同じplan内容・ID・原本を使う。同じcreationId／targetRunIdに異なる完全なplanがあれば検証障害とする。planが完全になる前にprocessが終了した場合は、作成は未受理である。不完全なplan原本を隔離・保全し、欠けた欄やIDを推測して受理済みとしない。既存run・完全plan・genesis attemptがないことを確認した初回起動では、新しい作成を始められる。この場合、未受理の作成と同じIDに戻る保証はしない。障害後の作成が未受理なら、次の起動でも障害の閲覧状態へ戻り、本人／運営者の操作を再び必要とする。
+
+不完全なplan原本は作成前の診断として残し、正常なrunイベントや抽選の欠測へ数えない。運営側の原本保全・診断回収では取り出せるようにする。完全frameのhash不一致・未知schemaは単なる途中書込みとして破棄せず、それぞれ検証障害・未対応として扱う。
+
+#### 障害後の新しい庭が引き継ぐもの
+
+recoveryFreshの`recoveryOrigin`は、`sourceRunId / diagnosticRef / lastVerifiedHead`を持つ。diagnosticRefは不変な診断artifactの原本ID・byte長・SHA-256。診断には旧runの封印したsegment一覧と各原本のbyte長・hash・検証済み末尾offset、障害種別、確認できた最後のseq/hashを残す。完全なgenesisまで検証できない場合のlastVerifiedHeadはnullとし、架空のseq=0や確定結果を作らない。sourceRunIdは既存の作成計画・runの保存領域から一意に特定した対象であり、壊れた本文の正しさを保証する識別ではない。
+
+旧runへRunSwitchRequestedやRunClosedを無理に追記せず、旧snapshot・未知の出目・未確定意図を新runへ移さない。新runのpreviousRunIdはsourceRunIdを記録し、`entryKind=recoveryFresh`で「障害のあった庭から、新しい庭を開始」と分かるようにする。旧runの完全な復旧・正常な交代完了と表示しない。診断参照は失われた状態の補完ではない。
+
+この経路は、現在の対象を一意に特定でき、原本が保全され、完了済みの後続runも進行中の正常交代要求もない場合だけ使う。競合する複数の根や継続先、作成元を特定できない状態、RunSwitchRequestedの回復待ちは、この経路で勝者を選んで解消しない。未対応モデル・内容の欠損・一時的な保存失敗を理由に自動作成もしない。既存の回復待ちと診断を維持する。
+
+一つのsourceRunIdに受理できるrecoveryFresh計画は一つとする。保存後はその固定targetRunIdへ収束し、旧runの通常本文・投擲を再公開しない。plan保存前のprocess終了は未受理として扱う。正常なswitchとの競合、別の計画による二つ目の継続先、計画と異なるgenesisはintegrity_errorであり、最新の時刻や便利な方を選ばない。
+
+#### 起動時に一つの入口へ収束する
+
+起動projectionは同じ保存領域の完全planとrun原本を検証走査する。初回の根、正常交代、明示的な障害後作成の参照をたどり、一つの継続先または一つの保存待ちを返す。保存済み計画は、破棄可能なactive-run cacheとは別の原本である。
+
+| 起動時の証拠 | 次に行うこと |
+|---|---|
+| 既存run・受理済み計画なし。contentと未受理の途中planだけ | 途中原本を保全して初回作成。正常なrunがあったことにしない |
+| 完全なinitial plan、genesisなし／途中 | 同じtargetRunIdへ§9.3で作成・回復 |
+| 完全なplanと一致する完全genesis、応答なし | 既存genesisを採用。再作成しない |
+| 保存済みの正常交代要求 | §3.2の同じ要求を続ける。initialやrecoveryFreshへ読み替えない |
+| 受理済みrecoveryFresh plan | 同じ新runを作成・復元し、旧runは診断付き読取専用のまま保持 |
+| 計画の版を現在の実装で扱えない | 同じ計画の回復待ち。新しいcontent・計算版へ差し替えない |
+| 複数の完全な根、競合plan／genesis、循環、根拠のないrun原本 | integrity_error。cache・更新日時・端末時計で選ばない |
+
+v0.8のinitial／recoveryFreshのgenesisには対応する完全planを必須とする。planなしのgenesis attemptを見つけても初回の空状態へ読み替えない。旧版の正常runは当時の契約で認識し、後付けの作成planを捏造しない。旧版の未定義な初回破損をv0.8の回復合格例へ含めない。
 
 ## 4. 乱数の役割と監査
 
@@ -317,17 +371,22 @@ nullable と未取得を区別し、既知の値を便宜的な `0` や空文字
 | `JournalEntry` | `seq`, `type`, `createdAtUtc`, `payload`, `prevHash`, `entryHash` |
 | `RecordMeta` | `schemaVersion`, `gameId`, `runId`, `roundId?`, `seq`。各 payload に含める |
 | `RunStarted` | 初期状態、`rulesetVersion`, `simulationVersion`, `numericEncodingVersion`, `mappingPolicyVersion` |
-| 同上・版情報 | `runLifecycleVersion`, `rngPolicyVersion`, `rngAlgorithmVersion`, `weatherPolicyVersion`, `targetPolicyVersion`, `appearanceProjectionVersion`, `deckVersion`, `messageVersion`, `groupingVersion`, `selectionPolicyVersion`, `appVersion`, `buildId` |
-| 同上・識別 | `platform`, `previousRunId?`, `initialStateProvenance`, `startedAtUtc`。交代で作るrunは`switchRequestRef / predecessorClosedRef`を必須とする |
+| 同上・版情報 | `runLifecycleVersion`, `simulationEvidenceVersion`, `rngPolicyVersion`, `rngAlgorithmVersion`, `weatherPolicyVersion`, `targetPolicyVersion`, `appearanceProjectionVersion`, `deckVersion`, `messageVersion`, `groupingVersion`, `selectionPolicyVersion`, `appVersion`, `buildId` |
+| 同上・識別 | `platform`, `previousRunId?`, `initialStateProvenance`, `startedAtUtc`。v0.8は`entryKind=initial/switch/recoveryFresh`も持つ |
+| 同上・入口の参照 | switchは`switchRequestRef / predecessorClosedRef`、initial／recoveryFreshは`creationPlanRef`を必須とする。recoveryFreshは`recoveryOrigin`もplanと一致。異なる入口の参照を同時に付けない |
 | 同上・場所の既定 | `defaultCareFocus={mode:auto,siteId:null}`。場所変更がない準備の参照元 |
 | 同上・内容 | `contentManifest`：設定・地図・weather profile・target profile・deck・文章集の永続参照、内容hash、byte長。plant appearance profileは採用時だけ含む |
 | 同上・未完genesisの保全 | `genesisRecovery?`：§9.3の未完genesis原本への診断参照。存在しない履歴やRecoveryContinuedを作らない |
+| `RunCreationPlan`（不変artifact） | §3.3の`schemaVersion`, `gameId`, `creationId`, `targetRunId`, `entryKind`, `targetRunPlan`, `plannedAtUtc`, `plannedBy`, 必要時の`recoveryOrigin`。run内seqやJournalEntryを持たない |
+| `RecoveryOrigin` | `sourceRunId`, 原本保全と検証範囲を示す`diagnosticRef`, `lastVerifiedHead?`。検証可能な先頭recordがない場合はnull |
 | `RunSwitchRequested` | `commandId`, `reason`, `targetRunId`, `targetRunPlan`, `plannedBy={appVersion,buildId,platform}`。meta.roundId=null。同旧runで一つの交代要求 |
-| `TargetRunPlan` | 新RunStarted用の初期snapshot、採用版、contentManifest、defaultCareFocus。新genesisの実行元app/build/platform、自身のseq/hash・保存/開始時刻・genesisRecovery・switchRequestRef・predecessorClosedRefはgenesis作成時に付ける |
+| `TargetRunPlan` | 新RunStarted用の初期snapshot、採用版、contentManifest、defaultCareFocus。新genesisの実行元app/build/platform、自身のseq/hash・保存/開始時刻・genesisRecovery・入口に応じた参照はgenesis作成時に付ける。entryKindは保存済み作成／交代の根拠から導く |
 | `RunClosed` | `closingHeadRef`, 終了理由、`lastWorldRevision`。交代では`switchRequestRef / targetRunId`を必須とし、進行中roundを残して通常終了しない |
 | `WorldSnapshot` | simulation/weather profileとmapの内容hash、グリッド形状、地形・障害物・土壌容量、地表水・土中水・端数、植物状態、tickと累計、`worldRevision`, `stateHash` |
 
 外観表現を未採用なら`appearanceProjectionVersion=null`、contentManifestの外観profile参照もなしとする。採用するrunは対応する版と原本hashを両方持ち、片方だけを保存しない。未採用を「出生条件の見た目を復元できる」と表示しない。
+
+`simulationEvidenceVersion=local-growth-witness.v0.8`は、同じ自然算術が残す局所の証拠の版である。自然係数、段階閾値、配面、カードの確率を変更しない。旧runのSimulationEventへ新しい証拠を後付けせず、証拠不足の図は表現できる範囲だけを示す。正確な追加項目と式はSIMULATIONを正とする。
 
 グリッドや植物状態の正確な要素は自然モデルの仕様で固定する。
 浮動小数の丸め、列挙順、境界処理、時間刻みも数値表現・計算版に含める。
@@ -388,6 +447,7 @@ TargetContextの設定・出所はPreparationStartedの固定値と一致させ�
 | `DrawEntropyCommitted` | `acquisitionSeq`, 成功した`outcomeReceipt`, 成功または失敗の`oracleReceipt`。一つのframeで保存 |
 | `OutcomeCommitted` | `drawEntropySeq`, `faceId`, 選択面参照、`cardId?`, `cardStatus`, roleごとの消費範囲・棄却数・変換版 |
 | `Resolved` | `outcomeSeq`, Preparedと同じ開始状態参照、完全な `postState`, `postStateHash`, `weatherApplicationEvidence`, `inputApplicationEvidence`, `events[]`, `message`, `presentationPlan`, 計算版 |
+| 同上・証拠の版 | RunStartedと同じ`simulationEvidenceVersion`。v0.8のGrowthObservedにはSIMULATIONの同じcell・plant・tickの成長根拠を含める |
 | `PresentationReceipt` | `resolvedSeq`, `presentationAttemptId`, `phase=presenter_started/presenter_completed`, アプリ報告時刻 |
 | `InterruptedUnresolved` | `acquisitionSeq`, 検出時刻、理由、`outcomeKnown=false` |
 | `PreparationInterrupted` | `preparationSeq`, `weatherSourceRef?`, `mappingEntropySeq?`, 理由と取得失敗receipt?。出目の欠測とは別 |
@@ -419,6 +479,8 @@ bundleが完全に保存される前の終了と、保存済み材料の未解�
 
 天候とダイスの適用証拠は別々に保持する。水収支も`weatherInjected / diceInjected / totalInjected`を分け、注入の合計を使って保存則を検査する。混合後の流れ・吸水・土中水に、記録していない由来比率を割り当てない。
 光・風は天候の基礎場、上限適用後の合成場、ダイスが追加した実効差分を区別して残す。実効差分が0なら、天候だけによる光・風の記録でダイスの局所到達述語を成立させない。証拠の具体的な項目と合成順はSIMULATIONを正とする。
+
+`local-growth-witness.v0.8`のGrowthObserved.firstPositiveGrowthEvidenceは、既存の最初の正の成長tickへcellId・plantId、蒸発前の水量と端数、蒸発要求と地表／土中の実蒸発、成長前後の値と端数、同じtickの実効光・風と場への参照を揃える。round全体の蒸発累計や別tickの湿りを、この局所証拠の代わりに使わない。Resolved内の証拠同士は安定したlocal ID／pathで参照し、まだ作成できない自身のentryHashを含む循環参照にしない。これは自然イベントを増やす変更ではなく、既存イベントの証拠を具体化する変更である。
 
 ObservationGroupは、実イベントを意味と場所でまとめた表示用の投影であり、新しい自然イベントや独立台帳ではない。
 `observation-groups.v0.4`では同kindの4近傍成分を基本とし、WaterEnteredはsourceKind=dice/weatherごとに分離する。全域集約のSurfaceFlowObservedだけは一つのglobal groupにする。分離した流れへ集計値を複写せず、局所到達の根拠にしない。groupのIDと述語の束縛はGAMEPLAY§6〜7を正とする。
@@ -524,7 +586,7 @@ hash、byte、状態配列、完全な参照を省いた投影で、実装 fixtu
 
 ## 8. 初期グラフと集計
 
-グラフは保存した履歴から毎回再構築できる projection とし、独自の成功カウンターを持たない。
+グラフは保存した履歴から毎回再構築できる projection とし、独自の成功カウンターを持たない。横軸・空欄・各点の項目・母数の共通の定義は[OBSERVATION.md](./OBSERVATION.md)を正とし、画面とCSVが別々の集計を実装しない。本書は元recordの有効性・既知出目の条件・欠測と復旧の契約を定める。OBSERVATIONの合成入力は、原本frame・hash・材料の検証が実行済みであるという証拠ではない。
 
 | 表示 | 集計・表示内容 |
 |---|---|
@@ -619,30 +681,33 @@ exportはsegmentの接続・回復診断・参照した原本を含め、途切�
 
 途中のhash不一致・不正な完全frame・必須参照欠損は`integrity_error`として旧runの書込みを止める。
 原本を保全したまま、閲覧できる検証済み範囲と障害を表示する。
-継続不能なら、G1〜G3では原本と検証済み範囲を保全し、回復元・未確定範囲を示したうえで静的mapから新runを開始できる。旧runの失われた結果を埋めず、旧runの完全な復旧とも呼ばない。
+継続不能なら原本と検証済み範囲を保全する。G1〜G3で障害後に静的mapから新runを始められるのは、§3.3のrecoveryFreshの受付条件を満たし、本人／運営者が明示した場合だけである。保存失敗や検証障害の検出だけで自動作成しない。旧runの失われた結果を埋めず、旧runの完全な復旧とも呼ばない。
 検証済みsnapshotそのものを別runへ引き継ぐ機能は後続拡張とする。同runの正常な末尾回復・保存済み状態の復元とは区別する。
 
 ### 9.2 内容参照の永続性
 
 設定・地図・weather profile・target profile・deck・文章集と、採用時だけplant appearance profileは、内容hashをキーにした保存領域へ書き、byte長・hash・durable保存を確認する。
 その後にだけ、それらを参照するRunStartedを保存する。snapshotの外部参照にも同じ順序を使う。
+RunCreationPlanがある入口では、内容原本→必要時の障害診断→作成plan→RunStartedの順とする。planの参照だけを保存して原本の用意を後回しにしない。
 現在のアプリに同梱された名前付きassetや、変更され得るURLだけを永続参照にしない。
 runが参照中の内容は更新で置換・削除せず、exportにも実体または完全な自己完結bundleを含める。
 保存状態の閲覧と、旧版モデルの再計算は別の能力である。対応する計算版がない場合、新版で代用しない。
 
-### 9.3 新genesisの未完frameを、同じ交代先へ回復する
+### 9.3 新genesisの未完frameを、同じ作成先へ回復する
 
-この節は、RunSwitchRequestedが固定したtargetRunIdについて、まだ完全なRunStartedがない境界を扱う。§9.1の通常回復は最後の完全recordがあることを前提とするため、genesis前へRecoveryContinuedを置く手段には使わない。
+この節は、受理済みRunCreationPlan、またはRunSwitchRequestedと確認済みRunClosedが固定したtargetRunIdについて、まだ完全なRunStartedがない境界を扱う。先に§3.3で一意な作成元を決め、entryKindに応じた根拠を照合する。§9.1の通常回復は最後の完全recordがあることを前提とするため、genesis前へRecoveryContinuedを置く手段には使わない。
 
-1. 保存adapterの排他権を取得し、固定targetRunIdの全attempt segmentを検査する。完全な先頭RunStartedがあれば、seq=1・prevHash=64文字の0・旧RunClosedと要求への参照・targetRunPlanとの一致を検証して採用する。保存応答の有無で追加のgenesisを作らない。
+以下のentryKind・creationPlanRefはv0.8の条件である。保存した作成先のrunLifecycleVersionがrun-switch.v0.7なら、従来どおりRunSwitchRequestedとRunClosedで照合し、存在しない新項目を復元の必須条件へ追加しない。どちらの版でも完全genesisを作り直さない。
+
+1. 保存adapterの排他権を取得し、固定targetRunIdの全attempt segmentを検査する。完全な先頭RunStartedがあれば、seq=1・prevHash=64文字の0・entryKindに応じた作成計画または交代参照・targetRunPlanとの一致を検証して採用する。保存応答の有無で追加のgenesisを作らない。
 2. 完全なRunStartedがなく、EOFで途中の最初のframeだけが残っている場合は、それぞれをbyte列のまま封印する。旧runや別IDの新runへ書き直さず、truncate・削除もしない。
 3. 各未完原本の`sourceSegmentId / sourceFileHash / sourceByteLength / diagnostic=incomplete_genesis`を保全する。これらは正規のrunイベントでもseq=0のrecordでもなく、書込みattemptの診断である。
-4. 同じtargetRunIdで新しいattempt segmentを作り、固定targetRunPlanと確認済みの旧閉鎖参照からRunStartedを作る。seq=1・prevHashは64文字の0を維持し、payload.genesisRecoveryに保全した全未完genesis原本への診断参照をsourceSegmentId順で含める。新recordの保存時刻は実際のそのattemptの時刻とし、失われた時刻を推測しない。
+4. 同じtargetRunIdで新しいattempt segmentを作り、固定targetRunPlanと、そのentryKindに必要な受理済みの参照からRunStartedを作る。seq=1・prevHashは64文字の0を維持し、payload.genesisRecoveryに保全した全未完genesis原本への診断参照をsourceSegmentId順で含める。新recordの保存時刻は実際のそのattemptの時刻とし、失われた時刻を推測しない。
 5. このframeも途中で終了したら、それも保全して手順1へ戻る。一つの完全なgenesisができるまで、run開始成功・通常画面公開・次のPreparationStartedへ進まない。
 
 完全なframeなのにhash/参照が不正な場合は、不完全末尾としてやり直さずintegrity_errorにする。同targetRunIdに複数の完全なgenesisまたは矛盾する継続があれば、一方を更新時刻で選ばない。排他と検証で正規のgenesisを一つにし、正常に始まった後の部分末尾は§9.1へ移る。
 
-この回復は抽選前の静的初期化だけを扱う。新しい庭の初期状態・contentを再選定したり、新たなtargetRunIdを振り直したりしない。exportにはgenesisRecoveryが参照する不完全原本も含め、途中のattemptがなかったことにしない。初回起動など交代要求を持たない新規作成の保存手順はG1で別途照合し、ここで定義した交代回復を無条件に流用しない。
+この回復は抽選前の静的初期化だけを扱う。新しい庭の初期状態・contentを再選定したり、新たなtargetRunIdを振り直したりしない。exportにはgenesisRecoveryが参照する不完全原本も含め、途中のattemptがなかったことにしない。作成planの保存前の終了は§3.3の未受理であり、この受理済みgenesis回復と混ぜない。初回・正常交代・障害後作成を、G1でそれぞれ停止点から照合する。
 
 ### 9.4 JSONの監査bundleと、CSVの読みやすい一覧
 
@@ -650,7 +715,11 @@ runが参照中の内容は更新で置換・削除せず、exportにも実体�
 
 JSONによる書き出しは、選択したrunのプレイとグラフを再構成できる監査bundleとする。そのrunの論理record、参照するcontentの原本、元segmentのbyte列、回復診断、検証範囲と状態を含める。byte列は可逆なbase64などの版付き表現とbyte長・hashで保持し、再整形したJSONを元segmentの代わりにしない。同runの部分範囲を選んでも、検証・再構成に必要な先行recordと原本を含める。含められない場合は不完全なexportと明記する。
 
+initial／recoveryFreshの対象runには、対応するRunCreationPlanの原本byte列・参照・検証結果を含める。自身の未完genesis原本は§9.3のとおり含める。planだけが完全でgenesis未作成の時点を運営側で回収する場合は「作成受理済み・run未開始」と示し、存在しないRunStartedを生成して出力しない。未受理の途中planの診断回収と、正常に始まったrunの監査bundleを区別する。
+
 展示の来場者向け書出しは現在runだけに限定する。新genesisのswitchRequestRef・predecessorClosedRefをたどって、前の来場者のjournal・本文を自動的に同梱しない。範囲外runへの参照はID/seq/hashと`scope_outside_export`の診断だけを残し、「選択run内の記録・contentの検証」と「runをまたぐ交代履歴の照合」を分ける。後者を確認していないbundleを、交代履歴まで完全検証済みと表示しない。交代元も含めて照合するexportは、運営側が明示した複数runの範囲でだけ行う。新run自身の初期snapshotとcontentはそのRunStartedから復元でき、前の人の本文をゲームの再構成条件にしない。
+
+recoveryFreshのrecoveryOriginも同じ範囲規則を使う。現在runのplanにある出所参照は保持するが、旧runの診断artifact・封印原本・本文を来場者bundleへ自動展開しない。範囲外のdiagnosticRefはartifact ID・byte長・hashとscope_outside_exportを残す。旧runの障害・検証済み範囲の照合まで済んだとは表示せず、その原本を含めた回収は運営側の明示した範囲で行う。
 
 cutoff時点でまだ作られていない次runのgenesisは未開始として示し、将来のrecordを補わない。JSON検証と、G1〜G3では対象外の取り込み・別端末でのプレイ再開機能とは区別する。
 
@@ -694,6 +763,13 @@ CSVは、同じ検証済み記録から作る閲覧用projectionとする。roun
 32. JSON監査bundleのcutoff head・segmentのbyteEnd/hashを固定した後に追記があっても、書出し内容と検証範囲が変わらない。prefixのhashと封印原本の全体hashを区別する。選択runのcontent・元segment・未完genesis原本を含む復元と、CSVの閲覧用要約を区別する。来場者exportに前runの本文を同梱せず、範囲外の交代参照を検証済みとしない。
 33. 本文だけ、方法だけ、構造化目標の変更と、none/freeTextの移行を分けてselectionChangedAfterPreparedを確認する。出所refと既定の目標なしを同じ規則で復元する。
 34. 外観未採用のrunでは版null・profile参照なしで基本体験と復元が成立し、採用runだけが保存した外観profileを使う。
+35. 初回作成をcontent保存後・planの途中／完全frame・genesisの途中／完全frameで止める。未受理と受理済みを分け、後者は同じtargetRunIdへ収束する。完全genesisの応答消失でも二つ目を作らず、途中原本を保全する。
+36. planの本文hash不一致、planのないgenesis、複数の完全な根・競合計画・循環を検出する。更新日時・cacheで勝者を選ばず、未対応の版は同じ計画の回復待ちにする。旧版のrunへentryKindや作成planを後付けしない。
+37. 明示操作によるrecoveryFreshだけが保全済みの故障runから新しい静的mapへ進む。旧runに偽のRunClosedを足さず、検証不能なsnapshot・出目を引き継がない。最後の完全recordがない診断ではlastVerifiedHeadをnullに保つ。
+38. 障害後作成のplan保存前後と新genesisで止め、未受理なら明示操作待ち、受理済みなら同じ継続先へ収束する。進行中の正常交代、完了済み後続run、特定不能な作成元、複数の受理済み救済を新しい庭で隠さない。
+39. initial／recoveryFreshのJSONにそのrunの作成planと未完genesis原本を含め、来場者exportへ旧runの障害原本を自動同梱しない。範囲外の出所の未検証と、現在run内の検証を別に示す。
+40. OBSERVATIONの同じprojectionから画面・CSVを作り、未解決の庭の空欄、保存材料から既知の出目、p=0、目標なし、取消、成長量0を区別する。合成projection fixtureの一致をjournal検証の合格に読み替えない。
+41. local-growth-witness.v0.8の同一cell・plant・tickの根拠を照合し、蒸発と成長の式・端数・実効場の不一致を検出する。別tickの累計や別cellの追加光を局所の計算依存edgeへ使わず、旧証拠にない項目を補わない。
 
 代表的な復旧trace（実行済み結果ではなく、G1のfixture要件）:
 
@@ -715,5 +791,7 @@ CSVは、同じ検証済み記録から作る閲覧用projectionとする。roun
 - `RunSwitchRequested → kill`：旧本文を公開せず、旧roundの保存段階から閉鎖を再開する。
 - `RunClosed → kill`：固定targetRunIdのgenesisだけを作る。genesis保存後のkillなら既存recordへ収束する。
 - `新RunStartedの途中frame → killを反復`：未完attempt原本を残し、同じtargetRunId・初期計画で一つの完全genesisへ進む。
+- `初回の完全RunCreationPlan → kill`：固定targetRunIdへ初期genesisを作る。planの途中frameだけなら未受理とし、原本を残して初回作成の条件を調べる。
+- `integrity_error → 明示したrecoveryFresh plan → kill`：保存済み計画から新しい静的mapへ進む。旧runは障害・原本を保持し、正常な交代や旧状態の完全復旧とは表示しない。
 
 これらは今後の検証項目であり、この設計文書の追加時点で合格済みとはしない。
