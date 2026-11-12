@@ -14,6 +14,9 @@ namespace DestinyGarden.Application
         public int CardIndex; // 0..5, -1 when unavailable
         public SimulationResult Simulation;
         public string StateHashAfter;
+        public SelectedMessage Message;
+        public WeatherDefinition Weather;
+        public string SiteId;
     }
 
     /// <summary>
@@ -40,6 +43,9 @@ namespace DestinyGarden.Application
         public string PreferenceSiteId { get; private set; }
 
         private readonly Dictionary<int, byte[]> _weatherEntropyByPeriod = new Dictionary<int, byte[]>();
+        private readonly List<string> _recentMessageIds = new List<string>(); // newest last, max 3 kept for novelty
+        public string LastIntentKind { get; private set; } = "none";
+        public string LastIntentValue { get; private set; }
 
         public GardenCoordinator(IJournalWriter writer, IEntropyProvider entropy, IIdSource ids)
         {
@@ -159,10 +165,19 @@ namespace DestinyGarden.Application
         {
             if (Phase != CoordinatorPhase.Prepared)
                 throw new InvalidOperationException("Intent requires Prepared phase.");
+            LastIntentKind = kind ?? "none";
+            LastIntentValue = value;
+            int matchFaces = 0;
+            if (LastIntentKind == "family" && value != null)
+                foreach (string f in CurrentFaces.Faces)
+                    if (RecipeCatalog.ElementOf(f).ToString().ToLowerInvariant() == value) matchFaces++;
+            if (LastIntentKind == "face" && value != null) matchFaces = 1;
             _writer.Append("IntentCommitted", RunId, CurrentRoundId, new Dictionary<string, object>
             {
-                ["kind"] = kind ?? "none",
-                ["value"] = value
+                ["kind"] = LastIntentKind,
+                ["value"] = value,
+                ["matchingFaces"] = matchFaces,
+                ["baselineNumerator"] = matchFaces // probability = matchingFaces / 6
             });
             Phase = CoordinatorPhase.IntentCommitted;
         }
@@ -213,9 +228,14 @@ namespace DestinyGarden.Application
             var resolvedRecipe = RecipeResolver.Resolve(recipeId, anchor, State);
             int seedCounter = 0;
             var sim = Simulation.Resolve(State, resolvedRecipe, CurrentWeather,
-                n => _ids.NewId("plant") + "-" + (seedCounter++));
+                n => _ids.NewId("plant") + "-" + (seedCounter++), roundId);
             if (sim.WaterBalanceResidual != 0)
                 throw new InvalidOperationException("Water balance residual must be 0, was " + sim.WaterBalanceResidual);
+
+            string cardId = cardIndex >= 0 ? OracleCatalogData.CardOrder[cardIndex] : null;
+            var message = Oracle.Select(roundId, sim, resolvedRecipe, cardId, RecentThree());
+            _recentMessageIds.Add(message.TemplateId);
+            while (_recentMessageIds.Count > 3) _recentMessageIds.RemoveAt(0);
 
             var events = new List<object>();
             foreach (var e in sim.Events)
@@ -236,16 +256,30 @@ namespace DestinyGarden.Application
                 ["diceWaterInjected"] = sim.DiceWaterInjected,
                 ["weatherWaterInjected"] = sim.WeatherWaterInjected,
                 ["discharged"] = sim.Discharged,
-                ["evaporated"] = sim.Evaporated
+                ["evaporated"] = sim.Evaporated,
+                ["weatherId"] = CurrentWeather.Id.ToString(),
+                ["selectedMessage"] = new Dictionary<string, object>
+                {
+                    ["templateId"] = message.TemplateId,
+                    ["text"] = message.Text,
+                    ["cardId"] = message.CardId,
+                    ["focusGroupId"] = message.FocusGroupId,
+                    ["secondaryGroupId"] = message.SecondaryGroupId,
+                    ["focusCellId"] = message.FocusCellId,
+                    ["fallbackReason"] = message.FallbackReason
+                }
             });
 
             Phase = CoordinatorPhase.Resolved;
             return new RollOutcome
             {
                 FaceId = faceId, RecipeId = recipeId, CardIndex = cardIndex,
-                Simulation = sim, StateHashAfter = afterHash
+                Simulation = sim, StateHashAfter = afterHash,
+                Message = message, Weather = CurrentWeather, SiteId = CurrentFaces.ResolvedSiteId
             };
         }
+
+        private List<string> RecentThree() => new List<string>(_recentMessageIds);
 
         /// <summary>Rebuilds coordinator state from verified journal entries (same-run resume).</summary>
         public void Restore(JournalReadResult read)
@@ -254,6 +288,7 @@ namespace DestinyGarden.Application
             RunId = null; State = null; CurrentFaces = null; CurrentRoundId = null;
             Phase = CoordinatorPhase.NoRun;
             _weatherEntropyByPeriod.Clear();
+            _recentMessageIds.Clear();
 
             foreach (var e in read.Entries)
             {
@@ -297,6 +332,12 @@ namespace DestinyGarden.Application
                     case "Resolved":
                         State = WorldStateSerializer.FromPayload(
                             (Dictionary<string, object>)e.Payload["postState"]);
+                        if (e.Payload.TryGetValue("selectedMessage", out object sm) &&
+                            sm is Dictionary<string, object> smd && smd["templateId"] is string tid)
+                        {
+                            _recentMessageIds.Add(tid);
+                            while (_recentMessageIds.Count > 3) _recentMessageIds.RemoveAt(0);
+                        }
                         CurrentFaces = null; CurrentRoundId = null;
                         Phase = CoordinatorPhase.Resolved;
                         break;

@@ -27,11 +27,14 @@ namespace DestinyGarden.Domain
         public int Growth;
         public int GrowthRemainder;
         public PlantStage Stage;
+        public string OriginKind = "initialMap"; // initialMap | seedInput
+        public string SeedSourceRoundId;         // set only for seedInput plants
 
         public PlantState Clone() => new PlantState
         {
             PlantId = PlantId, CellId = CellId, Growth = Growth,
-            GrowthRemainder = GrowthRemainder, Stage = Stage
+            GrowthRemainder = GrowthRemainder, Stage = Stage,
+            OriginKind = OriginKind, SeedSourceRoundId = SeedSourceRoundId
         };
     }
 

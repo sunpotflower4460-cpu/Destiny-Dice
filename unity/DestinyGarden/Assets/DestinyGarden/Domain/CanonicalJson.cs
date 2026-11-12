@@ -127,7 +127,9 @@ namespace DestinyGarden.Domain
                     ["cellId"] = p.CellId,
                     ["growth"] = p.Growth,
                     ["growthRemainder"] = p.GrowthRemainder,
-                    ["stage"] = (int)p.Stage
+                    ["stage"] = (int)p.Stage,
+                    ["originKind"] = p.OriginKind ?? "initialMap",
+                    ["seedSourceRoundId"] = p.SeedSourceRoundId
                 });
             }
             return new Dictionary<string, object>
@@ -155,7 +157,9 @@ namespace DestinyGarden.Domain
                     CellId = ToInt(d["cellId"]),
                     Growth = ToInt(d["growth"]),
                     GrowthRemainder = ToInt(d["growthRemainder"]),
-                    Stage = (PlantStage)ToInt(d["stage"])
+                    Stage = (PlantStage)ToInt(d["stage"]),
+                    OriginKind = d.TryGetValue("originKind", out object ok) ? (string)ok : "initialMap",
+                    SeedSourceRoundId = d.TryGetValue("seedSourceRoundId", out object sr) ? sr as string : null
                 });
             }
             return s;

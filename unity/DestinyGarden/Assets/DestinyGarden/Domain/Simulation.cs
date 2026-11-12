@@ -11,6 +11,25 @@ namespace DestinyGarden.Domain
         public int Tick;         // 1-based tick after update (seed placement uses 0)
     }
 
+    /// <summary>Facts of one resolved round, aggregated per cell/plant for oracle predicates.</summary>
+    public sealed class RoundEvidence
+    {
+        public int[] CumulativeAbsorbed = new int[256];
+        public HashSet<int> DiceWaterCells = new HashSet<int>();
+        public HashSet<int> WeatherRainCells = new HashSet<int>();
+        public HashSet<int> PuddleCells = new HashSet<int>();
+        public long SurfaceFlowTotal;
+        public HashSet<int> LightReceivedCells = new HashSet<int>();
+        public HashSet<int> LightAttenuatedCells = new HashSet<int>();
+        public HashSet<int> WindReceivedCells = new HashSet<int>();
+        public HashSet<int> WindShelteredCells = new HashSet<int>();
+        public HashSet<int> MoistureReturnedCells = new HashSet<int>();
+        public Dictionary<string, int> GrowthBeforeByPlant = new Dictionary<string, int>();
+        public HashSet<string> GrowthSufficientPlants = new HashSet<string>();
+        public List<KeyValuePair<int, int>> SeedSoilQAtPlacement = new List<KeyValuePair<int, int>>();
+        public WorldState StateBefore;
+    }
+
     public sealed class SimulationResult
     {
         public WorldState PostState;
@@ -20,6 +39,7 @@ namespace DestinyGarden.Domain
         public long Discharged;
         public long Evaporated;
         public long WaterBalanceResidual; // must be 0
+        public RoundEvidence Evidence = new RoundEvidence();
     }
 
     /// <summary>
@@ -35,13 +55,53 @@ namespace DestinyGarden.Domain
         private const int OutletCapacityPerTick = 100;
 
         public static SimulationResult Resolve(WorldState before, ResolvedRecipe dice,
-            WeatherDefinition weather, Func<int, string> newPlantId)
+            WeatherDefinition weather, Func<int, string> newPlantId) =>
+            Resolve(before, dice, weather, newPlantId, null);
+
+        public static SimulationResult Resolve(WorldState before, ResolvedRecipe dice,
+            WeatherDefinition weather, Func<int, string> newPlantId, string roundId)
         {
             if (before == null) throw new ArgumentNullException(nameof(before));
             if (dice == null) throw new ArgumentNullException(nameof(dice));
             var s = before.Clone();
             var result = new SimulationResult();
+            var ev = result.Evidence;
+            ev.StateBefore = before;
+            foreach (var p in before.Plants) ev.GrowthBeforeByPlant[p.PlantId] = p.Growth;
             long totalBefore = s.TotalWater();
+
+            // Dice additional-field evidence (same formulas as the field composition).
+            if (dice.Element == ElementId.Light)
+            {
+                foreach (var kv in dice.FieldCells)
+                {
+                    int exposure = GardenMapData.LightExposureQ[kv.Key];
+                    int baseEff = weather.BaseLightQ * exposure / 1000;
+                    int extra = dice.StrengthQ * kv.Value / 1000;
+                    int totalEff = Math.Min(1000, weather.BaseLightQ + extra) * exposure / 1000;
+                    if (totalEff - baseEff > 0)
+                    {
+                        ev.LightReceivedCells.Add(kv.Key);
+                        if (exposure < 1000 && GardenMapData.LightOccluderCellId[kv.Key] >= 0)
+                            ev.LightAttenuatedCells.Add(kv.Key);
+                    }
+                }
+            }
+            if (dice.Element == ElementId.Wind)
+            {
+                foreach (var kv in dice.FieldCells)
+                {
+                    int shelter = RecipeResolver.ShelterQEast(kv.Key);
+                    int baseEff = weather.BaseWindQ * shelter / 1000;
+                    int extra = dice.StrengthQ * kv.Value / 1000;
+                    int totalEff = Math.Min(1000, weather.BaseWindQ + extra) * shelter / 1000;
+                    if (totalEff - baseEff > 0)
+                    {
+                        ev.WindReceivedCells.Add(kv.Key);
+                        if (shelter < 1000) ev.WindShelteredCells.Add(kv.Key);
+                    }
+                }
+            }
 
             // Precompute dice field contributions per cell (extra before exposure/shelter).
             var diceLightExtra = new int[256];
@@ -55,6 +115,7 @@ namespace DestinyGarden.Domain
 
             for (int tick = 0; tick < TicksPerRound; tick++)
             {
+                var surfaceBeforeTick = (int[])s.SurfaceWater.Clone();
                 // 1. Injection: weather rain + dice water + seed placement.
                 if (weather.RainPerTargetAtScheduledTick > 0 && rainTicks.Contains(tick))
                 {
@@ -63,6 +124,7 @@ namespace DestinyGarden.Domain
                         if (GardenMapData.Solid[id] == 1) continue;
                         s.SurfaceWater[id] += weather.RainPerTargetAtScheduledTick;
                         result.WeatherWaterInjected += weather.RainPerTargetAtScheduledTick;
+                        ev.WeatherRainCells.Add(id);
                     }
                 }
                 if (dice.WaterSchedule.TryGetValue(tick, out var injections))
@@ -71,6 +133,7 @@ namespace DestinyGarden.Domain
                     {
                         s.SurfaceWater[kv.Key] += kv.Value;
                         result.DiceWaterInjected += kv.Value;
+                        ev.DiceWaterCells.Add(kv.Key);
                     }
                 }
                 if (tick == 0 && dice.Element == ElementId.Seed)
@@ -82,8 +145,12 @@ namespace DestinyGarden.Domain
                         var plant = new PlantState
                         {
                             PlantId = newPlantId != null ? newPlantId(n) : ("seed-" + cell),
-                            CellId = cell, Growth = 0, GrowthRemainder = 0, Stage = PlantStage.Seed
+                            CellId = cell, Growth = 0, GrowthRemainder = 0, Stage = PlantStage.Seed,
+                            OriginKind = "seedInput", SeedSourceRoundId = roundId
                         };
+                        int capAtSeed = GardenMapData.SoilCapacity[cell];
+                        int soilQ = capAtSeed > 0 ? 1000 * before.SoilWater[cell] / capAtSeed : 0;
+                        ev.SeedSoilQAtPlacement.Add(new KeyValuePair<int, int>(cell, soilQ));
                         s.Plants.Add(plant);
                         result.Events.Add(new GardenEvent { Kind = "SeedPlaced", PlantId = plant.PlantId, CellId = cell, Tick = 0 });
                         n++;
@@ -103,7 +170,7 @@ namespace DestinyGarden.Domain
                 }
 
                 // 3. Simultaneous surface flow.
-                ApplyFlow(s);
+                ev.SurfaceFlowTotal += ApplyFlow(s);
 
                 // 4. Outlet discharge.
                 int drain = GardenMapData.DrainCellId;
@@ -124,6 +191,7 @@ namespace DestinyGarden.Domain
                     if (amount <= 0) continue;
                     s.SurfaceWater[id] -= amount;
                     s.SoilWater[id] += amount;
+                    ev.CumulativeAbsorbed[id] += amount;
                 }
 
                 // 6. Evaporation (surface first, then soil).
@@ -160,11 +228,28 @@ namespace DestinyGarden.Domain
                     int add = (int)(numerator / 1000000L);
                     plant.GrowthRemainder = (int)(numerator % 1000000L);
                     if (add <= 0) continue;
+                    if (factor > 0 && effLight[cell] > 0) ev.GrowthSufficientPlants.Add(plant.PlantId);
                     int oldGrowth = plant.Growth;
                     plant.Growth = Math.Min(2500, plant.Growth + add);
                     if (plant.Growth >= 2500) plant.GrowthRemainder = 0;
                     EmitStageEvents(result, plant, oldGrowth, tick + 1);
                 }
+
+                // Puddle crossing: below 120 before this tick's injection, >=120 after the tick.
+                for (int id = 0; id < 256; id++)
+                    if (surfaceBeforeTick[id] < 120 && s.SurfaceWater[id] >= 120)
+                        ev.PuddleCells.Add(id);
+            }
+
+            // Moisture returned to the optimal band (same soil cell, before vs after).
+            for (int id = 0; id < 256; id++)
+            {
+                int cap = GardenMapData.SoilCapacity[id];
+                if (cap <= 0) continue;
+                int beforeQ = 1000 * before.SoilWater[id] / cap;
+                int afterQ = 1000 * s.SoilWater[id] / cap;
+                if (beforeQ > 700 && afterQ >= 400 && afterQ <= 700)
+                    ev.MoistureReturnedCells.Add(id);
             }
 
             s.WorldRevision = before.WorldRevision + 1;
@@ -197,8 +282,9 @@ namespace DestinyGarden.Domain
         private static readonly int[] Dx = { 0, 1, 0, -1 }; // N,E,S,W
         private static readonly int[] Dy = { -1, 0, 1, 0 };
 
-        private static void ApplyFlow(WorldState s)
+        private static long ApplyFlow(WorldState s)
         {
+            long transported = 0;
             var delta = new int[256];
             var requests = new int[4];
             var targets = new int[4];
@@ -247,9 +333,11 @@ namespace DestinyGarden.Domain
                     int amount = Math.Min(allocated[d], requests[d]);
                     delta[id] -= amount;
                     delta[targets[d]] += amount;
+                    transported += amount;
                 }
             }
             for (int id = 0; id < 256; id++) s.SurfaceWater[id] += delta[id];
+            return transported;
         }
     }
 }
