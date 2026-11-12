@@ -1914,3 +1914,29 @@ Git diff whitespace check: pass
 - Presentation: ProceduralArt.cs（新規）、GardenView.cs、GardenUi.cs、GardenBootstrap.cs
 - Editor: BuildScripts.cs（影設定）、Assets/Settings（RPAsset影）、ProjectSettings
 - visual-plan: art-plan.md、refs/build-visual-final.png、PROGRESS.md（本追記）
+
+## Jam: Unity Game Jam 2026 提出用 WebGL 対応 (2026-11-12)
+### 完了したこと
+- Unity 6000.3.23f1 に Web Build Support モジュールを導入（本人承認済み）。
+- `BuildScripts.BuildWebGL` を追加: 1280×720、gzip + decompression fallback（itch.io は Content-Encoding を付けないため）、独自テンプレート。
+- 独自 WebGL テンプレート `Assets/WebGLTemplates/DestinyGarden`: どの枠でも 16:9 レターボックス、`autoSyncPersistentDataPath: true`（これが無いと Unity 6 は journal を IndexedDB に保存しない）、DPR 上限 1.5。
+- 日本語フォント: WebGL は OS フォントを使えず豆腐になるため Noto Serif JP Regular（SIL OFL 1.1、本人承認済み）を `Resources/Fonts` に同梱。WebGL のときだけ使用し、他プラットフォームは従来の OS フォントのまま。
+- 書き出し: WebGL ではブラウザ内のファイルに手が届かないため、押すと「Web版は書き出し非対応」と表示するだけにした。
+- `link.xml` で PhysicsModule を保持: CreatePrimitive のコライダークラスがエンジンコード削除で消え、WebGL でエラーが出ていた。
+- 提出素材 `docs/jam-submission/`（SUBMISSION.md、カバー1枚、スクリーンショット5枚）。ゲーム内容・設計は変更なし。
+### 完了基準の結果（コマンド出力の要約）
+- Unity EditMode tests: green (13 passed)
+- 既存アプリ（変更なし）: tsc green、vitest 183 passed (41 files)、vite build green
+- WebGL build: Succeeded（22,565,021 bytes）、zip 21,996,735 bytes、index.html が zip ルート
+- ヘッドレス Chromium での通しプレイ: 願い→振る×3→オラクル→記録→庭の歩み→書き出し→設定、コンソールエラー 0。再読み込み後も 3投目まで記録・同じ配面が残ることを確認。960×760 / 1400×600 の枠でも 16:9 で欠けない。
+- 音: "Audio context resumed" をログで確認。実際に耳では未確認。
+### 要確定・申し送り（次フェーズへ）
+- **本人の作業**: 耳で音を確認、itch.io へのアップロードと提出、SUBMISSION.md の Team 欄と生成AI開示の [ ] を事実で埋める（コンセプト画を作った画像生成ツール名がリポジトリから判別できない）。
+- Safari / Firefox / スマホ / 実際の itch.io ページでは未確認。
+- 以前からの表示の小問題（未修正）: 2行のオラクル文がヘッダーに触れる、「庭の歩み」グラフの説明文が棒と重なる。
+- `PlayerSettings` の WebGL 値（画面サイズ・圧縮）は ProjectSettings に保存される。runInBackground はデスクトップと共有のため変更しない。
+### 触ったファイル
+- unity/DestinyGarden/Assets/DestinyGarden/Editor/BuildScripts.cs、Presentation/GardenUi.cs、Presentation/GardenBootstrap.cs
+- unity/DestinyGarden/Assets/DestinyGarden/link.xml、Resources/Fonts/（NotoSerifJP-Regular.otf、NotoSerifJP-OFL.txt）
+- unity/DestinyGarden/Assets/WebGLTemplates/DestinyGarden/index.html、ProjectSettings/ProjectSettings.asset
+- docs/jam-submission/、.claude/launch.json、PROGRESS.md（本追記）

@@ -137,6 +137,35 @@ namespace DestinyGarden.EditorTools
                 EditorApplication.Exit(1);
         }
 
+        /// <summary>
+        /// Browser build for itch.io. itch.io does not send Content-Encoding headers,
+        /// so gzip is paired with the JS decompression fallback. 1280x720 keeps the
+        /// 16:9 layout the UI was designed for (CanvasScaler reference 1600x900).
+        /// </summary>
+        public static void BuildWebGL()
+        {
+            ConfigureProject();
+            PlayerSettings.defaultWebScreenWidth = 1280;
+            PlayerSettings.defaultWebScreenHeight = 720;
+            // Custom template: 16:9 letterbox in any frame, IndexedDB auto-persist of the journal.
+            PlayerSettings.WebGL.template = "PROJECT:DestinyGarden";
+            PlayerSettings.WebGL.compressionFormat = WebGLCompressionFormat.Gzip;
+            PlayerSettings.WebGL.decompressionFallback = true;
+            PlayerSettings.WebGL.dataCaching = true;
+            PlayerSettings.WebGL.nameFilesAsHashes = false;
+            PlayerSettings.WebGL.exceptionSupport = WebGLExceptionSupport.ExplicitlyThrownExceptionsOnly;
+            PlayerSettings.WebGL.showDiagnostics = false;
+            string outDir = "Builds/WebGL";
+            if (Directory.Exists(outDir)) Directory.Delete(outDir, true);
+            Directory.CreateDirectory(outDir);
+            var report = BuildPipeline.BuildPlayer(new[] { ScenePath },
+                outDir, BuildTarget.WebGL, BuildOptions.None);
+            Debug.Log("DestinyGarden WebGL build: " + report.summary.result
+                + " (" + report.summary.totalSize + " bytes)");
+            if (report.summary.result != UnityEditor.Build.Reporting.BuildResult.Succeeded)
+                EditorApplication.Exit(1);
+        }
+
         public static void BuildIosXcodeProject()
         {
             ConfigureProject();

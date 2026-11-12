@@ -1,0 +1,6 @@
+<linker>
+  <!-- GameObject.CreatePrimitive adds colliders. Nothing references physics from code,
+       so engine stripping removed the collider classes in the WebGL player and logged
+       "Can't add component ... SphereCollider" errors. Keep the physics module. -->
+  <assembly fullname="UnityEngine.PhysicsModule" preserve="all"/>
+</linker>

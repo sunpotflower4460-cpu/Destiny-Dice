@@ -46,6 +46,10 @@ namespace DestinyGarden.Presentation
         {
             get
             {
+#if UNITY_WEBGL
+                // Browsers expose no OS fonts to WebGL; use the bundled Japanese font (SIL OFL 1.1).
+                if (_font == null) _font = Resources.Load<Font>("Fonts/NotoSerifJP-Regular");
+#endif
                 if (_font == null)
                 {
                     _font = Font.CreateDynamicFontFromOSFont(

@@ -205,6 +205,11 @@ namespace DestinyGarden.Presentation
 
         private void ExportNow()
         {
+#if UNITY_WEBGL && !UNITY_EDITOR
+            // The browser sandbox gives the player no way to reach persistentDataPath files.
+            _ui.ShowStatus("Web版は書き出し非対応です（記録はブラウザ内に保存）。");
+            return;
+#else
             try
             {
                 string dir = Path.Combine(UnityEngine.Application.persistentDataPath, "destiny-garden", "exports");
@@ -237,6 +242,7 @@ namespace DestinyGarden.Presentation
             {
                 _ui.ShowStatus("書き出しに失敗しました: " + ex.Message);
             }
+#endif
         }
 
         private static string Csv(string s)
