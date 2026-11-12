@@ -52,7 +52,15 @@ namespace DestinyGarden.Presentation
                 float r = size * (0.42f + R() * 0.32f);
                 float up = Mathf.Clamp01(0.5f + off.y / size);
                 var col = Color.Lerp(dark, light, up * 0.8f + R() * 0.2f);
-                b.Ball(at + off, new Vector3(r, r * 0.82f, r), col, sway, 7, 4);
+                b.Ball(at + off, new Vector3(r, r * 0.82f, r), col, sway, 9, 5);
+                // Feathered edge: small leaves pointing outward from the surface soften the lumpy silhouette.
+                int cards = 5 + (int)(R() * 3);
+                for (int k = 0; k < cards; k++)
+                {
+                    var d = new Vector3(R() - 0.5f, R() - 0.35f, R() - 0.5f).normalized;
+                    var lc = col * (0.82f + R() * 0.16f);
+                    b.Leaf(at + off + d * r * 0.8f, d, r * 0.42f, r * 0.17f, lc, sway + 0.1f);
+                }
             }
         }
 
