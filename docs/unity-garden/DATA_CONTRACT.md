@@ -1,6 +1,6 @@
 # Unity Garden — 記録・復旧・観察のデータ契約
 
-設計版: **0.6 / designCandidate／Unity 実装・実機検証は未実施**。対象は新しい箱庭ゲームのみ。自然・天候・文章選定v0.5を保ち、準備前の場所設定と、同じmapping材料で場所・6面を解決する契約を加える。
+設計版: **0.7 / designCandidate／Unity 実装・実機検証は未実施**。対象は新しい箱庭ゲームのみ。自然・天候・場所と配面の規則を保ち、来場者交代の保存・復帰、現在の採用版、監査用exportの境界を揃える。現行の組合せは[CURRENT_DESIGN.md](./CURRENT_DESIGN.md)を参照する。
 この文書は既存の `DESIGN.md` / `PROTOCOL_FREEZE.md` の実験・台帳を変更しない。
 数値パラメーター、ファイル I/O、C# の具体的な型は、後続の実装フェーズで検証する。
 
@@ -12,7 +12,7 @@
 `PreparationStarted → [その期の材料がないときだけWeatherEntropyCommitted] → MappingEntropyCommitted → Prepared → IntentCommitted → AcquisitionStarted → DrawEntropyCommitted → OutcomeCommitted → Resolved → PresentationReceipt`
 
 同じ天候期の材料があれば、その記録を再利用して配面へ進む。天候の選定と保存境界の詳細は§1.1、自然への作用は[WEATHER.md](./WEATHER.md)と[SIMULATION.md](./SIMULATION.md)を参照する。
-任意の`CareFocusChanged`はrun単位で追記し、次のPreparationStartedがそれまでの最新の場所設定を固定する。配面公開後の意図編集とは別の操作であり、公開済みPreparedの作用場所や6面を変えない。詳細は§1.2とする。
+任意の`CareFocusChanged`はrun単位で追記し、次のPreparationStartedがそれまでの最新の場所設定を固定する。配面公開後の意図編集とは別の操作であり、公開済みPreparedの作用場所や6面を変えない。詳細は§1.2とする。明示的な新庭操作では、別にRunSwitchRequestedを保存して§3.2のrun閉鎖経路へ入る。これも毎投の段階ではない。
 
 通常経路で必要なのは、この順序、single-writer、純関数の解釈・計算、追記journal、保存結果の投影である。
 外部provider、通信再試行、量子乱数へのfallbackはG1に入れず、後続gateで別に実装する。
@@ -29,7 +29,8 @@
 - `roundId`：配面の準備開始から結果までの一意な ID。同じ ID の再開は新しい抽選ではない。
 - `seq`：run 内で単調増加する記録順。壁時計の時刻変更で並び替えない。
 - `worldRevision`：最後に確定した庭の版。`Resolved` と初期状態からだけ進める。
-- `previousRunId` / `importedFrom`：庭を引き継ぐ場合の出所。過去の run を上書きしない。
+- `previousRunId`：来場者交代などで前に使っていたrunへの参照。庭の状態や意図を継承したことを意味しない。
+- `importedFrom`：将来、別runの庭を取り込む場合の出所。G1〜G3では使わず、過去のrunを上書きしない。
 
 ルール・計算方式・コンテンツの版を `RunStarted` で固定する。
 版ラベルだけでなく、使った設定値・地図・カードと文章集の内容、または永続した内容参照とhashを保存する。
@@ -86,7 +87,7 @@ PreparationStartedを保存する同じ処理内で、それより前の最新�
 
 v0.6の受付と表示境界は次のように定める。
 
-1. Ready・Presentingでは次回分の場所設定だけを受け付ける。現在のPreparedと過去の演出の場所は保持する。autoへの変更では、次回の実際の場所はまだ不明と表示する。
+1. Ready・Presentingでは、§3.2の交代準備・閉鎖待ちでない場合に次回分の場所設定だけを受け付ける。現在のPreparedと過去の演出の場所は保持する。autoへの変更では、次回の実際の場所はまだ不明と表示する。
 2. Resolved保存直後に次の準備を先回りしない。過程再生の終了・省略、または保存済み終状態の静かな復元を完了してから次の準備へ進む。
 3. coordinatorは場所操作の受付を閉じ、既に受け付けた場所コマンドの後へ準備開始を同じ直列列に置く。writerがその順に保存し、最新設定の選択とPreparationStartedの追記を一つの排他区間で行う。準備中の場所操作は無効とし、次回用のクリックとして予約しない。
 4. 場所設定の保存成功前に、画面で受け付け済みと表示しない。保存失敗なら同じコマンドの保存・回復を先に行い、古い設定で次の準備へ進まない。保存後の画面では今回の場所と次回の設定を区別する。
@@ -98,7 +99,7 @@ v0.6の受付と表示境界は次のように定める。
 
 以下の各段階は、single-writer が追記を永続化してから次へ進める。
 保存の成功応答は、単にメモリー上のキューへ入ったことを意味してはならない。
-表のCareFocusChangedだけは§1.2で許可した状態で任意に挿入するrun単位の設定記録であり、毎投の必須段階ではない。
+表のCareFocusChangedは§1.2で許可した状態で任意に挿入するrun単位の設定記録であり、毎投の必須段階ではない。新庭への交代を保存するRunSwitchRequestedと、runを閉じるRunClosedは§3.2の別経路で扱う。
 
 | 段階／イベント | 保存するもの | 保存後に許可する操作 |
 |---|---|---|
@@ -128,6 +129,8 @@ v0.6では前回の過程再生があれば終了または省略し、保存済�
 この表示条件は保存済み庭と画面の対応であり、Receiptの保存や人の読了確認を新しいgateにしない。
 
 ## 3. 中断・再開・二重実行
+
+復旧入口では保存済みRunSwitchRequested・RunClosedを先に確認し、交代中なら§3.2の非公開の完結処理へ進む。次の表はroundの保存段階ごとの扱いであり、交代要求を無視して旧runの通常画面を開く規則ではない。
 
 | 再開時に存在する最後の段階 | 回復規則 |
 |---|---|
@@ -163,7 +166,7 @@ weather取得が保存前に失敗した場合も`PreparationInterrupted(reason=
 通常のroundイベントは`roundId + eventType`の一意性と合法な遷移をwriter/application層で検査する。
 WeatherEntropyCommittedはrun単位の`runId + weatherPeriodIndex`で一意とし、元の準備が終端になっていても後の同一期Preparedから参照できる。
 CareFocusChangedはrun単位の`runId + commandId`で一意とする。複数の設定変更を許すが、同commandの別内容を上書きしない。run単位の設定変更や後着Receiptで、既存roundの開始状態参照を最新journal headへ置き換えない。
-提示記録だけは `roundId + presentationAttemptId + phase` を一意にする。
+提示記録だけは `roundId + presentationAttemptId + phase` を一意にする。ただしRunClosed後は新しいReceiptも追記せず、閉鎖前に確認できた提示記録を保持する。RunSwitchRequestedは§3.2のrun単位一意性に従う。
 準備終了・取得前取消・出目未成立・正常解決は、同じroundで矛盾する終端を併存させない。
 未終端枠を解放するのは、これらの終端recordを永続化した後だけ。正常解決以外では庭のrevisionを進めず、同じ検証済み状態から新しいroundを準備できる。
 保存エラーを未成立の終端とみなして新roundを並行開始しない。部分末尾を回復して既存roundを閉じる経路、または§9.1の継続不能時に出所を明示した新runへ移る経路を使う。
@@ -184,9 +187,55 @@ CareFocusChangedはrun単位の`runId + commandId`で一意とする。複数の
 - 取得を待つ間にwriterのロックを保持しない。重複要求は既存commandの結果へ収束させる。
 - 新規準備と解決のcommandは期待する開始状態参照も渡す。writer内で未終端roundと庭の参照を照合し、古いsnapshotに対する計画・遅延計算を採用しない。後着Receiptだけではこの照合を失敗させない。
 
-来場者交代では旧runの内容を通常画面から外して処理を閉じ、`RunClosed`保存後に新しいRunStartedへ切り替える。
-旧runに処理中の回があれば、取得前取消または取得後の確定・未成立に決着させる。
-背景へ移るだけの場合は新runを作らず、同じ状態を保持する。
+来場者交代は次の§3.2の保存済み要求から続ける。旧runの通常画面を閉じることと、既存roundを内部で正しく終端化することを分ける。背景へ移るだけの場合は新runを作らず、同じ状態を保持する。
+
+### 3.2 来場者交代を、中断しても一つの新しい庭へつなぐ
+
+`RunSwitchRequested`は、新しい庭を始める明示操作を旧runへ保存する任意のrun単位recordである。通常の一投には追加しない。RunStartedの`runLifecycleVersion=run-switch.v0.7`として、受付済みの交代要求、旧runの閉鎖、次runのgenesisを次の順序へ固定する。この版を採用していない旧runへrecordや意味を黙って後付けせず、旧runの保存・復元は当時の版で扱う。
+
+`RunSwitchRequested → 旧roundがあれば合法な終端 → RunClosed → 指定したtargetRunIdのRunStarted`
+
+1. Applicationは同じコマンド列で交代要求を受け、通常の投擲・意図・場所変更の受付、自動の次準備、旧runの本文表示を止める。表示用のownerTokenと入力世代を失効させる。この時点の画面は中立の交代準備中であり、保存成功・新庭の開始完了とはまだ表示しない。
+2. 次の庭用の内容を検証・durable保存する。新しい`targetRunId`はこのcommandへ一度だけ割り当てる。静的mapからの初期snapshot、採用するルール・各版、`contentManifest`、既定autoを`targetRunPlan`へまとめる。新genesis自身のseq/hash・保存/開始時刻・genesisRecoveryと、まだ確定していないswitchRequestRef・predecessorClosedRefはここへ先に作らない。
+3. writerは旧runが閉鎖済みでなく、競合する交代要求がないことを検査し、`RunSwitchRequested(commandId, reason, targetRunId, targetRunPlan, plannedBy)`を保存する。内容原本の永続化はこの参照recordより先とする。保存済み要求は変更せず、再開時の同梱contentへ差し替えない。
+4. 要求のdurable確認後は旧runを閉鎖待ちとして扱う。新しいPreparationStarted・Roll・Intent編集・CareFocusChangedを受け付けず、次項の既存roundの完結だけを内部で進める。旧runの本文・意図・結果を通常画面へ戻さない。
+5. 旧roundが終端になったことを確認し、`RunClosed`へ`switchRequestRef / targetRunId / closingHeadRef / lastWorldRevision`を保存する。closingHeadRefはこのRunClosed直前の完全なseq/hash。閉鎖後の旧runへ通常recordや後着PresentationReceiptを追記しない。
+6. `targetRunPlan`と旧RunClosedを照合して、固定したtargetRunIdへ一つのRunStartedを保存する。新genesisの`previousRunId / switchRequestRef / predecessorClosedRef`は同じ交代を指す。runをまたぐrecord参照は`{runId,seq,entryHash}`を必須とし、seqだけで別runのrecordへ結ばない。新runのseqは1、prevHashは64文字の0とし、旧runのheadを新runのprevHashへ流用しない。
+7. 新runのgenesisと初期状態の保存・検証に成功してから、新しい庭の通常画面を開く。目標・方法・本文・操作時間・場所設定を旧runから継承せず、静的map・初期晴れ・既定autoの通常準備へ進む。旧runの片付けのために読了や追加の確認を求めない。
+
+RunStarted・RunSwitchRequested・RunClosedはそれぞれ`runId + eventType`で一つとする。交代commandの再送は`runId + commandId`で同じ要求記録へ収束する。同commandで異なる内容を送った場合は不正な再送として拒否する。別commandが交代中に来ても第二のtargetRunIdを割り当てず、既に進行中の交代を返す。新runを通常公開した後に、その新runで明示された別の新庭操作は別の交代である。
+
+targetRunPlanの固定対象は初期snapshot・ルール/計算版・content・既定値である。計画を作った実行元の`appVersion / buildId / platform`はRunSwitchRequestedの`plannedBy`へ保存する。新RunStartedの同項目は実際にgenesisを作った実行元を記録し、保存/開始時刻と同じくtargetRunPlanとの一致照合から除外する。要求後にアプリが更新されても古いbuildで作ったことにせず、genesis作成前に固定されたモデル・内容・保存版を現在の実装で扱えるかを検査する。対応できなければ同じ要求の回復待ちに留まり、新版の計算やcontentへ代用しない。
+
+交代要求後に許可する旧roundの内部処理は、既存の保存段階だけで決める。
+
+| 旧roundの保存段階 | 閉鎖待ちで行うこと |
+|---|---|
+| 未終端roundなし／Resolvedなど終端あり | 庭を再適用せず、次の準備や結果の再提示を行わずRunClosedへ進む |
+| AcquisitionStartedより前 | AbandonedBeforeAcquisitionへswitchRequestRefを付けて終端化。意図・材料を変更せず、新しい出目取得を始めない |
+| AcquisitionStartedあり、同processで取得中 | 既存の取得だけを待ち、その材料・失敗を元run/roundへ保存して閉じる。新しい取得を作らない |
+| AcquisitionStartedあり、process終了後で材料なし | InterruptedUnresolvedを保存する。失った材料を回収できたことにしない |
+| DrawEntropyCommitted／OutcomeCommittedあり | 同じ材料・入力・採用版から解釈・解決する。既知出目を交代の都合で未成立へ変更しない |
+| 保存・計算・内容参照の障害 | 同じ回復経路へ留まる。成功したRunClosedや新genesisを作って飛ばさない |
+
+UIの公開権と、旧runの内部処理所有権は別とする。交代準備の開始で古い表示callbackを無効にしても、既に許可した取得の材料保存まで無効にしない。内部callbackは旧runId・roundId・取得ID・保存段階をwriterで照合し、その旧roundへだけ適用する。新runの画面や庭へ結果を流用しない。Receiptの有無は閉鎖の必須条件にしない。
+
+#### 交代中に終了した場合
+
+起動時は通常UIを公開する前に、同gameIdの検証済みrunと交代参照を読み、保存済み交代要求を処理する。更新日時、端末時計、最後に開いた画面、破棄可能なactive-run cacheだけで公開runを選ばない。旧runの閉鎖と新genesisの相互参照、targetRunPlanとの一致を確認し、履歴の一つの継続先へ収束させる。矛盾する複数の継続先はintegrity_errorであり、最新らしい一方を選ばない。
+
+| 終了境界 | 復帰時の扱い |
+|---|---|
+| RunSwitchRequestedの完全なframeがない | 交代は未受理。旧runの通常復元が起こり得る。未保存操作を再現・受理済みと表示しない |
+| 要求は完全、旧round未終端 | 通常の旧本文を公開せず、保存済み要求から旧roundを完結する |
+| 旧round終端済み、RunClosedなし | 終端を再適用せず、同じ要求から閉鎖を保存する |
+| RunClosedあり、新RunStartedなし | 固定targetRunId・targetRunPlanを使って一つのgenesisを作る |
+| 新RunStartedが完全、完了応答前に終了 | 既存genesisと対応を検証して新runを採用。第二のrunやgenesisを作らない |
+| 新RunStartedのframeが途中 | §9.3で原本を保全して同じtargetRunIdへ回復。旧runの通常UIへ戻さない |
+
+完全な要求frameを検証できれば、保存完了通知を返す前に終了していても受理済みとする。要求の保存が失敗した同processでは、中立の回復画面に留まり同commandの保存を回復する。新しい庭へ交代済みと表示したり、別のtargetRunIdで再試行したりしない。保存前のprocess終了だけは、記録されていない交代操作を保証できる境界ではない。運営は新しい庭の通常表示まで確認してから端末を次の来場者へ渡す。
+
+これは通常の明示的な新庭操作の契約である。§9.1の検証障害で旧runを書込み不能にした場合の保全・救済を、正常なRunClosedや交代完了へ偽装しない。
 
 ## 4. 乱数の役割と監査
 
@@ -268,12 +317,17 @@ nullable と未取得を区別し、既知の値を便宜的な `0` や空文字
 | `JournalEntry` | `seq`, `type`, `createdAtUtc`, `payload`, `prevHash`, `entryHash` |
 | `RecordMeta` | `schemaVersion`, `gameId`, `runId`, `roundId?`, `seq`。各 payload に含める |
 | `RunStarted` | 初期状態、`rulesetVersion`, `simulationVersion`, `numericEncodingVersion`, `mappingPolicyVersion` |
-| 同上・版情報 | `rngPolicyVersion`, `rngAlgorithmVersion`, `weatherPolicyVersion`, `targetPolicyVersion`, `appearanceProjectionVersion`, `deckVersion`, `messageVersion`, `groupingVersion`, `selectionPolicyVersion`, `appVersion`, `buildId` |
-| 同上・識別 | `platform`, `previousRunId?`, `initialStateProvenance`, `startedAtUtc` |
+| 同上・版情報 | `runLifecycleVersion`, `rngPolicyVersion`, `rngAlgorithmVersion`, `weatherPolicyVersion`, `targetPolicyVersion`, `appearanceProjectionVersion`, `deckVersion`, `messageVersion`, `groupingVersion`, `selectionPolicyVersion`, `appVersion`, `buildId` |
+| 同上・識別 | `platform`, `previousRunId?`, `initialStateProvenance`, `startedAtUtc`。交代で作るrunは`switchRequestRef / predecessorClosedRef`を必須とする |
 | 同上・場所の既定 | `defaultCareFocus={mode:auto,siteId:null}`。場所変更がない準備の参照元 |
-| 同上・内容 | `contentManifest`：設定・地図・weather profile・target profile・plant appearance profile・deck・文章集の永続参照、内容hash、byte長 |
-| `RunClosed` | 終端head、終了理由、最後のworldRevision。進行中の回を残して通常終了しない |
+| 同上・内容 | `contentManifest`：設定・地図・weather profile・target profile・deck・文章集の永続参照、内容hash、byte長。plant appearance profileは採用時だけ含む |
+| 同上・未完genesisの保全 | `genesisRecovery?`：§9.3の未完genesis原本への診断参照。存在しない履歴やRecoveryContinuedを作らない |
+| `RunSwitchRequested` | `commandId`, `reason`, `targetRunId`, `targetRunPlan`, `plannedBy={appVersion,buildId,platform}`。meta.roundId=null。同旧runで一つの交代要求 |
+| `TargetRunPlan` | 新RunStarted用の初期snapshot、採用版、contentManifest、defaultCareFocus。新genesisの実行元app/build/platform、自身のseq/hash・保存/開始時刻・genesisRecovery・switchRequestRef・predecessorClosedRefはgenesis作成時に付ける |
+| `RunClosed` | `closingHeadRef`, 終了理由、`lastWorldRevision`。交代では`switchRequestRef / targetRunId`を必須とし、進行中roundを残して通常終了しない |
 | `WorldSnapshot` | simulation/weather profileとmapの内容hash、グリッド形状、地形・障害物・土壌容量、地表水・土中水・端数、植物状態、tickと累計、`worldRevision`, `stateHash` |
+
+外観表現を未採用なら`appearanceProjectionVersion=null`、contentManifestの外観profile参照もなしとする。採用するrunは対応する版と原本hashを両方持ち、片方だけを保存しない。未採用を「出生条件の見た目を復元できる」と表示しない。
 
 グリッドや植物状態の正確な要素は自然モデルの仕様で固定する。
 浮動小数の丸め、列挙順、境界処理、時間刻みも数値表現・計算版に含める。
@@ -293,7 +347,7 @@ nullable と未取得を区別し、既知の値を便宜的な `0` や空文字
 | 同上・天候 | `weatherPeriodIndex`, `weatherMode=acquire/reuse`, `weatherAcquisitionId?`, `weatherSourceRef?`, `weatherProfileHash`。acquireでは取得ID、reuseでは保存済み参照を必須とする |
 | `WeatherEntropyCommitted` | `weatherPeriodIndex`, `initiatedByPreparationSeq`, `weatherReceipt`, `weatherProfileHash`, `weatherPolicyVersion`。meta.roundId=nullのrun単位record |
 | `MappingEntropyCommitted` | `preparationSeq`, `weatherSourceRef`, `mappingReceipt`, 材料形式、変換版 |
-| `Prepared` | `mappingEntropySeq`, PreparationStartedと同じ開始状態参照/hash、`faces[6]`, 候補重みと状態量、材料消費記録、`selectionAtPrepared` |
+| `Prepared` | `mappingEntropySeq`, PreparationStartedと同じ開始状態参照/hash、`faces[6]`, 候補重みと状態量、材料消費記録、`selectionAtPrepared`, `selectionSourceRef?` |
 | 同上・天候 | `weatherContext`：下記WeatherContextを固定。MappingEntropyCommittedのweatherSourceRefと一致 |
 | `WeatherContext` | `weatherPeriodIndex`, `periodStep`, `selectionKind`, `weatherId`, `weatherSourceRef={seq,entryHash}`, `weatherProfileHash`, `resolvedWeatherParameters`, `entropyConsumption` |
 | Prepared・場所 | `targetContext`：下記TargetContextを固定。PreparationStartedの設定・参照と一致 |
@@ -320,8 +374,7 @@ TargetContextの設定・出所はPreparationStartedの固定値と一致させ�
 意図を前回から維持する場合も、その回の配面に対する `matchingFaceIds` を確定し直す。
 `gardenOutcome` の対象は出来事として残すが、面の一致率とは別の記録にする。
 比較値を持つのはface/elementだけ。該当面なしは空配列・0/6、それ以外のkindは比較値をnullとする。
-`selectionAtPrepared`は配面生成に使わない記録用metadata。確定した目標との差をselectionChangedAfterPreparedにする。
-このboolは最終目標が変わったかを示し、全編集操作や自由文の入力履歴を記録するものではない。
+`selectionAtPrepared`は配面生成に使わない目標のmetadataとし、比較用の`{kind,target}`を保存する。同runでPreparedより前の最後のIntentCommittedからこの組を引き継ぎ、`selectionSourceRef={seq,entryHash}`を残す。none/freeTextはどちらも構造化した目標なしの`{kind:none,target:null}`へ対応させ、前の確定意図がなければ同じ既定値・参照nullとする。`selectionChangedAfterPrepared`はこの組と今回の確定意図から同じ規則で求めた組の一致だけで決める。kindは完全一致、faceのtargetは整数、element/gardenOutcomeは固定IDをordinal比較する。方法・本文だけの変更や編集クリック数を目標変更へ混ぜない。中断前の未確定draftはこの保存値を上書きせず、復元時も保存済みの元意図・基準と区別する。
 6面すべての`resolvedParameters`を保存し、recipe名だけから後の版で値を推測しない。
 `injectionSchedule`には総量をどのtickへ配るかを持たせ、総量と毎tick量を区別する。
 
@@ -338,7 +391,7 @@ TargetContextの設定・出所はPreparationStartedの固定値と一致させ�
 | `PresentationReceipt` | `resolvedSeq`, `presentationAttemptId`, `phase=presenter_started/presenter_completed`, アプリ報告時刻 |
 | `InterruptedUnresolved` | `acquisitionSeq`, 検出時刻、理由、`outcomeKnown=false` |
 | `PreparationInterrupted` | `preparationSeq`, `weatherSourceRef?`, `mappingEntropySeq?`, 理由と取得失敗receipt?。出目の欠測とは別 |
-| `AbandonedBeforeAcquisition` | 準備・配面・意図の存在する参照、取消command ID、終了理由 |
+| `AbandonedBeforeAcquisition` | 準備・配面・意図の存在する参照、取消command ID、終了理由。交代による終端はswitchRequestRefを持つ |
 
 `EntropyReceipt` に認証 token、API key、リクエストの秘密ヘッダーを保存しない。
 `cardStatus`は`drawn / unavailable_entropy_exhausted / unavailable_local_failure`。cardがあるときだけテーマ選定を使う。
@@ -379,9 +432,9 @@ v0.6で作用場所が変わっても、文章の根拠に地域名や選択設�
 イベントのない事実fallbackではfocus/primary/secondaryをnullにでき、確定入力・前後状態を直接参照する。
 fallbackの`input_applied`にはInputApplicationEvidenceが必要。Outcomeで入力が選ばれただけでは成立しない。
 `templateId`はcatalogの`entries[].id`を保存する。文章を指すmessageIdと別の独立IDを生成しない。
-`oracle-focus.v0.5`のfactual候補は、scoreTuple=`cardAffinity / recentNovelty / priority`の降順、その後messageId・groupId・bindingKeyの昇順で比較する。bindingKeyは保存したpredicateBindingsから導出できるため独立recordにしない。
+現行の`oracle-focus.v0.7`はv0.5の順位を継承し、factual候補は、scoreTuple=`cardAffinity / recentNovelty / priority`の降順、その後messageId・groupId・bindingKeyの昇順で比較する。bindingKeyは保存したpredicateBindingsから導出できるため独立recordにしない。
 同じmessageIdとfocusGroupIdの完全な束縛は最小bindingKeyへ先にまとめる。全factual候補の最終順位1位のgroupを、GAMEPLAY§7.2の注目候補の第2枠へ必ず含める。第1・第3枠の固定重要度にはrecentNoveltyを混ぜず、fallbackを通常候補やgroup選抜へ入れない。主焦点1・補助最大1・input_pairの必須相手を維持する。
-選定版とcatalogの実体をRunStartedに固定し、v0.4のscore順で保存した結果をv0.5へ読み替えない。過去の文章・焦点・根拠は当時のまま保持する。
+現行の[oracle-catalog.v0.7.json](./content/oracle-catalog.v0.7.json)では岩陰のつぼみの文に、同cellの正の追加光とLightReceivedの主焦点を要求する。既存のLightReceived・predicateBindings・focusGroupIdを使い、未変化を表す架空の自然イベントは作らない。選定版とcatalogの実体をRunStartedに固定し、v0.4のscore順やv0.5までの成立条件で保存した結果をv0.7へ読み替えない。過去の文章・焦点・根拠は当時のまま保持する。
 通常rankingを使わず基本文を選ぶ場合はscoreTupleをnull、比較ID/seq列を空にし、fallbackReasonを`no_factual_candidate / card_unavailable`から記録する。
 重複回避は、**同runでseqがPrepared.seqより小さい直近3件のResolved**に保存されたmessageIdだけと比較する。
 3件はResolvedレコード数であり、同じmessageIdが重複していてもそのまま含める。3件未満なら存在する分だけ使う。
@@ -400,7 +453,7 @@ Receiptなしでも画面に一度出た可能性があるため「未読」と�
 
 ### 5.5 誕生時の見た目を保存事実から再構築する
 
-`appearanceProjectionVersion=birth-appearance.v0.6`と[plant-appearance-profile.v0.6.json](./content/plant-appearance-profile.v0.6.json)の実体hashをRunStartedへ固定する。これは描画projectionの版であり、自然状態・成長係数・seedの出自を変更する版ではない。新しい自然状態フィールド、外見の抽選role、外見専用journalイベントは加えない。
+外観表現を採用するrunだけ、`appearanceProjectionVersion=birth-appearance.v0.6`と[plant-appearance-profile.v0.6.json](./content/plant-appearance-profile.v0.6.json)の実体hashをRunStartedへ固定する。未採用なら版はnull、外観profileの参照は省略し、共通の中立外観を使う。これは描画projectionの版であり、自然状態・成長係数・seedの出自を変更する版ではない。新しい自然状態フィールド、外見の抽選role、外見専用journalイベントは加えない。
 
 originKind=seedInputの個体では、seedSourceRoundIdが指す保存済みSeedPlacedをplantId・cellIdで照合し、そのsoilQAtPlacementと、同じ回のPrepared.weatherContext.weatherIdを使う。湿りは配置が実際に起きた時点の記録であり、Preparedの土中水や現在の土を再計算して代用しない。湿り0〜399 / 400〜700 / 701〜1000をivory / rose / lilac、天候clear / cloudy / drizzleをpetalWidthQ=1000 / 900 / 1100へ対応させる。値と名称は候補profileに固定し、過去個体を新版の配色へ黙って置換しない。
 
@@ -571,11 +624,37 @@ exportはsegmentの接続・回復診断・参照した原本を含め、途切�
 
 ### 9.2 内容参照の永続性
 
-設定・地図・weather profile・target profile・plant appearance profile・deck・文章集は、内容hashをキーにした保存領域へ書き、byte長・hash・durable保存を確認する。
+設定・地図・weather profile・target profile・deck・文章集と、採用時だけplant appearance profileは、内容hashをキーにした保存領域へ書き、byte長・hash・durable保存を確認する。
 その後にだけ、それらを参照するRunStartedを保存する。snapshotの外部参照にも同じ順序を使う。
 現在のアプリに同梱された名前付きassetや、変更され得るURLだけを永続参照にしない。
 runが参照中の内容は更新で置換・削除せず、exportにも実体または完全な自己完結bundleを含める。
 保存状態の閲覧と、旧版モデルの再計算は別の能力である。対応する計算版がない場合、新版で代用しない。
+
+### 9.3 新genesisの未完frameを、同じ交代先へ回復する
+
+この節は、RunSwitchRequestedが固定したtargetRunIdについて、まだ完全なRunStartedがない境界を扱う。§9.1の通常回復は最後の完全recordがあることを前提とするため、genesis前へRecoveryContinuedを置く手段には使わない。
+
+1. 保存adapterの排他権を取得し、固定targetRunIdの全attempt segmentを検査する。完全な先頭RunStartedがあれば、seq=1・prevHash=64文字の0・旧RunClosedと要求への参照・targetRunPlanとの一致を検証して採用する。保存応答の有無で追加のgenesisを作らない。
+2. 完全なRunStartedがなく、EOFで途中の最初のframeだけが残っている場合は、それぞれをbyte列のまま封印する。旧runや別IDの新runへ書き直さず、truncate・削除もしない。
+3. 各未完原本の`sourceSegmentId / sourceFileHash / sourceByteLength / diagnostic=incomplete_genesis`を保全する。これらは正規のrunイベントでもseq=0のrecordでもなく、書込みattemptの診断である。
+4. 同じtargetRunIdで新しいattempt segmentを作り、固定targetRunPlanと確認済みの旧閉鎖参照からRunStartedを作る。seq=1・prevHashは64文字の0を維持し、payload.genesisRecoveryに保全した全未完genesis原本への診断参照をsourceSegmentId順で含める。新recordの保存時刻は実際のそのattemptの時刻とし、失われた時刻を推測しない。
+5. このframeも途中で終了したら、それも保全して手順1へ戻る。一つの完全なgenesisができるまで、run開始成功・通常画面公開・次のPreparationStartedへ進まない。
+
+完全なframeなのにhash/参照が不正な場合は、不完全末尾としてやり直さずintegrity_errorにする。同targetRunIdに複数の完全なgenesisまたは矛盾する継続があれば、一方を更新時刻で選ばない。排他と検証で正規のgenesisを一つにし、正常に始まった後の部分末尾は§9.1へ移る。
+
+この回復は抽選前の静的初期化だけを扱う。新しい庭の初期状態・contentを再選定したり、新たなtargetRunIdを振り直したりしない。exportにはgenesisRecoveryが参照する不完全原本も含め、途中のattemptがなかったことにしない。初回起動など交代要求を持たない新規作成の保存手順はG1で別途照合し、ここで定義した交代回復を無条件に流用しない。
+
+### 9.4 JSONの監査bundleと、CSVの読みやすい一覧
+
+書出し開始時に、対象runと各runの検証済みcutoff head（seq/hash）・選択範囲を固定する。同じ排他区間で各segmentの取り込むbyteEnd（排他的）・その範囲のhash・検証済み末尾offset・状態を確定し、以後追記されてもその保存済みprefixだけを書き出す。これはcutoff時点の保存原本範囲であり、元fileをtruncateする操作ではない。prefixのhashを、後から伸びた元file全体のhashと同じものにせず、出力で範囲と区別する。RecoveryContinuedやgenesisRecoveryがsourceFileHashで全体を参照する封印済みsegmentは、そのbyte列全体と元のhashをそのまま含める。同じcutoffからJSONとCSVを作り、閉鎖中のrunや対応する新runもその時点の状態として明記する。
+
+JSONによる書き出しは、選択したrunのプレイとグラフを再構成できる監査bundleとする。そのrunの論理record、参照するcontentの原本、元segmentのbyte列、回復診断、検証範囲と状態を含める。byte列は可逆なbase64などの版付き表現とbyte長・hashで保持し、再整形したJSONを元segmentの代わりにしない。同runの部分範囲を選んでも、検証・再構成に必要な先行recordと原本を含める。含められない場合は不完全なexportと明記する。
+
+展示の来場者向け書出しは現在runだけに限定する。新genesisのswitchRequestRef・predecessorClosedRefをたどって、前の来場者のjournal・本文を自動的に同梱しない。範囲外runへの参照はID/seq/hashと`scope_outside_export`の診断だけを残し、「選択run内の記録・contentの検証」と「runをまたぐ交代履歴の照合」を分ける。後者を確認していないbundleを、交代履歴まで完全検証済みと表示しない。交代元も含めて照合するexportは、運営側が明示した複数runの範囲でだけ行う。新run自身の初期snapshotとcontentはそのRunStartedから復元でき、前の人の本文をゲームの再構成条件にしない。
+
+cutoff時点でまだ作られていない次runのgenesisは未開始として示し、将来のrecordを補わない。JSON検証と、G1〜G3では対象外の取り込み・別端末でのプレイ再開機能とは区別する。
+
+CSVは、同じ検証済み記録から作る閲覧用projectionとする。roundごとの天候・場所・意図・出目・状態量などを表へ出す。runId、範囲、元recordのseq/hash、schema/投影版、欠測・検証不能の状態を保持し、空欄を0や失敗へ置換しない。CSVだけでjournalの完全な検証・復旧・元のグラフの全情報再生成ができるとは約束しない。`export → verify → グラフ再生成`の完全性の受入対象はJSON監査bundleであり、CSVはその読みやすい要約である。
 
 ## 10. 次の実装で確認する受入条件
 
@@ -598,13 +677,23 @@ runが参照中の内容は更新で置換・削除せず、exportにも実体�
 17. weather保存前、weather保存後/mapping前、Prepared後、Resolved保存前後で終了し、未知の天候・既知の天候・次期への進行を区別する。
 18. 3回目のResolved保存後だけ次期を準備し、旧演出の途中には次の天候を公開しない。欠測・取消・提示だけでは天候期を進めない。
 19. 天候だけの雨とダイスの雨が同時にある回で、源別注水と総収支を一致させ、混合後の土中水の由来を捏造しない。
-20. v0.5の同一カード対応候補では直近に使っていない文をpriorityより先に比較し、全候補既出なら固定順位へ戻る。全候補の勝者をgroup選抜で失わず、同じ入力順序を並べ替えても同じ結果になる。
+20. v0.5から順位を継承した現行v0.7の同一カード対応候補では直近に使っていない文をpriorityより先に比較し、全候補既出なら固定順位へ戻る。全候補の勝者をgroup選抜で失わず、同じ入力順序を並べ替えても同じ結果になる。
 21. 静的mapからの新runだけを固定晴れの初期meanLightで作り、同run復帰の保存値を初期化しない。G1〜G3で未定義の別run snapshot引継ぎを暗黙に行わない。
 22. auto・fixedで同じmapping材料の先頭を同じUniformBelow(3)で消費し、drawnSiteIdと終了cursorが一致する。fixedの実作用先だけは固定設定に従い、その場所でneedと6面を解決する。
 23. 場所の設定変更をPreparationStartedの直前／Prepared公開後のReadyへ並べ、直前だけが今回分へ入り、公開後の変更は次回分に残ることを確認する。公開済みPreparedの場所・6面・目標基準確率は書き換わらない。
 24. Presentingで受け付けた場所設定→終状態表示→次準備の順、Preparing中の操作拒否、保存失敗と再送、旧run callback、同じ設定のno-opを確認する。保存完了の通知前に終了しても完全な設定recordは再開後に採用する。
 25. 新runの既定auto、同run再開時の今回／次回の区別、未成立・取消後の次準備を照合する。場所の重複や種の空き不足で勝手に場所を再抽選しない。
 26. 同じSeedPlaced・同じ回の天候・同じ外見profileから外見を再構築する。湿り399/400/700/701、三天候、初期個体、参照不足を確認し、外見の設定変更だけで自然状態や配面が変わらないことを照合する。
+
+
+27. 交代要求の保存前後・完了応答前で終了し、未受理と完全frameありを区別する。同commandの再送・別commandの連打でもtargetRunIdと要求recordが一つに収束する。
+28. 交代要求を取得開始の前後へ並べ、取得前は取消、取得後は既知材料・結果を元runへ保全する。旧callbackの内部保存を許しても、旧本文・音・意図を通常画面へ再公開しない。
+29. RunSwitchRequested後、旧round終端後、RunClosed後、新RunStarted保存後の各停止点から固定targetRunIdへ収束する。旧runの再適用・新しい配面準備・閉鎖後Receipt・二つ目のgenesisが発生しない。
+30. 新genesisのframe途中で繰り返し終了し、元attemptを保全したままseq=1のRunStartedを一つ作る。RecoveryContinuedをgenesisより前に置かず、完全frameのhash不正や競合genesisを末尾欠損として修復しない。
+31. 保存したtargetRunPlanと異なるcontentや初期状態、旧RunClosed参照の欠損を拒否する。アプリ更新後も予定された初期状態・版を保ち、plannedByと新genesisの実行元を区別する。未対応の旧モデルを新版へ代用しない。
+32. JSON監査bundleのcutoff head・segmentのbyteEnd/hashを固定した後に追記があっても、書出し内容と検証範囲が変わらない。prefixのhashと封印原本の全体hashを区別する。選択runのcontent・元segment・未完genesis原本を含む復元と、CSVの閲覧用要約を区別する。来場者exportに前runの本文を同梱せず、範囲外の交代参照を検証済みとしない。
+33. 本文だけ、方法だけ、構造化目標の変更と、none/freeTextの移行を分けてselectionChangedAfterPreparedを確認する。出所refと既定の目標なしを同じ規則で復元する。
+34. 外観未採用のrunでは版null・profile参照なしで基本体験と復元が成立し、採用runだけが保存した外観profileを使う。
 
 代表的な復旧trace（実行済み結果ではなく、G1のfixture要件）:
 
@@ -623,5 +712,8 @@ runが参照中の内容は更新で置換・削除せず、exportにも実体�
 - `Resolvedあり／Receiptなし`：同じ結果を復元し、読了確認やReceipt補完を次回開始の条件にしない。
 - `OutcomeCommitted → Resolvedの末尾破断`：原本を残してsegment継続後、開始状態から一度だけ解決する。
 - `取消commit → 遅延した取得開始要求`：状態・epoch照合で拒否し、新しい乱数は取得しない。
+- `RunSwitchRequested → kill`：旧本文を公開せず、旧roundの保存段階から閉鎖を再開する。
+- `RunClosed → kill`：固定targetRunIdのgenesisだけを作る。genesis保存後のkillなら既存recordへ収束する。
+- `新RunStartedの途中frame → killを反復`：未完attempt原本を残し、同じtargetRunId・初期計画で一つの完全genesisへ進む。
 
 これらは今後の検証項目であり、この設計文書の追加時点で合格済みとはしない。
