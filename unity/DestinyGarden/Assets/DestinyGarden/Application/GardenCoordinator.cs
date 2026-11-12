@@ -281,6 +281,21 @@ namespace DestinyGarden.Application
 
         private List<string> RecentThree() => new List<string>(_recentMessageIds);
 
+        /// <summary>Closes the current run and starts a fresh garden for the next visitor.</summary>
+        public string SwitchToNewVisitor()
+        {
+            if (RunId != null)
+            {
+                _writer.Append("RunClosed", RunId, null, new Dictionary<string, object>
+                {
+                    ["reason"] = "visitor_switch",
+                    ["finalWorldRevision"] = State != null ? State.WorldRevision : 0
+                });
+            }
+            _recentMessageIds.Clear();
+            return CreateRun();
+        }
+
         /// <summary>Rebuilds coordinator state from verified journal entries (same-run resume).</summary>
         public void Restore(JournalReadResult read)
         {
@@ -295,6 +310,8 @@ namespace DestinyGarden.Application
                 switch (e.Kind)
                 {
                     case "RunStarted":
+                        _weatherEntropyByPeriod.Clear();
+                        _recentMessageIds.Clear();
                         RunId = e.RunId;
                         State = WorldStateSerializer.FromPayload(
                             (Dictionary<string, object>)e.Payload["initialState"]);

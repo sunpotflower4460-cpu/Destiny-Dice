@@ -6,7 +6,9 @@
         "DestinyGarden.Application",
         "DestinyGarden.Infrastructure",
         "Unity.ugui",
-        "Unity.InputSystem"
+        "Unity.InputSystem",
+        "Unity.RenderPipelines.Universal.Runtime",
+        "Unity.RenderPipelines.Core.Runtime"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
