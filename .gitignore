@@ -38,3 +38,15 @@ android/
 # tsbuildinfo caches
 node_modules/.tmp
 *.tsbuildinfo
+
+# Unity (unity/DestinyGarden)
+unity/*/Library/
+unity/*/Temp/
+unity/*/Obj/
+unity/*/Builds/
+unity/*/Build/
+unity/*/Logs/
+unity/*/UserSettings/
+unity/*/*.csproj
+unity/*/*.sln
+unity/*/*.slnx

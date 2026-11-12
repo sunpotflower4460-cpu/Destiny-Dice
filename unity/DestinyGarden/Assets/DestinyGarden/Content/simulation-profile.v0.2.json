@@ -1,0 +1,563 @@
+{
+  "documentKind": "simulation-design-profile",
+  "schemaVersion": "simulation-profile-v0.2",
+  "profileId": "garden-simulation-v0.2",
+  "status": "designCandidate",
+  "implementationStatus": "notImplementedInUnity",
+  "createdDate": "2026-11-11",
+  "scope": "Reduced integer garden model; component arithmetic has reference fixtures, the 16x16 exhibition map is not materialized or validated.",
+  "grid": {
+    "width": 16,
+    "height": 16,
+    "cellOrder": "rowMajor:y*width+x",
+    "neighbours": "orthogonal",
+    "neighbourTieOrder": [
+      "N",
+      "E",
+      "S",
+      "W"
+    ],
+    "cellArea": 1
+  },
+  "time": {
+    "tickMilliseconds": 100,
+    "ticksPerRound": 40,
+    "injectionTickOffsetOrigin": 0,
+    "eventTickAfterFirstUpdate": 1,
+    "idleAdvancesModel": false,
+    "backgroundAdvancesModel": false
+  },
+  "numeric": {
+    "ratioScale": 1000,
+    "division": "floorForNonnegativeIntegers",
+    "intermediate": "checkedSignedInt64",
+    "maxSerializedInteger": 9007199254740991,
+    "invalidInput": "rejectWithoutClampingOrReroll",
+    "waterHeightConvention": "height and surfaceWater use the same model-depth unit; cellArea=1 so water inventory uses the same numeric scale"
+  },
+  "limits": {
+    "heightMin": 0,
+    "heightMax": 1000000,
+    "surfaceWaterMin": 0,
+    "surfaceWaterMax": 1000000,
+    "soilCapacityMin": 0,
+    "soilCapacityMax": 1000,
+    "infiltrationPerTickMin": 0,
+    "infiltrationPerTickMax": 1000,
+    "coefficientMin": 0,
+    "coefficientMax": 1000,
+    "growthMin": 0,
+    "growthMax": 2500,
+    "maxWaterInjectionPerRound": 1200
+  },
+  "defaults": {
+    "soilCapacity": 1000,
+    "infiltrationPerTick": 20,
+    "baseLightQ": 500,
+    "baseWindQ": 0,
+    "initialEvaporationRemainder": 0,
+    "initialGrowthRemainder": 0
+  },
+  "updateOrder": [
+    "scheduledWaterAndSeedInjection",
+    "effectiveLightAndWindFields",
+    "simultaneousSurfaceFlow",
+    "outletDischarge",
+    "infiltration",
+    "evaporation",
+    "plantGrowth",
+    "eventAggregation"
+  ],
+  "waterFlow": {
+    "conductance": 125,
+    "denominator": 1000,
+    "allowedConductanceRange": [
+      0,
+      125
+    ],
+    "drySourceRequest": 0,
+    "requestFormula": "floor(max(0,H_i-H_j)*conductance/1000)",
+    "donorBudgetFormula": "min(surfaceWater_i,sum(request_i))",
+    "budgetAllocation": "floor(request_j*budget/totalRequest), then descending integer remainder, ties N,E,S,W",
+    "simultaneousSnapshot": "afterThisTickInjectionBeforeFlow",
+    "allowAboveRequest": false,
+    "flowRemainderState": false,
+    "knownQuantization": "On a flat isolated pair, head differences 1..7 produce zero flow at conductance=125."
+  },
+  "outlet": {
+    "count": 1,
+    "placementStatus": "requiresExhibitionMapData",
+    "requireNonSolid": true,
+    "requireReachabilityFromEveryWaterTarget": true,
+    "spillDepth": 150,
+    "spillLevelFormula": "height[drainCellId]+spillDepth",
+    "capacityPerTick": 100,
+    "dischargeFormula": "min(surfaceWater,max(0,height+surfaceWater-spillLevel),capacityPerTick)",
+    "appliedAfter": "simultaneousSurfaceFlow",
+    "allOtherBoundaryEdges": "closed",
+    "capacityCheck": "maxWaterInjectionPerRound < ticksPerRound*capacityPerTick",
+    "capacityCheckIsSufficientForNoFlooding": false
+  },
+  "infiltration": {
+    "formula": "min(surfaceWater,soilCapacity-soilWater,infiltrationPerTick)",
+    "requiresValidSoilRangeBeforeStep": true,
+    "transferHasZeroNetWaterChange": true
+  },
+  "fieldFalloff": {
+    "id": "linear-manhattan-q-v0.2",
+    "distance": "abs(dx)+abs(dy)",
+    "withinFormula": "floor((radius+1-distance)*1000/(radius+1))",
+    "outsideValue": 0,
+    "solidCellValue": 0
+  },
+  "light": {
+    "maxEffectiveLightQ": 1000,
+    "exposureRange": [
+      0,
+      1000
+    ],
+    "exposureSource": "staticMap.lightExposureQ",
+    "optionalRockEvidenceSource": "staticMap.lightOccluderCellId; null means no attribution to a rock",
+    "extraFormula": "floor(extraLightQ*falloffQ/1000)",
+    "effectiveFormula": "floor(min(1000,baseLightQ+localExtraQ)*lightExposureQ/1000)",
+    "baseEffectiveFormula": "floor(baseLightQ*lightExposureQ/1000)",
+    "unoccludedAdditionalFormula": "min(1000,baseLightQ+localExtraQ)-baseLightQ",
+    "additionalEffectiveFormula": "effectiveLightQ-baseEffectiveLightQ",
+    "lastsBeyondRecipeDuration": false,
+    "dynamicTreeShadows": false
+  },
+  "wind": {
+    "maxEffectiveWindQ": 1000,
+    "cardinalDirections": {
+      "N": [
+        0,
+        -1
+      ],
+      "E": [
+        1,
+        0
+      ],
+      "S": [
+        0,
+        1
+      ],
+      "W": [
+        -1,
+        0
+      ]
+    },
+    "rayRule": "From target cell, visit cell-direction, cell-2*direction, ... until boundary; first solid cell blocks; the target cell itself is not sampled.",
+    "unblockedShelterQ": 1000,
+    "blockedShelterQ": 250,
+    "multipleBlockersMultiply": false,
+    "unoccludedFormula": "floor(strengthQ*falloffQ/1000)",
+    "effectiveFormula": "floor(unoccludedWindQ*shelterQ/1000)",
+    "affects": [
+      "evaporation",
+      "presentationLeafResponse"
+    ],
+    "directGrowthBonus": false,
+    "transportsSeeds": false
+  },
+  "evaporation": {
+    "numeratorFormula": "effectiveLightQ+4*effectiveWindQ",
+    "denominator": 1000,
+    "remainderRange": [
+      0,
+      999
+    ],
+    "demandFormula": "floor((evaporationRemainder+numerator)/1000)",
+    "nextRemainderFormula": "(evaporationRemainder+numerator)%1000",
+    "actualFormula": "min(demand,surfaceWater+soilWater)",
+    "consumptionOrder": [
+      "surfaceWater",
+      "soilWater"
+    ],
+    "carryUnfulfilledIntegerDemand": false,
+    "resetFractionWhenDryBeforeOrAfterEvaporation": true
+  },
+  "growth": {
+    "perTick": 25,
+    "moistureQFormula": "floor(1000*soilWater/soilCapacity)",
+    "moistureDryStop": 100,
+    "moistureOptimalLow": 400,
+    "moistureOptimalHigh": 700,
+    "moistureWetStop": 950,
+    "moistureFactorBranches": [
+      "0 when m<=100 or m>=950",
+      "floor((m-100)*1000/300) when 100<m<400",
+      "1000 when 400<=m<=700",
+      "floor((950-m)*1000/250) when 700<m<950"
+    ],
+    "lightFactor": "effectiveLightQ",
+    "numeratorFormula": "growthRemainder+25*moistureFactorQ*effectiveLightQ",
+    "denominator": 1000000,
+    "remainderRange": [
+      0,
+      999999
+    ],
+    "growthCap": 2500,
+    "discardRemainderAtGrowthCap": true,
+    "consumesWater": false,
+    "zeroCapacityPlantingAllowed": false,
+    "stageOrder": [
+      "seed",
+      "sprout",
+      "leaf",
+      "bud",
+      "flower"
+    ],
+    "transitions": [
+      {
+        "threshold": 250,
+        "stage": "sprout",
+        "event": "Germinated"
+      },
+      {
+        "threshold": 750,
+        "stage": "leaf",
+        "event": "LeafOpened"
+      },
+      {
+        "threshold": 1500,
+        "stage": "bud",
+        "event": "BudFormed"
+      },
+      {
+        "threshold": 2500,
+        "stage": "flower",
+        "event": "Bloomed"
+      }
+    ]
+  },
+  "localNeedThresholds": {
+    "moistureDryStop": 100,
+    "moistureOptimalLow": 400,
+    "moistureOptimalHigh": 700,
+    "moistureWetStop": 950,
+    "lightGrowthSaturation": 1000
+  },
+  "eventRules": {
+    "aggregationScope": "roundId + kind + cellId or plantId; SurfaceFlowObserved is once per round",
+    "surfaceFlowFields": [
+      "firstTick",
+      "lastTick",
+      "involvedCellIds",
+      "positiveEdgeTransferCount",
+      "cumulativeTransport"
+    ],
+    "surfaceFlowObservedCondition": "sum of positive applied edge transfers in this round > 0",
+    "surfaceFlowTransportMeaning": "sum over edge-ticks, including repeated movement of the same water; not unique water inventory or provenance",
+    "absorptionFields": [
+      "cumulativeAbsorbed",
+      "preSoilWater",
+      "postSoilWater",
+      "netSoilWaterDelta",
+      "firstTick",
+      "lastTick"
+    ],
+    "lightFields": [
+      "cumulativeAdditionalEffectiveLight",
+      "firstTick",
+      "lastTick",
+      "unoccludedAdditionalLightQ",
+      "additionalEffectiveLightQ",
+      "effectiveLightQ",
+      "lightExposureQ",
+      "lightOccluderCellId"
+    ],
+    "seedFields": [
+      "plantId",
+      "cellId",
+      "placedTick",
+      "soilQAtPlacement",
+      "actualLightQAtPlacement"
+    ],
+    "growthFields": [
+      "beforeGrowth",
+      "postGrowth",
+      "threshold",
+      "tick"
+    ],
+    "growthObservationFields": [
+      "beforeGrowth",
+      "postGrowth",
+      "firstTick",
+      "lastTick",
+      "positiveGrowthTickCount",
+      "firstPositiveGrowthEvidence"
+    ],
+    "firstPositiveGrowthEvidenceFields": [
+      "tick",
+      "soilWater",
+      "soilCapacity",
+      "moistureFactorQ",
+      "effectiveLightQ",
+      "growthDelta"
+    ],
+    "windFields": [
+      "cumulativeEffectiveWindQ",
+      "unoccludedWindQ",
+      "effectiveWindQ",
+      "shelterQ",
+      "blockerCellId",
+      "firstTick",
+      "lastTick"
+    ],
+    "puddleDepthThreshold": 120,
+    "puddleCrossing": "surfaceWater before scheduled injection<120 and surfaceWater after the complete tick>=120",
+    "unimplementedPredicatesAlwaysFalse": [
+      "verified_path_to_root"
+    ],
+    "presentationPredicatesAuthority": "../GAMEPLAY.md"
+  },
+  "recipes": [
+    {
+      "recipeId": "water_drop",
+      "elementId": "water",
+      "authoringParameters": {
+        "totalWater": 1200,
+        "targetRule": {
+          "kind": "anchorOnly",
+          "anchorId": "waterInlet",
+          "minEligibleCells": 1,
+          "excludeSolid": true
+        },
+        "cellWeights": "uniform",
+        "allocationTieBreak": "cellIdAscending",
+        "injectionSchedule": [
+          {
+            "tickOffset": 0,
+            "amount": 1200
+          }
+        ]
+      }
+    },
+    {
+      "recipeId": "water_rain",
+      "elementId": "water",
+      "authoringParameters": {
+        "totalWater": 1200,
+        "targetRule": {
+          "kind": "anchorAndOrthogonalNeighbours",
+          "anchorId": "waterInlet",
+          "minEligibleCells": 3,
+          "excludeSolid": true,
+          "excludeOutside": true
+        },
+        "cellWeights": "uniform",
+        "allocationTieBreak": "cellIdAscending",
+        "injectionSchedule": [
+          {
+            "tickOffset": 0,
+            "amount": 100
+          },
+          {
+            "tickOffset": 1,
+            "amount": 100
+          },
+          {
+            "tickOffset": 2,
+            "amount": 100
+          },
+          {
+            "tickOffset": 3,
+            "amount": 100
+          },
+          {
+            "tickOffset": 4,
+            "amount": 100
+          },
+          {
+            "tickOffset": 5,
+            "amount": 100
+          },
+          {
+            "tickOffset": 6,
+            "amount": 100
+          },
+          {
+            "tickOffset": 7,
+            "amount": 100
+          },
+          {
+            "tickOffset": 8,
+            "amount": 100
+          },
+          {
+            "tickOffset": 9,
+            "amount": 100
+          },
+          {
+            "tickOffset": 10,
+            "amount": 100
+          },
+          {
+            "tickOffset": 11,
+            "amount": 100
+          }
+        ]
+      }
+    },
+    {
+      "recipeId": "wind_breeze",
+      "elementId": "wind",
+      "authoringParameters": {
+        "strengthQ": 500,
+        "radius": 3,
+        "direction": "E",
+        "startTickOffset": 0,
+        "durationTicks": 40,
+        "targetRule": {
+          "kind": "manhattanRadius",
+          "anchorId": "windCenter",
+          "excludeSolid": true
+        },
+        "falloffId": "linear-manhattan-q-v0.2"
+      }
+    },
+    {
+      "recipeId": "wind_passage",
+      "elementId": "wind",
+      "authoringParameters": {
+        "strengthQ": 1000,
+        "radius": 1,
+        "direction": "E",
+        "startTickOffset": 0,
+        "durationTicks": 40,
+        "targetRule": {
+          "kind": "manhattanRadius",
+          "anchorId": "windCenter",
+          "excludeSolid": true
+        },
+        "falloffId": "linear-manhattan-q-v0.2"
+      }
+    },
+    {
+      "recipeId": "light_soft",
+      "elementId": "light",
+      "authoringParameters": {
+        "extraLightQ": 250,
+        "radius": 2,
+        "startTickOffset": 0,
+        "durationTicks": 40,
+        "targetRule": {
+          "kind": "manhattanRadius",
+          "anchorId": "lightCenter",
+          "excludeSolid": true
+        },
+        "falloffId": "linear-manhattan-q-v0.2"
+      }
+    },
+    {
+      "recipeId": "light_beam",
+      "elementId": "light",
+      "authoringParameters": {
+        "extraLightQ": 500,
+        "radius": 0,
+        "startTickOffset": 0,
+        "durationTicks": 40,
+        "targetRule": {
+          "kind": "manhattanRadius",
+          "anchorId": "lightCenter",
+          "excludeSolid": true
+        },
+        "falloffId": "linear-manhattan-q-v0.2"
+      }
+    },
+    {
+      "recipeId": "seed_single",
+      "elementId": "seed",
+      "authoringParameters": {
+        "seedCount": 1,
+        "tickOffset": 0,
+        "targetRule": {
+          "kind": "emptyPlantableManhattanBand",
+          "anchorId": "seedCenter",
+          "minDistance": 0,
+          "maxDistance": 1,
+          "selectionOrder": [
+            "distanceAscending",
+            "cellIdAscending"
+          ],
+          "requiredEligibleCells": 1
+        }
+      }
+    },
+    {
+      "recipeId": "seed_scatter",
+      "elementId": "seed",
+      "authoringParameters": {
+        "seedCount": 2,
+        "tickOffset": 0,
+        "targetRule": {
+          "kind": "emptyPlantableManhattanBand",
+          "anchorId": "seedCenter",
+          "minDistance": 2,
+          "maxDistance": 3,
+          "selectionOrder": [
+            "distanceAscending",
+            "cellIdAscending"
+          ],
+          "requiredEligibleCells": 2
+        }
+      }
+    }
+  ],
+  "preparedResolution": {
+    "resolveBeforeOutcome": [
+      "anchorCellIds",
+      "sortedTargetCellIds",
+      "perCellAmountsForEveryInjectionTick",
+      "fieldFootprints",
+      "directions",
+      "seedCellIds",
+      "profileContentHash",
+      "mapContentHash"
+    ],
+    "recomputeTargetsAfterOutcome": false,
+    "invalidMapOrRecipe": "rejectBeforePreparedDoNotSilentlySubstitute",
+    "authoringField": "recipes[].authoringParameters",
+    "snapshotField": "FaceAssignment.resolvedParameters",
+    "amountMeaningByElement": {
+      "water": "totalWater",
+      "wind": "strengthQ at anchor before falloff and shelter",
+      "light": "extraLightQ at anchor before falloff and exposure",
+      "seed": "seedCount"
+    },
+    "unitIdByElement": {
+      "water": "modelWater",
+      "wind": "windStrengthQ",
+      "light": "additionalLightQ",
+      "seed": "seedCount"
+    },
+    "cellWeightsMeaningByElement": {
+      "water": "equal positive integers; actual per-cell per-tick amounts are expanded into injectionSchedule",
+      "wind": "falloffQ per target cell",
+      "light": "falloffQ per target cell",
+      "seed": "one per selected target cell"
+    },
+    "fieldSchedule": "startTickOffset=0; active while startTickOffset<=tickOffset<startTickOffset+durationTicks; injectionSchedule=[] for wind/light"
+  },
+  "pendingExhibitionMapValidation": {
+    "status": "notRun",
+    "requiredMaximumWaterRounds": 200,
+    "scenarios": [
+      "water_drop repeated 200 rounds",
+      "water_rain repeated 200 rounds",
+      "exposed versus sheltered wet soil",
+      "dry soil versus wet soil downstream delivery",
+      "seed then light versus light then seed"
+    ],
+    "observe": [
+      "waterInventoryBalance",
+      "maximumSurfaceDepth",
+      "rootZoneMoisture",
+      "outletDischarge",
+      "overflowAndValidationErrors",
+      "eventCount",
+      "displayLegibility"
+    ],
+    "capacityCheckAlonePassesThisGate": false
+  }
+}

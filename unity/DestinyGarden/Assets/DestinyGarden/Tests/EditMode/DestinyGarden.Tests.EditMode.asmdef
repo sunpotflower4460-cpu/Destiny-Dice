@@ -1,0 +1,20 @@
+{
+    "name": "DestinyGarden.Tests.EditMode",
+    "rootNamespace": "DestinyGarden.Tests",
+    "references": [
+        "DestinyGarden.Domain",
+        "DestinyGarden.Application",
+        "DestinyGarden.Infrastructure",
+        "UnityEngine.TestRunner",
+        "UnityEditor.TestRunner"
+    ],
+    "includePlatforms": [ "Editor" ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [ "nunit.framework.dll" ],
+    "autoReferenced": false,
+    "defineConstraints": [ "UNITY_INCLUDE_TESTS" ],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

@@ -1844,3 +1844,26 @@ Git diff whitespace check: pass
 - docs/unity-garden/OBSERVATION.md（新規）
 - docs/unity-garden/content/design-manifest.v0.8.json、observation-fixtures.v0.8.json、growth-witness-fixtures.v0.8.json（新規）
 - docs/unity-garden/reference/check_current_design.py（更新）、observation_v08.py、growth_witness_v08.py（新規G0参照）
+
+## G1+G2: Unity足場・保存ループ・庭と動的サイコロ (2026-11-12)
+### 完了したこと
+- 専用ブランチ `feature/unity-garden-g1-g2` で `unity/DestinyGarden/` に Unity 6000.3.23f1 (URP) プロジェクトを作成。横画面固定、asmdef分離 (Domain/Application は Unity 非依存、Infrastructure、Presentation、Tests)。
+- G1: 純C# Core、保存してから解釈する乱数材料 (weather 32byte/期、mapping 256byte、outcome/oracle 各32byte)、framed append-only journal (単一writer、JCS正規化+SHA-256 hash chain、不完全末尾は検出のみで切り捨てない)、journal走査による同run復元。
+- G2: 16x16整数シミュレーション (水の同時流動・排出口・吸水・蒸発・光/風場・成長段階、1投40tick)、三天候 (初期晴れ固定・3正常解決投で一期)、三地点 (入口85/岩陰135/ひらけた土154)、局所need重みによる動的6面 (15回 UniformBelow、系統3以上・同系統3面以下・同recipe2面以下)。
+- 最小Presentation: 保存済み状態から描く庭グリッド、湿り/水面/段階の色分け、天候連動の光、公開6面とワンボタンの投擲。演出の作り込みと文章・音は G3。
+### 完了基準の結果（コマンド出力の要約）
+- Unity EditMode tests: green (8 passed) — UniformBelow/D6棄却、初期晴れ、配面制約、水収支残差0、決定性、4投ループ→復元で stateHash 一致、不完全末尾検出
+- macOS player build: Succeeded。実バイナリを起動し例外なし・journal 書込みを確認 (初回は Shader.Find null を検出し、fallback + Always Included Shaders で修正後に再確認)
+- iOS: Xcode プロジェクト生成 Succeeded、`xcodebuild` (署名なし generic iOS) exit 0。実機実行・署名は未実施
+- 既存アプリ: `tsc -b --noEmit` green、`vitest run` 183 passed、`vite build` green (`pnpm` ラッパは既存環境の approve-builds 未承認で停止するため node_modules/.bin で同一コマンドを実行)
+- 設計整合: `check_current_design.py` exit 0 (作業前確認)
+### 要確定・申し送り（次フェーズへ）
+- bundle identifier は開発用仮値 `com.example.destinygarden.dev` (要確定)。正式タイトル未定のまま "Destiny Garden" を使用。
+- iOS実機での起動・中断復帰、Android/Windows モジュール導入とビルド、Steam 配布は未検証 (G4/G5)。本機で確認できたのは macOS 実行と iOS コンパイルまで。
+- G3: オラクル28文と焦点、光・鐘・自然音、記録画面、来場者交代UI、見た目の作り込み (参照画像と実画面の比較による調整を含む)。
+- 参照report (全庭2,052投・注水1,200投) のC#再計算照合、local-growth-witness の実証拠生成は未実施。現在のテストは決定的fixtureの範囲。
+- journal のプロセス間排他・容量上限、RunCreationPlan の専用frameは未実装 (現行は RunStarted を起点とする単一journal)。
+### 触ったファイル
+- unity/DestinyGarden/ (新規Unityプロジェクト一式: Assets/DestinyGarden 配下のC#・Content・Tests・Editor、Packages、ProjectSettings、Assets/Scenes/GardenScene.unity)
+- .gitignore (Unity生成物の除外を追加)
+- PROGRESS.md (本追記)
