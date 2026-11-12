@@ -26,6 +26,65 @@ namespace DestinyGarden.Presentation
             new Vector2(-1.4f, 8.4f), new Vector2(-3.4f, 8.0f)
         };
 
+        /// <summary>
+        /// Organic display position of a cell: a smooth warp field (about ±0.35 cell) so that
+        /// plants, puddles and effects never line up on the model grid. Neighbouring cells move
+        /// together, so the garden reads as one soft surface. Rocks stay unwarped.
+        /// </summary>
+        private static Vector2[] _warpCache;
+
+        public static Vector2 Warp(int cellId)
+        {
+            if (_warpCache == null)
+            {
+                _warpCache = new Vector2[GardenMapData.CellCount];
+                for (int c = 0; c < GardenMapData.CellCount; c++) _warpCache[c] = ComputeWarp(c);
+            }
+            return _warpCache[cellId];
+        }
+
+        private static Vector2 ComputeWarp(int cellId)
+        {
+            int x = cellId % 16, z = cellId / 16;
+            if (GardenMapData.Solid[cellId] == 1) return new Vector2(x, z);
+            float wx = (ProceduralArt.Fbm(x * 0.41f + 1.3f, z * 0.41f + 4.1f, 301, 2) - 0.5f) * 1.25f;
+            float wz = (ProceduralArt.Fbm(x * 0.41f + 7.7f, z * 0.41f + 2.2f, 302, 2) - 0.5f) * 1.25f;
+            return new Vector2(x + wx, z + wz);
+        }
+
+        /// <summary>Things that cast shade or hold moisture for the flora: (x, z) and radius.</summary>
+        public static readonly List<Vector3> ShadeCasters = new List<Vector3>();
+        public static void AddShade(float x, float z, float radius) => ShadeCasters.Add(new Vector3(x, radius, z));
+
+        /// <summary>0 in open sun, up to 1 right beside a rock or under a tree.</summary>
+        public static float ShadeAt(float x, float z)
+        {
+            float best = 0f;
+            foreach (var c in ShadeCasters)
+            {
+                float d = Vector2.Distance(new Vector2(x, z), new Vector2(c.x, c.z));
+                best = Mathf.Max(best, Mathf.SmoothStep(1f, 0f, Mathf.InverseLerp(c.y * 0.6f, c.y * 1.6f, d)));
+            }
+            return best;
+        }
+
+        /// <summary>Distance from (x, z) to the nearest garden bed centre (warped), or 9 when far.</summary>
+        public static float DistanceToBed(float x, float z)
+        {
+            float best = 9f;
+            int cx0 = Mathf.RoundToInt(x), cz0 = Mathf.RoundToInt(z);
+            for (int dz = -2; dz <= 2; dz++)
+                for (int dx = -2; dx <= 2; dx++)
+                {
+                    int cx = cx0 + dx, cz = cz0 + dz;
+                    if (cx < 0 || cx > 15 || cz < 0 || cz > 15) continue;
+                    int c = cz * 16 + cx;
+                    if (GardenMapData.SoilCapacity[c] == 0) continue;
+                    best = Mathf.Min(best, Vector2.Distance(new Vector2(x, z), Warp(c)));
+                }
+            return best;
+        }
+
         private static float CellModelHeight(int x, int y)
         {
             x = Mathf.Clamp(x, 0, 15); y = Mathf.Clamp(y, 0, 15);
@@ -192,31 +251,26 @@ namespace DestinyGarden.Presentation
                     var col = Color.Lerp(meadow, meadowLight, Mathf.SmoothStep(0.35f, 0.75f, n1));
                     col = Color.Lerp(col, moss, Mathf.SmoothStep(0.55f, 0.85f, n2) * 0.55f);
                     // Earth under the beds as soft organic patches (round falloff + noise), never square.
-                    float soilNear = 9f;
                     int cx0 = Mathf.RoundToInt(x), cz0 = Mathf.RoundToInt(z);
-                    for (int dz = -1; dz <= 1; dz++)
-                        for (int dx = -1; dx <= 1; dx++)
-                        {
-                            int cx = cx0 + dx, cz = cz0 + dz;
-                            if (cx < 0 || cx > 15 || cz < 0 || cz > 15 || GardenMapData.SoilCapacity[cz * 16 + cx] == 0) continue;
-                            soilNear = Mathf.Min(soilNear, Vector2.Distance(new Vector2(x, z), new Vector2(cx, cz)));
-                        }
+                    float soilNear = DistanceToBed(x, z);
                     float wobble = (n1 - 0.5f) * 0.5f;
                     int pi = py * size + px;
                     _preEarth[pi] = col;
-                    float mask = Mathf.SmoothStep(0.92f + wobble, 0.40f + wobble, soilNear) * (0.74f + 0.16f * n2);
+                    float mask = Mathf.SmoothStep(1.05f + wobble, 0.30f + wobble, soilNear) * (0.34f + 0.26f * n2);
                     _earthMask[pi] = mask;
                     if (mask > 0.001f)
                     {
                         var weights = new List<KeyValuePair<int, float>>();
-                        for (int dz = -1; dz <= 1; dz++)
-                            for (int dx = -1; dx <= 1; dx++)
+                        for (int dz = -3; dz <= 3; dz++)
+                            for (int dx = -3; dx <= 3; dx++)
                             {
                                 int cx = cx0 + dx, cz = cz0 + dz;
                                 if (cx < 0 || cx > 15 || cz < 0 || cz > 15 || GardenMapData.SoilCapacity[cz * 16 + cx] == 0) continue;
-                                float dd = Vector2.Distance(new Vector2(x, z), new Vector2(cx, cz));
-                                float w = Mathf.Max(0f, 1.25f - dd);
-                                if (w > 0f) weights.Add(new KeyValuePair<int, float>(cz * 16 + cx, w * w));
+                                float dd = Vector2.Distance(new Vector2(x, z), Warp(cz * 16 + cx));
+                                if (dd > 3.2f) continue;
+                                // Very wide soft kernel: moisture flows across the beds, no cell pattern.
+                                float w = Mathf.Exp(-dd * dd / (2f * 1.35f * 1.35f));
+                                weights.Add(new KeyValuePair<int, float>(cz * 16 + cx, w));
                             }
                         if (weights.Count > 0) _bedWeights[pi] = weights;
                     }

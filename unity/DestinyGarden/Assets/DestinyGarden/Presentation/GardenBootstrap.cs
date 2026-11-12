@@ -21,6 +21,8 @@ namespace DestinyGarden.Presentation
         private SacredAtmosphere _atmosphere;
         private GardenWonders _wonders;
         private GardenLife _life;
+        private IslandHarmony _islandHarmony;
+        private int _harmonyNow = -1, _lastStar = -1;
         private bool _butterfliesShown;
         private bool _captureNoUi;
         private string _intentKind = "none";
@@ -57,6 +59,9 @@ namespace DestinyGarden.Presentation
             _life = gameObject.AddComponent<GardenLife>();
             _life.View = _view;
             _life.Build();
+            _islandHarmony = gameObject.AddComponent<IslandHarmony>();
+            _islandHarmony.View = _view;
+            _islandHarmony.Build();
             _audio = gameObject.AddComponent<GardenAudio>();
             _ui = gameObject.AddComponent<GardenUi>();
             _ui.Audio = _audio;
@@ -128,6 +133,8 @@ namespace DestinyGarden.Presentation
             if (_atmosphere != null) _atmosphere.ReducedMotion = _view.ReducedMotion;
             if (_wonders != null) _wonders.ReducedMotion = _view.ReducedMotion;
             if (_life != null) _life.ReducedMotion = _view.ReducedMotion;
+            if (_view.Flora != null) _view.Flora.ReducedMotion = _view.ReducedMotion;
+            if (_islandHarmony != null) _islandHarmony.ReducedMotion = _view.ReducedMotion;
         }
 
         /// <summary>Publishes the prepared faces, the Lucky Seven offer and the die's lucky state.</summary>
@@ -144,6 +151,51 @@ namespace DestinyGarden.Presentation
             _wonders.SetLuckyHalo(sevenUp || offered);
         }
 
+        /// <summary>
+        /// How alive the island looks (0..1), derived only from the saved garden: rolls so far and
+        /// flowers in bloom. The island's ground cover grows toward it.
+        /// </summary>
+        private float Vitality()
+        {
+            var state = _coordinator.State;
+            int flowers = 0;
+            foreach (var p in state.Plants) if (p.Stage == PlantStage.Flower) flowers++;
+            return 0.30f + 0.30f * Mathf.Min(1f, state.WorldRevision / 30f) + 0.25f * Mathf.Min(1f, flowers / 12f)
+                   + 0.15f * Mathf.Max(0, _harmonyNow) / 8f;
+        }
+
+        /// <summary>
+        /// Harmony as recorded with the last roll (ecology.v2); before any roll, read live with the same
+        /// domain function. Drives the star on the sea, the light's yin/yang tint and the network.
+        /// </summary>
+        private void UpdateHarmony(List<RoundSummary> history, int residentKinds)
+        {
+            var rolled = new List<string>(_coordinator.RolledRecipes);
+            int flowers = 0;
+            foreach (var p in _coordinator.State.Plants) if (p.Stage == PlantStage.Flower) flowers++;
+            var live = Harmony.Read(rolled, residentKinds, Flora.BloomingSpecies(_coordinator.State));
+            int value = live.Value, star = live.Star;
+            for (int i = history.Count - 1; i >= 0; i--)
+                if (history[i].WorldRevision > 0 && history[i].Resolved)
+                {
+                    if (history[i].Harmony >= 0) { value = history[i].Harmony; star = history[i].Star; }
+                    break;
+                }
+            _harmonyNow = value;
+            _ui.ShowHarmony(value);
+            var blooming = new List<string>();
+            foreach (var t in Flora.All)
+                foreach (var p in _coordinator.State.Plants)
+                    if (p.Stage == PlantStage.Flower && p.Species == t.Id) { blooming.Add(t.LabelJa); break; }
+            _ui.ShowComposition(blooming, value);
+            _atmosphere.SetStar(star);
+            _view.SetBalance(live.Yin, live.Yang);
+            _islandHarmony.ShowNetwork(_coordinator.State, value);
+            if (_lastStar >= 0 && star > _lastStar && !_busy)
+                _ui.ShowStatus(star == 8 ? "島が、八つの光に包まれた。" : star == 7 ? "七つの灯が、星のかたちに結ばれた。" : "海の灯が、五つの光で結ばれた。");
+            _lastStar = star;
+        }
+
         /// <summary>One quiet line about what the garden's residents did; never explains the rules.</summary>
         private static string EcologyLine(RollOutcome outcome)
         {
@@ -152,6 +204,19 @@ namespace DestinyGarden.Presentation
             bool Seeded(string kind) => eco.Effects.Exists(e => e.Seed && e.Kind == kind);
             bool Fed(string kind) => eco.Effects.Exists(e => !e.Seed && e.Kind == kind && e.Amount > 0);
             if (Fed(Ecology.Spirit)) return "……かすかな光が、花のほうへ降りていった。";
+            // Relationships of this roll, only as they happened (ecology.v3).
+            foreach (var g in eco.Effects)
+            {
+                if (g.Kind != Ecology.Germinate || g.Species == null) continue;
+                var t = Flora.Get(g.Species);
+                if (t == null) continue;
+                bool carried(string k) => eco.Effects.Exists(e => e.Seed && e.Kind == k && e.CellId == g.CellId);
+                if (g.Softened) return $"やわらいだ土に、{t.LabelJa}が根づいた。";
+                if (carried(Ecology.Butterfly)) return $"蝶の運んだ花粉から、{t.LabelJa}が芽を出した。";
+                if (carried(Ecology.Bird)) return $"小鳥の落とした種から、{t.LabelJa}の芽。";
+                if (carried(Ecology.Fluff)) return $"綿毛の行き着いた先に、{t.LabelJa}。";
+                if (carried(Ecology.Bee)) return $"蜂の通ったあとに、{t.LabelJa}の芽。";
+            }
             if (Seeded(Ecology.Bird)) return "小鳥が、どこからか種を落としていった。";
             if (Seeded(Ecology.Butterfly)) return "蝶の運んだ花粉が、離れた土に落ちた。";
             if (Seeded(Ecology.Bee)) return "蜂の通ったあとに、小さな種がこぼれた。";
@@ -172,6 +237,7 @@ namespace DestinyGarden.Presentation
             var kinds = new List<string>();
             foreach (var v in presence) kinds.Add(v.Kind);
             _ui.ShowResidents(kinds);
+            UpdateHarmony(history, kinds.Count);
             bool active = presence.Exists(v => v.Kind == Ecology.Butterfly);
             var tops = new List<Vector3>();
             foreach (var plant in _coordinator.State.Plants)
@@ -249,6 +315,7 @@ namespace DestinyGarden.Presentation
             var history = HistoryProjector.Project(read.Entries, _coordinator.RunId);
             _ui.RefreshHistory(history);
             UpdateButterflies(history);
+            _view.Flora.SetVitality(Vitality());
         }
 
         private IEnumerator RollFlow()
@@ -271,9 +338,11 @@ namespace DestinyGarden.Presentation
                 yield break;
             }
 
+            StartCoroutine(_islandHarmony.PlayBlessing(outcome));
             _audio.PlayBell();
             string element = RecipeCatalog.ElementOf(outcome.RecipeId).ToString().ToLowerInvariant();
             _audio.PlayNature(element);
+            if (element == "wind") _view.Flora.Gust();
             // Presentation replays the saved outcome; the saved end state is shown after.
             yield return _view.PlayOutcome(outcome.Message, element, outcome.Simulation);
             foreach (var e in outcome.Simulation.Events)
@@ -291,6 +360,7 @@ namespace DestinyGarden.Presentation
             bool rainbow = LuckySeven.IsRainbow(outcome.LuckySeven, outcome.Simulation);
             if (rainbow) StartCoroutine(_wonders.PlayRainbowEight());
             StartCoroutine(_life.PlayRollEffects(outcome.Ecology));
+            StartCoroutine(_islandHarmony.PlayPulses(outcome));
             var sown = new List<Vector3>();
             foreach (var ev in outcome.Simulation.Events)
                 if (ev.Kind == "SeedPlaced") sown.Add(_view.CellTop(ev.CellId) + Vector3.up * 0.05f);

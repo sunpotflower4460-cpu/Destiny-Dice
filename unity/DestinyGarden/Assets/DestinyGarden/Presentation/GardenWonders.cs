@@ -282,14 +282,21 @@ namespace DestinyGarden.Presentation
         public IEnumerator PlayRainbowEight()
         {
             var cam = View != null ? View.ViewCamera : Camera.main;
-            Vector3 center = new Vector3(7.5f, 3.0f, 7.5f);
+            // High in the air behind the garden, about as wide as the island.
+            Vector3 center = new Vector3(7.5f, 7.6f, 12.0f);
             var root = new GameObject("RainbowEight").transform;
             root.SetParent(transform);
             root.position = center;
-            root.rotation = Quaternion.LookRotation(cam.transform.forward, Vector3.up);
+            // The camera draws back and rises a little to give the eight the sky; it returns afterwards.
+            Vector3 camPos0 = cam.transform.position;
+            Quaternion camRot0 = cam.transform.rotation;
+            Vector3 camPos1 = new Vector3(7.5f, 13.2f, -12.5f);
+            Quaternion camRot1 = Quaternion.LookRotation(new Vector3(7.5f, 5.2f, 9.0f) - camPos1, Vector3.up);
+            if (!ReducedMotion) StartCoroutine(MoveCamera(cam, camPos0, camRot0, camPos1, camRot1, 2.6f));
+            root.rotation = Quaternion.LookRotation((center - camPos1).normalized, Vector3.up);
 
-            const int points = 160;
-            const float baseA = 2.6f;
+            const int points = 180;
+            const float baseA = 4.6f;
             var tex = BandTexture();
             var lines = new List<LineRenderer>();
             LineRenderer Band(string name, float width, int queue, float z)
@@ -298,7 +305,7 @@ namespace DestinyGarden.Presentation
                 obj.transform.SetParent(root, false);
                 obj.transform.localPosition = new Vector3(0f, 0f, z);
                 var line = obj.AddComponent<LineRenderer>();
-                var m = new Material(_sprite) { renderQueue = queue, mainTexture = tex };
+                var m = IslandHarmony.GlowMaterial(tex, Color.white, queue);
                 line.material = m;
                 line.textureMode = LineTextureMode.Tile;
                 line.useWorldSpace = false;
@@ -316,12 +323,12 @@ namespace DestinyGarden.Presentation
                 return new Vector3(p.x, p.y, 0f);
             }
             // A wide veil of light first, then seven pale overlapping bands.
-            var veil = Band("Veil", 1.6f, 3290, 0.06f);
+            var veil = Band("Veil", 2.6f, 3290, 0.06f);
             for (int i = 0; i < points; i++) veil.SetPosition(i, PointOn(baseA, i));
             for (int band = 0; band < Rainbow.Length; band++)
             {
-                var line = Band("Band" + band, 0.30f, 3300 + band, -band * 0.004f);
-                for (int i = 0; i < points; i++) line.SetPosition(i, PointOn(baseA + (3 - band) * 0.085f, i));
+                var line = Band("Band" + band, 0.46f, 3300 + band, -band * 0.004f);
+                for (int i = 0; i < points; i++) line.SetPosition(i, PointOn(baseA + (3 - band) * 0.15f, i));
                 lines.Add(line);
             }
 
@@ -387,6 +394,19 @@ namespace DestinyGarden.Presentation
                 yield return null;
             }
             Destroy(root.gameObject);
+            if (!ReducedMotion) yield return MoveCamera(cam, cam.transform.position, cam.transform.rotation, camPos0, camRot0, 2.4f);
+            cam.transform.SetPositionAndRotation(camPos0, camRot0);
+        }
+
+        private static IEnumerator MoveCamera(Camera cam, Vector3 p0, Quaternion r0, Vector3 p1, Quaternion r1, float seconds)
+        {
+            for (float t = 0f; t < seconds; t += Time.deltaTime)
+            {
+                float k = Mathf.SmoothStep(0f, 1f, t / seconds);
+                cam.transform.SetPositionAndRotation(Vector3.Lerp(p0, p1, k), Quaternion.Slerp(r0, r1, k));
+                yield return null;
+            }
+            cam.transform.SetPositionAndRotation(p1, r1);
         }
 
         // ---------------- Answered prayer: spirits carry the blessing ----------------

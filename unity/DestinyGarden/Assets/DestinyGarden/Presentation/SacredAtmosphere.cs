@@ -21,6 +21,11 @@ namespace DestinyGarden.Presentation
         private readonly List<Transform> _orbs = new List<Transform>();
         private readonly List<Material> _pillarMats = new List<Material>();
         public bool ReducedMotion;
+        private LineRenderer _star;
+        private int _starPoints;
+        private float _starAlpha, _starTarget;
+        private const float RingRadius = 13.4f;
+        private Material _bottleMat;
 
         public void Build()
         {
@@ -53,6 +58,8 @@ namespace DestinyGarden.Presentation
 
             BuildSevenLights(lit, sprite);
             BuildMotes(sprite);
+            BuildStar();
+            BuildBottle();
         }
 
         private GameObject MakeDisc(string name, float radius, float y, Material mat)
@@ -176,9 +183,101 @@ namespace DestinyGarden.Presentation
             ps.Play();
         }
 
+        /// <summary>A faint star of light on the sea, joined through the ring (harmony 5, 7 or 8 points).</summary>
+        private void BuildStar()
+        {
+            var obj = new GameObject("HarmonyStar");
+            obj.transform.SetParent(_ring, false);
+            obj.transform.localPosition = new Vector3(0f, -0.02f, 0f);
+            _star = obj.AddComponent<LineRenderer>();
+            _star.material = IslandHarmony.GlowMaterial(null, Color.white, 3001);
+            _star.useWorldSpace = false;
+            _star.loop = true;
+            _star.widthMultiplier = 0.06f;
+            _star.shadowCastingMode = ShadowCastingMode.Off;
+            _star.positionCount = 0;
+        }
+
+        /// <summary>0 hides the star; 5, 7 or 8 draws {5/2}, {7/3} or {8/3}.</summary>
+        public void SetStar(int points)
+        {
+            _starTarget = points > 0 ? 1f : 0f;
+            if (points <= 0 || points == _starPoints) return;
+            _starPoints = points;
+            int step = points == 5 ? 2 : 3;
+            _star.positionCount = points;
+            for (int i = 0; i < points; i++)
+            {
+                float a = (i * step % points) / (float)points * Mathf.PI * 2f + 0.2f;
+                _star.SetPosition(i, new Vector3(Mathf.Cos(a) * RingRadius, 0f, Mathf.Sin(a) * RingRadius));
+            }
+        }
+
+        /// <summary>A thin glass bottle around the island and its water, floating on the sea.</summary>
+        private void BuildBottle()
+        {
+            var glass = Shader.Find("DestinyGarden/Glass");
+            if (glass == null) return; // without the glass shader a bottle would look opaque; skip it
+            var profile = new[]
+            {
+                new Vector2(14.2f, -1.1f), new Vector2(14.45f, 1.5f), new Vector2(14.35f, 4.5f), new Vector2(13.6f, 7.4f),
+                new Vector2(11.4f, 10.0f), new Vector2(7.6f, 12.1f), new Vector2(4.2f, 13.3f), new Vector2(3.3f, 14.3f),
+                new Vector2(3.2f, 15.6f), new Vector2(3.6f, 15.9f)
+            };
+            const int seg = 96;
+            var verts = new List<Vector3>(); var norms = new List<Vector3>(); var uvs = new List<Vector2>(); var tris = new List<int>();
+            for (int i = 0; i < profile.Length; i++)
+            {
+                Vector2 prev = profile[Mathf.Max(0, i - 1)], next = profile[Mathf.Min(profile.Length - 1, i + 1)];
+                Vector2 tan = (next - prev).normalized;
+                Vector2 n2 = new Vector2(tan.y, -tan.x);
+                for (int j = 0; j <= seg; j++)
+                {
+                    float a = j / (float)seg * Mathf.PI * 2f;
+                    float c = Mathf.Cos(a), sn = Mathf.Sin(a);
+                    verts.Add(new Vector3(c * profile[i].x, profile[i].y, sn * profile[i].x));
+                    norms.Add(new Vector3(c * n2.x, n2.y, sn * n2.x).normalized);
+                    uvs.Add(new Vector2(j / (float)seg, i / (float)(profile.Length - 1)));
+                }
+            }
+            for (int i = 0; i + 1 < profile.Length; i++)
+                for (int j = 0; j < seg; j++)
+                {
+                    int a = i * (seg + 1) + j, b = a + 1, c2 = a + seg + 1, d = c2 + 1;
+                    tris.Add(a); tris.Add(c2); tris.Add(b); tris.Add(b); tris.Add(c2); tris.Add(d);
+                }
+            var mesh = new Mesh { name = "Bottle" };
+            mesh.SetVertices(verts); mesh.SetNormals(norms); mesh.SetUVs(0, uvs); mesh.SetTriangles(tris, 0);
+            mesh.RecalculateBounds();
+            var obj = new GameObject("Bottle");
+            obj.transform.SetParent(transform, false);
+            obj.transform.position = Center + new Vector3(0f, SeaLevel, 0f);
+            obj.AddComponent<MeshFilter>().sharedMesh = mesh;
+            var r = obj.AddComponent<MeshRenderer>();
+            _bottleMat = new Material(glass);
+            r.material = _bottleMat;
+            r.shadowCastingMode = ShadowCastingMode.Off;
+            r.receiveShadows = false;
+        }
+
         private void Update()
         {
             float t = Time.time;
+            if (_bottleMat != null && Camera.main != null)
+            {
+                // The bottle shows when the island is seen from further away (e.g. the rainbow moment).
+                float d = Vector3.Distance(Camera.main.transform.position, Center);
+                float k = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(21.6f, 24.0f, d));
+                _bottleMat.SetFloat("_RimStrength", Mathf.Lerp(0.04f, 0.34f, k));
+                _bottleMat.SetFloat("_SpecStrength", Mathf.Lerp(0.05f, 0.45f, k));
+            }
+            if (_star != null)
+            {
+                _starAlpha = Mathf.MoveTowards(_starAlpha, _starTarget, Time.deltaTime * 0.4f);
+                float breathe = 0.75f + 0.25f * Mathf.Sin(t * 0.8f);
+                var sc = new Color(1f, 0.88f, 0.60f, 0.55f * _starAlpha * breathe);
+                _star.startColor = sc; _star.endColor = sc;
+            }
             if (_sparkleMat != null)
             {
                 _sparkleMat.mainTextureOffset = ReducedMotion ? Vector2.zero : new Vector2(t * 0.006f, t * 0.004f);

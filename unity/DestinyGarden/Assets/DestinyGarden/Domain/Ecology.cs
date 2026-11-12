@@ -15,6 +15,8 @@ namespace DestinyGarden.Domain
         public int CellId;
         public int Amount;    // growth added; 0 for a carried seed
         public bool Seed;
+        public string Species;  // for "germinate": the species the plant became (ecology.v3)
+        public bool Softened;   // for "germinate": only possible because softening made room
     }
 
     public sealed class EcologyResult
@@ -24,6 +26,8 @@ namespace DestinyGarden.Domain
         public List<EcologyEffect> Effects = new List<EcologyEffect>();
         public List<GardenEvent> Events = new List<GardenEvent>();
         public bool Exhausted;
+        public HarmonyReading Harmony;                              // ecology.v2
+        public List<List<int>> Networks = new List<List<int>>();    // mycorrhizal networks (cells), ecology.v2
 
         public bool Has(string kind) => Visits.Exists(v => v.Kind == kind);
         public EcologyVisit Visit(string kind) => Visits.Find(v => v.Kind == kind);
@@ -46,7 +50,13 @@ namespace DestinyGarden.Domain
     /// </summary>
     public static class Ecology
     {
-        public const string RulesVersion = "ecology.v1";
+        public const string RulesVersion = "ecology.v3";
+        public const string Germinate = "germinate", Thrive = "thrive";
+        public const string Mycorrhiza = "mycorrhiza";
+        public const int MycorrhizaReach = 2;        // manhattan distance that links two plants
+        public const int MycorrhizaMinNetwork = 3;   // a network shares only with at least three plants
+        public const int MycorrhizaRecipients = 3;   // youngest non-flowering plants that receive
+        public const int MycorrhizaPerHarmony = 3;   // growth per harmony point (0..24)
         public const int MaxSeedsPerRoll = 2;
         public const string Bee = "bee", Butterfly = "butterfly", Spirit = "spirit", Moss = "moss",
             Firefly = "firefly", Mushroom = "mushroom", Worm = "worm", Dragonfly = "dragonfly",
@@ -71,6 +81,23 @@ namespace DestinyGarden.Domain
         private static bool IsEmptyPlantable(WorldState s, int c) =>
             GardenMapData.Plantable[c] == 1 && s.PlantAt(c) == null;
 
+        /// <summary>Flowers with affinity >= 1 for a visitor, most loved first (then cell order).
+        /// Plants without a species yet count as liked (1).</summary>
+        private static List<int> Favoured(WorldState s, List<int> flowers, Func<SpeciesTraits, int> affinity)
+        {
+            var scored = new List<KeyValuePair<int, int>>();
+            foreach (int c in flowers)
+            {
+                var t = Flora.Get(s.PlantAt(c).Species);
+                int a = t == null ? 1 : affinity(t);
+                if (a >= 1) scored.Add(new KeyValuePair<int, int>(c, a));
+            }
+            scored.Sort((a, b) => a.Value != b.Value ? b.Value.CompareTo(a.Value) : a.Key.CompareTo(b.Key));
+            var list = new List<int>();
+            foreach (var kv in scored) list.Add(kv.Key);
+            return list;
+        }
+
         private static List<int> Flowers(WorldState s)
         {
             var list = new List<int>();
@@ -89,10 +116,13 @@ namespace DestinyGarden.Domain
             var visits = new List<EcologyVisit>();
             var flowers = Flowers(s);
 
-            if (flowers.Count > 0)
-                visits.Add(new EcologyVisit { Kind = Bee, Cells = flowers.GetRange(0, Math.Min(3, flowers.Count)) });
-            if (flowers.Count > 0 && NatureBalance.AllElementsWithinWindow(recentRecipeIds ?? new string[0]))
-                visits.Add(new EcologyVisit { Kind = Butterfly, Cells = flowers.GetRange(0, Math.Min(3, flowers.Count)) });
+            // Bees go to flowers they favour, butterflies only to flowers they like (ecology.v3).
+            var beeFlowers = Favoured(s, flowers, t => t.Bee);
+            var butterflyFlowers = Favoured(s, flowers, t => t.Butterfly);
+            if (beeFlowers.Count > 0)
+                visits.Add(new EcologyVisit { Kind = Bee, Cells = beeFlowers.GetRange(0, Math.Min(3, beeFlowers.Count)) });
+            if (butterflyFlowers.Count > 0 && NatureBalance.AllElementsWithinWindow(recentRecipeIds ?? new string[0]))
+                visits.Add(new EcologyVisit { Kind = Butterfly, Cells = butterflyFlowers.GetRange(0, Math.Min(3, butterflyFlowers.Count)) });
 
             var moss = new List<int>();
             for (int c = 0; c < GardenMapData.CellCount; c++)
@@ -155,13 +185,22 @@ namespace DestinyGarden.Domain
                 if (v < 0) r.Exhausted = true;
                 return v;
             }
-            void PlantSeed(string kind, List<int> candidates)
+            var carriedBy = new Dictionary<int, string>();
+            var parentOf = new Dictionary<int, int>();
+            void PlantSeed(string kind, List<int> candidates, IList<int> parents = null)
             {
                 if (seeds >= MaxSeedsPerRoll || candidates.Count == 0) return;
                 candidates.Sort();
                 int i = Pick(candidates.Count);
                 if (i < 0) return;
                 int cell = candidates[i];
+                carriedBy[cell] = kind;
+                if (parents != null && parents.Count > 0)
+                {
+                    int best = parents[0];
+                    foreach (int pc in parents) if (Dist(pc, cell) < Dist(best, cell)) best = pc;
+                    parentOf[cell] = best;
+                }
                 var plant = new PlantState
                 {
                     PlantId = newPlantId != null ? newPlantId(idCounter++) : "eco-" + cell,
@@ -210,7 +249,7 @@ namespace DestinyGarden.Domain
                 foreach (int f in bee.Cells)
                 {
                     if (dropped) break;
-                    if (Chance(3)) { int before = seeds; PlantSeed(Bee, EmptyWithin(new[] { f }, 1, 1)); dropped = seeds > before; }
+                    if (Chance(3)) { int before = seeds; PlantSeed(Bee, EmptyWithin(new[] { f }, 1, 1), new[] { f }); dropped = seeds > before; }
                 }
             }
             // 2. Butterflies: 1/2 to carry pollen 2..4 cells away.
@@ -218,7 +257,7 @@ namespace DestinyGarden.Domain
             if (butterfly != null)
             {
                 r.Visits.Add(butterfly);
-                if (Chance(2)) PlantSeed(Butterfly, EmptyWithin(butterfly.Cells, 2, 4));
+                if (Chance(2)) PlantSeed(Butterfly, EmptyWithin(butterfly.Cells, 2, 4), butterfly.Cells);
             }
             // 3. Spirits of an answered prayer: +120 to up to three reached plants (not flowers).
             if (ctx.PrayerAnswered && ctx.Sim != null)
@@ -298,7 +337,7 @@ namespace DestinyGarden.Domain
                     int fi = Pick(flowers.Count);
                     if (fi >= 0)
                         PlantSeed(Fluff, EmptyWithin(new[] { flowers[fi] }, 2, 6,
-                            (o, c) => X(c) - X(o) >= 2 && X(c) - X(o) <= 5 && Math.Abs(Y(c) - Y(o)) <= 1));
+                            (o, c) => X(c) - X(o) >= 2 && X(c) - X(o) <= 5 && Math.Abs(Y(c) - Y(o)) <= 1), new[] { flowers[fi] });
                 }
             }
             // 11-13. Presentation-only residents.
@@ -309,8 +348,92 @@ namespace DestinyGarden.Domain
             var dew = Get(Dew);
             if (dew != null) r.Visits.Add(dew);
 
+            // 15. Germination (ecology.v3): every plant without a species becomes one that fits its
+            // place, weighted by how its seed came. Cell order; draws from the saved ecology bytes.
+            var unnamed = new List<PlantState>();
+            foreach (var p in s.Plants) if (p.Species == null) unnamed.Add(p);
+            unnamed.Sort((a, b) => a.CellId.CompareTo(b.CellId));
+            foreach (var p in unnamed)
+            {
+                string carrier = carriedBy.TryGetValue(p.CellId, out string ck) ? ck
+                    : p.OriginKind == "seedInput" ? "die" : p.OriginKind;
+                string parentSpecies = parentOf.TryGetValue(p.CellId, out int pc) ? s.PlantAt(pc)?.Species : null;
+                p.Species = Flora.ChooseSpecies(s, p, carrier, parentSpecies, n => Pick(n));
+                var t = Flora.Get(p.Species);
+                bool softened = t != null && Flora.BaseHardness(p.CellId) > t.MaxHardness;
+                r.Effects.Add(new EcologyEffect { Kind = Germinate, CellId = p.CellId, Species = p.Species, Softened = softened });
+            }
+            // 16. Plants in a place that suits them thrive a little.
+            var suited = new List<int>();
+            foreach (var p in s.Plants)
+            {
+                var t = Flora.Get(p.Species);
+                if (t != null && p.Stage != PlantStage.Seed && p.Stage != PlantStage.Flower && Flora.Fits(t, s, p.CellId))
+                    suited.Add(p.CellId);
+            }
+            suited.Sort();
+            foreach (int c in suited) Nourish(Thrive, c, Flora.ThriveGrowth);
+
+            // 17. Harmony and the mycorrhizal network (ecology.v2/v3). No chance involved.
+            var kinds = new HashSet<string>();
+            foreach (var v in presence) kinds.Add(v.Kind);
+            r.Harmony = Harmony.Read(ctx.RecentRecipeIds, kinds.Count, Flora.BloomingSpecies(s));
+            r.Networks = Networks(s);
+            int share = r.Harmony.Value * MycorrhizaPerHarmony;
+            if (share > 0 && ctx.Sim != null)
+            {
+                var before = ctx.Sim.Evidence.GrowthBeforeByPlant;
+                foreach (var net in r.Networks)
+                {
+                    if (net.Count < MycorrhizaMinNetwork) continue;
+                    bool grew = false;
+                    foreach (int c in net)
+                    {
+                        var p = s.PlantAt(c);
+                        int old = before.TryGetValue(p.PlantId, out int g0) ? g0 : 0;
+                        if (p.Growth > old) { grew = true; break; }
+                    }
+                    if (!grew) continue;
+                    var young = new List<PlantState>();
+                    foreach (int c in net)
+                    {
+                        var p = s.PlantAt(c);
+                        if (p.Stage != PlantStage.Flower) young.Add(p);
+                    }
+                    young.Sort((a, b) => a.Growth != b.Growth ? a.Growth.CompareTo(b.Growth) : a.CellId.CompareTo(b.CellId));
+                    for (int i = 0; i < young.Count && i < MycorrhizaRecipients; i++) Nourish(Mycorrhiza, young[i].CellId, share);
+                }
+            }
+
             r.Events.AddRange(stageEvents.Events);
             return r;
+        }
+
+        /// <summary>Mycorrhizal networks: plants linked within MycorrhizaReach, as connected components (cellId order).</summary>
+        public static List<List<int>> Networks(WorldState s)
+        {
+            var cells = new List<int>();
+            foreach (var p in s.Plants) cells.Add(p.CellId);
+            cells.Sort();
+            var seen = new HashSet<int>();
+            var result = new List<List<int>>();
+            foreach (int start in cells)
+            {
+                if (seen.Contains(start)) continue;
+                var net = new List<int>();
+                var stack = new Stack<int>();
+                stack.Push(start); seen.Add(start);
+                while (stack.Count > 0)
+                {
+                    int c = stack.Pop();
+                    net.Add(c);
+                    foreach (int o in cells)
+                        if (!seen.Contains(o) && Dist(c, o) <= MycorrhizaReach) { seen.Add(o); stack.Push(o); }
+                }
+                net.Sort();
+                result.Add(net);
+            }
+            return result;
         }
 
         /// <summary>Journal payload for Resolved.ecology.</summary>
@@ -325,13 +448,21 @@ namespace DestinyGarden.Domain
             }
             var effects = new List<object>();
             foreach (var e in r.Effects)
-                effects.Add(new Dictionary<string, object>
+            {
+                var d = new Dictionary<string, object>
                 {
                     ["kind"] = e.Kind, ["cellId"] = (long)e.CellId, ["amount"] = (long)e.Amount, ["seed"] = e.Seed
-                });
+                };
+                if (e.Species != null) { d["species"] = e.Species; d["softened"] = e.Softened; }
+                effects.Add(d);
+            }
             return new Dictionary<string, object>
             {
                 ["rulesVersion"] = RulesVersion,
+                ["harmony"] = r.Harmony != null ? (long)r.Harmony.Value : 0L,
+                ["star"] = r.Harmony != null ? (long)r.Harmony.Star : 0L,
+                ["yin"] = r.Harmony != null ? (long)r.Harmony.Yin : 0L,
+                ["yang"] = r.Harmony != null ? (long)r.Harmony.Yang : 0L,
                 ["visits"] = visits,
                 ["effects"] = effects,
                 ["exhausted"] = r.Exhausted

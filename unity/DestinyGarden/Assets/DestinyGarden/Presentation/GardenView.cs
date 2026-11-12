@@ -16,9 +16,9 @@ namespace DestinyGarden.Presentation
     public sealed class GardenView : MonoBehaviour
     {
         // Calm, dark garden earth (the earlier orange read as clay tiles).
-        private static readonly Color DrySoil = new Color(0.56f, 0.45f, 0.34f);
-        private static readonly Color MoistSoil = new Color(0.43f, 0.32f, 0.23f);
-        private static readonly Color WetSoil = new Color(0.30f, 0.22f, 0.17f);
+        private static readonly Color DrySoil = new Color(0.55f, 0.46f, 0.36f);
+        private static readonly Color MoistSoil = new Color(0.46f, 0.37f, 0.28f);
+        private static readonly Color WetSoil = new Color(0.38f, 0.30f, 0.23f);
         private static readonly Color WaterGlow = new Color(0.20f, 0.78f, 0.95f);
         private static readonly Color Mist = new Color(0.30f, 0.40f, 0.52f); // pale luminous haze over the sea
 
@@ -87,6 +87,23 @@ namespace DestinyGarden.Presentation
         private static readonly Color LuckyPipEmission = new Color(3.2f, 2.2f, 0.6f);
         public Transform DiceTransform => _dice != null ? _dice.transform : null;
         public Camera ViewCamera { get; private set; }
+        public IslandFlora Flora { get; private set; }
+        private Color _sunBase = new Color(1.0f, 0.86f, 0.66f);
+        private float _balance;
+
+        /// <summary>Yin and yang of the recent rolls tint the light: yin cooler, yang warmer (subtle).</summary>
+        public void SetBalance(int yin, int yang)
+        {
+            _balance = Mathf.Clamp((yang - yin) / 8f, -1f, 1f);
+            ApplyBalance();
+        }
+
+        private void ApplyBalance()
+        {
+            if (_sun == null) return;
+            var toward = _balance >= 0f ? new Color(1f, 0.80f, 0.55f) : new Color(0.70f, 0.82f, 1f);
+            _sun.color = Color.Lerp(_sunBase, toward, Mathf.Abs(_balance) * 0.35f);
+        }
         private GameObject _focusRing;
         private GameObject _lightShaft;
         private ParticleSystem _rain;
@@ -98,8 +115,11 @@ namespace DestinyGarden.Presentation
         public Vector3 CellTop(int cellId)
         {
             int x = cellId % 16, y = cellId / 16;
-            // Open ground follows the island surface (equal to the model height inside the garden).
-            return new Vector3(x, GardenMapData.Solid[cellId] == 1 ? CellHeightOf(cellId) : IslandTerrain.Height(x, y), y);
+            if (GardenMapData.Solid[cellId] == 1) return new Vector3(x, CellHeightOf(cellId), y);
+            // Open ground: an organic display position (warp field) on the island surface,
+            // so nothing that happens on the model grid lines up as a grid on screen.
+            var w = IslandTerrain.Warp(cellId);
+            return new Vector3(w.x, IslandTerrain.Height(w.x, w.y), w.y);
         }
 
         private static float CellHeightOf(int cellId) =>
@@ -158,7 +178,7 @@ namespace DestinyGarden.Presentation
             // Puddles: soft translucent glints of water, not opaque discs.
             _waterMat = new Material(Shader.Find("Sprites/Default") ?? unlit);
             _waterMat.SetTexture("_MainTex", ProceduralArt.GlowSprite());
-            _waterMat.color = new Color(0.62f, 0.92f, 1f, 0.55f);
+            _waterMat.color = new Color(0.58f, 0.90f, 1f, 0.30f);
             _waterMat.renderQueue = 2995;
 
             _rockMeshes = new[] { ProceduralArt.RockMesh(0), ProceduralArt.RockMesh(1), ProceduralArt.RockMesh(2) };
@@ -245,8 +265,11 @@ namespace DestinyGarden.Presentation
             pool.intensity = 2.2f;
             pool.shadows = LightShadows.None;
 
+            IslandTerrain.ShadeCasters.Clear();
             BuildEnvironment(shader, unlit);
             BuildCells(shader);
+            Flora = gameObject.AddComponent<IslandFlora>();
+            Flora.Build();
             BuildDice(shader);
             BuildParticles(unlit);
         }
@@ -322,23 +345,10 @@ namespace DestinyGarden.Presentation
                 rr.shadowCastingMode = ShadowCastingMode.On;
                 rr.receiveShadows = true;
                 if (i == 0) PerchPoint = new Vector3(x, baseY + decor[i].h - 0.32f, z);
+                IslandTerrain.AddShade(x, z, decor[i].w * 1.3f);
             }
 
             BuildTrees(shader);
-
-            // Distant silhouette rocks in the mist.
-            for (int i = 0; i < 9; i++)
-            {
-                float a = i / 9f * Mathf.PI * 2f + 0.35f;
-                float r = 31f + (i % 3) * 3.5f;
-                var rock = new GameObject("FarRock");
-                rock.transform.SetParent(transform);
-                rock.transform.position = new Vector3(7.5f + Mathf.Cos(a) * r, -1.5f, 7.5f + Mathf.Sin(a) * r);
-                rock.transform.localScale = new Vector3(4.5f, 6.5f + (i % 4) * 1.6f, 4.5f);
-                rock.transform.rotation = Quaternion.Euler(0, i * 47f, 0);
-                rock.AddComponent<MeshFilter>().sharedMesh = _rockMeshes[i % 3];
-                rock.AddComponent<MeshRenderer>().material = _rockMat;
-            }
 
             // Drifting mist sheets around the board.
             var mistShader = Shader.Find("Sprites/Default") ?? unlit;
@@ -419,6 +429,7 @@ namespace DestinyGarden.Presentation
                 root.SetParent(transform);
                 root.position = new Vector3(x, IslandTerrain.Height(x, z) - 0.04f, z);
                 root.localScale = Vector3.one * spots[i].size;
+                IslandTerrain.AddShade(x, z, (spots[i].kind == 3 ? 0.9f : 1.7f) * spots[i].size);
                 GameObject Ball(Material m, Vector3 p, float r)
                 {
                     var g = GameObject.CreatePrimitive(PrimitiveType.Sphere);
@@ -474,6 +485,7 @@ namespace DestinyGarden.Presentation
                     rockCell.transform.localScale = new Vector3(1.02f, 1.85f + jitter * 0.45f, 1.0f);
                     rockCell.transform.rotation = Quaternion.Euler((jitter - 0.5f) * 8f, (id * 53) % 360, 0);
                     rockCell.AddComponent<MeshFilter>().sharedMesh = _rockMeshes[id % 3];
+                    IslandTerrain.AddShade(x, y, 1.1f);
                     var rr = rockCell.AddComponent<MeshRenderer>();
                     rr.material = _rockMat;
                     rr.shadowCastingMode = ShadowCastingMode.On;
@@ -483,82 +495,7 @@ namespace DestinyGarden.Presentation
                 _plantStageShown[id] = -1;
             }
 
-            // Meadow detail scattered over the whole island (not on the grid): grass, tiny wildflowers, pebbles.
-            var flowerColors = new[]
-            {
-                new Color(1f, 0.95f, 0.85f), new Color(0.98f, 0.86f, 0.40f), new Color(0.80f, 0.70f, 1f), new Color(1f, 0.72f, 0.80f)
-            };
-            var dotMats = new Material[flowerColors.Length];
-            for (int i = 0; i < dotMats.Length; i++)
-            {
-                dotMats[i] = Lit(shader, null, 0.3f);
-                dotMats[i].color = flowerColors[i];
-                dotMats[i].EnableKeyword("_EMISSION");
-                dotMats[i].SetColor("_EmissionColor", flowerColors[i] * 0.25f);
-            }
-            var rng = new System.Random(4207);
-            int placed = 0;
-            for (int tries = 0; tries < 4000 && placed < 340; tries++)
-            {
-                float a = (float)rng.NextDouble() * Mathf.PI * 2f;
-                float r = Mathf.Sqrt((float)rng.NextDouble()) * 10.2f;
-                float x = 7.5f + Mathf.Cos(a) * r, z = 7.5f + Mathf.Sin(a) * r;
-                int cx = Mathf.RoundToInt(x), cz = Mathf.RoundToInt(z);
-                if (cx >= 0 && cx < 16 && cz >= 0 && cz < 16)
-                {
-                    int c = cz * 16 + cx;
-                    if (GardenMapData.SoilCapacity[c] > 0 || GardenMapData.Solid[c] == 1) continue;
-                }
-                if (IslandTerrain.DistanceToRiver(x, z) < 0.75f) continue;
-                if (r > 9.6f) continue;
-                // Grow in natural clumps: mostly where the meadow noise is high.
-                float clump = ProceduralArt.Fbm(x * 0.45f + 11f, z * 0.45f + 5f, 515, 3);
-                if (clump < 0.50f && rng.NextDouble() > 0.15) continue;
-                var pos = new Vector3(x, IslandTerrain.Height(x, z), z);
-                double kind = rng.NextDouble();
-                if (kind < 0.70)
-                {
-                    var tuft = new GameObject("Tuft");
-                    tuft.transform.SetParent(root.transform);
-                    tuft.transform.position = pos;
-                    tuft.transform.rotation = Quaternion.Euler(0f, (float)rng.NextDouble() * 360f, 0f);
-                    for (int bl = 0; bl < 3; bl++)
-                    {
-                        var blade = new GameObject("Blade");
-                        blade.transform.SetParent(tuft.transform, false);
-                        blade.transform.localPosition = new Vector3(bl * 0.08f - 0.08f, 0f, (bl % 2) * 0.07f);
-                        blade.transform.localScale = Vector3.one * (0.6f + (float)rng.NextDouble() * 0.4f);
-                        blade.transform.localRotation = Quaternion.Euler(-40f, bl * 120f, 0);
-                        blade.AddComponent<MeshFilter>().sharedMesh = _leafMesh;
-                        var br = blade.AddComponent<MeshRenderer>();
-                        br.material = _leafMat;
-                        br.shadowCastingMode = ShadowCastingMode.Off;
-                    }
-                }
-                else if (kind < 0.93)
-                {
-                    var dot = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-                    Destroy(dot.GetComponent<Collider>());
-                    dot.name = "Wildflower";
-                    dot.transform.SetParent(root.transform);
-                    dot.transform.position = pos + Vector3.up * 0.06f;
-                    dot.transform.localScale = new Vector3(0.07f, 0.035f, 0.07f);
-                    var dr = dot.GetComponent<MeshRenderer>();
-                    dr.material = dotMats[rng.Next(dotMats.Length)];
-                    dr.shadowCastingMode = ShadowCastingMode.Off;
-                }
-                else
-                {
-                    var pebble = new GameObject("Pebble");
-                    pebble.transform.SetParent(root.transform);
-                    pebble.transform.position = pos + Vector3.up * 0.02f;
-                    pebble.transform.localScale = new Vector3(0.26f, 0.22f, 0.24f) * (0.7f + (float)rng.NextDouble() * 0.6f);
-                    pebble.transform.rotation = Quaternion.Euler(0f, (float)rng.NextDouble() * 360f, 0f);
-                    pebble.AddComponent<MeshFilter>().sharedMesh = _rockMeshes[rng.Next(3)];
-                    pebble.AddComponent<MeshRenderer>().material = _rockMat;
-                }
-                placed++;
-            }
+            // Ground cover lives in IslandFlora (habitat-driven colonies), built after the cells.
         }
 
         private void BuildDice(Shader shader)
@@ -730,7 +667,7 @@ namespace DestinyGarden.Presentation
             if (_waterMat != null)
             {
                 float pulse = 1.0f + Mathf.Sin(t * 1.8f) * 0.08f;
-                _waterMat.color = new Color(0.62f, 0.92f, 1f, 0.55f * pulse);
+                _waterMat.color = new Color(0.58f, 0.90f, 1f, 0.30f * pulse);
             }
         }
 
@@ -756,7 +693,7 @@ namespace DestinyGarden.Presentation
                     var disc = new GameObject("Water");
                     disc.transform.SetParent(transform);
                     disc.transform.position = CellTop(id) + Vector3.up * 0.045f;
-                    float ws = Mathf.Lerp(0.90f, 1.95f, Mathf.Sqrt(Mathf.Clamp01(state.SurfaceWater[id] / 240f)));
+                    float ws = Mathf.Lerp(0.55f, 1.35f, Mathf.Sqrt(Mathf.Clamp01(state.SurfaceWater[id] / 240f)));
                     disc.transform.localScale = new Vector3(ws, 1f, ws);
                     disc.transform.rotation = Quaternion.Euler(0, (id * 37) % 180, 0);
                     disc.AddComponent<MeshFilter>().sharedMesh = _discMeshes[id % 4];
@@ -767,7 +704,7 @@ namespace DestinyGarden.Presentation
                 }
                 else if (wet && _waterDiscs[id] != null)
                 {
-                    float ws = Mathf.Lerp(0.90f, 1.95f, Mathf.Sqrt(Mathf.Clamp01(state.SurfaceWater[id] / 240f)));
+                    float ws = Mathf.Lerp(0.55f, 1.35f, Mathf.Sqrt(Mathf.Clamp01(state.SurfaceWater[id] / 240f)));
                     _waterDiscs[id].transform.localScale = new Vector3(ws, 1f, ws);
                 }
                 else if (!wet && _waterDiscs[id] != null)
@@ -781,25 +718,20 @@ namespace DestinyGarden.Presentation
             foreach (var plant in state.Plants)
             {
                 occupied.Add(plant.CellId);
-                if (_plantStageShown[plant.CellId] != (int)plant.Stage || _plantViews[plant.CellId] == null)
+                // Rebuild when the stage changes or the plant has grown visibly (every 250 growth).
+                int shownKey = (int)plant.Stage * 100 + plant.Growth / 250;
+                if (_plantStageShown[plant.CellId] != shownKey || _plantViews[plant.CellId] == null)
                 {
-                    if (_plantViews[plant.CellId] != null)
-                    {
-                        _swaying.RemoveAll(s => s.Key == _plantViews[plant.CellId].transform);
-                        Destroy(_plantViews[plant.CellId]);
-                    }
+                    DestroyPlantView(_plantViews[plant.CellId]);
                     _plantViews[plant.CellId] = BuildPlant(plant);
-                    _plantStageShown[plant.CellId] = (int)plant.Stage;
-                    _swaying.Add(new KeyValuePair<Transform, float>(
-                        _plantViews[plant.CellId].transform, plant.CellId * 0.37f));
+                    _plantStageShown[plant.CellId] = shownKey;
                 }
             }
             for (int id = 0; id < 256; id++)
             {
                 if (!occupied.Contains(id) && _plantViews[id] != null)
                 {
-                    _swaying.RemoveAll(s => s.Key == _plantViews[id].transform);
-                    Destroy(_plantViews[id]);
+                    DestroyPlantView(_plantViews[id]);
                     _plantViews[id] = null;
                     _plantStageShown[id] = -1;
                 }
@@ -809,8 +741,9 @@ namespace DestinyGarden.Presentation
             {
                 _sun.intensity = weather.Id == WeatherId.Clear ? 2.40f
                     : weather.Id == WeatherId.Cloudy ? 1.95f : 1.70f;
-                _sun.color = weather.Id == WeatherId.Drizzle
+                _sunBase = weather.Id == WeatherId.Drizzle
                     ? new Color(0.78f, 0.84f, 0.92f) : new Color(1.0f, 0.86f, 0.66f);
+                ApplyBalance();
                 _fill.intensity = weather.Id == WeatherId.Clear ? 0.45f
                     : weather.Id == WeatherId.Cloudy ? 0.55f : 0.65f;
                 _lightShaft.SetActive(weather.Id == WeatherId.Clear);
@@ -819,153 +752,40 @@ namespace DestinyGarden.Presentation
             }
         }
 
+        private Material _plantMat;
+
+        /// <summary>
+        /// One swaying mesh per plant (PlantForms, DestinyGarden/Foliage), built in world space at the
+        /// plant's organic position. Species follows habitat and who sowed it.
+        /// </summary>
         private GameObject BuildPlant(PlantState plant)
         {
+            if (_plantMat == null)
+            {
+                var fol = Shader.Find("DestinyGarden/Foliage");
+                _plantMat = new Material(fol != null ? fol : Shader.Find("Sprites/Default"));
+            }
+            var at = CellTop(plant.CellId) + IslandTerrain.PlantJitter(plant.CellId) * 0.5f;
+            at.y = IslandTerrain.Height(at.x, at.z) + 0.01f;
+            var b = new FoliageMesh { Root = new Vector4(at.x, at.y, at.z, -1f) };
+            PlantForms.Build(b, plant, at, PlantForms.Choose(plant, at));
+            // Read clearly from the camera: scale the whole plant around its root.
+            for (int i = 0; i < b.V.Count; i++) b.V[i] = at + (b.V[i] - at) * 1.75f;
             var root = new GameObject("Plant_" + plant.PlantId);
-            root.transform.SetParent(transform);
-            root.transform.position = CellTop(plant.CellId) + Vector3.up * 0.06f + IslandTerrain.PlantJitter(plant.CellId);
-            root.transform.rotation = Quaternion.Euler((Hash01(plant.CellId, 1) - 0.5f) * 10f, Hash01(plant.CellId, 2) * 360f,
-                (Hash01(plant.CellId, 3) - 0.5f) * 10f);
-            float g = plant.Growth / 2500f;
-            int species = SpeciesOf(plant);
-            float tall = 0.82f + Hash01(plant.CellId, 4) * 0.36f;
-            var petal = _speciesPetal[species];
-
-            GameObject Part(PrimitiveType type, Material mat, Vector3 pos, Vector3 scale, Vector3 rot)
-            {
-                var part = GameObject.CreatePrimitive(type);
-                part.transform.SetParent(root.transform, false);
-                part.transform.localPosition = pos;
-                part.transform.localScale = scale;
-                part.transform.localRotation = Quaternion.Euler(rot);
-                part.GetComponent<Renderer>().material = mat;
-                part.GetComponent<Renderer>().shadowCastingMode = ShadowCastingMode.Off;
-                Destroy(part.GetComponent<Collider>());
-                return part;
-            }
-            void Leaf(Vector3 pos, float yaw, float pitch, float scale)
-            {
-                var leaf = new GameObject("Leaf");
-                leaf.transform.SetParent(root.transform, false);
-                leaf.transform.localPosition = pos;
-                leaf.transform.localRotation = Quaternion.Euler(pitch, yaw, 0);
-                leaf.transform.localScale = Vector3.one * scale;
-                leaf.AddComponent<MeshFilter>().sharedMesh = _leafMesh;
-                var r = leaf.AddComponent<MeshRenderer>();
-                r.material = _leafMat;
-                r.shadowCastingMode = ShadowCastingMode.Off;
-            }
-
-            if (plant.Stage == PlantStage.Seed)
-            {
-                Part(PrimitiveType.Sphere, _seedMat, new Vector3(0, 0.05f, 0), new Vector3(0.17f, 0.13f, 0.17f), Vector3.zero);
-                return root;
-            }
-            float stemH = (plant.Stage == PlantStage.Sprout ? 0.34f : 0.58f + g * 0.44f) * tall;
-            if (species == 4) stemH *= 1.15f; // lavender stands taller
-            // Slightly bent three-segment stem.
-            Vector3 prev = Vector3.zero;
-            for (int sIdx = 0; sIdx < 3; sIdx++)
-            {
-                float segH = stemH / 3f;
-                Vector3 next = prev + new Vector3(0.018f * sIdx, segH, 0.012f * sIdx);
-                var seg = Part(PrimitiveType.Cylinder, _stemMat, (prev + next) / 2f,
-                    new Vector3(0.045f - sIdx * 0.008f, segH / 2f, 0.045f - sIdx * 0.008f), Vector3.zero);
-                seg.transform.localRotation = Quaternion.FromToRotation(Vector3.up, (next - prev).normalized);
-                prev = next;
-            }
-            int leafCount = plant.Stage == PlantStage.Sprout ? 2 : 5;
-            for (int i = 0; i < leafCount; i++)
-            {
-                float yaw = i * (360f / leafCount) + plant.CellId * 13f;
-                Leaf(new Vector3(0.02f * i, stemH * (0.45f + 0.11f * i), 0.01f * i),
-                    yaw, -52f + i * 4f, plant.Stage == PlantStage.Sprout ? 1.15f : 1.25f + g * 0.55f);
-            }
-            if (plant.Stage == PlantStage.Bud)
-            {
-                var bud = Part(PrimitiveType.Sphere, _budMat, prev + new Vector3(0, 0.09f, 0), new Vector3(0.14f, 0.22f, 0.14f), Vector3.zero);
-                if (species != 0) bud.GetComponent<Renderer>().material = petal;
-            }
-            else if (plant.Stage == PlantStage.Flower)
-            {
-                BuildBloom(species, petal, prev, Part);
-            }
+            root.transform.SetParent(transform, false);
+            root.AddComponent<MeshFilter>().sharedMesh = b.ToMesh("Plant_" + plant.PlantId);
+            var r = root.AddComponent<MeshRenderer>();
+            r.material = _plantMat;
+            r.shadowCastingMode = ShadowCastingMode.On;
             return root;
         }
 
-        private void BuildBloom(int species, Material petal, Vector3 top,
-            System.Func<PrimitiveType, Material, Vector3, Vector3, Vector3, GameObject> part)
+        private static void DestroyPlantView(GameObject view)
         {
-            switch (species)
-            {
-                case 1: // daisy: many thin white rays, a large golden centre
-                    for (int i = 0; i < 14; i++)
-                    {
-                        float a = i * (360f / 14f);
-                        part(PrimitiveType.Sphere, petal,
-                            top + new Vector3(Mathf.Cos(a * Mathf.Deg2Rad) * 0.13f, 0.10f, Mathf.Sin(a * Mathf.Deg2Rad) * 0.13f),
-                            new Vector3(0.20f, 0.025f, 0.055f), new Vector3(0, -a, 6f));
-                    }
-                    part(PrimitiveType.Sphere, _centerMat, top + new Vector3(0, 0.12f, 0), new Vector3(0.11f, 0.06f, 0.11f), Vector3.zero);
-                    break;
-                case 2: // bellflower: nodding bells along a curved tip
-                    for (int i = 0; i < 3; i++)
-                    {
-                        float a = i * 120f + 20f;
-                        var p = top + new Vector3(Mathf.Cos(a * Mathf.Deg2Rad) * 0.10f, 0.02f - i * 0.05f, Mathf.Sin(a * Mathf.Deg2Rad) * 0.10f);
-                        part(PrimitiveType.Sphere, petal, p, new Vector3(0.11f, 0.15f, 0.11f), new Vector3(20f, -a, 0f));
-                        part(PrimitiveType.Sphere, _centerMat, p + new Vector3(0, -0.07f, 0), Vector3.one * 0.03f, Vector3.zero);
-                    }
-                    break;
-                case 3: // buttercup: five glossy cupped petals
-                    for (int i = 0; i < 5; i++)
-                    {
-                        float a = i * 72f;
-                        part(PrimitiveType.Sphere, petal,
-                            top + new Vector3(Mathf.Cos(a * Mathf.Deg2Rad) * 0.08f, 0.11f, Mathf.Sin(a * Mathf.Deg2Rad) * 0.08f),
-                            new Vector3(0.13f, 0.035f, 0.12f), new Vector3(0, -a, 38f));
-                    }
-                    part(PrimitiveType.Sphere, _centerMat, top + new Vector3(0, 0.11f, 0), Vector3.one * 0.06f, Vector3.zero);
-                    break;
-                case 4: // lavender: a spike of tiny florets
-                    for (int i = 0; i < 9; i++)
-                    {
-                        float a = i * 137f;
-                        part(PrimitiveType.Sphere, petal,
-                            top + new Vector3(Mathf.Cos(a * Mathf.Deg2Rad) * 0.03f, 0.05f + i * 0.045f, Mathf.Sin(a * Mathf.Deg2Rad) * 0.03f),
-                            Vector3.one * (0.065f - i * 0.003f), Vector3.zero);
-                    }
-                    break;
-                case 5: // wild rose: three rings of rounded petals, deep centre
-                    for (int ring = 0; ring < 3; ring++)
-                    {
-                        int n = 6 - ring;
-                        for (int i = 0; i < n; i++)
-                        {
-                            float a = i * (360f / n) + ring * 25f;
-                            float r = 0.13f - ring * 0.04f;
-                            part(PrimitiveType.Sphere, petal,
-                                top + new Vector3(Mathf.Cos(a * Mathf.Deg2Rad) * r, 0.09f + ring * 0.035f, Mathf.Sin(a * Mathf.Deg2Rad) * r),
-                                new Vector3(0.15f - ring * 0.03f, 0.05f, 0.12f - ring * 0.02f), new Vector3(0, -a, 22f + ring * 14f));
-                        }
-                    }
-                    break;
-                default: // cosmos: two layers of soft pink petals
-                    for (int layer = 0; layer < 2; layer++)
-                    {
-                        int petals = layer == 0 ? 6 : 5;
-                        for (int i = 0; i < petals; i++)
-                        {
-                            float angle = i * (360f / petals) + layer * 30f;
-                            float radius = layer == 0 ? 0.16f : 0.10f;
-                            part(PrimitiveType.Sphere, petal,
-                                top + new Vector3(Mathf.Cos(angle * Mathf.Deg2Rad) * radius, 0.10f + layer * 0.045f, Mathf.Sin(angle * Mathf.Deg2Rad) * radius),
-                                new Vector3(0.22f - layer * 0.05f, 0.05f, 0.14f - layer * 0.03f), new Vector3(0, -angle, 14f - layer * 8f));
-                        }
-                    }
-                    part(PrimitiveType.Sphere, _centerMat, top + new Vector3(0, 0.15f, 0), Vector3.one * 0.10f, Vector3.zero);
-                    break;
-            }
+            if (view == null) return;
+            var mf = view.GetComponent<MeshFilter>();
+            if (mf != null && mf.sharedMesh != null) Destroy(mf.sharedMesh);
+            Destroy(view);
         }
 
         /// <summary>Short outcome presentation bound to saved facts. Skipped cues are discarded.</summary>

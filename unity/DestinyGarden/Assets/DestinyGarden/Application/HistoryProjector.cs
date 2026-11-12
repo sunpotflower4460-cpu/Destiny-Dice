@@ -28,6 +28,8 @@ namespace DestinyGarden.Application
         public List<string> EcologyKinds = new List<string>(); // residents present after this roll
         public int EcologySeeds;  // seeds carried by residents
         public int EcologyGrowth; // growth added by residents
+        public int Harmony = -1;  // 0..8 (ecology.v2); -1 for older records
+        public int Star;          // 0, 5, 7 or 8
     }
 
     /// <summary>Projects verified journal entries of one run into display summaries.</summary>
@@ -99,6 +101,8 @@ namespace DestinyGarden.Application
                             Totals((Dictionary<string, object>)e.Payload["postState"], s);
                             if (e.Payload.TryGetValue("ecology", out object eco) && eco is IDictionary<string, object> ecod)
                             {
+                                if (ecod.TryGetValue("harmony", out object hv)) s.Harmony = WorldStateSerializer.ToInt(hv);
+                                if (ecod.TryGetValue("star", out object sv)) s.Star = WorldStateSerializer.ToInt(sv);
                                 foreach (var v in (IEnumerable)ecod["visits"])
                                     if (v is IDictionary<string, object> vd && vd["kind"] is string vk) s.EcologyKinds.Add(vk);
                                 foreach (var ef in (IEnumerable)ecod["effects"])

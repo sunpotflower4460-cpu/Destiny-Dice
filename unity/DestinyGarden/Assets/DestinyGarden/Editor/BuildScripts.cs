@@ -30,20 +30,27 @@ namespace DestinyGarden.EditorTools
             PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.Standalone, DevBundleId);
             PlayerSettings.iOS.targetOSVersionString = "15.0";
 
-            // Code-created materials use URP/Lit via Shader.Find; keep it from being stripped.
-            var lit = Shader.Find("Universal Render Pipeline/Lit");
+            // Code-created materials use these shaders via Shader.Find; keep them from being stripped.
             var serialized = new SerializedObject(
                 AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/GraphicsSettings.asset")[0]);
             var alwaysIncluded = serialized.FindProperty("m_AlwaysIncludedShaders");
-            bool found = false;
-            for (int i = 0; i < alwaysIncluded.arraySize; i++)
-                if (alwaysIncluded.GetArrayElementAtIndex(i).objectReferenceValue == lit) found = true;
-            if (lit != null && !found)
+            foreach (string shaderName in new[]
             {
-                alwaysIncluded.arraySize++;
-                alwaysIncluded.GetArrayElementAtIndex(alwaysIncluded.arraySize - 1).objectReferenceValue = lit;
-                serialized.ApplyModifiedProperties();
+                "Universal Render Pipeline/Lit", "DestinyGarden/Foliage", "DestinyGarden/Glow", "DestinyGarden/Glass"
+            })
+            {
+                var shader = Shader.Find(shaderName);
+                if (shader == null) { Debug.LogWarning("DestinyGarden: shader not found " + shaderName); continue; }
+                bool found = false;
+                for (int i = 0; i < alwaysIncluded.arraySize; i++)
+                    if (alwaysIncluded.GetArrayElementAtIndex(i).objectReferenceValue == shader) found = true;
+                if (!found)
+                {
+                    alwaysIncluded.arraySize++;
+                    alwaysIncluded.GetArrayElementAtIndex(alwaysIncluded.arraySize - 1).objectReferenceValue = shader;
+                }
             }
+            serialized.ApplyModifiedProperties();
 
             // The template PC renderer enables SSAO, whose resources can be stripped
             // in players and break the post-processing pass. This game does not use SSAO.

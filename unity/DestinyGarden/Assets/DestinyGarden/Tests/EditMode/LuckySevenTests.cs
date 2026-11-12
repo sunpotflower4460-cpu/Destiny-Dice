@@ -177,7 +177,8 @@ namespace DestinyGarden.Tests
             int rolls = 0, matched = 0, offered = 0, sevenRolled = 0, rainbows = 0, butterflyRounds = 0;
             var residentRounds = new Dictionary<string, int>();
             var seedsBy = new Dictionary<string, int>();
-            int ecoGrowth = 0, finalPlants = 0, finalFlowers = 0;
+            int ecoGrowth = 0, finalPlants = 0, finalFlowers = 0, harmonySum = 0, mycoGrowth = 0;
+            var stars = new Dictionary<int, int>();
             for (int run = 0; run < runs; run++)
             {
                 var journal = new MemoryJournal();
@@ -206,7 +207,10 @@ namespace DestinyGarden.Tests
                     {
                         if (ef.Seed) seedsBy[ef.Kind] = seedsBy.TryGetValue(ef.Kind, out int c2) ? c2 + 1 : 1;
                         ecoGrowth += ef.Amount;
+                        if (ef.Kind == Ecology.Mycorrhiza) mycoGrowth += ef.Amount;
                     }
+                    harmonySum += o.Ecology.Harmony.Value;
+                    stars[o.Ecology.Harmony.Star] = stars.TryGetValue(o.Ecology.Harmony.Star, out int sc) ? sc + 1 : 1;
                     coord.Prepare();
                 }
                 finalPlants += coord.State.Plants.Count;
@@ -220,7 +224,10 @@ namespace DestinyGarden.Tests
                           residentRounds.OrderBy(k => k.Key).Select(k => $"{k.Key} {100.0 * k.Value / rolls:0}")) +
                       " | ecoSeeds: " + string.Join(", ", seedsBy.OrderBy(k => k.Key).Select(k => $"{k.Key} {k.Value}")) +
                       $" | ecoGrowth/roll {ecoGrowth / (double)rolls:0.0}" +
-                      $" | after {rollsPerRun} rolls: plants {finalPlants / (double)runs:0.0}, flowers {finalFlowers / (double)runs:0.0}";
+                      $" | after {rollsPerRun} rolls: plants {finalPlants / (double)runs:0.0}, flowers {finalFlowers / (double)runs:0.0}" +
+                      $" | harmony mean {harmonySum / (double)rolls:0.00}, stars " +
+                      string.Join(", ", stars.OrderBy(k => k.Key).Select(k => $"{k.Key}:{100.0 * k.Value / rolls:0}%")) +
+                      $" | mycorrhiza growth/roll {mycoGrowth / (double)rolls:0.0}";
             TestContext.WriteLine(report);
             UnityEngine.Debug.Log("DG-MEASURE " + report);
             Assert.Greater(rolls, 0);

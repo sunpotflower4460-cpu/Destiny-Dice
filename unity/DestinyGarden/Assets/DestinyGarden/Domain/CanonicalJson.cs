@@ -121,7 +121,7 @@ namespace DestinyGarden.Domain
             sorted.Sort((a, b) => a.CellId.CompareTo(b.CellId));
             foreach (var p in sorted)
             {
-                plants.Add(new Dictionary<string, object>
+                var plant = new Dictionary<string, object>
                 {
                     ["plantId"] = p.PlantId,
                     ["cellId"] = p.CellId,
@@ -130,7 +130,10 @@ namespace DestinyGarden.Domain
                     ["stage"] = (int)p.Stage,
                     ["originKind"] = p.OriginKind ?? "initialMap",
                     ["seedSourceRoundId"] = p.SeedSourceRoundId
-                });
+                };
+                // Written only when known, so states saved before ecology.v3 keep their exact hashes.
+                if (p.Species != null) plant["species"] = p.Species;
+                plants.Add(plant);
             }
             return new Dictionary<string, object>
             {
@@ -159,7 +162,8 @@ namespace DestinyGarden.Domain
                     GrowthRemainder = ToInt(d["growthRemainder"]),
                     Stage = (PlantStage)ToInt(d["stage"]),
                     OriginKind = d.TryGetValue("originKind", out object ok) ? (string)ok : "initialMap",
-                    SeedSourceRoundId = d.TryGetValue("seedSourceRoundId", out object sr) ? sr as string : null
+                    SeedSourceRoundId = d.TryGetValue("seedSourceRoundId", out object sr) ? sr as string : null,
+                    Species = d.TryGetValue("species", out object sp) ? sp as string : null
                 });
             }
             return s;

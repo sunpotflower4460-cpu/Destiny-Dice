@@ -289,6 +289,9 @@ namespace DestinyGarden.Presentation
             _graphBars = barsObj.transform;
             _graphCaption = MakeText(_graphPanel.transform, new Vector2(0.5f, 0.5f), new Vector2(0f, -200f),
                 new Vector2(840f, 60f), 18, TextAnchor.UpperCenter);
+            _composition = MakeText(_graphPanel.transform, new Vector2(0.5f, 0.5f), new Vector2(0f, 205f),
+                new Vector2(860f, 56f), 17, TextAnchor.UpperCenter);
+            _composition.color = new Color(1f, 0.92f, 0.76f);
             _graphPanel.SetActive(false);
 
             _settingsPanel = MakePanel(canvas, new Vector2(520f, 340f));
@@ -446,8 +449,28 @@ namespace DestinyGarden.Presentation
             }
         }
 
+        private int _harmony = -1;
+        private Text _composition;
+
+        /// <summary>What this garden has become: flowers in bloom now and its harmony.</summary>
+        public void ShowComposition(IList<string> bloomingJa, int harmony)
+        {
+            if (_composition == null) return;
+            _composition.text = (bloomingJa.Count > 0 ? "いま咲いている花: " + string.Join("・", bloomingJa) : "まだ花は咲いていない") +
+                                (harmony >= 0 ? $"\n☯ 調和 {harmony}/8" : "");
+        }
+
+        public void ShowHarmony(int harmony)
+        {
+            _harmony = harmony;
+            ShowResidents(_lastKinds);
+        }
+
+        private List<string> _lastKinds = new List<string>();
+
         public void ShowResidents(IEnumerable<string> kinds)
         {
+            if (kinds != null && !ReferenceEquals(kinds, _lastKinds)) _lastKinds = new List<string>(kinds);
             var names = new List<string>();
             if (kinds != null)
                 foreach (var k in kinds)
@@ -455,7 +478,8 @@ namespace DestinyGarden.Presentation
                     string n = ResidentLabelJa(k);
                     if (n != null && !names.Contains(n)) names.Add(n);
                 }
-            _residents.text = "<color=#cfe6dc>庭の気配</color>\n" +
+            _residents.text = "<color=#cfe6dc>庭の気配</color>" +
+                (_harmony >= 0 ? $"　<color=#ffe2a6>☯ 調和 {_harmony}/8</color>" : "") + "\n" +
                 (names.Count > 0 ? string.Join("・", names) : "<color=#9aa8a4>まだ静か</color>");
         }
 
@@ -562,7 +586,7 @@ namespace DestinyGarden.Presentation
         {
             var sb = new StringBuilder();
             sb.AppendLine("記録（新しい順）");
-            for (int i = history.Count - 1; i >= 1 && i > history.Count - 9; i--) // last 8 rolls fit the panel
+            for (int i = history.Count - 1; i >= 1 && i > history.Count - 7; i--) // last 6 rolls fit the panel
             {
                 var r = history[i];
                 sb.AppendLine($"{r.WorldRevision}投目 {WeatherLabel(r.WeatherId)} {SiteLabel(r.SiteId)} " +
@@ -571,8 +595,9 @@ namespace DestinyGarden.Presentation
                     (r.LuckySeven && r.Bloomed ? " ∞虹" : ""));
                 var lives = new List<string>();
                 foreach (var k in r.EcologyKinds) { string n = ResidentLabelJa(k); if (n != null && !lives.Contains(n)) lives.Add(n); }
-                if (lives.Count > 0 || r.EcologySeeds > 0)
-                    sb.AppendLine("　〔" + string.Join("・", lives) + "〕" + (r.EcologySeeds > 0 ? $" 種がこぼれた ×{r.EcologySeeds}" : ""));
+                if (lives.Count > 0 || r.EcologySeeds > 0 || r.Harmony >= 0)
+                    sb.AppendLine("　〔" + string.Join("・", lives) + "〕" + (r.EcologySeeds > 0 ? $" 種がこぼれた ×{r.EcologySeeds}" : "") +
+                                  (r.Harmony >= 0 ? $"　☯{r.Harmony}" : ""));
                 if (!string.IsNullOrEmpty(r.MessageText)) sb.AppendLine("　" + r.MessageText);
             }
             if (history.Count <= 1) sb.AppendLine("まだ記録がありません。");
