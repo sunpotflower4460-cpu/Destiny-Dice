@@ -1867,3 +1867,28 @@ Git diff whitespace check: pass
 - unity/DestinyGarden/ (新規Unityプロジェクト一式: Assets/DestinyGarden 配下のC#・Content・Tests・Editor、Packages、ProjectSettings、Assets/Scenes/GardenScene.unity)
 - .gitignore (Unity生成物の除外を追加)
 - PROGRESS.md (本追記)
+
+## G3: 表現・文章・記録画面と全プラットフォームビルド (2026-11-12)
+### 完了したこと
+- オラクル: catalog v0.7 の6枚・28文を生成C#データとして採用し、RoundEvidence（吸水累計・流れ総量・水たまり120越え・光/風の追加実効・成長の十分性・播種時水分ほか）から述語を判定。ObservationGroup（4近傍連結、SurfaceFlowObservedは全域1件）を構築し、oracle-focus.v0.7 の順位（カード対応→直近3件の未使用→priority→固定順）で主焦点1・補助最大1を選定。verified_path_to_root は経路証拠を記録しない版として常に不成立（推測で成立させない）。カード未成立時は入力fallback文へ分岐し焦点なし。
+- 表現: visual-plan/PRD と参照コンセプト画2点を置き、暗い青緑の霧に浮かぶ庭盤、湿りで変わる土色、水面の発光、5段階の植物、岩、光る目の石サイコロ、焦点の金の輪、天候連動の光と雨粒子、花粉粒子、Bloomを実装。音は全てコード合成（鐘・水・風・光・種・成長・環境音、外部素材なし）。
+- UI: 公開6面チップ（押すとその目を願う）、系統の意図、次からの届け先、記録一覧、水量/成長の歩みグラフ（意図の一致数には偶然の平均を併記）、書き出し（CSV/JSONL）、来場者交代（RunClosed→新run）、設定（音量・消音・動きを抑える）。
+- QA用に起動引数 `-dgAutoRolls N` / `-dgCapture PATH`（明示時のみ、通常プレイ不変）を追加し、実プレイヤーで撮影・目視確認した。撮影で見つけた Shader.Find の null と SSAO 資源不足による描画例外は修正し、例外0で再確認。
+### 完了基準の結果（コマンド出力の要約）
+- Unity EditMode tests: green (13 passed) — 既存8件 + オラクル5件（fallback分岐、焦点付き事実文、長期強制注水180投で水収支0・範囲内）
+- macOS player: Succeeded。fresh journal で8自動投→撮影、例外0、画面目視確認（visual-plan/refs/build-final.png）
+- iOS: Xcodeプロジェクト生成 Succeeded、xcodebuild (署名なし) exit 0
+- Android: DestinyGarden.apk (約34MB) Succeeded
+- Windows (Steam想定): DestinyGarden.exe Succeeded（このMacでは実行未検証）
+- 既存アプリ: tsc green、vitest 183 passed、vite build green（pnpm ラッパは既存環境の approve-builds 未承認のため .bin で同一実行）
+### 要確定・申し送り（次フェーズへ）
+- **人間の判断が必要**: 正式タイトル/ロゴ、bundle id 等の本番識別子（現在は開発用仮値）、Apple/Google/Steam のアカウント・署名・審査、ストア素材、実機（iPhone/Android/Windows PC）での操作・音・性能の最終確認、最低OS/機種、収益化の有無。
+- 参照report（全庭・注水1,200投）のC#完全再計算照合、local-growth-witness の実証拠搭載、RunCreationPlan専用frame、カード全面イラスト、出生時外観（三色×三幅）は未実装。
+- 音・植物・岩はコード生成の簡易表現。素材を差し替える場合は出所とライセンスを記録すること。
+### 触ったファイル
+- unity/DestinyGarden/Assets/DestinyGarden/Domain: Oracle.cs、OracleCatalogData.cs、Simulation.cs、GardenTypes.cs、CanonicalJson.cs、GardenMapData.cs
+- Application: GardenCoordinator.cs、HistoryProjector.cs
+- Presentation: GardenBootstrap.cs、GardenView.cs、GardenUi.cs、GardenAudio.cs、DestinyGarden.Presentation.asmdef
+- Editor: BuildScripts.cs（Android/Windows追加、SSAO無効化）
+- Tests: OracleTests.cs、ProjectSettings一式、visual-plan/（PRD・参照画像・確認画像）
+- PROGRESS.md（本追記）

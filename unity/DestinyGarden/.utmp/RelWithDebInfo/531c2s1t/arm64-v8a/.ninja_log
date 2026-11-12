@@ -1,0 +1,10 @@
+# ninja log v5
+3	2012	1794456105909714660	GameActivity/CMakeFiles/game.dir/UGAInputKeyEvent.cpp.o	c0870479dea2b68c
+2	2037	1794456105926138860	GameActivity/CMakeFiles/game.dir/UGAEntry.cpp.o	c662662dadea7410
+2	2276	1794456106120914654	GameActivity/CMakeFiles/game.dir/UGAConfiguration.cpp.o	a99ed84a9833b7f0
+3	2284	1794456106127204741	GameActivity/CMakeFiles/game.dir/UGAInputMotionEvent.cpp.o	e5141bfddf9c2186
+2	2411	1794456106353028923	GameActivity/CMakeFiles/game.dir/UGADebug.cpp.o	db4a8655755bd158
+1	2660	1794456106625810676	GameActivity/CMakeFiles/game.dir/UGASoftKeyboard.cpp.o	bf5bf7270230fe9e
+0	2939	1794456106913946634	GameActivity/CMakeFiles/game.dir/UGAInput.cpp.o	26ae558227059464
+2	3098	1794456107071670690	GameActivity/CMakeFiles/game.dir/UGAApplication.cpp.o	40aabfdca591382e
+3098	3269	1794456107253143829	/Users/uekiyoshirou/Projects/Destiny-Dice/unity/DestinyGarden/Library/Bee/Android/Prj/IL2CPP/Gradle/unityLibrary/build/intermediates/cxx/RelWithDebInfo/531c2s1t/obj/arm64-v8a/libgame.so	85b3630fc83b9dc

@@ -45,6 +45,24 @@ namespace DestinyGarden.EditorTools
                 serialized.ApplyModifiedProperties();
             }
 
+            // The template PC renderer enables SSAO, whose resources can be stripped
+            // in players and break the post-processing pass. This game does not use SSAO.
+            foreach (string guid in AssetDatabase.FindAssets("t:UniversalRendererData", new[] { "Assets/Settings" }))
+            {
+                string path = AssetDatabase.GUIDToAssetPath(guid);
+                var rendererData = AssetDatabase.LoadAssetAtPath<UnityEngine.Rendering.Universal.UniversalRendererData>(path);
+                if (rendererData == null) continue;
+                foreach (var feature in rendererData.rendererFeatures)
+                {
+                    if (feature != null && feature.GetType().Name.Contains("AmbientOcclusion"))
+                    {
+                        feature.SetActive(false);
+                        EditorUtility.SetDirty(feature);
+                    }
+                }
+                EditorUtility.SetDirty(rendererData);
+            }
+
             EnsureGardenScene();
             EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(ScenePath, true) };
             AssetDatabase.SaveAssets();
@@ -68,6 +86,31 @@ namespace DestinyGarden.EditorTools
             var report = BuildPipeline.BuildPlayer(new[] { ScenePath },
                 Path.Combine(outDir, "DestinyGarden.app"), BuildTarget.StandaloneOSX, BuildOptions.None);
             Debug.Log("DestinyGarden macOS build: " + report.summary.result);
+            if (report.summary.result != UnityEditor.Build.Reporting.BuildResult.Succeeded)
+                EditorApplication.Exit(1);
+        }
+
+        public static void BuildAndroid()
+        {
+            ConfigureProject();
+            PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARM64;
+            string outDir = "Builds/Android";
+            Directory.CreateDirectory(outDir);
+            var report = BuildPipeline.BuildPlayer(new[] { ScenePath },
+                Path.Combine(outDir, "DestinyGarden.apk"), BuildTarget.Android, BuildOptions.None);
+            Debug.Log("DestinyGarden Android build: " + report.summary.result);
+            if (report.summary.result != UnityEditor.Build.Reporting.BuildResult.Succeeded)
+                EditorApplication.Exit(1);
+        }
+
+        public static void BuildWindows()
+        {
+            ConfigureProject();
+            string outDir = "Builds/Windows";
+            Directory.CreateDirectory(outDir);
+            var report = BuildPipeline.BuildPlayer(new[] { ScenePath },
+                Path.Combine(outDir, "DestinyGarden.exe"), BuildTarget.StandaloneWindows64, BuildOptions.None);
+            Debug.Log("DestinyGarden Windows build: " + report.summary.result);
             if (report.summary.result != UnityEditor.Build.Reporting.BuildResult.Succeeded)
                 EditorApplication.Exit(1);
         }

@@ -1,0 +1,17 @@
+/Users/uekiyoshirou/Projects/Destiny-Dice/unity/DestinyGarden/Library/Bee/Android/Prj/IL2CPP/Gradle/unityLibrary/src/main/cpp/GameActivity/GAToUnityCallbacks.h
+/Users/uekiyoshirou/Projects/Destiny-Dice/unity/DestinyGarden/Library/Bee/Android/Prj/IL2CPP/Gradle/unityLibrary/src/main/cpp/GameActivity/MacroEnd.h
+/Users/uekiyoshirou/Projects/Destiny-Dice/unity/DestinyGarden/Library/Bee/Android/Prj/IL2CPP/Gradle/unityLibrary/src/main/cpp/GameActivity/MacroHeaderBegin.h
+/Users/uekiyoshirou/Projects/Destiny-Dice/unity/DestinyGarden/Library/Bee/Android/Prj/IL2CPP/Gradle/unityLibrary/src/main/cpp/GameActivity/MacroSourceBegin.h
+/Users/uekiyoshirou/Projects/Destiny-Dice/unity/DestinyGarden/Library/Bee/Android/Prj/IL2CPP/Gradle/unityLibrary/src/main/cpp/GameActivity/UGAApplication.h
+/Users/uekiyoshirou/Projects/Destiny-Dice/unity/DestinyGarden/Library/Bee/Android/Prj/IL2CPP/Gradle/unityLibrary/src/main/cpp/GameActivity/UGAConfiguration.h
+/Users/uekiyoshirou/Projects/Destiny-Dice/unity/DestinyGarden/Library/Bee/Android/Prj/IL2CPP/Gradle/unityLibrary/src/main/cpp/GameActivity/UGADebug.h
+/Users/uekiyoshirou/Projects/Destiny-Dice/unity/DestinyGarden/Library/Bee/Android/Prj/IL2CPP/Gradle/unityLibrary/src/main/cpp/GameActivity/UGAEvents.h
+/Users/uekiyoshirou/Projects/Destiny-Dice/unity/DestinyGarden/Library/Bee/Android/Prj/IL2CPP/Gradle/unityLibrary/src/main/cpp/GameActivity/UGAInput.h
+/Users/uekiyoshirou/Projects/Destiny-Dice/unity/DestinyGarden/Library/Bee/Android/Prj/IL2CPP/Gradle/unityLibrary/src/main/cpp/GameActivity/UGASoftKeyboard.h
+/Users/uekiyoshirou/Projects/Destiny-Dice/unity/DestinyGarden/Library/Bee/Android/Prj/IL2CPP/Gradle/unityLibrary/src/main/cpp/GameActivity/UGASoftKeyboardCallbacks.h
+/Users/uekiyoshirou/Projects/Destiny-Dice/unity/DestinyGarden/Library/Bee/Android/Prj/IL2CPP/Gradle/unityLibrary/src/main/cpp/GameActivity/UGATypes.h
+/Users/uekiyoshirou/Projects/Destiny-Dice/unity/DestinyGarden/Library/Bee/Android/Prj/IL2CPP/Gradle/unityLibrary/src/main/cpp/GameActivity/UGAVersion.h
+/Users/uekiyoshirou/Projects/Destiny-Dice/unity/DestinyGarden/Library/Bee/Android/Prj/IL2CPP/Gradle/unityLibrary/src/main/cpp/GameActivity/UnityToGACallbacks.h
+/Users/uekiyoshirou/Projects/Destiny-Dice/unity/DestinyGarden/Library/Bee/Android/Prj/IL2CPP/Gradle/unityLibrary/src/main/cpp/GameActivity/UnityToGAConfigurationCallbacks.h
+/Users/uekiyoshirou/Projects/Destiny-Dice/unity/DestinyGarden/Library/Bee/Android/Prj/IL2CPP/Gradle/unityLibrary/src/main/cpp/GameActivity/UnityToGAKeyEventCallbacks.h
+/Users/uekiyoshirou/Projects/Destiny-Dice/unity/DestinyGarden/Library/Bee/Android/Prj/IL2CPP/Gradle/unityLibrary/src/main/cpp/GameActivity/UnityToGAMotionEventCallbacks.h
