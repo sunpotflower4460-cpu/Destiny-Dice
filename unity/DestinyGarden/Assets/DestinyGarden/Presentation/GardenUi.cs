@@ -19,6 +19,7 @@ namespace DestinyGarden.Presentation
         public Action OnExport;
         public Action OnHideUi;
         public Action OnAddLuckySeven;
+        public Action OnResetView;
 
         private Font _font;
         private Text _header;
@@ -243,6 +244,8 @@ namespace DestinyGarden.Presentation
                 "遊び方", 20, () => ShowTitleCard(true));
             MakeChip(canvasObj.transform, new Vector2(1f, 1f), new Vector2(-96f, -408f), new Vector2(150f, 48f),
                 "図鑑", 20, () => TogglePanel(_guidePanel));
+            MakeChip(canvasObj.transform, new Vector2(1f, 1f), new Vector2(-96f, -466f), new Vector2(150f, 48f),
+                "視点を戻す", 18, () => OnResetView?.Invoke());
 
             BuildGoals(canvasObj.transform);
             BuildPanels(canvasObj.transform);
@@ -565,8 +568,9 @@ namespace DestinyGarden.Presentation
                 "・空と庭の状態が、サイコロの<b>6つの面</b>（水・風・光・種の恵み）を毎回決めます。\n" +
                 "・面を選んで<b>願い</b>をかけ、<b>サイコロを振る</b>。その一投が祈りになります。\n" +
                 "・植物は生きられる場所に根づき、生き物が種を運び、島はひとつの命のように育ちます。\n" +
+                "・ドラッグで島を見まわし、ホイールで寄り引き。庭ごとに島が変わります。\n" +
                 "・<color=#ffd36b>ときおり、願いが形になることがあります。</color>";
-            var en = MakeText(panel.transform, new Vector2(0.5f, 1f), new Vector2(0f, -340f), new Vector2(940f, 70f), 17,
+            var en = MakeText(panel.transform, new Vector2(0.5f, 1f), new Vector2(0f, -352f), new Vector2(940f, 70f), 17,
                 TextAnchor.UpperLeft);
             en.text = "From earth and water in a sealed bottle, a garden of your own grows. Each roll is a prayer:\n" +
                       "plants take root only where they can live, small lives carry seeds, and the island grows as one.";

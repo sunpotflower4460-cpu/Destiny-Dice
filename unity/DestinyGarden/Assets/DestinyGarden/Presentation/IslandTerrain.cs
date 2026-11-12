@@ -18,13 +18,20 @@ namespace DestinyGarden.Presentation
         public const float ShoreStart = 9.2f;   // land begins to fall here
         public const float ShoreEnd = 11.8f;    // under the sea from here
 
-        // River centre line (x, z), spring first. Stays on ground cells, never on soil.
-        public static readonly Vector2[] RiverPath =
+        private static IslandSeed _seed = IslandSeed.FromValue(1);
+        /// <summary>The island this garden has (set once per scene before anything is built).</summary>
+        public static IslandSeed Seed => _seed;
+
+        /// <summary>River centre line (x, z), spring first: an arc around the garden and out to the sea.</summary>
+        public static Vector2[] RiverPath => _seed.River;
+
+        public static void Configure(IslandSeed seed)
         {
-            new Vector2(8.6f, 15.6f), new Vector2(8.3f, 14.2f), new Vector2(7.2f, 13.2f), new Vector2(5.4f, 12.8f),
-            new Vector2(3.6f, 12.9f), new Vector2(2.2f, 12.2f), new Vector2(1.2f, 10.6f), new Vector2(0.2f, 9.2f),
-            new Vector2(-1.4f, 8.4f), new Vector2(-3.4f, 8.0f)
-        };
+            _seed = seed;
+            _warpCache = null;
+        }
+
+        private static float Off => _seed.FloraOffset * 0.07f;
 
         /// <summary>
         /// Organic display position of a cell: a smooth warp field (about ±0.35 cell) so that
@@ -47,8 +54,8 @@ namespace DestinyGarden.Presentation
         {
             int x = cellId % 16, z = cellId / 16;
             if (GardenMapData.Solid[cellId] == 1) return new Vector2(x, z);
-            float wx = (ProceduralArt.Fbm(x * 0.41f + 1.3f, z * 0.41f + 4.1f, 301, 2) - 0.5f) * 1.25f;
-            float wz = (ProceduralArt.Fbm(x * 0.41f + 7.7f, z * 0.41f + 2.2f, 302, 2) - 0.5f) * 1.25f;
+            float wx = (ProceduralArt.Fbm(x * 0.41f + 1.3f + Off, z * 0.41f + 4.1f, 301, 2) - 0.5f) * 1.25f;
+            float wz = (ProceduralArt.Fbm(x * 0.41f + 7.7f, z * 0.41f + 2.2f + Off, 302, 2) - 0.5f) * 1.25f;
             return new Vector2(x + wx, z + wz);
         }
 
@@ -135,12 +142,21 @@ namespace DestinyGarden.Presentation
             float d = Vector2.Distance(new Vector2(x, z), Center);
             float h = GridHeight(x, z);
             float outer = Outer(d);
-            float hills = (ProceduralArt.Fbm(x * 0.22f + 3.1f, z * 0.22f + 7.7f, 913, 3) - 0.45f) * 1.5f;
+            float hills = (ProceduralArt.Fbm(x * 0.22f + 3.1f + Off, z * 0.22f + 7.7f - Off, 913, 3) - 0.45f) * _seed.HillAmp;
             h += hills * outer;
-            // Low hills behind the garden and a gentle rim: the island is a shallow bowl with the garden at its heart.
-            float back = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(11.0f, 15.8f, z)) * outer;
-            h += back * (0.55f + 0.5f * ProceduralArt.Fbm(x * 0.28f + 9f, z * 0.28f + 2f, 931, 2));
-            float rim = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(7.4f, 8.9f, d)) * 0.32f;
+            // Highlands on this island's ridge side, extra hills and hollows, and a gentle rim:
+            // a shallow bowl with the garden at its heart. All of it differs from garden to garden.
+            float proj = (x - Center.x) * Mathf.Cos(_seed.RidgeAngle) + (z - Center.y) * Mathf.Sin(_seed.RidgeAngle);
+            float back = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(3.5f, 8.3f, proj)) * outer;
+            h += back * (_seed.BackAmp * 0.9f + 0.5f * ProceduralArt.Fbm(x * 0.28f + 9f + Off, z * 0.28f + 2f, 931, 2));
+            float bumpH = 0f;
+            foreach (var b in _seed.Bumps)
+            {
+                float dd = (x - b.X) * (x - b.X) + (z - b.Z) * (z - b.Z);
+                bumpH += b.H * Mathf.Exp(-dd / (2f * b.R * b.R));
+            }
+            h += bumpH * outer;
+            float rim = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(7.4f, 8.9f, d)) * _seed.RimAmp;
             h += rim;
             // Shore: fall into the sea.
             float shore = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(ShoreStart, ShoreEnd, d));
@@ -148,7 +164,7 @@ namespace DestinyGarden.Presentation
             // River bed, cut deeper where it crosses the hills and the rim.
             float r = DistanceToRiver(x, z);
             float carve = Mathf.SmoothStep(1f, 0f, Mathf.InverseLerp(0.25f, 1.0f, r)) * outer;
-            h -= carve * (0.22f + (rim + back * 0.7f) * 0.9f);
+            h -= carve * (0.22f + (rim + back * 0.7f + Mathf.Max(0f, bumpH) * 0.8f) * 0.9f);
             // The spring pool.
             float sp = Vector2.Distance(new Vector2(x, z), RiverPath[0]);
             h -= 0.30f * Mathf.SmoothStep(1f, 0f, Mathf.InverseLerp(0.3f, 1.1f, sp));
@@ -252,9 +268,10 @@ namespace DestinyGarden.Presentation
             _bakePixels = new Color[n]; _meadow = new Color[n]; _bare = new Color[n];
             _earthMask = new float[n]; _shade = new float[n]; _greenAt = new float[n]; _bankF = new float[n]; _shoreF = new float[n];
             _bedWeights = new List<KeyValuePair<int, float>>[n];
-            var meadow = new Color(0.47f, 0.63f, 0.45f);
-            var meadowLight = new Color(0.64f, 0.76f, 0.54f);
-            var moss = new Color(0.30f, 0.46f, 0.30f);
+            var meadow = _seed.Meadow;
+            var meadowLight = _seed.MeadowLight;
+            var moss = _seed.Moss;
+            float wc = Mathf.Cos(_seed.WindAngle), ws = Mathf.Sin(_seed.WindAngle);
             var soilA = new Color(0.52f, 0.47f, 0.38f);
             var soilB = new Color(0.43f, 0.40f, 0.33f);
             var clay = new Color(0.68f, 0.62f, 0.50f);
@@ -267,7 +284,10 @@ namespace DestinyGarden.Presentation
                     float n2 = ProceduralArt.Fbm(x * 2.4f, z * 2.4f, 72, 3);
                     int pi = py * size + px;
                     var col = Color.Lerp(meadow, meadowLight, Mathf.SmoothStep(0.35f, 0.75f, n1));
-                    _meadow[pi] = Color.Lerp(col, moss, Mathf.SmoothStep(0.55f, 0.85f, n2) * 0.55f);
+                    // Blade-like streaks drawn along the wind: the ground itself looks combed by it.
+                    float wu = x * wc + z * ws, wv = -x * ws + z * wc;
+                    float streak = ProceduralArt.Fbm(wu * 0.9f + Off, wv * 8f, 77, 2);
+                    _meadow[pi] = Color.Lerp(col, moss, Mathf.SmoothStep(0.55f, 0.85f, n2) * 0.55f) * (0.86f + 0.26f * streak);
                     float r = DistanceToRiver(x, z);
                     var bare = Color.Lerp(soilA, soilB, Mathf.SmoothStep(0.3f, 0.7f, n2));
                     bare = Color.Lerp(bare, clay, Mathf.SmoothStep(0.55f, 0.8f, n1) * 0.55f); // pale clay patches

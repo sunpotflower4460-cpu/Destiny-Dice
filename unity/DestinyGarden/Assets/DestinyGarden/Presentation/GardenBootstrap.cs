@@ -28,6 +28,8 @@ namespace DestinyGarden.Presentation
         private bool _birdsNow;
         private Vector3 _homePos;
         private Quaternion _homeRot;
+        private static bool s_skipTitle; // set when a new visitor reloads the scene: start straight on the new island
+        private float? _qaYaw, _qaPitch, _qaDist;
         private bool _butterfliesShown;
         private bool _captureNoUi;
         private string _intentKind = "none";
@@ -54,7 +56,22 @@ namespace DestinyGarden.Presentation
             _intentKind = _coordinator.LastIntentKind ?? "none";
             _intentValue = _coordinator.LastIntentValue;
 
+            // QA arguments read first (explicit launch arguments only): -dgSeed N fixes the island,
+            // -dgYaw/-dgPitch/-dgDist set the view of a capture.
+            int? seedOverride = null;
+            string[] early = Environment.GetCommandLineArgs();
+            for (int i = 0; i + 1 < early.Length; i++)
+            {
+                if (early[i] == "-dgSeed" && int.TryParse(early[i + 1], out int sv)) seedOverride = sv;
+                if (early[i] == "-dgYaw" && float.TryParse(early[i + 1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float yv)) _qaYaw = yv;
+                if (early[i] == "-dgPitch" && float.TryParse(early[i + 1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float pv)) _qaPitch = pv;
+                if (early[i] == "-dgDist" && float.TryParse(early[i + 1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float dv)) _qaDist = dv;
+            }
+            // The island is a function of the saved run id: the same garden is always the same island.
+            var islandSeed = IslandSeed.FromRunId(_coordinator.RunId, seedOverride);
+            SkyClock.StartPhase = islandSeed.StartPhase;
             _view = gameObject.AddComponent<GardenView>();
+            _view.Seed = islandSeed;
             _view.Build();
             _atmosphere = gameObject.AddComponent<SacredAtmosphere>();
             _atmosphere.Build();
@@ -88,14 +105,13 @@ namespace DestinyGarden.Presentation
             _ui.OnSwitchVisitor = () =>
             {
                 if (_busy) return;
+                // A new visitor gets a new garden on a different island: save it, then start the scene again.
                 _coordinator.SwitchToNewVisitor();
                 _coordinator.Prepare();
-                _intentKind = "none"; _intentValue = null;
-                _ui.ShowIntentSelection(_intentKind, _intentValue);
-                _ui.ShowMessage(null, null);
-                RefreshAll();
-                _ui.ShowStatus("新しい庭を用意しました。");
+                s_skipTitle = true;
+                UnityEngine.SceneManagement.SceneManager.LoadScene(UnityEngine.SceneManagement.SceneManager.GetActiveScene().buildIndex);
             };
+            _ui.OnResetView = () => { if (_view != null && _view.Rig != null) _view.Rig.ResetView(); };
             _ui.OnExport = ExportNow;
             _ui.OnAddLuckySeven = () =>
             {
@@ -115,16 +131,27 @@ namespace DestinyGarden.Presentation
             _ui.ShowStatus(_coordinator.LuckySevenOffered && !_coordinator.LuckySevenAdded
                 ? "七つめの面が、そっと現れている。"
                 : "公開された面を見て、サイコロを振ってください。");
-            _ui.ShowTitleCard(true);
             // Begin seeing the whole bottle; glide in to the garden when the visitor begins.
             var cam = _view.ViewCamera;
+            var rig = _view.Rig;
             var homePos = cam.transform.position;
             var homeRot = cam.transform.rotation;
             _homePos = homePos; _homeRot = homeRot;
             var farPos = new Vector3(7.5f, 13.6f, -13.5f);
             var farRot = Quaternion.LookRotation(new Vector3(7.5f, 5.6f, 9.0f) - farPos, Vector3.up);
+            rig.Lock();
             cam.transform.SetPositionAndRotation(farPos, farRot);
-            _ui.OnTitleClosed = () => StartCoroutine(GlideCamera(cam, farPos, farRot, homePos, homeRot, 3.2f));
+            if (s_skipTitle)
+            {
+                s_skipTitle = false;
+                _ui.ShowTitleCard(false);
+                StartCoroutine(GlideCamera(rig, cam, farPos, farRot, homePos, homeRot, 3.2f));
+            }
+            else
+            {
+                _ui.ShowTitleCard(true);
+                _ui.OnTitleClosed = () => StartCoroutine(GlideCamera(rig, cam, farPos, farRot, homePos, homeRot, 3.2f));
+            }
 
             // QA hook (explicit launch arguments only; never active in normal play):
             // -dgAutoRolls N performs N honest rolls through the coordinator,
@@ -144,7 +171,7 @@ namespace DestinyGarden.Presentation
             if (capturePath != null) StartCoroutine(CaptureRoutine(capturePath, autoRolls, wonders));
         }
 
-        private static IEnumerator GlideCamera(Camera cam, Vector3 p0, Quaternion r0, Vector3 p1, Quaternion r1, float seconds)
+        private static IEnumerator GlideCamera(CameraRig rig, Camera cam, Vector3 p0, Quaternion r0, Vector3 p1, Quaternion r1, float seconds)
         {
             for (float t = 0f; t < seconds; t += Time.deltaTime)
             {
@@ -153,6 +180,7 @@ namespace DestinyGarden.Presentation
                 yield return null;
             }
             cam.transform.SetPositionAndRotation(p1, r1);
+            rig.Unlock();
         }
 
         private void Update()
@@ -287,6 +315,9 @@ namespace DestinyGarden.Presentation
             _ui.OnTitleClosed = null;
             _ui.ShowTitleCard(false);
             _view.ViewCamera.transform.SetPositionAndRotation(_homePos, _homeRot);
+            _view.Rig.Unlock();
+            if (_qaYaw.HasValue || _qaPitch.HasValue || _qaDist.HasValue)
+                _view.Rig.SetView(_qaYaw ?? _view.Rig.HomeYaw, _qaPitch ?? _view.Rig.HomePitch, _qaDist ?? _view.Rig.HomeDist);
             RollOutcome last = null;
             for (int i = 0; i < autoRolls; i++)
             {

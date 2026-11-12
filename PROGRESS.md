@@ -2047,3 +2047,23 @@ Git diff whitespace check: pass
 - Presentation: SkyClock.cs・AudioSynth.cs（新規）、GardenAudio.cs、GardenView.cs、SacredAtmosphere.cs、IslandTerrain.cs、GardenLife.cs、GardenBootstrap.cs、GardenUi.cs、GardenWonders.cs、PlantForms.cs、ProceduralArt.cs
 - Tests: PresentationTests.cs（新規）、asmdef
 - docs/jam-submission/、PROGRESS.md
+
+## Jam v8: 庭ごとに違う島・回して見られるカメラ・風に梳かれた草原（2026-11-13 朝）
+### 完了したこと
+- 島の種（Presentation/IslandSeed.cs）: 保存された run id だけから決まる。高地の向き・丘と窪み・縁の高さ・川の泉と曲がり方・立石・木（種類と配置）・家の位置・島が好む植物（信号種2つ、乏しい種1つ）・草原の色・始まりの時刻（朝〜昼）・風向き。庭の16×16は変えない。同じ庭は同じ島、新しい来場者は別の島。「次の来場者」はシーンを再開して新しい島を作る。
+- 草: ぱらぱらした集合をやめ、島の風に沿って倒れる扇形の房にした（群落は大きなまとまり、色は連続的に変化、高い草は群落の中心ほど高い、地面にも風向きの梳き目、苔は盛り上がり、タイムは緑の座布団に）。
+- カメラ（Presentation/CameraRig.cs）: ドラッグで島を見まわし、ホイール／ピンチで寄り引き、「視点を戻す」。ボタン上から始めたドラッグは無視。開始演出と虹の引きの間はロック。
+- 泉の滝は十字の面で、どの方向から見ても見える。
+- 開始カードの説明に操作を追記。
+### 完了基準の結果（コマンド出力の要約）
+- Unity EditMode tests: green（41 passed、島の種のテスト含む: 決定的、庭ごとに違う、川は庭に入らない、正面に木を置かない）
+- WebGL: Succeeded、zip 22,198,079 bytes。ヘッドレス Chromium で20投の通しプレイ、60fps、エラー0。別スクリプトでドラッグ・ホイール・視点を戻す・次の来場者（新しい島でシーン再開）を確認、エラー0。
+- ブラウザの試験で見つけた不具合を修正: タッチ画面デバイスがある環境でドラッグが効かなかった。
+- 撮影: 種を変えた4つの島を並べて差を確認。島を東・北・西から見た視点でも成立。
+### 要確定・申し送り
+- 本人: 音の実聴、実機タッチ（ピンチ・1本指ドラッグ）の確認、itch.io への提出、Team と画像生成ツール名。
+- 実機のタッチ操作は未確認（マウス入力のみ試験）。
+### 触ったファイル
+- Presentation: IslandSeed.cs・CameraRig.cs（新規）、IslandTerrain.cs、IslandFlora.cs、GardenView.cs、GardenBootstrap.cs、GardenUi.cs、GardenWonders.cs、SkyClock.cs
+- Tests: PresentationTests.cs
+- docs/jam-submission/、PROGRESS.md

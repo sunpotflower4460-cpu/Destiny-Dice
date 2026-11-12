@@ -16,7 +16,7 @@ namespace DestinyGarden.Presentation
     public static class SkyClock
     {
         public const int RollsPerDay = 16;
-        public const float StartPhase = 0.16f; // a clear morning
+        public static float StartPhase = 0.16f; // a clear morning unless the island begins at another hour
 
         public static float PhaseFor(float rolls) => Mathf.Repeat(StartPhase + rolls / RollsPerDay, 1f);
 

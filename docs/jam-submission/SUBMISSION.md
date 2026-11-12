@@ -41,6 +41,13 @@ Destiny Garden
 > birdsong and night insects grow with the island, a pad adds a voice with each step of
 > harmony, and every flower that opens rings its own note of one shared scale.
 >
+> Every garden is a different island. Where the highlands rise, which way the river winds
+> from its spring, where the standing stones, trees and the little house stand, which plants
+> the island favours, the colour of its meadow and even the hour it begins are all drawn
+> from your garden's own seed. Grass grows in wind-swept swards that lean the way this
+> island's wind blows. Drag to turn the island around and see it from any side, scroll
+> (or pinch) to come closer. Press "next visitor" and a different island begins.
+>
 > Made for the Official Unity Game Jam 2026. Theme: **Lucky Number** — every roll is the
 > luck of this moment. Harmony is read from the last eight rolls (yin and yang, the four
 > blessings and the fifth that appears when all are present); the island's star grows
@@ -70,7 +77,9 @@ Mouse or touch only. No keyboard needed. Click the title card to begin.
 | **記録** (right menu) | Your last rolls, oracles, and what the small lives did. |
 | **庭の歩み** (right menu) | The flowers in bloom now, the harmony, and a graph of water and growth with the honest "by chance" line for wishes. |
 | **書き出し** (right menu) | Export records. Not available in the web version. |
-| **次の来場者** (right menu) | Start a new garden. |
+| **次の来場者** (right menu) | Start a new garden on a different island. |
+| **視点を戻す** (right menu) | Return the camera to the default view. |
+| Drag / scroll or pinch on the island | Turn the island around; come closer or move away. (Drags that start on a button do nothing.) |
 | **設定** (right menu) | Volume, mute, reduced motion, hide UI for 4 seconds. |
 | **遊び方** (right menu) | Show the title card again. |
 | **図鑑** (right menu) | Field guide: the flowers your garden has met, what each needs (soil, water, light) and what it does (softens soil, drains, feeds butterflies…). Unmet ones stay ？？？. |
@@ -124,14 +133,15 @@ Asset Store packages, no external models, textures, music or sound files.
 
 - Cover image: [cover.png](cover.png) — 1260×1000 (itch.io ratio 630:500, 2× size)
 - Screenshots (1920×1080):
-  - [screenshot-1.png](screenshot-1.png) — after 20 rolls, midday: meadow, trees, flowers (WebGL)
+  - [screenshot-1.png](screenshot-1.png) — a garden after 20 rolls with the interface (WebGL)
   - [screenshot-2.png](screenshot-2.png) — the rainbow figure-8 in the air above the bottle, the sun in the sky
-    (macOS build of the same code, QA capture `-dgWonders -dgNoUi`; the moment itself is rare in play)
+    (macOS build of the same code, QA capture `-dgWonders -dgNoUi -dgSeed 3333`; the moment itself is rare in play)
   - [screenshot-3.png](screenshot-3.png) — opening: the whole bottle, bare earth and water, with the title card (WebGL)
-  - [screenshot-4.png](screenshot-4.png) — roll 0: bare earth, the spring with its waterfall, the river, four first shoots (macOS, no UI)
-  - [screenshot-5.png](screenshot-5.png) — roll 12: the same island on its first moonlit night (macOS, no UI)
+  - [screenshot-4.png](screenshot-4.png) — a different island (seed 44444): its river, spring and waterfall, tree layout (macOS, no UI)
+  - [screenshot-5.png](screenshot-5.png) — the same island seen from a low angle after turning it around (macOS, no UI, `-dgYaw 235 -dgPitch 34 -dgDist 17`)
 
-Suggested order on the page: 3, 4, 1, 5, 2 (from the bottle to a garden of your own, through a day and a night).
+Suggested order on the page: 3, 1, 4, 5, 2 (from the bottle to your own island, from every side).
+Islands in the screenshots were fixed with `-dgSeed` for the photos only; in the game the island comes from the garden's own id.
 
 ## 8. itch.io page settings
 
@@ -145,16 +155,16 @@ Suggested order on the page: 3, 4, 1, 5, 2 (from the bottle to a garden of your 
 
 ## 9. Build and verification record (2026-11-13 morning)
 
-- Branch `feature/jam-living-island`. Zip: `unity/DestinyGarden/Builds/DestinyGarden-WebGL.zip`, 22,180,011 bytes,
-  `index.html` at the root. Earlier fallbacks next to it: v1-safe, v2-ecology, v4-flora, v5-living-island, v6-polish.
-- Unity EditMode tests: 40 passed (core, Lucky Seven, ecology, harmony & mycorrhiza, flora, audio, sky clock, quality monitor).
+- Branch `feature/jam-living-island`. Zip: `unity/DestinyGarden/Builds/DestinyGarden-WebGL.zip`, 22,198,079 bytes,
+  `index.html` at the root. Earlier fallbacks next to it: v1-safe, v2-ecology, v4-flora, v5-living-island, v6-polish, v7-day-night.
+- Unity EditMode tests: 41 passed (core, Lucky Seven, ecology, harmony & mycorrhiza, flora, audio, sky clock,
+  quality monitor, island seed).
 - Headless Chromium: title → wish drawer → 20 rolls → Lucky Seven taken → records, journey, help → reload.
-  **0 console errors**, **60 fps** at the start and after 12 rolls (1280×720, this iMac's GPU).
-- Sound: every sound was written to WAV and measured with claude-music-ear (24 files): no clipping, no DC offset,
-  peaks −4 to −10 dBFS, background layers −33 to −39 LUFS and event sounds −18 to −26 LUFS in the mix.
-  Two things measured and fixed: sea hiss was 11–14 dB too present (now 20–30 dB down), one plucked string had DC offset.
-  **Not listened to by ear** — check by ear before submitting.
-- Quality guard: if the average frame rate stays under 30 fps for 3 s (after a 5 s warm-up), the game steps down
-  (no depth of field and no antialiasing → no shadows → no bloom and 70% render scale). Logic is unit-tested;
-  never triggered here (60 fps), so the lower steps are **not seen on a real slow GPU**.
-- Not tested: Safari, Firefox, phones, slower GPUs, the real itch.io page.
+  A second script drags the island around, scrolls to zoom, checks that a drag starting on a button does nothing,
+  resets the view and presses "next visitor" (the scene restarts on a new island). **0 console errors**, **60 fps**.
+- A bug found by that browser test and fixed: dragging did not turn the island on a machine that reports a touchscreen device.
+- Islands: 4 seeds side by side differ clearly (river course, highlands, hills, trees, stones, meadow colour);
+  the garden's own ground is never touched (tested over 40 seeds).
+- Sound was measured offline (see v7 notes) and **not listened to by ear**.
+- Not tested: real touch devices (pinch and one-finger drag are written but only simulated mouse input was tried),
+  Safari, Firefox, slower GPUs, the real itch.io page.

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using DestinyGarden.Presentation;
+using UnityEngine;
 using NUnit.Framework;
 
 namespace DestinyGarden.Tests
@@ -63,6 +64,34 @@ namespace DestinyGarden.Tests
                 float seam = Math.Abs(s[0] - s[s.Length - 1]);
                 Assert.Less(seam, 0.08f, name + " seam");
             }
+        }
+
+        [Test]
+        public void IslandSeed_IsDeterministic_DiffersBetweenGardens_AndKeepsTheGardenClear()
+        {
+            var a1 = IslandSeed.FromRunId("run-aaaa"); var a2 = IslandSeed.FromRunId("run-aaaa"); var b = IslandSeed.FromRunId("run-bbbb");
+            Assert.AreEqual(a1.Value, a2.Value);
+            CollectionAssert.AreEqual(a1.River, a2.River);
+            Assert.AreEqual(a1.Trees.Length, a2.Trees.Length);
+            Assert.AreNotEqual(a1.Value, b.Value);
+            int differing = 0;
+            for (int i = 0; i < 40; i++)
+            {
+                var s = IslandSeed.FromValue(1000 + i * 7919);
+                // The garden's own ground is never touched: the river hugs it at a distance and ends in the sea.
+                foreach (var p in s.River) Assert.GreaterOrEqual(Vector2.Distance(p, IslandSeed.Center), 6.9f, "river stays out of the garden");
+                Assert.Greater(Vector2.Distance(s.River[s.River.Length - 1], IslandSeed.Center), 12f, "river reaches the sea");
+                Assert.GreaterOrEqual(s.Trees.Length, 8, "trees");
+                foreach (var t in s.Trees)
+                {
+                    float deg = Mathf.Repeat(t.Angle * Mathf.Rad2Deg, 360f);
+                    Assert.IsFalse(deg > 235f && deg < 305f, "no tree across the default front view");
+                }
+                foreach (var st in s.Stones) Assert.That(st.Radius, Is.InRange(9.2f, 11f));
+                Assert.That(s.StartPhase, Is.InRange(0f, 1f));
+                if (Mathf.Abs(Mathf.DeltaAngle(s.RidgeAngle * Mathf.Rad2Deg, a1.RidgeAngle * Mathf.Rad2Deg)) > 20f) differing++;
+            }
+            Assert.Greater(differing, 20, "islands should differ in where their highlands lie");
         }
 
         [Test]
