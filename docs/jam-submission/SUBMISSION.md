@@ -18,38 +18,48 @@ Destiny Garden
 
 ## 2. Short description (English)
 
-> Destiny Garden is a small mystical garden game. The sky, the weather and the
-> state of your garden decide what each of the six faces of the die will do —
-> water, wind, light or seed — so the die is different every time you look at it.
-> Pick a face as your lucky number, roll the die of this moment, receive an
-> oracle, and watch the garden remember.
+> **A tiny sacred garden on an island in a twilight sea.** The sky and the state of
+> your garden decide the six faces of the die — water, wind, light or seed — so the
+> die is different every time you look at it. Choose a face, make a wish, and roll.
 >
-> Made for the Official Unity Game Jam 2026. Theme: **Lucky Number** — every
-> roll is the luck of right now, written in numbers. When the garden puts the
-> same blessing on several faces, that blessing becomes your lucky number:
-> more faces, better odds.
+> Then the garden's small lives take over. Bees and butterflies carry pollen, a
+> little bird drops seeds from somewhere, fluff rides the wind; moss glows in the
+> rock shade, fireflies and mushrooms feed the soil, earthworms work below. What you
+> set in motion grows into an ecosystem you never quite planned.
+>
+> And now and then, a wish takes shape: faint spirits carry nourishment down to the
+> plants, and a seventh face appears on the die.
+>
+> Made for the Official Unity Game Jam 2026. Theme: **Lucky Number** — every roll
+> is the luck of this moment. When a wish comes true, the next roll may add a 7th
+> face, the **Lucky Seven**: the blessing the garden needs most, at double
+> strength, rolled fair at 1 in 7. If the Lucky Seven makes a flower bloom, a
+> rainbow figure-8 rises over the garden and angels ascend.
 
-Note on the text: the game UI and oracle messages are in **Japanese only**.
-Add this line to the page so English-speaking players know what to expect:
+Note on the text: the game UI and oracle messages are in **Japanese**; the title
+card has an English summary. Add this line to the page:
 
-> Language: the in-game text is Japanese. The game can be played by tapping the
-> big button at the bottom; the controls below explain every button.
+> Language: in-game text is Japanese (with an English summary on the title screen).
+> Everything is played with the big roll button; the controls below explain the rest.
 
 ## 3. Controls (English)
 
-Mouse or touch only. No keyboard needed.
+Mouse or touch only. No keyboard needed. Click the title card to begin.
 
 | Button (Japanese label) | What it does |
 | --- | --- |
 | **サイコロを振る** (big button, bottom centre) | Roll the die. |
-| The six face chips (row above the left buttons) | This round's six faces. Tap one to wish for that number. A blessing on several faces comes up more often. |
+| Face chips (coloured by blessing: blue water, green wind, gold light, brown seed) | This round's faces. Tap one to wish for that number. A blessing on several faces comes up more often. |
+| **★ 七つめの面を加える** (gold chip, only after a wish came true) | Add the 7th face, the Lucky Seven, to this roll. All seven faces are then 1 in 7. |
 | **意図なし / 水 / 風 / 光 / 種** | Wish for no element, or for water / wind / light / seed. Wishing never changes the faces. |
-| **おまかせ / 入口 / 岩陰 / ひらけた土** | Where the next roll's blessing lands (auto / inlet / rock shade / open soil). Applies from the next roll. |
-| **記録** (right menu) | History of your rolls and oracles. |
-| **庭の歩み** (right menu) | Graph of how the garden has grown. |
+| **おまかせ / 入口 / 岩陰 / ひらけた土** | Where the next roll's blessing lands (auto / inlet / rock shade / open soil). |
+| **庭の気配** (panel, bottom right) | Which small lives are in the garden right now. |
+| **記録** (right menu) | Your last rolls, oracles, and what the small lives did. |
+| **庭の歩み** (right menu) | Graph of water and growth, with the honest "by chance" line for wishes. |
 | **書き出し** (right menu) | Export records. Not available in the web version. |
-| **次の来場者** (right menu) | Start a new garden for a new visitor. |
-| **設定** (right menu) | Volume, mute, reduced motion, hide UI for 4 seconds (photo moment). |
+| **次の来場者** (right menu) | Start a new garden. |
+| **設定** (right menu) | Volume, mute, reduced motion, hide UI for 4 seconds. |
+| **遊び方** (right menu) | Show the title card again. |
 
 Your garden is saved in the browser and is still there when you come back.
 Sound starts after your first click or tap (browser rule).
@@ -61,8 +71,8 @@ Sound starts after your first click or tap (browser rule).
 
 ## 5. Credits
 
-All 3D shapes, textures and sounds are generated in code at runtime. No Asset
-Store packages, no external models, textures, music or sound files.
+All 3D shapes, creatures, textures and sounds are generated in code at runtime. No
+Asset Store packages, no external models, textures, music or sound files.
 
 - **Font: Noto Serif JP** (Regular) — Google / Adobe, SIL Open Font License 1.1.
   https://github.com/notofonts/noto-cjk — license text is bundled at
@@ -87,8 +97,9 @@ Store packages, no external models, textures, music or sound files.
 
 > Generative AI disclosure: This game was designed and built during the jam
 > period with the assistance of AI tools.
-> **Claude Code** (Anthropic) was used to assist with game design documents,
-> C# implementation, debugging, the WebGL port and this submission text.
+> **Claude Code** (Anthropic) was used to assist with game design documents (including
+> the ecology rules), C# implementation, procedural visuals, debugging, the WebGL port
+> and this submission text.
 > [Tool name] was used to generate two concept art images that served as visual
 > references for the art direction; these images are not included in the game.
 > [Other tools, if any: name and use].

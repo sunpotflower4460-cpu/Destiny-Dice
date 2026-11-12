@@ -9,7 +9,11 @@ namespace DestinyGarden.Application
 
     public sealed class RollOutcome
     {
-        public int FaceId; // 1..6
+        public int FaceId; // 1..6, or 7 for the Lucky Seven
+        public int FaceCount = 6;
+        public bool LuckySeven; // the published 7th face was rolled
+        public bool IntentMatched;
+        public EcologyResult Ecology; // residents and what they did after the natural simulation
         public string RecipeId;
         public int CardIndex; // 0..5, -1 when unavailable
         public SimulationResult Simulation;
@@ -47,6 +51,14 @@ namespace DestinyGarden.Application
         public string LastIntentKind { get; private set; } = "none";
         public string LastIntentValue { get; private set; }
 
+        // Lucky Seven: earned by a roll whose wish came true, offered on the next prepared round only.
+        private bool _luckyEarned;
+        private string _restoreIntentKind, _restoreIntentValue;
+        private readonly List<string> _rolledRecipes = new List<string>(); // oldest first, this run
+        public IReadOnlyList<string> RolledRecipes => _rolledRecipes;
+        public bool LuckySevenOffered { get; private set; }
+        public bool LuckySevenAdded => CurrentFaces != null && CurrentFaces.Faces.Length == LuckySeven.FaceId;
+
         public GardenCoordinator(IJournalWriter writer, IEntropyProvider entropy, IIdSource ids)
         {
             _writer = writer; _entropy = entropy; _ids = ids;
@@ -58,6 +70,8 @@ namespace DestinyGarden.Application
             State = WorldState.CreateInitial();
             PreferenceMode = "auto"; PreferenceSiteId = null;
             _weatherEntropyByPeriod.Clear();
+            _luckyEarned = false; LuckySevenOffered = false;
+            _rolledRecipes.Clear();
             _writer.Append("RunStarted", RunId, null, new Dictionary<string, object>
             {
                 ["gameId"] = "destiny-garden",
@@ -143,6 +157,8 @@ namespace DestinyGarden.Application
                 return null;
             }
             CurrentFaces = faces;
+            LuckySevenOffered = _luckyEarned;
+            _luckyEarned = false;
 
             var faceList = new List<object>();
             foreach (string f in faces.Faces) faceList.Add(f);
@@ -155,10 +171,32 @@ namespace DestinyGarden.Application
                 ["drawnSiteId"] = faces.DrawnSiteId,
                 ["resolvedSiteId"] = faces.ResolvedSiteId,
                 ["faces"] = faceList,
-                ["mappingBytesConsumed"] = faces.MappingBytesConsumed
+                ["mappingBytesConsumed"] = faces.MappingBytesConsumed,
+                ["luckySevenOffered"] = LuckySevenOffered
             });
             Phase = CoordinatorPhase.Prepared;
             return faces;
+        }
+
+        /// <summary>
+        /// Publishes the 7th face for this prepared round (before the intent and the roll).
+        /// Returns the added recipe, or null when the chance is not available.
+        /// </summary>
+        public string AddLuckySeven()
+        {
+            if (Phase != CoordinatorPhase.Prepared || !LuckySevenOffered || LuckySevenAdded) return null;
+            string recipeId = LuckySeven.PickRecipe(State, CurrentWeather, CurrentFaces.ResolvedSiteId);
+            if (recipeId == null) return null;
+            _writer.Append("LuckySevenAdded", RunId, CurrentRoundId, new Dictionary<string, object>
+            {
+                ["faceId"] = LuckySeven.FaceId,
+                ["recipeId"] = recipeId,
+                ["amplification"] = LuckySeven.Amplification,
+                ["rulesVersion"] = LuckySeven.RulesVersion
+            });
+            var faces = new List<string>(CurrentFaces.Faces) { recipeId };
+            CurrentFaces.Faces = faces.ToArray();
+            return recipeId;
         }
 
         public void CommitIntent(string kind, string value)
@@ -177,7 +215,8 @@ namespace DestinyGarden.Application
                 ["kind"] = LastIntentKind,
                 ["value"] = value,
                 ["matchingFaces"] = matchFaces,
-                ["baselineNumerator"] = matchFaces // probability = matchingFaces / 6
+                ["baselineNumerator"] = matchFaces, // probability = matchingFaces / faceCount
+                ["faceCount"] = CurrentFaces.Faces.Length
             });
             Phase = CoordinatorPhase.IntentCommitted;
         }
@@ -194,14 +233,19 @@ namespace DestinyGarden.Application
 
             byte[] outcomeBytes = _entropy.GetBytes(32);
             byte[] oracleBytes = _entropy.GetBytes(32);
+            byte[] ecologyBytes = _entropy.GetBytes(64);
             _writer.Append("DrawEntropyCommitted", RunId, roundId, new Dictionary<string, object>
             {
                 ["outcomeBase64"] = Convert.ToBase64String(outcomeBytes),
                 ["oracleBase64"] = Convert.ToBase64String(oracleBytes),
+                ["ecologyBase64"] = Convert.ToBase64String(ecologyBytes),
                 ["source"] = _entropy.SourceName
             });
 
-            int faceId = EntropyBuffer.RollD6(outcomeBytes, out _, out _);
+            int faceCount = CurrentFaces.Faces.Length;
+            int faceId = faceCount == LuckySeven.FaceId
+                ? LuckySeven.RollD7(outcomeBytes)
+                : EntropyBuffer.RollD6(outcomeBytes, out _, out _);
             if (faceId < 0)
             {
                 _writer.Append("InterruptedUnresolved", RunId, roundId, new Dictionary<string, object>
@@ -215,17 +259,22 @@ namespace DestinyGarden.Application
             int cardRoll = EntropyBuffer.RollD6(oracleBytes, out _, out _);
             int cardIndex = cardRoll < 0 ? -1 : cardRoll - 1;
             string recipeId = CurrentFaces.Faces[faceId - 1];
+            bool luckyRolled = faceCount == LuckySeven.FaceId && faceId == LuckySeven.FaceId;
 
             _writer.Append("OutcomeCommitted", RunId, roundId, new Dictionary<string, object>
             {
                 ["faceId"] = faceId,
                 ["recipeId"] = recipeId,
                 ["cardIndex"] = cardIndex,
-                ["cardStatus"] = cardIndex < 0 ? "unavailable_entropy_exhausted" : "drawn"
+                ["cardStatus"] = cardIndex < 0 ? "unavailable_entropy_exhausted" : "drawn",
+                ["faceCount"] = faceCount,
+                ["luckySeven"] = luckyRolled
             });
 
             int anchor = Sites.ById(CurrentFaces.ResolvedSiteId).CenterCellId;
-            var resolvedRecipe = RecipeResolver.Resolve(recipeId, anchor, State);
+            var resolvedRecipe = luckyRolled
+                ? LuckySeven.ResolveAmplified(recipeId, anchor, State)
+                : RecipeResolver.Resolve(recipeId, anchor, State);
             int seedCounter = 0;
             var sim = Simulation.Resolve(State, resolvedRecipe, CurrentWeather,
                 n => _ids.NewId("plant") + "-" + (seedCounter++), roundId);
@@ -237,6 +286,19 @@ namespace DestinyGarden.Application
             _recentMessageIds.Add(message.TemplateId);
             while (_recentMessageIds.Count > 3) _recentMessageIds.RemoveAt(0);
 
+            // Ecology step (ECOLOGY.md): after the natural simulation, from saved bytes only.
+            bool matched = LuckySeven.IntentMatched(LastIntentKind, LastIntentValue, faceId, recipeId);
+            _rolledRecipes.Add(recipeId);
+            var eco = DestinyGarden.Domain.Ecology.Apply(sim.PostState, new EcologyContext
+            {
+                RoundId = roundId,
+                CurrentRecipeId = recipeId,
+                RecentRecipeIds = _rolledRecipes,
+                PrayerAnswered = matched,
+                Sim = sim,
+                Weather = CurrentWeather
+            }, ecologyBytes, n => _ids.NewId("plant") + "-eco" + n);
+
             var events = new List<object>();
             foreach (var e in sim.Events)
             {
@@ -245,7 +307,14 @@ namespace DestinyGarden.Application
                     ["kind"] = e.Kind, ["plantId"] = e.PlantId, ["cellId"] = e.CellId, ["tick"] = e.Tick
                 });
             }
-            State = sim.PostState;
+            foreach (var e in eco.Events)
+            {
+                events.Add(new Dictionary<string, object>
+                {
+                    ["kind"] = e.Kind, ["plantId"] = e.PlantId, ["cellId"] = e.CellId, ["tick"] = e.Tick
+                });
+            }
+            State = eco.PostState;
             string afterHash = Hashing.StateHash(State);
             _writer.Append("Resolved", RunId, roundId, new Dictionary<string, object>
             {
@@ -258,6 +327,7 @@ namespace DestinyGarden.Application
                 ["discharged"] = sim.Discharged,
                 ["evaporated"] = sim.Evaporated,
                 ["weatherId"] = CurrentWeather.Id.ToString(),
+                ["ecology"] = DestinyGarden.Domain.Ecology.ToPayload(eco),
                 ["selectedMessage"] = new Dictionary<string, object>
                 {
                     ["templateId"] = message.TemplateId,
@@ -271,9 +341,12 @@ namespace DestinyGarden.Application
             });
 
             Phase = CoordinatorPhase.Resolved;
+            _luckyEarned = matched;
             return new RollOutcome
             {
-                FaceId = faceId, RecipeId = recipeId, CardIndex = cardIndex,
+                FaceId = faceId, FaceCount = faceCount, LuckySeven = luckyRolled, IntentMatched = matched,
+                Ecology = eco,
+                RecipeId = recipeId, CardIndex = cardIndex,
                 Simulation = sim, StateHashAfter = afterHash,
                 Message = message, Weather = CurrentWeather, SiteId = CurrentFaces.ResolvedSiteId
             };
@@ -302,6 +375,8 @@ namespace DestinyGarden.Application
             if (!read.ChainValid) throw new InvalidOperationException("Journal chain invalid: " + read.Error);
             RunId = null; State = null; CurrentFaces = null; CurrentRoundId = null;
             Phase = CoordinatorPhase.NoRun;
+            _luckyEarned = false; LuckySevenOffered = false;
+            _rolledRecipes.Clear();
             _weatherEntropyByPeriod.Clear();
             _recentMessageIds.Clear();
 
@@ -316,6 +391,8 @@ namespace DestinyGarden.Application
                         State = WorldStateSerializer.FromPayload(
                             (Dictionary<string, object>)e.Payload["initialState"]);
                         PreferenceMode = "auto"; PreferenceSiteId = null;
+                        _luckyEarned = false; LuckySevenOffered = false;
+                        _rolledRecipes.Clear();
                         Phase = CoordinatorPhase.Ready;
                         break;
                     case "CareFocusChanged":
@@ -340,11 +417,27 @@ namespace DestinyGarden.Application
                                 ResolvedSiteId = (string)e.Payload["resolvedSiteId"],
                                 Faces = faces.ToArray()
                             };
+                            LuckySevenOffered = e.Payload.TryGetValue("luckySevenOffered", out object lo) && lo is bool lb && lb;
+                            _luckyEarned = false;
                             Phase = CoordinatorPhase.Prepared;
                             break;
                         }
+                    case "LuckySevenAdded":
+                        if (CurrentFaces != null && CurrentFaces.Faces.Length == 6)
+                        {
+                            var faces7 = new List<string>(CurrentFaces.Faces) { (string)e.Payload["recipeId"] };
+                            CurrentFaces.Faces = faces7.ToArray();
+                        }
+                        break;
                     case "IntentCommitted":
+                        _restoreIntentKind = e.Payload["kind"] as string;
+                        _restoreIntentValue = e.Payload["value"] as string;
                         if (Phase == CoordinatorPhase.Prepared) Phase = CoordinatorPhase.IntentCommitted;
+                        break;
+                    case "OutcomeCommitted":
+                        if (e.Payload["recipeId"] is string rolledRecipe) _rolledRecipes.Add(rolledRecipe);
+                        _luckyEarned = LuckySeven.IntentMatched(_restoreIntentKind, _restoreIntentValue,
+                            WorldStateSerializer.ToInt(e.Payload["faceId"]), e.Payload["recipeId"] as string);
                         break;
                     case "Resolved":
                         State = WorldStateSerializer.FromPayload(

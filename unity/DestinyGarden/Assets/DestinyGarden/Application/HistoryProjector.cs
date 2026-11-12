@@ -22,6 +22,12 @@ namespace DestinyGarden.Application
         public bool Resolved;
         public int MatchingFaces;
         public bool IntentMatched;
+        public int FaceCount = 6;
+        public bool LuckySeven;   // the published 7th face was rolled
+        public bool Bloomed;      // at least one flower opened in this round
+        public List<string> EcologyKinds = new List<string>(); // residents present after this roll
+        public int EcologySeeds;  // seeds carried by residents
+        public int EcologyGrowth; // growth added by residents
     }
 
     /// <summary>Projects verified journal entries of one run into display summaries.</summary>
@@ -74,6 +80,8 @@ namespace DestinyGarden.Application
                             var s = Get(e.RoundId);
                             s.FaceId = WorldStateSerializer.ToInt(e.Payload["faceId"]);
                             s.RecipeId = e.Payload["recipeId"] as string;
+                            if (e.Payload.TryGetValue("faceCount", out object fc)) s.FaceCount = WorldStateSerializer.ToInt(fc);
+                            s.LuckySeven = e.Payload.TryGetValue("luckySeven", out object ls) && ls is bool lsb && lsb;
                             break;
                         }
                     case "Resolved":
@@ -89,6 +97,21 @@ namespace DestinyGarden.Application
                                 s.CardId = smd["cardId"] as string;
                             }
                             Totals((Dictionary<string, object>)e.Payload["postState"], s);
+                            if (e.Payload.TryGetValue("ecology", out object eco) && eco is IDictionary<string, object> ecod)
+                            {
+                                foreach (var v in (IEnumerable)ecod["visits"])
+                                    if (v is IDictionary<string, object> vd && vd["kind"] is string vk) s.EcologyKinds.Add(vk);
+                                foreach (var ef in (IEnumerable)ecod["effects"])
+                                    if (ef is IDictionary<string, object> efd)
+                                    {
+                                        if (efd["seed"] is bool sb && sb) s.EcologySeeds++;
+                                        s.EcologyGrowth += WorldStateSerializer.ToInt(efd["amount"]);
+                                    }
+                            }
+                            if (e.Payload.TryGetValue("events", out object evs) && evs is IEnumerable evList)
+                                foreach (var ev in evList)
+                                    if (ev is IDictionary<string, object> evd && evd["kind"] as string == "Bloomed")
+                                        s.Bloomed = true;
                             if (s.IntentKind == "family" && s.RecipeId != null)
                                 s.IntentMatched = DestinyGarden.Domain.RecipeCatalog.ElementOf(s.RecipeId)
                                     .ToString().ToLowerInvariant() == s.IntentValue;

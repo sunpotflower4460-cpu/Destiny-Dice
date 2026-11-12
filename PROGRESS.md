@@ -1940,3 +1940,28 @@ Git diff whitespace check: pass
 - unity/DestinyGarden/Assets/DestinyGarden/link.xml、Resources/Fonts/（NotoSerifJP-Regular.otf、NotoSerifJP-OFL.txt）
 - unity/DestinyGarden/Assets/WebGLTemplates/DestinyGarden/index.html、ProjectSettings/ProjectSettings.asset
 - docs/jam-submission/、.claude/launch.json、PROGRESS.md（本追記）
+
+## Jam v2: 幸運の七・神聖な見た目・庭の小さな命（ecology.v1）(2026-11-12)
+### 完了したこと
+- 本人の方向付け（ラッキーナンバー7、虹の八と天使、蝶、海、神聖な庭、祈り、生き物が庭の育ち方を変える、表現は繊細に）を受けて実装。退避版は `feature/jam-webgl` の 924e1de と `Builds/DestinyGarden-WebGL-v1-safe.zip`。
+- 幸運の七（lucky-seven.v1, Domain/LuckySeven.cs）: 願いが叶った次の準備でだけ7面目を提示。加えると `LuckySevenAdded` を意図確定より前に記録し、保存済みの outcome bytes から公正な D7（rejection sampling）で振る。7面目は届け先で最も必要な恵みを2倍で。正直メーターの「偶然なら」は各回の面数で割るよう修正。
+- 生態（ecology.v1, docs/unity-garden/ECOLOGY.md, Domain/Ecology.cs）: 自然シミュレーションの後に独立して走る一歩。花蜂・蝶・小鳥・綿毛が種を運び（1投最大2粒）、精霊（願いが叶った時）・蛍・きのこ・ミミズが成長を少し助ける。偶然は `DrawEntropyCommitted.ecologyBase64` だけから引き、結果は `Resolved.postState` と `Resolved.ecology` に保存。水は動かさない。既存の `Simulation.Resolve` は不変（段階イベント関数の可視性のみ internal に）。
+- 見た目: 夕暮れの海と島の岸辺の光、海上を巡る七つの灯、立ちのぼる光の粒、強めのブルーム。蜂・蝶・トンボ・小鳥・光る苔・蛍・きのこ・綿毛・花びら・露・魚影・精霊・虹の八と天使をコード生成で描画（Presentation/SacredAtmosphere.cs, GardenWonders.cs, GardenLife.cs）。
+- UI: 初回の題名カード（日英、遊び方ボタンで再表示）、恵みごとの色分け、7面目チップ、「庭の気配」（いまいる生き物）、状況の一行は説明でなく気配だけ（例「……かすかな光が、花のほうへ降りていった。」）。メッセージ札とヘッダーの重なり、グラフの棒がキャプションを覆う不具合、記録のはみ出しを修正。
+- QA専用の起動引数 `-dgWonders`（`-dgCapture` 併用時のみ、台帳に書かない）で虹の八等のスクリーンショットを撮れるようにした。
+### 完了基準の結果（コマンド出力の要約）
+- Unity EditMode tests: green（25 passed: 既存13 + 幸運の七・祈りの精霊・計測 9 + 生態 3）
+- 計測（720投・常に多い系統を願い七を取る方針）: 願いの一致 45%、七の提示 45%、七が出た 50回、虹の八 9回（約80投に1回）、蝶 13%。住人の出現率: 花蜂98 / ミミズ83 / 光る苔85 / 小鳥70 / トンボ47 / 蛍46 / 精霊45 / 綿毛25 / 露24 / 魚11 / きのこ6 %。120投後の平均: 植物55株・花42.7。
+- WebGL: ヘッドレス Chromium で20投の通しプレイ、コンソールエラー0、七の提示6回を取得、再読み込み後も状態保持。
+- macOS player: 旧（生態以前）の台帳を読み込んで2投 → 例外0（後方互換を確認）。手元の台帳はバックアップから復元済み（SHA一致）。
+### 要確定・申し送り（次フェーズへ）
+- **本人の判断**: 虹の八は約80投に1回。ジャムの審査で見られる可能性は低い。条件を緩めるかは本人判断（緩めるなら版を上げて記録）。
+- 生態の数値は初期値。120投で庭が満ちる（植物55株）。長期の遊び心地は未検証。
+- ボトルガーデン（瓶の中の閉じた世界）としての見せ方、種を蒔くだけの操作への再設計はジャム後の設計テーマ。
+- Safari/Firefox/スマホ/実際の itch.io ページ、音の実聴は未確認。
+### 触ったファイル
+- Domain: LuckySeven.cs（新規: 幸運の七・NatureBalance・PrayerSpirits）、Ecology.cs（新規）、Simulation.cs（EmitStageEvents を internal に）
+- Application: GardenCoordinator.cs、HistoryProjector.cs
+- Presentation: GardenBootstrap.cs、GardenUi.cs、GardenView.cs、ProceduralArt.cs、SacredAtmosphere.cs・GardenWonders.cs・GardenLife.cs（新規）
+- Tests: LuckySevenTests.cs、EcologyTests.cs（新規）
+- docs/unity-garden/ECOLOGY.md（新規）、docs/jam-submission/、PROGRESS.md（本追記）

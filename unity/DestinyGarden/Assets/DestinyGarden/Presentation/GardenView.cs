@@ -19,7 +19,7 @@ namespace DestinyGarden.Presentation
         private static readonly Color MoistSoil = new Color(0.62f, 0.45f, 0.30f);
         private static readonly Color WetSoil = new Color(0.30f, 0.22f, 0.16f);
         private static readonly Color WaterGlow = new Color(0.20f, 0.78f, 0.95f);
-        private static readonly Color Mist = new Color(0.003f, 0.020f, 0.030f);
+        private static readonly Color Mist = new Color(0.020f, 0.032f, 0.070f); // twilight indigo over the sea
 
         private readonly Renderer[] _cells = new Renderer[256];
         private readonly Renderer[] _domes = new Renderer[256];
@@ -47,7 +47,12 @@ namespace DestinyGarden.Presentation
         private Light _fill;
         private GameObject _dice;
         private readonly List<GameObject> _topPips = new List<GameObject>();
-        private static readonly int[][] PipLayouts = { new[]{4}, new[]{0,8}, new[]{0,4,8}, new[]{0,2,6,8}, new[]{0,2,4,6,8}, new[]{0,2,3,5,6,8} };
+        private static readonly int[][] PipLayouts = { new[]{4}, new[]{0,8}, new[]{0,4,8}, new[]{0,2,6,8}, new[]{0,2,4,6,8}, new[]{0,2,3,5,6,8}, new[]{0,2,3,4,5,6,8} };
+        private Material _pipMat;
+        private static readonly Color PipEmission = new Color(0.10f, 2.80f, 2.35f);
+        private static readonly Color LuckyPipEmission = new Color(3.2f, 2.2f, 0.6f);
+        public Transform DiceTransform => _dice != null ? _dice.transform : null;
+        public Camera ViewCamera { get; private set; }
         private GameObject _focusRing;
         private GameObject _lightShaft;
         private ParticleSystem _rain;
@@ -116,12 +121,13 @@ namespace DestinyGarden.Presentation
             RenderSettings.fog = true;
             RenderSettings.fogColor = Mist;
             RenderSettings.fogMode = FogMode.Linear;
-            RenderSettings.fogStartDistance = 20f;
-            RenderSettings.fogEndDistance = 46f;
-            RenderSettings.ambientLight = new Color(0.34f, 0.46f, 0.52f);
+            RenderSettings.fogStartDistance = 22f;
+            RenderSettings.fogEndDistance = 58f;
+            RenderSettings.ambientLight = new Color(0.36f, 0.42f, 0.56f);
 
             var camObj = new GameObject("Main Camera") { tag = "MainCamera" };
             var cam = camObj.AddComponent<Camera>();
+            ViewCamera = cam;
             cam.clearFlags = CameraClearFlags.SolidColor;
             cam.transform.position = new Vector3(7.5f, 14.8f, -7.6f);
             cam.transform.LookAt(new Vector3(7.5f, 0.2f, 8.4f));
@@ -137,16 +143,17 @@ namespace DestinyGarden.Presentation
             volume.isGlobal = true;
             var profile = ScriptableObject.CreateInstance<VolumeProfile>();
             var bloom = profile.Add<Bloom>(true);
-            bloom.intensity.value = 0.55f;
-            bloom.threshold.value = 0.85f;
-            bloom.scatter.value = 0.65f;
+            bloom.intensity.value = 0.85f;
+            bloom.threshold.value = 0.78f;
+            bloom.scatter.value = 0.72f;
+            bloom.tint.value = new Color(1.0f, 0.93f, 0.86f);
             var vignette = profile.Add<Vignette>(true);
             vignette.intensity.value = 0.30f;
             vignette.smoothness.value = 0.55f;
             var tonemap = profile.Add<Tonemapping>(true);
             tonemap.mode.value = TonemappingMode.ACES;
             var colors = profile.Add<ColorAdjustments>(true);
-            colors.saturation.value = 9f;
+            colors.saturation.value = 12f;
             colors.postExposure.value = 0.22f;
             colors.contrast.value = 12f;
             volume.profile = profile;
@@ -256,8 +263,8 @@ namespace DestinyGarden.Presentation
             var mistTex = ProceduralArt.MistSprite();
             mistMat.SetTexture("_MainTex", mistTex);
             mistMat.SetTexture("_BaseMap", mistTex);
-            mistMat.color = new Color(0.8f, 0.92f, 0.96f, 0.55f);
-            mistMat.SetColor("_BaseColor", new Color(0.8f, 0.92f, 0.96f, 0.55f));
+            mistMat.color = new Color(0.86f, 0.88f, 1.0f, 0.50f);
+            mistMat.SetColor("_BaseColor", new Color(0.86f, 0.88f, 1.0f, 0.50f));
             mistMat.SetFloat("_Surface", 1f);
             mistMat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
             mistMat.SetFloat("_ZWrite", 0f);
@@ -406,7 +413,8 @@ namespace DestinyGarden.Presentation
 
             var pipMat = new Material(shader) { color = WaterGlow };
             pipMat.EnableKeyword("_EMISSION");
-            pipMat.SetColor("_EmissionColor", new Color(0.10f, 2.80f, 2.35f));
+            pipMat.SetColor("_EmissionColor", PipEmission);
+            _pipMat = pipMat;
             BuildTopPips(pipMat);
             AddPips(pipMat, Vector3.forward, 1);
             AddPips(pipMat, Vector3.right, 1);
@@ -450,9 +458,17 @@ namespace DestinyGarden.Presentation
         /// <summary>Shows the rolled face number as glowing pips on the dice top.</summary>
         public void SetDiceFace(int faceId)
         {
-            if (faceId < 1 || faceId > 6) return;
+            if (faceId < 1 || faceId > PipLayouts.Length) return;
             var on = new HashSet<int>(PipLayouts[faceId - 1]);
             for (int i = 0; i < _topPips.Count; i++) _topPips[i].SetActive(on.Contains(i));
+        }
+
+        /// <summary>Golden pips while the Lucky Seven face is published or rolled.</summary>
+        public void SetLuckyDice(bool lucky)
+        {
+            if (_pipMat == null) return;
+            _pipMat.color = lucky ? new Color(1f, 0.82f, 0.35f) : WaterGlow;
+            _pipMat.SetColor("_EmissionColor", lucky ? LuckyPipEmission : PipEmission);
         }
 
         private void AddPips(Material pipMat, Vector3 normal, int count)

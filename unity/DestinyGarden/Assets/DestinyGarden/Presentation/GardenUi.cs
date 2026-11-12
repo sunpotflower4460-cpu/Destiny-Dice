@@ -18,13 +18,17 @@ namespace DestinyGarden.Presentation
         public Action OnSwitchVisitor;
         public Action OnExport;
         public Action OnHideUi;
+        public Action OnAddLuckySeven;
 
         private Font _font;
         private Text _header;
         private Text _messageCard;
         private Text _status;
         private Button _rollButton;
-        private readonly Button[] _faceChips = new Button[6];
+        private readonly Button[] _faceChips = new Button[7];
+        private string _luckyChipMode = "hidden"; // hidden | offer | face
+        private Text _facesLabel;
+        private GameObject _titleCard;
         private readonly Dictionary<string, Button> _intentChips = new Dictionary<string, Button>();
         private readonly Dictionary<string, Button> _siteChips = new Dictionary<string, Button>();
         private GameObject _historyPanel;
@@ -41,6 +45,24 @@ namespace DestinyGarden.Presentation
         private static readonly Color ChipActive = new Color(0.75f, 0.45f, 0.12f, 1.0f);
         private static readonly Color GoldText = new Color(0.018f, 0.010f, 0.002f);
         private static readonly Color TextColor = new Color(0.888f, 0.871f, 0.791f);
+        private static readonly Color WishOutline = new Color(0.45f, 1f, 0.95f, 1f);
+        private static readonly Color LuckyGold = new Color(1f, 0.80f, 0.30f, 1f);
+
+        /// <summary>One colour per blessing, shared by face chips and wish chips.</summary>
+        public static Color ElementColor(string element)
+        {
+            switch (element)
+            {
+                case "water": return new Color(0.05f, 0.21f, 0.38f, 0.96f);
+                case "wind": return new Color(0.06f, 0.25f, 0.21f, 0.96f);
+                case "light": return new Color(0.33f, 0.26f, 0.05f, 0.96f);
+                case "seed": return new Color(0.27f, 0.15f, 0.06f, 0.96f);
+                default: return ChipColor;
+            }
+        }
+
+        private static string ElementOfRecipe(string recipeId) =>
+            RecipeCatalog.ElementOf(recipeId).ToString().ToLowerInvariant();
 
         public Font UiFont
         {
@@ -80,22 +102,32 @@ namespace DestinyGarden.Presentation
             _header = MakeText(canvasObj.transform, new Vector2(0f, 1f), new Vector2(36f, -42f),
                 new Vector2(640f, 44f), 25, TextAnchor.UpperLeft);
             AddBacking(_header, new Vector2(10f, 5f));
-            _messageCard = MakeText(canvasObj.transform, new Vector2(0.5f, 1f), new Vector2(0f, -76f),
-                new Vector2(940f, 64f), 28, TextAnchor.MiddleCenter);
+            _messageCard = MakeText(canvasObj.transform, new Vector2(0.5f, 1f), new Vector2(0f, -104f),
+                new Vector2(940f, 76f), 27, TextAnchor.MiddleCenter);
             AddBacking(_messageCard, new Vector2(18f, 6f));
             _status = MakeText(canvasObj.transform, new Vector2(0.5f, 0f), new Vector2(0f, 144f),
                 new Vector2(560f, 34f), 19, TextAnchor.MiddleCenter);
             AddBacking(_status, new Vector2(12f, 4f));
 
             // Face chips (tap = wish for that face number).
-            for (int i = 0; i < 6; i++)
+            for (int i = 0; i < 7; i++)
             {
                 int face = i + 1;
+                Action click = () => OnIntentSelected?.Invoke("face", face.ToString());
+                if (face == 7) click = () =>
+                {
+                    if (_luckyChipMode == "offer") OnAddLuckySeven?.Invoke();
+                    else if (_luckyChipMode == "face") OnIntentSelected?.Invoke("face", "7");
+                };
                 _faceChips[i] = MakeChip(canvasObj.transform, new Vector2(0f, 0f),
-                    new Vector2(24f + i * 148f, 180f), new Vector2(140f, 52f), "", 19,
-                    () => OnIntentSelected?.Invoke("face", face.ToString()));
+                    new Vector2(24f + i * 148f, 180f), new Vector2(face == 7 ? 196f : 140f, 52f), "", 19, click);
+                var outline = _faceChips[i].gameObject.AddComponent<Outline>();
+                outline.effectColor = WishOutline;
+                outline.effectDistance = new Vector2(3f, -3f);
+                outline.enabled = false;
             }
-            MakeLabel(canvasObj.transform, new Vector2(24f, 236f), "今回の6面（押すとその目を願う。同じ面はその分出やすい）", 16);
+            _faceChips[6].gameObject.SetActive(false);
+            _facesLabel = MakeLabel(canvasObj.transform, new Vector2(24f, 236f), "", 16);
 
             // Intent family chips.
             string[] intentKeys = { "none", "water", "wind", "light", "seed" };
@@ -107,7 +139,7 @@ namespace DestinyGarden.Presentation
                     new Vector2(24f + i * 118f, 100f), new Vector2(110f, 46f), intentLabels[i], 19,
                     () => OnIntentSelected?.Invoke(key == "none" ? "none" : "family", key == "none" ? null : key));
             }
-            MakeLabel(canvasObj.transform, new Vector2(24f, 150f), "願う系統", 17);
+            MakeLabel(canvasObj.transform, new Vector2(24f, 150f), "願う恵み（色は面と同じ）", 17);
 
             // Site chips (apply from the next preparation).
             string[] siteKeys = { "auto", "inlet", "shade", "meadow" };
@@ -138,8 +170,12 @@ namespace DestinyGarden.Presentation
                 "次の来場者", 20, () => OnSwitchVisitor?.Invoke());
             MakeChip(canvasObj.transform, new Vector2(1f, 1f), new Vector2(-96f, -292f), new Vector2(150f, 48f),
                 "設定", 20, () => TogglePanel(_settingsPanel));
+            MakeChip(canvasObj.transform, new Vector2(1f, 1f), new Vector2(-96f, -350f), new Vector2(150f, 48f),
+                "遊び方", 20, () => ShowTitleCard(true));
 
+            BuildGoals(canvasObj.transform);
             BuildPanels(canvasObj.transform);
+            BuildTitleCard(canvasObj.transform);
         }
 
         private void AddBacking(Text text, Vector2 pad)
@@ -250,16 +286,156 @@ namespace DestinyGarden.Presentation
 
         public void ShowFaces(string[] faces, int rolledFaceId, int wishedFaceId = 0)
         {
-            for (int i = 0; i < 6; i++)
+            int n = faces != null ? faces.Length : 6;
+            _facesLabel.text = n == 7
+                ? "今回の7面 — 7面目は「幸運の七」（その恵みが2倍）。どの面も1/7で出ます"
+                : "今回の6面 — 押すとその目を願う（同じ恵みの面が多いほど出やすい）";
+            for (int i = 0; i < 7; i++)
             {
-                var label = _faceChips[i].GetComponentInChildren<Text>();
-                label.text = faces != null ? $"{i + 1} {RecipeCatalog.LabelJa(faces[i])}" : "";
+                var chip = _faceChips[i];
+                var label = chip.GetComponentInChildren<Text>();
+                bool present = faces != null && i < faces.Length;
+                if (i == 6)
+                {
+                    if (present) _luckyChipMode = "face";
+                    chip.gameObject.SetActive(_luckyChipMode != "hidden");
+                    if (_luckyChipMode == "offer")
+                    {
+                        label.text = "★ 七つめの面を加える";
+                        chip.GetComponent<Image>().color = LuckyGold;
+                        label.color = GoldText;
+                        chip.GetComponent<Outline>().enabled = false;
+                        continue;
+                    }
+                    if (!present) continue;
+                }
+                label.text = present
+                    ? (i == 6 ? $"7 ★{RecipeCatalog.LabelJa(faces[i])}×2" : $"{i + 1} {RecipeCatalog.LabelJa(faces[i])}")
+                    : "";
                 bool rolled = rolledFaceId == i + 1;
                 bool wished = wishedFaceId == i + 1 && !rolled;
-                _faceChips[i].GetComponent<Image>().color =
-                    rolled ? ChipActive : wished ? new Color(0.05f, 0.35f, 0.38f, 0.98f) : ChipColor;
-                label.color = rolled ? GoldText : TextColor;
+                chip.GetComponent<Image>().color = rolled ? ChipActive
+                    : present ? ElementColor(ElementOfRecipe(faces[i])) : ChipColor;
+                chip.GetComponent<Outline>().enabled = wished;
+                label.color = rolled ? GoldText : i == 6 ? new Color(1f, 0.88f, 0.55f) : TextColor;
             }
+        }
+
+        /// <summary>Shows or hides the Lucky Seven offer chip (only before the seventh face is added).</summary>
+        public void ShowLuckyOffer(bool offered)
+        {
+            _luckyChipMode = offered ? "offer" : "hidden";
+            _faceChips[6].gameObject.SetActive(offered);
+            if (offered)
+            {
+                _faceChips[6].GetComponentInChildren<Text>().text = "★ 七つめの面を加える";
+                _faceChips[6].GetComponent<Image>().color = LuckyGold;
+                _faceChips[6].GetComponentInChildren<Text>().color = GoldText;
+                _faceChips[6].GetComponent<Outline>().enabled = false;
+            }
+        }
+
+        private void Update()
+        {
+            if (_luckyChipMode == "offer" && _faceChips[6] != null)
+            {
+                float k = 0.5f + 0.5f * Mathf.Sin(Time.unscaledTime * 4f);
+                _faceChips[6].GetComponent<Image>().color = Color.Lerp(LuckyGold, new Color(1f, 0.95f, 0.70f), k);
+            }
+        }
+
+        private Text _residents;
+
+        /// <summary>The garden's presence: residents living in the garden right now (no explanations).</summary>
+        private void BuildGoals(Transform canvas)
+        {
+            _residents = MakeText(canvas, new Vector2(1f, 0f), new Vector2(-24f, 20f), new Vector2(500f, 64f), 17,
+                TextAnchor.UpperLeft);
+            _residents.supportRichText = true;
+            AddBacking(_residents, new Vector2(14f, 10f));
+            ShowResidents(null);
+        }
+
+        public static string ResidentLabelJa(string kind)
+        {
+            switch (kind)
+            {
+                case "bee": return "花蜂";
+                case "butterfly": return "蝶";
+                case "moss": return "光る苔";
+                case "firefly": return "蛍";
+                case "mushroom": return "きのこ";
+                case "worm": return "ミミズ";
+                case "dragonfly": return "トンボ";
+                case "bird": return "小鳥";
+                case "fluff": return "綿毛";
+                case "dew": return "露";
+                default: return null;
+            }
+        }
+
+        public void ShowResidents(IEnumerable<string> kinds)
+        {
+            var names = new List<string>();
+            if (kinds != null)
+                foreach (var k in kinds)
+                {
+                    string n = ResidentLabelJa(k);
+                    if (n != null && !names.Contains(n)) names.Add(n);
+                }
+            _residents.text = "<color=#cfe6dc>庭の気配</color>\n" +
+                (names.Count > 0 ? string.Join("・", names) : "<color=#9aa8a4>まだ静か</color>");
+        }
+
+        private void BuildTitleCard(Transform canvas)
+        {
+            _titleCard = new GameObject("TitleCard");
+            _titleCard.transform.SetParent(canvas, false);
+            var dim = _titleCard.AddComponent<Image>();
+            dim.color = new Color(0.01f, 0.02f, 0.05f, 0.62f);
+            var dimRect = _titleCard.GetComponent<RectTransform>();
+            dimRect.anchorMin = Vector2.zero; dimRect.anchorMax = Vector2.one;
+            dimRect.offsetMin = Vector2.zero; dimRect.offsetMax = Vector2.zero;
+            var close = _titleCard.AddComponent<Button>();
+            close.targetGraphic = dim;
+            close.onClick.AddListener(() => ShowTitleCard(false));
+
+            var panel = MakePanel(_titleCard.transform, new Vector2(1060f, 500f));
+            panel.SetActive(true);
+            var title = MakeText(panel.transform, new Vector2(0.5f, 1f), new Vector2(0f, -36f), new Vector2(980f, 80f), 60,
+                TextAnchor.MiddleCenter);
+            title.text = "Destiny Garden";
+            title.color = new Color(1f, 0.90f, 0.66f);
+            var sub = MakeText(panel.transform, new Vector2(0.5f, 1f), new Vector2(0f, -116f), new Vector2(980f, 40f), 24,
+                TextAnchor.MiddleCenter);
+            sub.text = "運命の庭 — 今この瞬間の運を振る、聖なる庭";
+            sub.color = new Color(0.80f, 0.92f, 0.95f);
+            var body = MakeText(panel.transform, new Vector2(0.5f, 1f), new Vector2(0f, -176f), new Vector2(940f, 150f), 21,
+                TextAnchor.UpperLeft);
+            body.supportRichText = true;
+            body.text =
+                "・空と庭の状態が、サイコロの<b>6つの面</b>（水・風・光・種の恵み）を毎回決めます。\n" +
+                "・面を選んで<b>願い</b>をかけ、<b>サイコロを振る</b>。出た恵みで庭が育ち、短い言葉が届きます。\n" +
+                "・庭には小さな命が訪れ、種を運び、土を肥やします。何が起きるかは、庭しだい。\n" +
+                "・<color=#ffd36b>ときおり、願いが形になることがあります。</color>";
+            var en = MakeText(panel.transform, new Vector2(0.5f, 1f), new Vector2(0f, -340f), new Vector2(940f, 70f), 17,
+                TextAnchor.UpperLeft);
+            en.text = "The sky and your garden decide the six faces of the die. Choose a face, make a wish, and roll.\n" +
+                      "Small lives visit, carry seeds and enrich the soil. Now and then, a wish takes shape.";
+            en.color = new Color(0.78f, 0.84f, 0.86f);
+            var tap = MakeText(panel.transform, new Vector2(0.5f, 0f), new Vector2(0f, 26f), new Vector2(600f, 36f), 20,
+                TextAnchor.MiddleCenter);
+            tap.text = "クリック／タップで始める　·　Click to begin";
+            tap.color = new Color(1f, 0.82f, 0.45f);
+            // Clicks on the panel also close the card.
+            var panelButton = panel.AddComponent<Button>();
+            panelButton.targetGraphic = panel.GetComponent<Image>();
+            panelButton.onClick.AddListener(() => ShowTitleCard(false));
+        }
+
+        public void ShowTitleCard(bool show)
+        {
+            if (_titleCard != null) _titleCard.SetActive(show);
         }
 
         public void ShowIntentSelection(string kind, string value)
@@ -267,7 +443,7 @@ namespace DestinyGarden.Presentation
             foreach (var kv in _intentChips)
             {
                 bool active = (kind == "none" && kv.Key == "none") || (kind == "family" && kv.Key == value);
-                kv.Value.GetComponent<Image>().color = active ? ChipActive : ChipColor;
+                kv.Value.GetComponent<Image>().color = active ? ChipActive : ElementColor(kv.Key);
                 kv.Value.GetComponentInChildren<Text>().color = active ? GoldText : TextColor;
             }
         }
@@ -291,9 +467,10 @@ namespace DestinyGarden.Presentation
                 int idx = Array.IndexOf(OracleCatalogData.CardOrder, message.CardId);
                 if (idx >= 0) card = "【" + OracleCatalogData.CardLabelsJa[idx] + "】";
             }
-            _messageCard.text = outcome != null
-                ? $"{outcome.FaceId}の目「{RecipeCatalog.LabelJa(outcome.RecipeId)}」　{card}{message.Text}"
-                : card + message.Text;
+            _messageCard.text = outcome == null ? card + message.Text
+                : outcome.LuckySeven
+                    ? $"★幸運の七「{RecipeCatalog.LabelJa(outcome.RecipeId)}×2」　{card}{message.Text}"
+                    : $"{outcome.FaceId}の目「{RecipeCatalog.LabelJa(outcome.RecipeId)}」　{card}{message.Text}";
         }
 
         public void ShowStatus(string text) => _status.text = text ?? "";
@@ -302,11 +479,17 @@ namespace DestinyGarden.Presentation
         {
             var sb = new StringBuilder();
             sb.AppendLine("記録（新しい順）");
-            for (int i = history.Count - 1; i >= 1 && i > history.Count - 16; i--)
+            for (int i = history.Count - 1; i >= 1 && i > history.Count - 9; i--) // last 8 rolls fit the panel
             {
                 var r = history[i];
                 sb.AppendLine($"{r.WorldRevision}投目 {WeatherLabel(r.WeatherId)} {SiteLabel(r.SiteId)} " +
-                    $"{(r.FaceId.HasValue ? r.FaceId.Value + "の目" : "")} {RecipeLabel(r.RecipeId)}");
+                    $"{(r.FaceId.HasValue ? r.FaceId.Value + "の目" : "")} {RecipeLabel(r.RecipeId)}" +
+                    (r.LuckySeven ? " ★幸運の七" : r.FaceCount == 7 ? "（7面）" : "") +
+                    (r.LuckySeven && r.Bloomed ? " ∞虹" : ""));
+                var lives = new List<string>();
+                foreach (var k in r.EcologyKinds) { string n = ResidentLabelJa(k); if (n != null && !lives.Contains(n)) lives.Add(n); }
+                if (lives.Count > 0 || r.EcologySeeds > 0)
+                    sb.AppendLine("　〔" + string.Join("・", lives) + "〕" + (r.EcologySeeds > 0 ? $" 種がこぼれた ×{r.EcologySeeds}" : ""));
                 if (!string.IsNullOrEmpty(r.MessageText)) sb.AppendLine("　" + r.MessageText);
             }
             if (history.Count <= 1) sb.AppendLine("まだ記録がありません。");
@@ -335,17 +518,18 @@ namespace DestinyGarden.Presentation
                     new Color(0.45f, 0.75f, 0.40f));
             }
             // Honest summary: actual matches next to the chance baseline.
-            int compared = 0, matched = 0, baselineNum = 0;
+            int compared = 0, matched = 0;
+            float baseline = 0f;
             foreach (var r in history)
             {
                 if (!r.Resolved || r.IntentKind == null || r.IntentKind == "none") continue;
                 compared++;
-                baselineNum += r.MatchingFaces;
+                baseline += r.MatchingFaces / (float)Math.Max(1, r.FaceCount);
                 if (r.IntentMatched) matched++;
             }
             _graphCaption.text = "青: 庭の水の総量　緑: 成長の合計" +
                 (compared > 0
-                    ? $"\n意図の一致 {matched}/{compared}回（偶然なら平均 {(baselineNum / 6f):0.0}回）"
+                    ? $"\n意図の一致 {matched}/{compared}回（偶然なら平均 {baseline:0.0}回）"
                     : "\n意図を添えた記録はまだありません。");
         }
 
@@ -358,7 +542,7 @@ namespace DestinyGarden.Presentation
             var rect = obj.GetComponent<RectTransform>();
             rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 0f);
             rect.pivot = new Vector2(0f, 0f);
-            rect.anchoredPosition = new Vector2(x, -150f);
+            rect.anchoredPosition = new Vector2(x, 0f);
             rect.sizeDelta = new Vector2(Mathf.Max(2f, width), Mathf.Max(1f, height));
         }
 
@@ -389,12 +573,13 @@ namespace DestinyGarden.Presentation
             return text;
         }
 
-        private void MakeLabel(Transform parent, Vector2 posFromBottomLeft, string label, int size)
+        private Text MakeLabel(Transform parent, Vector2 posFromBottomLeft, string label, int size)
         {
             var text = MakeText(parent, new Vector2(0f, 0f), posFromBottomLeft + new Vector2(0f, 0f),
-                new Vector2(500f, 30f), size, TextAnchor.LowerLeft);
+                new Vector2(900f, 30f), size, TextAnchor.LowerLeft);
             text.text = label;
             text.color = new Color(0.80f, 0.85f, 0.82f, 0.9f);
+            return text;
         }
 
         private Button MakeChip(Transform parent, Vector2 anchor, Vector2 pos, Vector2 size, string label,

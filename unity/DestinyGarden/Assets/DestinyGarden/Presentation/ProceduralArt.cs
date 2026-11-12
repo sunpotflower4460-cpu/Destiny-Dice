@@ -109,6 +109,142 @@ namespace DestinyGarden.Presentation
             return new Color(0.75f, 0.88f, 0.92f, a);
         }, false);
 
+        /// <summary>Sea surface: soft swell bands over deep indigo-teal, brighter near the island.</summary>
+        public static Texture2D SeaTexture() => MakeTex("Sea", 512, (u, v) =>
+        {
+            float d = Vector2.Distance(new Vector2(u, v), new Vector2(0.5f, 0.5f)) * 2f;
+            float near = Mathf.Clamp01(1f - d * 1.15f);
+            float swell = Fbm(u * 18f, v * 18f, 211, 4);
+            float ripple = Mathf.Sin((u * 0.6f + v) * 140f + swell * 9f) * 0.5f + 0.5f;
+            var deep = new Color(0.010f, 0.030f, 0.075f);
+            var lagoon = new Color(0.040f, 0.230f, 0.300f);
+            var c = Color.Lerp(deep, lagoon, near * near);
+            c += new Color(0.05f, 0.09f, 0.12f) * (swell - 0.45f) * 0.9f;
+            c += new Color(0.10f, 0.16f, 0.18f) * Mathf.Pow(ripple, 6f) * (0.25f + near * 0.6f);
+            return new Color(Mathf.Max(0, c.r), Mathf.Max(0, c.g), Mathf.Max(0, c.b), 1f);
+        }, false);
+
+        /// <summary>Scattered glints for a scrolling sparkle layer on the sea.</summary>
+        public static Texture2D SparkleTexture() => MakeTex("Sparkle", 256, (u, v) =>
+        {
+            int gx = Mathf.FloorToInt(u * 32), gy = Mathf.FloorToInt(v * 32);
+            float h = Hash(gx, gy, 733);
+            if (h < 0.80f) return new Color(1, 1, 1, 0);
+            float cx = (gx + 0.5f) / 32f, cy = (gy + 0.5f) / 32f;
+            float dx = (u - cx) * 32f, dy = (v - cy) * 32f;
+            float a = Mathf.Clamp01(1f - (Mathf.Abs(dx) * 4f + Mathf.Abs(dy) * 1.2f)) * (h - 0.8f) * 5f;
+            return new Color(1f, 0.95f, 0.82f, a);
+        });
+
+        /// <summary>Glow that hugs the outside of the square island (shoreline foam light).</summary>
+        public static Texture2D ShoreGlow() => MakeTex("Shore", 256, (u, v) =>
+        {
+            const float half = 0.30f; // island half-size in uv
+            float dx = Mathf.Max(0, Mathf.Abs(u - 0.5f) - half);
+            float dy = Mathf.Max(0, Mathf.Abs(v - 0.5f) - half);
+            float d = Mathf.Sqrt(dx * dx + dy * dy);
+            bool inside = Mathf.Abs(u - 0.5f) < half && Mathf.Abs(v - 0.5f) < half;
+            if (inside) return new Color(1, 1, 1, 0);
+            float foam = Mathf.Exp(-d * 60f) * 0.9f + Mathf.Exp(-d * 12f) * 0.35f;
+            float n = Fbm(u * 24f, v * 24f, 401, 3);
+            return new Color(0.80f, 0.96f, 1f, Mathf.Clamp01(foam * (0.6f + n * 0.8f)));
+        }, false);
+
+        /// <summary>Butterfly wing (one side): two lobes, iridescent body colour, pale eye spot.</summary>
+        public static Texture2D ButterflyWing(Color inner, Color outer) => MakeTex("Wing", 128, (u, v) =>
+        {
+            // u: 0 at the body, 1 at the wing tip. Upper lobe above v=0.45, lower below.
+            float upper = Ellipse(u, v, 0.48f, 0.66f, 0.50f, 0.36f);
+            float lower = Ellipse(u, v, 0.38f, 0.26f, 0.36f, 0.26f);
+            float shape = Mathf.Max(upper, lower);
+            if (shape <= 0f) return new Color(1, 1, 1, 0);
+            float edge = Mathf.Clamp01(shape * 6f);
+            float t = Mathf.Clamp01(u * 1.1f);
+            var c = Color.Lerp(inner, outer, t);
+            float vein = Mathf.Abs(Mathf.Sin(Mathf.Atan2(v - 0.45f, u) * 9f));
+            c *= 0.85f + 0.15f * vein;
+            float spot = Ellipse(u, v, 0.66f, 0.70f, 0.09f, 0.09f);
+            if (spot > 0) c = Color.Lerp(c, new Color(1f, 0.97f, 0.85f), Mathf.Clamp01(spot * 8f));
+            float rim = Mathf.Clamp01(1f - shape * 5f);
+            c = Color.Lerp(c, new Color(0.08f, 0.05f, 0.12f), rim * 0.8f);
+            return new Color(c.r, c.g, c.b, edge);
+        }, false);
+
+        private static float Ellipse(float u, float v, float cx, float cy, float rx, float ry)
+        {
+            float dx = (u - cx) / rx, dy = (v - cy) / ry;
+            return 1f - (dx * dx + dy * dy);
+        }
+
+        /// <summary>
+        /// Two-frame angel silhouette sheet (wings up | wings down): glowing robe, head,
+        /// halo and feathered wings, with a soft aura so bloom can lift it.
+        /// </summary>
+        public static Texture2D AngelSheet()
+        {
+            const int w = 256, h = 128;
+            var tex = new Texture2D(w, h, TextureFormat.RGBA32, true) { name = "Angels" };
+            var colors = new Color[w * h];
+            for (int frame = 0; frame < 2; frame++)
+            {
+                float lift = frame == 0 ? 0.10f : -0.06f;
+                for (int y = 0; y < h; y++)
+                    for (int x = 0; x < 128; x++)
+                    {
+                        float u = x / 128f, v = y / 128f;
+                        float a = 0f;
+                        // Robe: soft trapezoid.
+                        float robeW = Mathf.Lerp(0.15f, 0.06f, Mathf.InverseLerp(0.12f, 0.58f, v));
+                        if (v > 0.12f && v < 0.60f && Mathf.Abs(u - 0.5f) < robeW) a = 1f;
+                        // Head and halo.
+                        float head = Vector2.Distance(new Vector2(u, v), new Vector2(0.5f, 0.68f));
+                        if (head < 0.07f) a = 1f;
+                        float halo = Mathf.Abs(Vector2.Distance(new Vector2(u, v * 2.8f), new Vector2(0.5f, 0.80f * 2.8f)) - 0.09f);
+                        float haloA = Mathf.Clamp01(1f - halo / 0.018f);
+                        // Wings: feathered ellipses on both sides, tilted by the frame.
+                        for (int side = -1; side <= 1; side += 2)
+                        {
+                            float cx = 0.5f + side * 0.20f, cy = 0.50f + lift;
+                            float dx = (u - cx) / 0.20f, dy = (v - cy - (u - 0.5f) * side * lift * 1.6f) / 0.13f;
+                            float e = 1f - (dx * dx + dy * dy);
+                            if (e > 0f)
+                            {
+                                float feather = 0.75f + 0.25f * Mathf.Sin((u - 0.5f) * side * 60f);
+                                a = Mathf.Max(a, Mathf.Clamp01(e * 4f) * feather);
+                            }
+                        }
+                        float aura = Mathf.Clamp01(1f - Vector2.Distance(new Vector2(u, v), new Vector2(0.5f, 0.5f)) * 2.1f);
+                        var c = new Color(1f, 0.97f, 0.88f, Mathf.Max(a, aura * aura * 0.35f));
+                        if (haloA > 0.01f) c = new Color(1f, 0.85f, 0.45f, Mathf.Max(c.a, haloA));
+                        colors[y * w + frame * 128 + x] = c;
+                    }
+            }
+            tex.SetPixels(colors);
+            tex.wrapMode = TextureWrapMode.Clamp;
+            tex.filterMode = FilterMode.Bilinear;
+            tex.Apply();
+            return tex;
+        }
+
+        /// <summary>Flat disc mesh (radius r, rings x segments) with uv spanning [0,1] across the diameter.</summary>
+        public static Mesh DiscMesh(float radius, int segments)
+        {
+            var verts = new List<Vector3> { Vector3.zero };
+            var uvs = new List<Vector2> { new Vector2(0.5f, 0.5f) };
+            var tris = new List<int>();
+            for (int i = 0; i <= segments; i++)
+            {
+                float a = i / (float)segments * Mathf.PI * 2f;
+                verts.Add(new Vector3(Mathf.Cos(a) * radius, 0, Mathf.Sin(a) * radius));
+                uvs.Add(new Vector2(0.5f + Mathf.Cos(a) * 0.5f, 0.5f + Mathf.Sin(a) * 0.5f));
+                if (i > 0) { tris.Add(0); tris.Add(i + 1); tris.Add(i); }
+            }
+            var mesh = new Mesh { name = "Disc" };
+            mesh.SetVertices(verts); mesh.SetUVs(0, uvs); mesh.SetTriangles(tris, 0);
+            mesh.RecalculateNormals(); mesh.RecalculateBounds();
+            return mesh;
+        }
+
         public static Texture2D SkyGradient() => MakeTex("Sky", 64, (u, v) =>
             Color.Lerp(new Color(0.05f, 0.14f, 0.18f), new Color(0.01f, 0.03f, 0.05f), v), false);
 

@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using DestinyGarden.Application;
@@ -17,6 +18,11 @@ namespace DestinyGarden.Presentation
         private GardenView _view;
         private GardenUi _ui;
         private GardenAudio _audio;
+        private SacredAtmosphere _atmosphere;
+        private GardenWonders _wonders;
+        private GardenLife _life;
+        private bool _butterfliesShown;
+        private bool _captureNoUi;
         private string _intentKind = "none";
         private string _intentValue;
         private bool _busy;
@@ -43,6 +49,14 @@ namespace DestinyGarden.Presentation
 
             _view = gameObject.AddComponent<GardenView>();
             _view.Build();
+            _atmosphere = gameObject.AddComponent<SacredAtmosphere>();
+            _atmosphere.Build();
+            _wonders = gameObject.AddComponent<GardenWonders>();
+            _wonders.View = _view;
+            _wonders.Build();
+            _life = gameObject.AddComponent<GardenLife>();
+            _life.View = _view;
+            _life.Build();
             _audio = gameObject.AddComponent<GardenAudio>();
             _ui = gameObject.AddComponent<GardenUi>();
             _ui.Audio = _audio;
@@ -52,6 +66,7 @@ namespace DestinyGarden.Presentation
             {
                 _intentKind = kind; _intentValue = value;
                 _ui.ShowIntentSelection(kind, value);
+                ShowPreparedFaces();
                 _ui.ShowStatus(kind == "none" ? "意図を添えずに振ります。" : "願いを添えました。配面は変わりません。");
             };
             _ui.OnSiteSelected = (mode, siteId) =>
@@ -66,35 +81,111 @@ namespace DestinyGarden.Presentation
                 _coordinator.SwitchToNewVisitor();
                 _coordinator.Prepare();
                 _intentKind = "none"; _intentValue = null;
+                _ui.ShowIntentSelection(_intentKind, _intentValue);
                 _ui.ShowMessage(null, null);
                 RefreshAll();
                 _ui.ShowStatus("新しい庭を用意しました。");
             };
             _ui.OnExport = ExportNow;
+            _ui.OnAddLuckySeven = () =>
+            {
+                if (_busy) return;
+                if (_coordinator.AddLuckySeven() == null) return;
+                ShowPreparedFaces();
+                _ui.ShowStatus("七つめの面が加わった。どの面も 1/7。");
+            };
             _ui.OnHideUi = () => StartCoroutine(HideUiTemporarily());
             _ui.Build();
             _ui.ShowIntentSelection(_intentKind, _intentValue);
             _ui.ShowSiteSelection(_coordinator.PreferenceMode, _coordinator.PreferenceSiteId);
             RefreshAll();
-            _ui.ShowStatus("公開された6面を見て、サイコロを振ってください。");
+            _ui.ShowStatus(_coordinator.LuckySevenOffered && !_coordinator.LuckySevenAdded
+                ? "七つめの面が、そっと現れている。"
+                : "公開された面を見て、サイコロを振ってください。");
+            _ui.ShowTitleCard(true);
 
             // QA hook (explicit launch arguments only; never active in normal play):
             // -dgAutoRolls N performs N honest rolls through the coordinator,
-            // -dgCapture PATH saves a screenshot and quits.
+            // -dgCapture PATH saves a screenshot and quits,
+            // -dgWonders (with -dgCapture) previews butterflies, halo and the rainbow eight
+            // for screenshots only; it never writes to the journal.
             string[] args = Environment.GetCommandLineArgs();
             string capturePath = null;
             int autoRolls = 0;
+            bool wonders = Array.IndexOf(args, "-dgWonders") >= 0;
+            _captureNoUi = Array.IndexOf(args, "-dgNoUi") >= 0; // QA capture only: hide the canvas
             for (int i = 0; i + 1 < args.Length; i++)
             {
                 if (args[i] == "-dgCapture") capturePath = args[i + 1];
                 if (args[i] == "-dgAutoRolls") int.TryParse(args[i + 1], out autoRolls);
             }
-            if (capturePath != null) StartCoroutine(CaptureRoutine(capturePath, autoRolls));
+            if (capturePath != null) StartCoroutine(CaptureRoutine(capturePath, autoRolls, wonders));
         }
 
-        private IEnumerator CaptureRoutine(string path, int autoRolls)
+        private void Update()
+        {
+            if (_view == null) return;
+            if (_atmosphere != null) _atmosphere.ReducedMotion = _view.ReducedMotion;
+            if (_wonders != null) _wonders.ReducedMotion = _view.ReducedMotion;
+            if (_life != null) _life.ReducedMotion = _view.ReducedMotion;
+        }
+
+        /// <summary>Publishes the prepared faces, the Lucky Seven offer and the die's lucky state.</summary>
+        private void ShowPreparedFaces(int rolledFaceId = 0)
+        {
+            bool prepared = _coordinator.Phase == CoordinatorPhase.Prepared;
+            bool offered = prepared && _coordinator.LuckySevenOffered && !_coordinator.LuckySevenAdded;
+            _ui.ShowLuckyOffer(offered);
+            int wished = 0;
+            if (_intentKind == "face" && int.TryParse(_intentValue, out int wf)) wished = wf;
+            _ui.ShowFaces(_coordinator.CurrentFaces != null ? _coordinator.CurrentFaces.Faces : null, rolledFaceId, wished);
+            bool sevenUp = prepared && _coordinator.LuckySevenAdded;
+            _view.SetLuckyDice(sevenUp);
+            _wonders.SetLuckyHalo(sevenUp || offered);
+        }
+
+        /// <summary>One quiet line about what the garden's residents did; never explains the rules.</summary>
+        private static string EcologyLine(RollOutcome outcome)
+        {
+            var eco = outcome.Ecology;
+            if (eco == null) return null;
+            bool Seeded(string kind) => eco.Effects.Exists(e => e.Seed && e.Kind == kind);
+            bool Fed(string kind) => eco.Effects.Exists(e => !e.Seed && e.Kind == kind && e.Amount > 0);
+            if (Fed(Ecology.Spirit)) return "……かすかな光が、花のほうへ降りていった。";
+            if (Seeded(Ecology.Bird)) return "小鳥が、どこからか種を落としていった。";
+            if (Seeded(Ecology.Butterfly)) return "蝶の運んだ花粉が、離れた土に落ちた。";
+            if (Seeded(Ecology.Bee)) return "蜂の通ったあとに、小さな種がこぼれた。";
+            if (Seeded(Ecology.Fluff)) return "綿毛が風に乗って、東の土へ。";
+            if (Fed(Ecology.Mushroom)) return "岩陰の湿りに、きのこが顔を出した。";
+            if (Fed(Ecology.Firefly)) return "苔の灯りに、蛍が寄ってくる。";
+            if (eco.Has(Ecology.Fish)) return "あふれた水が海へ。魚の影が寄ってくる。";
+            if (Fed(Ecology.Worm)) return "土の下で、何かが静かに働いている。";
+            if (eco.Has(Ecology.Dragonfly)) return "水たまりの上を、トンボが渡る。";
+            return null;
+        }
+
+        /// <summary>Residents follow the domain's Ecology.Presence over the saved state and rolled history.</summary>
+        private void UpdateButterflies(List<RoundSummary> history)
+        {
+            var presence = Ecology.Presence(_coordinator.State, _coordinator.CurrentWeather, new List<string>(_coordinator.RolledRecipes), null);
+            _life.ShowPresence(presence, _coordinator.State);
+            var kinds = new List<string>();
+            foreach (var v in presence) kinds.Add(v.Kind);
+            _ui.ShowResidents(kinds);
+            bool active = presence.Exists(v => v.Kind == Ecology.Butterfly);
+            var tops = new List<Vector3>();
+            foreach (var plant in _coordinator.State.Plants)
+                if (plant.Stage == PlantStage.Flower)
+                    tops.Add(_view.CellTop(plant.CellId) + Vector3.up * (0.80f + plant.Growth / 2500f * 0.44f));
+            _wonders.SetButterflies(active, tops);
+            if (active && !_butterfliesShown && !_busy) _ui.ShowStatus("どこからか、蝶が。");
+            _butterfliesShown = active;
+        }
+
+        private IEnumerator CaptureRoutine(string path, int autoRolls, bool wonders)
         {
             _view.ReducedMotion = true;
+            _ui.ShowTitleCard(false);
             RollOutcome last = null;
             for (int i = 0; i < autoRolls; i++)
             {
@@ -106,11 +197,24 @@ namespace DestinyGarden.Presentation
             }
             if (last != null) { _view.SetDiceFace(last.FaceId); _ui.ShowMessage(last.Message, last); }
             RefreshAll(last != null ? last.FaceId : 0);
+            if (wonders)
+            {
+                var tops = new List<Vector3>();
+                foreach (var plant in _coordinator.State.Plants)
+                    tops.Add(_view.CellTop(plant.CellId) + Vector3.up * 0.9f);
+                _wonders.SetButterflies(true, tops);
+                _wonders.SetLuckyHalo(true);
+                _view.SetLuckyDice(true);
+                _view.ReducedMotion = false;
+                StartCoroutine(_wonders.PlayRainbowEight());
+                yield return new WaitForSeconds(4.2f);
+            }
             yield return new WaitForSeconds(1.2f);
             yield return new WaitForEndOfFrame();
             // RenderTexture capture works headless where ScreenCapture does not.
             var cam = Camera.main;
             var canvas = FindFirstObjectByType<UnityEngine.Canvas>();
+            if (canvas != null && _captureNoUi) canvas.enabled = false;
             if (canvas != null)
             {
                 canvas.renderMode = UnityEngine.RenderMode.ScreenSpaceCamera;
@@ -140,11 +244,11 @@ namespace DestinyGarden.Presentation
             string site = _coordinator.CurrentFaces != null
                 ? Sites.ById(_coordinator.CurrentFaces.ResolvedSiteId).LabelJa : "";
             _ui.ShowHeader(weather, site, _coordinator.State.WorldRevision);
-            int wished = 0;
-            if (_intentKind == "face" && int.TryParse(_intentValue, out int wf)) wished = wf;
-            _ui.ShowFaces(_coordinator.CurrentFaces != null ? _coordinator.CurrentFaces.Faces : null, rolledFaceId, wished);
+            ShowPreparedFaces(rolledFaceId);
             var read = _journal.ReadAll();
-            _ui.RefreshHistory(HistoryProjector.Project(read.Entries, _coordinator.RunId));
+            var history = HistoryProjector.Project(read.Entries, _coordinator.RunId);
+            _ui.RefreshHistory(history);
+            UpdateButterflies(history);
         }
 
         private IEnumerator RollFlow()
@@ -183,9 +287,29 @@ namespace DestinyGarden.Presentation
             _view.SetDiceFace(outcome.FaceId);
             _ui.ShowMessage(outcome.Message, outcome);
             RefreshAll(outcome.FaceId);
+            _view.SetLuckyDice(outcome.LuckySeven);
+            bool rainbow = LuckySeven.IsRainbow(outcome.LuckySeven, outcome.Simulation);
+            if (rainbow) StartCoroutine(_wonders.PlayRainbowEight());
+            StartCoroutine(_life.PlayRollEffects(outcome.Ecology));
+            var spirit = outcome.Ecology != null ? outcome.Ecology.Visit(Ecology.Spirit) : null;
+            if (spirit != null)
+            {
+                // A wish took shape: spirits carry nourishment to the plants the ecology step fed
+                // (or, if all were in flower, to the plants the blessing reached).
+                var cells = spirit.Cells.Count > 0 ? spirit.Cells : PrayerSpirits.ReachedPlantCells(outcome.Simulation);
+                var tops = new List<Vector3>();
+                foreach (int cell in cells) tops.Add(_view.CellTop(cell) + Vector3.up * 0.75f);
+                StartCoroutine(_wonders.PlayPrayerSpirits(tops));
+            }
             _coordinator.Prepare();
             // Publish the next faces only after the end state is on screen.
-            _ui.ShowFaces(_coordinator.CurrentFaces.Faces, 0);
+            ShowPreparedFaces();
+            if (outcome.LuckySeven) _view.SetLuckyDice(true);
+            string luckStatus = rainbow ? "空に、虹の八がかかった。"
+                : outcome.LuckySeven ? "七の目。恵みが重なって届いた。"
+                : EcologyLine(outcome);
+            if (luckStatus != null) _ui.ShowStatus(luckStatus);
+            else if (_coordinator.LuckySevenOffered) _ui.ShowStatus("七つめの面が、そっと現れている。");
             string weather = _coordinator.CurrentWeather.LabelJa;
             string site = Sites.ById(_coordinator.CurrentFaces.ResolvedSiteId).LabelJa;
             _ui.ShowHeader(weather, site, _coordinator.State.WorldRevision);

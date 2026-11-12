@@ -261,7 +261,8 @@ namespace DestinyGarden.Domain
             return result;
         }
 
-        private static void EmitStageEvents(SimulationResult result, PlantState plant, int oldGrowth, int tick)
+        // internal: the ecology step (ECOLOGY.md) reuses the same stage thresholds and events.
+        internal static void EmitStageEvents(SimulationResult result, PlantState plant, int oldGrowth, int tick)
         {
             CheckThreshold(result, plant, oldGrowth, 250, PlantStage.Sprout, "Germinated", tick);
             CheckThreshold(result, plant, oldGrowth, 750, PlantStage.Leaf, "LeafOpened", tick);
