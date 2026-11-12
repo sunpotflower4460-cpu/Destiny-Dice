@@ -17,6 +17,7 @@ namespace DestinyGarden.Presentation
         public Action<string, string> OnSiteSelected;   // mode, siteId
         public Action OnSwitchVisitor;
         public Action OnExport;
+        public Action OnHideUi;
 
         private Font _font;
         private Text _header;
@@ -35,10 +36,11 @@ namespace DestinyGarden.Presentation
         public GardenAudio Audio;
         public GardenView View;
 
-        private static readonly Color PanelColor = new Color(0.04f, 0.12f, 0.16f, 0.88f);
-        private static readonly Color ChipColor = new Color(0.10f, 0.22f, 0.28f, 0.95f);
-        private static readonly Color ChipActive = new Color(0.75f, 0.58f, 0.25f, 0.98f);
-        private static readonly Color TextColor = new Color(0.93f, 0.95f, 0.92f);
+        private static readonly Color PanelColor = new Color(0.015f, 0.05f, 0.07f, 0.92f);
+        private static readonly Color ChipColor = new Color(0.03f, 0.10f, 0.14f, 0.96f);
+        private static readonly Color ChipActive = new Color(0.75f, 0.45f, 0.12f, 1.0f);
+        private static readonly Color GoldText = new Color(0.018f, 0.010f, 0.002f);
+        private static readonly Color TextColor = new Color(0.888f, 0.871f, 0.791f);
 
         public Font UiFont
         {
@@ -71,12 +73,15 @@ namespace DestinyGarden.Presentation
                 es.AddComponent<UnityEngine.InputSystem.UI.InputSystemUIInputModule>();
             }
 
-            _header = MakeText(canvasObj.transform, new Vector2(0f, 1f), new Vector2(24f, -34f),
-                new Vector2(760f, 64f), 24, TextAnchor.UpperLeft);
-            _messageCard = MakeText(canvasObj.transform, new Vector2(0.5f, 1f), new Vector2(0f, -72f),
-                new Vector2(900f, 96f), 27, TextAnchor.MiddleCenter);
-            _status = MakeText(canvasObj.transform, new Vector2(0.5f, 0f), new Vector2(0f, 292f),
-                new Vector2(1100f, 40f), 20, TextAnchor.MiddleCenter);
+            _header = MakeText(canvasObj.transform, new Vector2(0f, 1f), new Vector2(36f, -42f),
+                new Vector2(640f, 44f), 25, TextAnchor.UpperLeft);
+            AddBacking(_header, new Vector2(10f, 5f));
+            _messageCard = MakeText(canvasObj.transform, new Vector2(0.5f, 1f), new Vector2(0f, -76f),
+                new Vector2(940f, 64f), 28, TextAnchor.MiddleCenter);
+            AddBacking(_messageCard, new Vector2(18f, 6f));
+            _status = MakeText(canvasObj.transform, new Vector2(0.5f, 0f), new Vector2(0f, 144f),
+                new Vector2(560f, 34f), 19, TextAnchor.MiddleCenter);
+            AddBacking(_status, new Vector2(12f, 4f));
 
             // Face chips (tap = wish for that face number).
             for (int i = 0; i < 6; i++)
@@ -86,7 +91,7 @@ namespace DestinyGarden.Presentation
                     new Vector2(24f + i * 148f, 180f), new Vector2(140f, 52f), "", 19,
                     () => OnIntentSelected?.Invoke("face", face.ToString()));
             }
-            MakeLabel(canvasObj.transform, new Vector2(24f, 236f), "今回の6面（押すとその目を願う）", 17);
+            MakeLabel(canvasObj.transform, new Vector2(24f, 236f), "今回の6面（押すとその目を願う。同じ面はその分出やすい）", 16);
 
             // Intent family chips.
             string[] intentKeys = { "none", "water", "wind", "light", "seed" };
@@ -115,7 +120,8 @@ namespace DestinyGarden.Presentation
             _rollButton = MakeChip(canvasObj.transform, new Vector2(0.5f, 0f),
                 new Vector2(0f, 62f), new Vector2(300f, 78f), "サイコロを振る", 27,
                 () => OnRoll?.Invoke());
-            _rollButton.GetComponent<Image>().color = new Color(0.55f, 0.42f, 0.18f, 0.98f);
+            _rollButton.GetComponent<Image>().color = new Color(0.694f, 0.392f, 0.076f, 1.0f);
+            _rollButton.GetComponentInChildren<Text>().color = GoldText;
 
             // Right-side menu.
             MakeChip(canvasObj.transform, new Vector2(1f, 1f), new Vector2(-96f, -60f), new Vector2(150f, 48f),
@@ -130,6 +136,32 @@ namespace DestinyGarden.Presentation
                 "設定", 20, () => TogglePanel(_settingsPanel));
 
             BuildPanels(canvasObj.transform);
+        }
+
+        private void AddBacking(Text text, Vector2 pad)
+        {
+            var bg = new GameObject("Backing");
+            var parent = text.transform.parent;
+            var siblingIndex = text.transform.GetSiblingIndex();
+            bg.transform.SetParent(parent, false);
+            bg.transform.SetSiblingIndex(siblingIndex);
+            var img = bg.AddComponent<Image>();
+            img.sprite = Rounded;
+            img.type = Image.Type.Sliced;
+            img.color = new Color(PanelColor.r, PanelColor.g, PanelColor.b, 0.62f);
+            var src = text.GetComponent<RectTransform>();
+            var rect = bg.GetComponent<RectTransform>();
+            rect.anchorMin = src.anchorMin; rect.anchorMax = src.anchorMax;
+            rect.pivot = src.pivot;
+            rect.anchoredPosition = src.anchoredPosition + new Vector2(
+                (0.5f - src.pivot.x) * pad.x, (0.5f - src.pivot.y) * pad.y);
+            rect.sizeDelta = src.sizeDelta + pad * 2f;
+        }
+
+        /// <summary>Hides all UI except a small restore chip (photo moment).</summary>
+        public void SetUiVisible(bool visible, string restoreLabel = null)
+        {
+            foreach (Transform child in transform) child.gameObject.SetActive(visible);
         }
 
         private void BuildPanels(Transform canvas)
@@ -172,16 +204,23 @@ namespace DestinyGarden.Presentation
                 new Vector2(180f, 48f), "消音 切替", 19, () => { if (Audio != null) Audio.Muted = !Audio.Muted; });
             MakeChip(_settingsPanel.transform, new Vector2(0.5f, 0.5f), new Vector2(110f, 30f),
                 new Vector2(180f, 48f), "動きを抑える", 19, () => { if (View != null) View.ReducedMotion = !View.ReducedMotion; });
-            MakeChip(_settingsPanel.transform, new Vector2(0.5f, 0.5f), new Vector2(0f, -70f),
+            MakeChip(_settingsPanel.transform, new Vector2(0.5f, 0.5f), new Vector2(-110f, -70f),
+                new Vector2(180f, 48f), "UIを隠す(4秒)", 19, () => OnHideUi?.Invoke());
+            MakeChip(_settingsPanel.transform, new Vector2(0.5f, 0.5f), new Vector2(110f, -70f),
                 new Vector2(160f, 48f), "閉じる", 19, () => _settingsPanel.SetActive(false));
             _settingsPanel.SetActive(false);
         }
+
+        private Sprite _rounded;
+        private Sprite Rounded => _rounded ?? (_rounded = ProceduralArt.RoundedSprite());
 
         private GameObject MakePanel(Transform parent, Vector2 size)
         {
             var obj = new GameObject("Panel");
             obj.transform.SetParent(parent, false);
             var img = obj.AddComponent<Image>();
+            img.sprite = Rounded;
+            img.type = Image.Type.Sliced;
             img.color = PanelColor;
             var rect = obj.GetComponent<RectTransform>();
             rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 0.5f);
@@ -205,14 +244,17 @@ namespace DestinyGarden.Presentation
             _header.text = $"空: {weatherLabel}　届け先: {siteLabel}　{revision}投目まで記録";
         }
 
-        public void ShowFaces(string[] faces, int rolledFaceId)
+        public void ShowFaces(string[] faces, int rolledFaceId, int wishedFaceId = 0)
         {
             for (int i = 0; i < 6; i++)
             {
                 var label = _faceChips[i].GetComponentInChildren<Text>();
                 label.text = faces != null ? $"{i + 1} {RecipeCatalog.LabelJa(faces[i])}" : "";
+                bool rolled = rolledFaceId == i + 1;
+                bool wished = wishedFaceId == i + 1 && !rolled;
                 _faceChips[i].GetComponent<Image>().color =
-                    rolledFaceId == i + 1 ? ChipActive : ChipColor;
+                    rolled ? ChipActive : wished ? new Color(0.05f, 0.35f, 0.38f, 0.98f) : ChipColor;
+                label.color = rolled ? GoldText : TextColor;
             }
         }
 
@@ -222,6 +264,7 @@ namespace DestinyGarden.Presentation
             {
                 bool active = (kind == "none" && kv.Key == "none") || (kind == "family" && kv.Key == value);
                 kv.Value.GetComponent<Image>().color = active ? ChipActive : ChipColor;
+                kv.Value.GetComponentInChildren<Text>().color = active ? GoldText : TextColor;
             }
         }
 
@@ -231,6 +274,7 @@ namespace DestinyGarden.Presentation
             {
                 bool active = (mode == "auto" && kv.Key == "auto") || (mode == "fixed" && kv.Key == siteId);
                 kv.Value.GetComponent<Image>().color = active ? ChipActive : ChipColor;
+                kv.Value.GetComponentInChildren<Text>().color = active ? GoldText : TextColor;
             }
         }
 
@@ -355,6 +399,8 @@ namespace DestinyGarden.Presentation
             var obj = new GameObject("Chip_" + label);
             obj.transform.SetParent(parent, false);
             var img = obj.AddComponent<Image>();
+            img.sprite = Rounded;
+            img.type = Image.Type.Sliced;
             img.color = ChipColor;
             var rect = obj.GetComponent<RectTransform>();
             rect.anchorMin = rect.anchorMax = anchor;

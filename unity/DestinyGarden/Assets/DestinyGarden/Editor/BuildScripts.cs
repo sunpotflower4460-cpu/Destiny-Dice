@@ -63,6 +63,28 @@ namespace DestinyGarden.EditorTools
                 EditorUtility.SetDirty(rendererData);
             }
 
+            foreach (string assetPath in new[] { "Assets/Settings/PC_RPAsset.asset", "Assets/Settings/Mobile_RPAsset.asset" })
+            {
+                var assets = AssetDatabase.LoadAllAssetsAtPath(assetPath);
+                if (assets.Length == 0) continue;
+                var so = new SerializedObject(assets[0]);
+                void SetInt(string prop, int value)
+                {
+                    var pr = so.FindProperty(prop);
+                    if (pr != null) pr.intValue = value;
+                }
+                void SetFloat(string prop, float value)
+                {
+                    var pr = so.FindProperty(prop);
+                    if (pr != null) pr.floatValue = value;
+                }
+                bool pc = assetPath.Contains("PC_");
+                SetInt("m_ShadowAtlasResolution", pc ? 2048 : 1024);
+                SetInt("m_ShadowCascadeCount", pc ? 2 : 1);
+                SetFloat("m_ShadowDistance", 32f);
+                so.ApplyModifiedProperties();
+            }
+
             EnsureGardenScene();
             EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(ScenePath, true) };
             AssetDatabase.SaveAssets();

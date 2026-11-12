@@ -1892,3 +1892,25 @@ Git diff whitespace check: pass
 - Editor: BuildScripts.cs（Android/Windows追加、SSAO無効化）
 - Tests: OracleTests.cs、ProjectSettings一式、visual-plan/（PRD・参照画像・確認画像）
 - PROGRESS.md（本追記）
+
+## G3 visual quality: 商品レベルへの見た目の引き上げ (2026-11-12)
+### 完了したこと
+- G1+G2+G3 を main へマージ後、専用ブランチ `feature/unity-garden-visual-quality` で視覚品質を全面刷新した。
+- アートディレクション: 参照コンセプト画2点と visual-plan/PRD に基づき、独立したアートディレクター役と批評家2名（可読性/商品性）で3ラウンドの撮影→批評→修正を実施。批評のblocker（サイコロ目とUI出目の不一致、文字の可読性、水と乾湿の読みにくさ、平坦な照明）を解消した: サイコロ上面は出目数に連動する発光ピップ、願い=青緑/結果=金で色分け、全テキストに半透明の背面パネル、水量で広がる水面、土の3段湿りランプ+濡れ光沢。
+- 表現: コード生成テクスチャ（土・石・苔・木目）、変位させた岩メッシュ、土の盛りドーム+苔の畝、木枠、霧シートと光条、遠景の岩影、花粉/雨粒子、曲がった茎と葉メッシュの植物、二層の花、角丸の石サイコロ、ACES+Bloom+SMAA、角丸スプライトのUI、金地に濃色文字でコントラスト確保、UIを隠す撮影モード（設定内、4秒）。
+- 撮影で見つけた不具合（透明マテリアルのバリアント剥奪による霧板の不透明化、木枠の回転誤り）を修正し、最終撮影で例外0を確認した。
+### 完了基準の結果（コマンド出力の要約）
+- Unity EditMode tests: green (13 passed)
+- macOS player: Succeeded。fresh journal で自動3投→RenderTexture撮影、例外0、出目・面チップ・サイコロ上面ピップの一致を目視確認（visual-plan/refs/build-visual-final.png）
+- iOS: Xcodeプロジェクト生成 Succeeded、xcodebuild（署名なし）exit 0
+- Android: APK Succeeded / Windows: exe Succeeded（実行はこのMacでは未検証）
+- 既存アプリ: tsc green、vitest 183 passed、vite build green
+- 批評家スコア（修正前スナップショット採点）: Readability 3 / Cohesion 4 / UI clarity 3、Mood 3 / Material 3 / Composition 4 / Store readiness 2 — blocker/major は本ラウンドで対応し最終撮影で再確認。再採点は未実施のためスコア更新は主張しない
+### 要確定・申し送り（次フェーズへ）
+- このブランチの main へのマージと push は未実施（人間の判断待ち）。
+- 正式タイトル、本番識別子、署名・審査、実機確認、最低機種、収益化は前回欄の判断事項を引き継ぐ。
+- 植物・岩・質感はコード生成の範囲での作り込み。さらなる品質向上には実素材（モデル/テクスチャ/フォント）の導入判断が要る。
+### 触ったファイル
+- Presentation: ProceduralArt.cs（新規）、GardenView.cs、GardenUi.cs、GardenBootstrap.cs
+- Editor: BuildScripts.cs（影設定）、Assets/Settings（RPAsset影）、ProjectSettings
+- visual-plan: art-plan.md、refs/build-visual-final.png、PROGRESS.md（本追記）

@@ -71,6 +71,7 @@ namespace DestinyGarden.Presentation
                 _ui.ShowStatus("新しい庭を用意しました。");
             };
             _ui.OnExport = ExportNow;
+            _ui.OnHideUi = () => StartCoroutine(HideUiTemporarily());
             _ui.Build();
             _ui.ShowIntentSelection(_intentKind, _intentValue);
             _ui.ShowSiteSelection(_coordinator.PreferenceMode, _coordinator.PreferenceSiteId);
@@ -101,9 +102,9 @@ namespace DestinyGarden.Presentation
                     _coordinator.CommitIntent("none", null);
                 last = _coordinator.Roll();
                 if (last == null) break;
-                _coordinator.Prepare();
+                if (i + 1 < autoRolls) _coordinator.Prepare();
             }
-            if (last != null) _ui.ShowMessage(last.Message, last);
+            if (last != null) { _view.SetDiceFace(last.FaceId); _ui.ShowMessage(last.Message, last); }
             RefreshAll(last != null ? last.FaceId : 0);
             yield return new WaitForSeconds(1.2f);
             yield return new WaitForEndOfFrame();
@@ -139,7 +140,9 @@ namespace DestinyGarden.Presentation
             string site = _coordinator.CurrentFaces != null
                 ? Sites.ById(_coordinator.CurrentFaces.ResolvedSiteId).LabelJa : "";
             _ui.ShowHeader(weather, site, _coordinator.State.WorldRevision);
-            _ui.ShowFaces(_coordinator.CurrentFaces != null ? _coordinator.CurrentFaces.Faces : null, rolledFaceId);
+            int wished = 0;
+            if (_intentKind == "face" && int.TryParse(_intentValue, out int wf)) wished = wf;
+            _ui.ShowFaces(_coordinator.CurrentFaces != null ? _coordinator.CurrentFaces.Faces : null, rolledFaceId, wished);
             var read = _journal.ReadAll();
             _ui.RefreshHistory(HistoryProjector.Project(read.Entries, _coordinator.RunId));
         }
@@ -177,6 +180,7 @@ namespace DestinyGarden.Presentation
                     break;
                 }
             }
+            _view.SetDiceFace(outcome.FaceId);
             _ui.ShowMessage(outcome.Message, outcome);
             RefreshAll(outcome.FaceId);
             _coordinator.Prepare();
@@ -188,6 +192,15 @@ namespace DestinyGarden.Presentation
             _view.Show(_coordinator.State, _coordinator.CurrentWeather);
             _busy = false;
             _ui.SetRollEnabled(true);
+        }
+
+        private IEnumerator HideUiTemporarily()
+        {
+            var canvas = FindFirstObjectByType<Canvas>();
+            if (canvas == null) yield break;
+            canvas.enabled = false;
+            yield return new WaitForSeconds(4f);
+            canvas.enabled = true;
         }
 
         private void ExportNow()
