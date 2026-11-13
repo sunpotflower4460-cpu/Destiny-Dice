@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using DestinyGarden.Application;
@@ -129,6 +130,70 @@ namespace DestinyGarden.Tests
             s.Plants[0].Species = "daisy";
             var withSpecies = WorldStateSerializer.FromPayload(WorldStateSerializer.ToPayload(s));
             Assert.AreEqual("daisy", withSpecies.Plants.First(p => p.PlantId == s.Plants[0].PlantId).Species);
+        }
+
+        [Test]
+        public void Leaning_FollowsTheRecentBlessings()
+        {
+            var iris = Flora.Get("iris"); var cosmos = Flora.Get("cosmos"); var rose = Flora.Get("wildrose");
+            var dandelion = Flora.Get("dandelion");
+            var waters = new[] { "water_drop", "water_rain", "water_drop" };
+            Assert.AreEqual(3, Flora.Leaning(iris, waters), "iris loves wet soil");
+            Assert.AreEqual(0, Flora.Leaning(cosmos, waters));
+            Assert.AreEqual(2, Flora.Leaning(cosmos, new[] { "light_soft", "light_beam" }), "cosmos needs sun");
+            Assert.AreEqual(1, Flora.Leaning(rose, new[] { "seed_single" }), "seed leans to berry plants");
+            Assert.AreEqual(1, Flora.Leaning(dandelion, new[] { "wind_breeze" }), "wind leans to wind-sown seeds");
+            Assert.AreEqual(0, Flora.Leaning(iris, null));
+            // Only the last eight rolls count.
+            var old = Enumerable.Repeat("water_rain", 5).Concat(Enumerable.Repeat("light_soft", 8)).ToList();
+            Assert.AreEqual(0, Flora.Leaning(iris, old));
+        }
+
+        /// <summary>Weights as ChooseSpecies sees them: a picker that records the total and returns a fixed draw.</summary>
+        private static string ChooseAt(WorldState s, PlantState seed, int draw, out int total)
+        {
+            int t = 0;
+            string chosen = Flora.ChooseSpecies(s, seed, "die", null, n => { t = n; return Math.Min(draw, n - 1); },
+                Array.Empty<string>());
+            total = t;
+            return chosen;
+        }
+
+        [Test]
+        public void Pioneer_StepsBack_AndCrowdingThinsTheSameSpecies()
+        {
+            var s = new WorldState();
+            // A plantable cell where many species fit.
+            int cell = -1;
+            for (int c = 0; c < GardenMapData.CellCount && cell < 0; c++)
+            {
+                if (GardenMapData.Plantable[c] != 1 || GardenMapData.SoilCapacity[c] <= 0) continue;
+                s.SoilWater[c] = GardenMapData.SoilCapacity[c] / 2;
+                if (Flora.FittingAt(s, c).Count >= Flora.PioneerStepsBackAt && Flora.FittingAt(s, c).Any(t => t.Id == Flora.Pioneer)) cell = c;
+                else s.SoilWater[c] = 0;
+            }
+            Assert.GreaterOrEqual(cell, 0, "a cell where several species fit");
+            var fit = Flora.FittingAt(s, cell);
+            var seed = new PlantState { PlantId = "seed", CellId = cell, OriginKind = "ecology" };
+            ChooseAt(s, seed, 0, out int total);
+            Assert.AreEqual(fit.Count * 2 - 1, total, "every fitting species weighs 2, the pioneer 1");
+
+            // Crowding: three plants of the first fitting species nearby take its weight from 2 to max(1, 2*3/6) = 1.
+            string first = fit[0].Id;
+            int placed = 0;
+            for (int c = 0; c < GardenMapData.CellCount && placed < 3; c++)
+            {
+                if (c == cell) continue;
+                int d = Math.Abs(c % 16 - cell % 16) + Math.Abs(c / 16 - cell / 16);
+                if (d > Flora.CrowdingReach) continue;
+                s.Plants.Add(new PlantState { PlantId = "n" + c, CellId = c, Stage = PlantStage.Seed, Species = first });
+                placed++;
+            }
+            Assert.AreEqual(3, placed);
+            var fitAfter = Flora.FittingAt(s, cell);
+            CollectionAssert.AreEqual(fit.Select(t => t.Id).ToList(), fitAfter.Select(t => t.Id).ToList(), "seeds do not change the soil");
+            ChooseAt(s, seed, 0, out int crowdedTotal);
+            Assert.AreEqual(total - (first == Flora.Pioneer ? 0 : 1), crowdedTotal);
         }
     }
 }

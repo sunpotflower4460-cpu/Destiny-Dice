@@ -325,7 +325,10 @@ namespace DestinyGarden.Presentation
                     _bankF[pi] = Mathf.SmoothStep(1.4f, 0.5f, r);
                     float shore = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(ShoreStart - 0.4f, ShoreStart + 1.0f, d));
                     _shoreF[pi] = shore * (0.85f + 0.15f * n2);
-                    _shade[pi] = 0.92f + 0.16f * n2;
+                    // Fine grain and mid-scale mottling so the ground never reads as a flat colour up close.
+                    float grain = ProceduralArt.Fbm(x * 5.5f + Off, z * 5.5f, 91, 2);
+                    float mid = ProceduralArt.Fbm(x * 1.4f, z * 1.4f, 92, 3);
+                    _shade[pi] = (0.92f + 0.16f * n2) * (0.90f + 0.20f * grain) * (0.94f + 0.12f * mid);
                     var bareCol = Color.Lerp(_bare[pi], Sand, _shoreF[pi]) * _shade[pi];
                     _bakePixels[pi] = new Color(bareCol.r, bareCol.g, bareCol.b, 1f);
                 }

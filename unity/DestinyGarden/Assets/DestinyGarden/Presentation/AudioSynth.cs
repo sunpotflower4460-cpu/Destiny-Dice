@@ -305,8 +305,8 @@ namespace DestinyGarden.Presentation
             return Finish(o, 0.5, 0.02);
         }
 
-        /// <summary>The bell that answers each roll.</summary>
-        public static float[] Bell(double f = 523.25)
+        /// <summary>The bell that answers each roll: upper do (D5), so the face's note that follows stays in D major.</summary>
+        public static float[] Bell(double f = 587.33)
         {
             var d = new double[(int)(3.2 * Rate)];
             Strike(d, 0, f, 1.0, 1.0);
@@ -458,6 +458,85 @@ namespace DestinyGarden.Presentation
             }
             for (int k = 0; k < 14; k++) Strike(d, 0.9 + k * 0.26, Note(k) * 2, 0.35, 0.55);
             return Finish(Reverb(d, 0.5, 3.6), 0.55);
+        }
+        // ---------------------------------------------------------------- the prayer star (solfège)
+
+        // D major: do re mi fa sol la si do (D4 E4 F#4 G4 A4 B4 C#5 D5). The seven faces are the seven
+        // notes; the eight-pointed star completes the octave.
+        private static readonly double[] Solfege = { 293.66, 329.63, 369.99, 392.00, 440.00, 493.88, 554.37, 587.33 };
+
+        /// <summary>Scale degree 1..8 (do .. upper do) of D major, octave 0 = D4.</summary>
+        public static double SolfegeNote(int degree, int octave = 0)
+        {
+            int d = Math.Max(1, Math.Min(8, degree));
+            return Solfege[d - 1] * Math.Pow(2.0, octave);
+        }
+
+        /// <summary>A soft glass tone: a quick but gentle attack, few partials, a long quiet tail.</summary>
+        private static void Glass(double[] dst, double startSec, double f, double gain, double decay, double attack = 0.012)
+        {
+            double[,] p = { { 1.0, 1.0, 1.0 }, { 2.0, 0.16, 0.55 }, { 3.0, 0.045, 0.35 }, { 1.0016, 0.35, 1.1 } };
+            int start = (int)(startSec * Rate);
+            for (int k = 0; k < p.GetLength(0); k++)
+            {
+                double fr = f * p[k, 0];
+                if (fr > 9000) continue;
+                double dec = decay * p[k, 2];
+                int len = Math.Min(dst.Length - start, (int)(dec * 6 * Rate));
+                for (int i = 0; i < len; i++)
+                {
+                    double t = i / (double)Rate;
+                    double a = Math.Min(1.0, t / attack); a = a * a * (3 - 2 * a);
+                    dst[start + i] += Math.Sin(2 * Math.PI * fr * t + k * 0.9) * gain * p[k, 1] * a * Math.Exp(-t / dec);
+                }
+            }
+        }
+
+        /// <summary>The note of a rolled face: face n sings degree n (1 = do .. 7 = si), an octave up.</summary>
+        public static float[] FaceNote(int face)
+        {
+            var d = new double[(int)(2.6 * Rate)];
+            double f = SolfegeNote(Math.Max(1, Math.Min(7, face)), 1);
+            Glass(d, 0, f, 1.0, 0.75);
+            return Finish(Reverb(d, 0.55, 2.2), 0.42);
+        }
+
+        /// <summary>
+        /// The prayer star settles: 5 = do-sol (an open fifth), 6 = do-mi-sol (yin and yang joined),
+        /// 7 = do-mi-sol-si (the lucky number), 8 = the scale climbs do..do and the octave chord opens.
+        /// A slow swell, so it sits under the other sounds rather than on top of them.
+        /// </summary>
+        public static float[] StarChord(int points)
+        {
+            double dur = points >= 8 ? 5.2 : 4.2;
+            var d = new double[(int)(dur * Rate)];
+            double t0 = 0;
+            if (points >= 8)
+            {
+                for (int k = 1; k <= 8; k++) Glass(d, (k - 1) * 0.12, SolfegeNote(k, 1), 0.42, 0.5);
+                t0 = 0.95;
+            }
+            int[] degrees = points >= 8 ? new[] { 1, 5, 8, 10 } : points == 7 ? new[] { 1, 3, 5, 7 }
+                : points == 6 ? new[] { 1, 3, 5 } : new[] { 1, 5 };
+            for (int k = 0; k < degrees.Length; k++)
+            {
+                int deg = degrees[k];
+                double f = deg > 8 ? SolfegeNote(deg - 7, 1) : SolfegeNote(deg);
+                double start = t0 + k * 0.09;
+                // A swelling sine pair (slightly detuned) gives the sustained "held breath" of the chord.
+                int s0 = (int)(start * Rate);
+                double hold = dur - start;
+                for (int i = 0; s0 + i < d.Length; i++)
+                {
+                    double t = i / (double)Rate;
+                    double att = Math.Min(1.0, t / 0.6); att = att * att * (3 - 2 * att);
+                    double rel = Math.Exp(-Math.Max(0, t - 0.6) / (hold * 0.32));
+                    d[s0 + i] += (Math.Sin(2 * Math.PI * f * t) + 0.5 * Math.Sin(2 * Math.PI * (f * 1.0021) * t + 0.7)) * att * rel * 0.30;
+                }
+                Glass(d, start, f * 2, 0.22, 0.9);
+            }
+            if (points == 7) for (int k = 0; k < 3; k++) Glass(d, t0 + 0.5 + k * 0.16, SolfegeNote(7, 2), 0.10, 0.4);
+            return Finish(Reverb(d, 0.6, 3.0), 0.45, 0.6);
         }
     }
 }

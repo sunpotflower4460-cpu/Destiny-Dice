@@ -160,7 +160,13 @@ namespace DestinyGarden.Tests
         {
             List<string> Play(bool inspect)
             {
-                var m = new Memory(); var ids = new SequentialIds(); var c = new GardenCoordinator(m, new FixedEntropy("v8-golden"), ids); c.CreateRun();
+                var m = new Memory(); var ids = new SequentialIds(); var c = new GardenCoordinator(m, new FixedEntropy("v8-golden"), ids);
+                var initial = WorldState.CreateInitial(); initial.Ecosystem = EcosystemState.CreateCurrent();
+                m.Append("RunStarted", ids.NewId("run"), null, new Dictionary<string, object>
+                {
+                    ["initialState"] = WorldStateSerializer.ToPayload(initial)
+                });
+                c.Restore(new JournalReadResult { ChainValid = true, Entries = Json(m.Entries) });
                 Assert.AreEqual("668ca78cd1c4d4153e0b7ad093ac0475dd8a800e2d3f1d6e263209442996e8ae", Hashing.StateHash(c.State)); var hashes = new List<string>();
                 for (int i = 0; i < 96; i++)
                 {
@@ -172,7 +178,9 @@ namespace DestinyGarden.Tests
                         CareAftercare.Describe(CareAftercare.Project(HistoryProjector.Project(m.Entries, c.RunId)));
                         Assert.AreEqual(before, Hashing.StateHash(c.State)); Assert.AreEqual(entries, m.Entries.Count);
                     }
-                    c.CommitIntent("none", null); var result = c.Roll(); hashes.Add(Hashing.StateHash(c.State) + CanonicalJson.Write(result.Ecology.Care.ToPayload()));
+                    c.CommitIntent("none", null); var result = c.Roll();
+                    Assert.IsNull(result.Ecology.PrayerStar);
+                    hashes.Add(Hashing.StateHash(c.State) + CanonicalJson.Write(result.Ecology.Care.ToPayload()));
                 }
                 Assert.AreEqual("4e19b9158377f916864048584c6eb45b08700076a0842a61be4c90d7cb3ca297", Hashing.StateHash(c.State));
                 TestContext.WriteLine($"guidance inspect={inspect}: rolls={hashes.Count}, final-plants={c.State.Plants.Count}"); return hashes;

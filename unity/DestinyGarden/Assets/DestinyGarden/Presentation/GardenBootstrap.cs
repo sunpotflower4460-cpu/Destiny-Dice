@@ -22,6 +22,7 @@ namespace DestinyGarden.Presentation
         private GardenWonders _wonders;
         private GardenLife _life;
         private IslandHarmony _islandHarmony;
+        private PrayerStarSigil _sigil; // prayer star on the sea, geared to the die (prayer-star.v1)
         private int _harmonyNow = -1, _lastStar = -1;
         private readonly QualityMonitor _quality = new QualityMonitor();
         private float _vitalityNow;
@@ -85,6 +86,11 @@ namespace DestinyGarden.Presentation
             _islandHarmony.View = _view;
             _islandHarmony.Build();
             _audio = gameObject.AddComponent<GardenAudio>();
+            _sigil = gameObject.AddComponent<PrayerStarSigil>();
+            _sigil.View = _view;
+            _sigil.Audio = _audio;
+            _sigil.Build();
+            _sigil.ShowSaved(HistoryProjector.Project(_journal.ReadAll().Entries, _coordinator.RunId));
             _ui = gameObject.AddComponent<GardenUi>();
             _ui.Audio = _audio;
             _ui.View = _view;
@@ -195,6 +201,7 @@ namespace DestinyGarden.Presentation
             if (_life != null) _life.ReducedMotion = _view.ReducedMotion;
             if (_view.Flora != null) _view.Flora.ReducedMotion = _view.ReducedMotion;
             if (_islandHarmony != null) _islandHarmony.ReducedMotion = _view.ReducedMotion;
+            if (_sigil != null) _sigil.ReducedMotion = _view.ReducedMotion;
         }
 
         /// <summary>Publishes the prepared faces, the Lucky Seven offer and the die's lucky state.</summary>
@@ -252,12 +259,9 @@ namespace DestinyGarden.Presentation
                 foreach (var p in _coordinator.State.Plants)
                     if (p.Stage == PlantStage.Flower && p.Species == t.Id) { blooming.Add(t.LabelJa); break; }
             _ui.ShowComposition(blooming, value);
-            _atmosphere.SetStar(star);
+            _atmosphere.SetStar(0); // the star on the sea is now the prayer star, geared to the die (PrayerStarSigil)
             _view.SetBalance(live.Yin, live.Yang);
             _islandHarmony.ShowNetwork(_coordinator.State, value);
-            if (_lastStar >= 0 && star > _lastStar) _audio.PlayStarUp(star);
-            if (_lastStar >= 0 && star > _lastStar && !_busy)
-                _ui.ShowStatus(star == 8 ? "島が、八つの光に包まれた。" : star == 7 ? "七つの灯が、星のかたちに結ばれた。" : "海の灯が、五つの光で結ばれた。");
             _lastStar = star;
         }
 
@@ -447,7 +451,8 @@ namespace DestinyGarden.Presentation
             _ui.ShowMessage(outcome.Message, outcome, moment);
             RefreshAll(outcome.FaceId);
             _view.SetLuckyDice(outcome.LuckySeven);
-            bool rainbow = LuckySeven.IsRainbow(outcome.LuckySeven, outcome.Simulation, outcome.Ecology);
+            StartCoroutine(_sigil.PlayReveal(outcome, _coordinator.State));
+            bool rainbow = PrayerStar.IsRainbow(outcome.LuckySeven, outcome.Simulation, outcome.Ecology);
             if (rainbow) { StartCoroutine(_wonders.PlayRainbowEight()); _audio.PlayRainbow(); }
             StartCoroutine(_life.PlayGrowthMoments(outcome, _audio));
             StartCoroutine(_life.PlayRollEffects(outcome.Ecology));

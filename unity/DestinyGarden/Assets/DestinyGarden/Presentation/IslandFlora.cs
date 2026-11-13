@@ -211,10 +211,13 @@ namespace DestinyGarden.Presentation
                 {
                     // Low mossy mounds in small families, not flat discs.
                     var mossC = Color.Lerp(new Color(0.18f, 0.40f, 0.22f), new Color(0.40f, 0.58f, 0.26f), R()) * tone;
-                    for (int i = 0; i < 3 + rng.Next(3); i++)
+                    for (int i = 0; i < 5 + rng.Next(4); i++)
                     {
-                        float r = 0.05f + 0.07f * R();
-                        b.Ball(p + Lean(0.12f) + Vector3.up * 0.015f, new Vector3(r, r * 0.75f, r), mossC * (0.9f + R() * 0.2f), 0f, 6, 3);
+                        float r = 0.025f + 0.05f * R() * R() + 0.015f;
+                        var c = p + Lean(0.10f) + Vector3.up * 0.01f;
+                        var col = mossC * (0.8f + R() * 0.35f);
+                        b.Ball(c, new Vector3(r * (0.8f + R() * 0.6f), r * 0.7f, r * (0.8f + R() * 0.6f)), col, 0f, 7, 3);
+                        if (R() < 0.4f) b.Blade(c, Lean(0.05f), 0.05f + 0.04f * R(), 0.012f, col * 0.8f, col * 1.25f, yaw + i);
                     }
                     break;
                 }

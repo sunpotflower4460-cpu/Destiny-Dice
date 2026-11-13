@@ -26,6 +26,7 @@ namespace DestinyGarden.Domain
             };
             if (e.Succession != null) payload["succession"] = SuccessionSerializer.ToPayload(e.Succession);
             if (e.Habitat != null) payload["habitat"] = HabitatSerializer.ToPayload(e.Habitat);
+            if (e.BlessingFlora) payload["blessingFlora"] = true;
             return payload;
         }
 
@@ -44,6 +45,7 @@ namespace DestinyGarden.Domain
                 e.Succession = SuccessionSerializer.FromPayload(sd);
             if (d.TryGetValue("habitat", out object habitat) && habitat is IDictionary<string, object> hd)
                 e.Habitat = HabitatSerializer.FromPayload(hd);
+            e.BlessingFlora = d.TryGetValue("blessingFlora", out object blessing) && blessing is bool active && active;
             return e;
         }
 
