@@ -2067,3 +2067,41 @@ Git diff whitespace check: pass
 - Presentation: IslandSeed.cs・CameraRig.cs（新規）、IslandTerrain.cs、IslandFlora.cs、GardenView.cs、GardenBootstrap.cs、GardenUi.cs、GardenWonders.cs、SkyClock.cs
 - Tests: PresentationTests.cs
 - docs/jam-submission/、PROGRESS.md
+
+## Jam 祈りの星 — 出目で変わる祭壇の星・ラッキーナンバー・八の虹・ドレミの音（2026-11-13）
+
+### 完了したこと
+
+- 祭壇のサイコロの下に「祈りの星」を置いた（Domain/PrayerStar.cs、prayer-star.v1、ecology.v4）。一投ごとに保存済みの事実だけで星が決まる。
+  五芒星（命の星）／六芒星（前の一投と恵みの陰陽が入れ替わった、または願いが叶った）／七芒星「ラッキーナンバー」（七の目、または前の目＋今の目＝7）／
+  八芒星「八の虹」（ラッキーナンバー＋陰陽の結びか願い＋調和7以上）。偶然は使わない。
+- 星は生態系の育ち方を変える: 花でない若い株へ 五=+5×5株、六=+16×6株、七=+77×7株、八=花でない全株に+88。水は動かさない。記録は `Resolved.ecology.prayerStar` と effects kind=`star`。
+- 虹の八（rainbow.v3）: 八芒星でも虹がかかる（従来の幸運の七＋庭の応答も継続）。
+- 見せ方（Presentation/AltarSigil.cs、新規）: 祭壇を囲む光の星をゆっくり回し、一投後に古い星が回りながら縮んで消え、新しい星が現れて落ち着く。
+  八芒星は虹の八色。七・八では「ラッキーナンバー ７」「八芒星・八の虹」と、前の目・今の目・偶然の確率（1/6 または 1/7）を表示。恵みを受けた株に光が降りる。動きを抑える設定では回転しない。
+- 音（AudioSynth / GardenAudio）: 出目 n の音（D長調 1=ド … 7=シ）と、星の和音（五=ド・ソ、六=ド・ミ・ソ、七=ド・ミ・ソ・シ、八=ドからドへ音階を昇って和音）。
+- 設計: docs/unity-garden/ECOLOGY.md §8。
+
+### 完了基準の結果（コマンド出力の要約）
+
+- Unity EditMode: `total="50" passed="50" failed="0"`（HEAD の 41 + 新規 9）。macOS ビルド `Succeeded`。
+- 星の出現率（720投の計測）: 五 25.8%、六 54.6%、七 16.7%、八 2.9%。虹の八は約18投に1回（rainbow.v2 だけなら約26投に1回）。星の恵みは1投平均 159.4。
+  初案（八芒星の調和しきい値6）では八が 5.3%・虹が13投に1回と多すぎたため、しきい値を7にした。
+- 音の実測（claude-music-ear / pyloudnorm、再生音量込み）: 出目の音 約 −24.7 LUFS、星の和音 −24〜−28 LUFS。既存の鐘 −19.5、開花 −19.9、星 −20.9、幸運の七 −19.2 より 5〜7 LU 小さい。
+  出目の音の基本周波数は D長調から 0.4 Hz 以内（ド 587.5 … シ 1108.7 Hz）。クリップ 0。
+- macOS 隔離プレビュー（別の会社名・製品名・バンドルID の一時ビルド）で、10投後の五芒星、七芒星とラベル、虹色の八芒星を撮影して確認した。
+- `pnpm typecheck` 終了コード 0、`pnpm test` `183 passed (183)`、`pnpm build` `✓ built`（依存確認は無効化して既存の依存関係で実行）。
+
+### 要確定・申し送り
+
+- 星が切り替わる回転アニメーションと、恵みの株に光が降りる演出は、静止画の撮影でしか確認していない（実際の一投での動きは未確認）。本人が実機で一投して確かめること。
+- 音は実測のみで、耳での確認は本人に依頼する。既存の鐘（`AudioSynth.Bell()` の既定 523.25 Hz = C5）は D長調の外の音。今回は変えていない。
+- QA の注意: macOS ビルドの CFBundleIdentifier を後から書き換えても保存先は分かれず、本来の庭（`Destiny Garden/Destiny Garden`）に書き込まれる。
+  今回一度これで自動10投が本来の台帳に追記されたため、追記前の先頭 24,490 バイトに戻して SHA-256 一致（d605e4eb…）を確認した。隔離には会社名・製品名・バンドルIDを変えてビルドすること。
+- Codex と並行作業のため、このブランチ（`claude/prayer-star`）は df92f63 から分岐。GardenBootstrap.cs は数行の追加だけに留めた（Codex 側の未コミット変更と同じファイル）。
+
+### 触ったファイル
+
+- Domain: PrayerStar.cs（新規）、Ecology.cs。Application: GardenCoordinator.cs、HistoryProjector.cs。
+- Presentation: AltarSigil.cs（新規）、AudioSynth.cs、GardenAudio.cs、GardenBootstrap.cs（数行）。
+- Tests: PrayerStarTests.cs、SacredTonesTests.cs（新規）。docs/unity-garden/ECOLOGY.md §8、PROGRESS.md。

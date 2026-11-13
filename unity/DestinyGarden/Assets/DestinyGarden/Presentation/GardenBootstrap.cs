@@ -22,6 +22,7 @@ namespace DestinyGarden.Presentation
         private GardenWonders _wonders;
         private GardenLife _life;
         private IslandHarmony _islandHarmony;
+        private AltarSigil _sigil; // prayer star beneath the die (prayer-star.v1)
         private int _harmonyNow = -1, _lastStar = -1;
         private readonly QualityMonitor _quality = new QualityMonitor();
         private float _vitalityNow;
@@ -85,6 +86,11 @@ namespace DestinyGarden.Presentation
             _islandHarmony.View = _view;
             _islandHarmony.Build();
             _audio = gameObject.AddComponent<GardenAudio>();
+            _sigil = gameObject.AddComponent<AltarSigil>();
+            _sigil.View = _view;
+            _sigil.Audio = _audio;
+            _sigil.Build();
+            _sigil.ShowSaved(AltarSigil.LastStar(HistoryProjector.Project(_journal.ReadAll().Entries, _coordinator.RunId)));
             _ui = gameObject.AddComponent<GardenUi>();
             _ui.Audio = _audio;
             _ui.View = _view;
@@ -193,6 +199,7 @@ namespace DestinyGarden.Presentation
             if (_life != null) _life.ReducedMotion = _view.ReducedMotion;
             if (_view.Flora != null) _view.Flora.ReducedMotion = _view.ReducedMotion;
             if (_islandHarmony != null) _islandHarmony.ReducedMotion = _view.ReducedMotion;
+            if (_sigil != null) _sigil.ReducedMotion = _view.ReducedMotion;
         }
 
         /// <summary>Publishes the prepared faces, the Lucky Seven offer and the die's lucky state.</summary>
@@ -434,7 +441,8 @@ namespace DestinyGarden.Presentation
             _ui.ShowMessage(outcome.Message, outcome);
             RefreshAll(outcome.FaceId);
             _view.SetLuckyDice(outcome.LuckySeven);
-            bool rainbow = LuckySeven.IsRainbow(outcome.LuckySeven, outcome.Simulation, outcome.Ecology);
+            StartCoroutine(_sigil.PlayReveal(outcome, _coordinator.State));
+            bool rainbow = PrayerStar.IsRainbow(outcome.LuckySeven, outcome.Simulation, outcome.Ecology);
             if (rainbow) { StartCoroutine(_wonders.PlayRainbowEight()); _audio.PlayRainbow(); }
             StartCoroutine(_life.PlayGrowthMoments(outcome, _audio));
             StartCoroutine(_life.PlayRollEffects(outcome.Ecology));
@@ -460,6 +468,7 @@ namespace DestinyGarden.Presentation
             if (outcome.LuckySeven) _view.SetLuckyDice(true);
             string luckStatus = rainbow ? "空に、虹の八がかかった。"
                 : outcome.LuckySeven ? "七の目。恵みが重なって届いた。"
+                : outcome.Ecology?.PrayerStar?.Points == 7 ? "ラッキーナンバー。七つの芽に、星の恵み。"
                 : EcologyLine(outcome);
             if (luckStatus != null) _ui.ShowStatus(luckStatus);
             else if (_coordinator.LuckySevenOffered) _ui.ShowStatus("七つめの面が、そっと現れている。");

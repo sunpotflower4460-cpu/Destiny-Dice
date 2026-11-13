@@ -55,6 +55,7 @@ namespace DestinyGarden.Application
         private bool _luckyEarned;
         private string _restoreIntentKind, _restoreIntentValue;
         private readonly List<string> _rolledRecipes = new List<string>(); // oldest first, this run
+        private readonly List<int> _rolledFaces = new List<int>();          // oldest first, this run (prayer star)
         public IReadOnlyList<string> RolledRecipes => _rolledRecipes;
         public bool LuckySevenOffered { get; private set; }
         public bool LuckySevenAdded => CurrentFaces != null && CurrentFaces.Faces.Length == LuckySeven.FaceId;
@@ -72,6 +73,7 @@ namespace DestinyGarden.Application
             _weatherEntropyByPeriod.Clear();
             _luckyEarned = false; LuckySevenOffered = false;
             _rolledRecipes.Clear();
+            _rolledFaces.Clear();
             _writer.Append("RunStarted", RunId, null, new Dictionary<string, object>
             {
                 ["gameId"] = "destiny-garden",
@@ -289,6 +291,8 @@ namespace DestinyGarden.Application
             // Ecology step (ECOLOGY.md): after the natural simulation, from saved bytes only.
             bool matched = LuckySeven.IntentMatched(LastIntentKind, LastIntentValue, faceId, recipeId);
             _rolledRecipes.Add(recipeId);
+            int previousFace = _rolledFaces.Count > 0 ? _rolledFaces[_rolledFaces.Count - 1] : 0;
+            _rolledFaces.Add(faceId);
             var eco = DestinyGarden.Domain.Ecology.Apply(sim.PostState, new EcologyContext
             {
                 RoundId = roundId,
@@ -296,7 +300,9 @@ namespace DestinyGarden.Application
                 RecentRecipeIds = _rolledRecipes,
                 PrayerAnswered = matched,
                 Sim = sim,
-                Weather = CurrentWeather
+                Weather = CurrentWeather,
+                FaceId = faceId,
+                PreviousFaceId = previousFace
             }, ecologyBytes, n => _ids.NewId("plant") + "-eco" + n);
 
             var events = new List<object>();
@@ -377,6 +383,7 @@ namespace DestinyGarden.Application
             Phase = CoordinatorPhase.NoRun;
             _luckyEarned = false; LuckySevenOffered = false;
             _rolledRecipes.Clear();
+            _rolledFaces.Clear();
             _weatherEntropyByPeriod.Clear();
             _recentMessageIds.Clear();
 
@@ -393,6 +400,7 @@ namespace DestinyGarden.Application
                         PreferenceMode = "auto"; PreferenceSiteId = null;
                         _luckyEarned = false; LuckySevenOffered = false;
                         _rolledRecipes.Clear();
+                        _rolledFaces.Clear();
                         Phase = CoordinatorPhase.Ready;
                         break;
                     case "CareFocusChanged":
@@ -435,7 +443,11 @@ namespace DestinyGarden.Application
                         if (Phase == CoordinatorPhase.Prepared) Phase = CoordinatorPhase.IntentCommitted;
                         break;
                     case "OutcomeCommitted":
-                        if (e.Payload["recipeId"] is string rolledRecipe) _rolledRecipes.Add(rolledRecipe);
+                        if (e.Payload["recipeId"] is string rolledRecipe)
+                        {
+                            _rolledRecipes.Add(rolledRecipe);
+                            _rolledFaces.Add(WorldStateSerializer.ToInt(e.Payload["faceId"]));
+                        }
                         _luckyEarned = LuckySeven.IntentMatched(_restoreIntentKind, _restoreIntentValue,
                             WorldStateSerializer.ToInt(e.Payload["faceId"]), e.Payload["recipeId"] as string);
                         break;

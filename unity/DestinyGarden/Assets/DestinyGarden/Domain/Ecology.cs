@@ -28,6 +28,7 @@ namespace DestinyGarden.Domain
         public bool Exhausted;
         public HarmonyReading Harmony;                              // ecology.v2
         public List<List<int>> Networks = new List<List<int>>();    // mycorrhizal networks (cells), ecology.v2
+        public PrayerStarReading PrayerStar;                        // ecology.v4; null when the face was not given
 
         public bool Has(string kind) => Visits.Exists(v => v.Kind == kind);
         public EcologyVisit Visit(string kind) => Visits.Find(v => v.Kind == kind);
@@ -41,6 +42,8 @@ namespace DestinyGarden.Domain
         public bool PrayerAnswered;
         public SimulationResult Sim;            // this roll's natural simulation
         public WeatherDefinition Weather;
+        public int FaceId;                      // face rolled this time (1..7); 0 skips the prayer star (ecology.v4)
+        public int PreviousFaceId;              // face of the previous resolved roll in this run; 0 for none
     }
 
     /// <summary>
@@ -50,7 +53,7 @@ namespace DestinyGarden.Domain
     /// </summary>
     public static class Ecology
     {
-        public const string RulesVersion = "ecology.v3";
+        public const string RulesVersion = "ecology.v4";
         public const string Germinate = "germinate", Thrive = "thrive";
         public const string Mycorrhiza = "mycorrhiza";
         public const int MycorrhizaReach = 2;        // manhattan distance that links two plants
@@ -405,6 +408,17 @@ namespace DestinyGarden.Domain
                 }
             }
 
+            // 18. The prayer star beneath the die (ecology.v4, prayer-star.v1). No chance involved.
+            if (ctx.FaceId > 0)
+            {
+                var recent = ctx.RecentRecipeIds;
+                string previousRecipe = recent != null && recent.Count >= 2 ? recent[recent.Count - 2] : null;
+                r.PrayerStar = DestinyGarden.Domain.PrayerStar.Read(ctx.FaceId, ctx.PreviousFaceId,
+                    ctx.CurrentRecipeId, previousRecipe, ctx.PrayerAnswered, r.Harmony.Value);
+                foreach (int c in DestinyGarden.Domain.PrayerStar.Recipients(s, r.PrayerStar))
+                    Nourish(DestinyGarden.Domain.PrayerStar.GiftKind, c, r.PrayerStar.GiftGrowth);
+            }
+
             r.Events.AddRange(stageEvents.Events);
             return r;
         }
@@ -456,7 +470,7 @@ namespace DestinyGarden.Domain
                 if (e.Species != null) { d["species"] = e.Species; d["softened"] = e.Softened; }
                 effects.Add(d);
             }
-            return new Dictionary<string, object>
+            var payload = new Dictionary<string, object>
             {
                 ["rulesVersion"] = RulesVersion,
                 ["harmony"] = r.Harmony != null ? (long)r.Harmony.Value : 0L,
@@ -467,6 +481,8 @@ namespace DestinyGarden.Domain
                 ["effects"] = effects,
                 ["exhausted"] = r.Exhausted
             };
+            if (r.PrayerStar != null) payload["prayerStar"] = DestinyGarden.Domain.PrayerStar.ToPayload(r.PrayerStar);
+            return payload;
         }
     }
 }

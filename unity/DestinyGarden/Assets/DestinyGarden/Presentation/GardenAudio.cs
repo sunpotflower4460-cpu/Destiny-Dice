@@ -69,6 +69,8 @@ namespace DestinyGarden.Presentation
             for (int i = 0; i < 15; i += 2) names.Add("bloom" + i);
             names.Add("star5"); names.Add("star7"); names.Add("star8"); names.Add("rainbow");
             for (int i = 0; i < 4; i++) names.Add("chirp" + i);
+            for (int i = 1; i <= 7; i++) names.Add("face" + i);
+            for (int i = 5; i <= 8; i++) names.Add("chord" + i);
             foreach (string n in names)
             {
                 Get(n);
@@ -89,6 +91,8 @@ namespace DestinyGarden.Presentation
             else if (name == "pluck520") s = AudioSynth.Pluck(520);
             else if (name == "lucky") s = AudioSynth.LuckySeven();
             else if (name == "rainbow") s = AudioSynth.Rainbow();
+            else if (name.StartsWith("face")) s = AudioSynth.FaceNote(int.Parse(name.Substring(4)));
+            else if (name.StartsWith("chord")) s = AudioSynth.StarChord(int.Parse(name.Substring(5)));
             else if (name.StartsWith("star")) s = AudioSynth.StarUp(int.Parse(name.Substring(4)));
             else if (name.StartsWith("bloom")) s = AudioSynth.Bloom(int.Parse(name.Substring(5)));
             else if (name.StartsWith("sprout")) s = AudioSynth.Sprout(int.Parse(name.Substring(6)));
@@ -179,5 +183,14 @@ namespace DestinyGarden.Presentation
         public void PlayStarUp(int star) => Shot(_fx, "star" + (star >= 8 ? 8 : star >= 7 ? 7 : 5));
 
         public void PlayRainbow() => Shot(_fx, "rainbow");
+
+        /// <summary>The rolled face's note (do re mi fa sol la si for faces 1..7), kept under the bell.</summary>
+        public void PlayFaceNote(int face) => Shot(_fx, "face" + Mathf.Clamp(face, 1, 7), FaceNoteVolume);
+
+        /// <summary>The prayer star's chord (5..8 points), a quiet swell beneath the garden's sounds.</summary>
+        public void PlayStarChord(int points) => Shot(_fx, "chord" + Mathf.Clamp(points, 5, 8), StarChordVolume);
+
+        public const float FaceNoteVolume = 0.42f;
+        public const float StarChordVolume = 0.5f;
     }
 }

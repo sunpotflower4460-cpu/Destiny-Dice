@@ -30,6 +30,8 @@ namespace DestinyGarden.Application
         public int EcologyGrowth; // growth added by residents
         public int Harmony = -1;  // 0..8 (ecology.v2); -1 for older records
         public int Star;          // 0, 5, 7 or 8
+        public int PrayerStar;    // 5..8, the star beneath the die (prayer-star.v1); 0 for older records
+        public bool LuckyNumber;  // the prayer star reached the lucky number seven
         public List<string> Germinated = new List<string>(); // species that took root this roll (ecology.v3)
     }
 
@@ -104,6 +106,11 @@ namespace DestinyGarden.Application
                             {
                                 if (ecod.TryGetValue("harmony", out object hv)) s.Harmony = WorldStateSerializer.ToInt(hv);
                                 if (ecod.TryGetValue("star", out object sv)) s.Star = WorldStateSerializer.ToInt(sv);
+                                if (ecod.TryGetValue("prayerStar", out object ps) && ps is IDictionary<string, object> psd)
+                                {
+                                    s.PrayerStar = WorldStateSerializer.ToInt(psd["points"]);
+                                    s.LuckyNumber = psd["luckyNumber"] is bool ln && ln;
+                                }
                                 foreach (var v in (IEnumerable)ecod["visits"])
                                     if (v is IDictionary<string, object> vd && vd["kind"] is string vk) s.EcologyKinds.Add(vk);
                                 foreach (var ef in (IEnumerable)ecod["effects"])
