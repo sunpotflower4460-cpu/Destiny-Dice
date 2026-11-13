@@ -2340,3 +2340,63 @@ $ npx --yes pnpm@10 build
 - Presentation: GardenBootstrap.cs、GardenUi.cs、GardenView.cs
 - Tests: CareTests.cs（新規とmeta）、HabitatTests.cs（v7で固定）
 - docs/unity-garden/ECOLOGY.md・ECOSYSTEM_V8.md、tools/ecology-check/README.md、PROGRESS.md
+
+## Care guidance: お世話の見通しと、届いた土のその後（2026-11-13）
+### 完了したこと
+- 継続して磨く依頼を受け、ダイスと環境の対応を読む表示を同じPR #30へ追加した。生態・配面・自然シミュレーション・保存形式はv8のまま維持し、新しい庭の規則版は作らない。
+- 保存済みの株・眠る種・水辺の家族から、補いたい条件と待つ条件を読む。元気な株にも保ちたい湿りを示す。各環境3件・最大15件へ絞り、画面では選んだ環境の上位3件を表示する。
+- 公開中の各面が出た場合を、保存された中心・天候と実際の自然シミュレーションで計算する。天候だけの場合と分けて、湿りの範囲へ近づく面と外れを生む/広げる面を表示する。重複面は別の枠として数え、七の目は実際の増幅済み入力を使う。
+- 土の薄い入口で、乾きから過湿へ振れるケースを確認した。反対側へ飛び越す場合を改善とは表示しない。休眠・空き地・養分不足などは、湿りの変化だけで解決したと扱わない。
+- 花蜜や綿毛の種には、必要な追加の光や風が届く面を示す。到達と芽吹き・回復・繁殖の成立を区別する。見通し用の種には一時IDだけを使い、外部乱数・ID発行・台帳の書き込みを呼ばない。
+- 「恵みが届いた土、その後」を観察と記録へ追加。同じ区画へ届いた最も新しい前の投と、12投以内の実際の芽吹き・回復・負担・結実・定着・子育て・喪失・乾燥・還元・環境の変化を結ぶ。隣の区画、同じ投、未解決の投、接触記録のない庭へ補わない。
+- 当時の居場所で振り返りを絞り、後の庭から過去を作り直さない。同じ投や関係の重複を除き、最近24件を保持する。同じ場所の後の出来事として表示し、他の投や天候も関わることを明記する。
+- 見通しの自然計算は観察画面を開いた時に行い、開始状態・公開面・天候が同じ間は再利用する。フィルタや願いの選択だけで再計算しない。画面を閉じている時は見通し用の自然計算を行わず、準備や七の目が変われば更新する。
+### 検証結果（実際の出力）
+- `.NET SDK 8.0.428` でUnity内の実際のDomain / Application / InfrastructureとEditModeテストを直接実行した。Unity依存のPresentationTests 5件を除く、既存137件＋新規28ケース。
+
+```text
+$ dotnet test tools/ecology-check/Ecology.Check.csproj --configuration Release --no-restore --nologo --logger 'console;verbosity=normal'
+Test Run Successful.
+Total tests: 165
+     Passed: 165
+ Total time: 53.3119 Seconds
+```
+
+- 公開された各面と実際の自然計算の一致、天候だけでの回復、正常な湿りからの悪化、乾きから過湿への行き過ぎ、七の目・重複面、休眠・空き地・養分不足、水辺の幼生の優先、到達の機会、件数と列挙順の安定性を確認した。
+- 4投で育てた実際の庭を準備済みJSONから復帰し、観察対象を含む同じ見通しが再構築されることを確認した。その後の観察はJSONの実記録形式から、同じセル・前の投・12/13投の境界・重複・負の出来事・run分離・当時の分類を検証した。
+- 見通しと振り返りを読む/読まない2通りで、実coordinatorの96投を実行。全投の状態ハッシュと反応記録が一致し、観察で台帳の件数や準備状態が変わらないことを確認した。
+
+```text
+guidance inspect=False: rolls=96, final-plants=26
+guidance inspect=True: rolls=96, final-plants=26
+v8 initial: 668ca78cd1c4d4153e0b7ad093ac0475dd8a800e2d3f1d6e263209442996e8ae
+v8 96 rolls (v8-golden): 4e19b9158377f916864048584c6eb45b08700076a0842a61be4c90d7cb3ca297
+```
+
+- v8の既知ハッシュは改修前 `94b3cc7` の実行から採取した。v8の768投、v7/v6/v5それぞれ1536投、v4の960投、v3〜v7の既知ハッシュのテストも維持して通過した。
+- 前回と同じ環境でpnpm 10を使い、既存のスクリプトを実行した。
+
+```text
+$ npx --yes pnpm@10 typecheck
+> tsc -b --noEmit
+$ npx --yes pnpm@10 test
+ Test Files  41 passed (41)
+      Tests  183 passed (183)
+$ npx --yes pnpm@10 build
+> tsc -b && vite build
+✓ 102 modules transformed.
+✓ built in 446ms
+C# 9 syntax: 72 files, 0 errors (syntax only; Unity type checking requires the editor).
+```
+
+- `jeep-sqlite` の既存の `crypto` browser externalization警告、VSTestの `VSTEST_ARTIFACTS_DIRECTORY` 未設定の案内は残るが、各コマンドは正常終了した。`git diff --check`、Unityメタデータの存在とGUIDの重複チェックも成功した。
+- この追記でDomain、既存実験の `src/`、凍結プロトコル、台帳の書き込み経路は変更していない。表示用の投影から状態・配面・抽選・過去のジャーナルを書き換える経路を追加していない。
+### 未確認・申し送り
+- Unityエディタ/実行可能なWebGLプレイヤーがないため、Unityの型解決・全EditMode・描画・操作・音・fpsは未検証。165件は実C#の.NET実行であり、Unity検証済みとは扱わない。
+- Unity 6000.3.23f1で、観察を開く/閉じる、フィルタ、通常面と七の目、次の準備、準備済み復帰、当時の分類での振り返りを確認する。初回表示の応答時間、長文と小画面・タッチ/ホイール、閉じたままの連続プレイも確認が必要。
+- 湿りの見通しは自然計算部分であり、生態全体の結果や成功確率ではない。その後の記録は同じ場所の観察で、特定の一投だけが原因だとは扱わない。配布ビルド・提出画像・ストア公開は更新せず、PR #30はUnity確認前のドラフトで継続する。
+### 触ったファイル
+- Application: CareOutlook.cs、CareAftercare.cs（新規とmeta）
+- Presentation: GardenUi.cs
+- Tests: CareGuidanceTests.cs（新規とmeta）
+- docs/unity-garden/CARE_GUIDANCE.md・ECOLOGY.md、tools/ecology-check/README.md、PROGRESS.md

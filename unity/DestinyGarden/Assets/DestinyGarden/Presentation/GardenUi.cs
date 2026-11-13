@@ -58,6 +58,12 @@ namespace DestinyGarden.Presentation
         private Button _careTargetButton;
         private Text _careSelection;
         private string _carePlan;
+        private CareOutlook _careOutlook;
+        private WorldState _outlookState;
+        private string[] _outlookFaces;
+        private PreparedFaces _outlookPrepared;
+        private WeatherDefinition _outlookWeather;
+        private List<CareAftercareNote> _aftercareNotes = new List<CareAftercareNote>();
         private WorldState _observationState;
         private string _observationHabitat;
         private readonly Dictionary<string, Button> _observationChips = new Dictionary<string, Button>();
@@ -254,7 +260,7 @@ namespace DestinyGarden.Presentation
             MakeChip(canvasObj.transform, new Vector2(1f, 1f), new Vector2(-96f, -408f), new Vector2(150f, 48f),
                 "図鑑", 20, () => TogglePanel(_guidePanel));
             MakeChip(canvasObj.transform, new Vector2(1f, 1f), new Vector2(-96f, -466f), new Vector2(150f, 48f),
-                "庭を観察", 18, () => TogglePanel(_observationPanel));
+                "庭を観察", 18, () => { TogglePanel(_observationPanel); RenderObservation(); });
             MakeChip(canvasObj.transform, new Vector2(1f, 1f), new Vector2(-96f, -524f), new Vector2(150f, 48f),
                 "視点を戻す", 18, () => OnResetView?.Invoke());
 
@@ -587,13 +593,22 @@ namespace DestinyGarden.Presentation
         public void ShowCarePlan(WorldState state, PreparedFaces faces, WeatherDefinition weather)
         {
             _carePlan = CareTargets.PreparedPlan(state, faces, weather);
+            if (faces == null || !ReferenceEquals(_outlookState, state) || !ReferenceEquals(_outlookFaces, faces.Faces) || !ReferenceEquals(_outlookWeather, weather))
+            {
+                _careOutlook = null;
+                _outlookState = state; _outlookFaces = faces?.Faces; _outlookWeather = weather;
+            }
+            _outlookPrepared = faces;
             if (faces?.TargetNote != null) _facesLabel.text = faces.TargetNote + "（願いは出目を変えない）";
             RenderObservation();
         }
         private void RenderObservation()
         {
-            if (_observationText == null || _observationState == null) return;
-            SetScrollableText(_observationText, (_carePlan ?? "") + "\n" + EcologyInspection.Describe(_observationState, _observationHabitat) +
+            if (_observationText == null || _observationState == null || !_observationPanel.activeSelf) return;
+            if (_careOutlook == null && _outlookPrepared != null)
+                _careOutlook = CareOutlook.Build(_outlookState, _outlookPrepared, _outlookWeather);
+            SetScrollableText(_observationText, (_careOutlook?.Describe(_observationHabitat) ?? "") + (_carePlan ?? "") +
+                CareAftercare.Describe(_aftercareNotes, _observationHabitat, 3) + "\n" + EcologyInspection.Describe(_observationState, _observationHabitat) +
                 CareTargets.Guidance(_observationState, _observationHabitat));
             _careTargetButton.gameObject.SetActive(CareRules.Enabled(_observationState));
             _careTargetButton.interactable = _observationHabitat != null;
@@ -749,8 +764,10 @@ namespace DestinyGarden.Presentation
 
         public void RefreshHistory(List<RoundSummary> history)
         {
+            _aftercareNotes = CareAftercare.Project(history);
             var sb = new StringBuilder();
             sb.AppendLine("記録（新しい順・上下にスクロール）");
+            sb.Append(CareAftercare.Describe(_aftercareNotes));
             for (int i = history.Count - 1; i >= 1; i--) // scroll through every saved roll
             {
                 var r = history[i];
