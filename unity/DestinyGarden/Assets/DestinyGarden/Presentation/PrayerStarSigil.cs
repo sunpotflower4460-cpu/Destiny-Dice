@@ -10,22 +10,27 @@ using UnityEngine.UI;
 namespace DestinyGarden.Presentation
 {
     /// <summary>
-    /// The prayer star on the altar beneath the die (presentation of saved facts only, prayer-star.v1).
-    /// It turns slowly between rolls. When a roll is revealed the old star spins away and the new one
+    /// The prayer star on the sea beneath the island (presentation of saved facts only, prayer-star.v1).
+    /// It is geared to the die on the altar: it turns as the die turns, whirls while the die tumbles,
+    /// and each answer runs from the die down to the star as a thread of light. When a roll is revealed the old star spins away and the new one
     /// (five, six, seven or eight points) settles in its place; a seven shows the lucky number, an eight
     /// is drawn in the colours of the rainbow. Light then falls on the plants that really received the
     /// star's gift (the saved ecology effects). Nothing here changes the garden.
     /// </summary>
-    public sealed class AltarSigil : MonoBehaviour
+    public sealed class PrayerStarSigil : MonoBehaviour
     {
         public GardenView View;
         public GardenAudio Audio;
         public Font Font;
         public bool ReducedMotion;
 
-        private const float StarRadius = 0.90f;   // a floating circle of light around the altar, at its top
-        private const float LineWidth = 0.034f;
-        private const float BaseSpin = 9f;           // degrees per second between rolls
+        // The star lies on the sea under the island, on the circle of the seven lights (SacredAtmosphere).
+        private static readonly Vector3 IslandCenter = new Vector3(7.5f, 0f, 7.5f);
+        private const float SeaLevel = -0.80f;
+        public const float StarRadius = 13.4f;
+        private const float LineWidth = 0.075f;
+        public const float Gear = 0.35f;             // star turn per die turn (yaw), between rolls
+        private const float TumbleSpin = 0.6f;       // star turn per degree of die tumble during a roll
 
         private static readonly Color[] RainbowColors =
         {
@@ -48,6 +53,9 @@ namespace DestinyGarden.Presentation
         private LineRenderer _ring;
         private ParticleSystem _glints;
         private float _angle, _boost, _sinceChange = 99f, _flash;
+        private Quaternion _lastDiceRot = Quaternion.identity;
+        private bool _haveDiceRot;
+        private LineRenderer _thread;
         private int _points;
         private int _qaStar; // QA capture only (-dgStar N)
         private bool _qaCameraCanvas; // QA only: render the label canvas through the camera
@@ -109,10 +117,9 @@ namespace DestinyGarden.Presentation
         public void Build()
         {
             _lineMat = IslandHarmony.GlowMaterial(null, Color.white, 3006);
-            var center = View != null && View.DiceTransform != null
-                ? View.DiceTransform.position - Vector3.up * 0.605f  // altar top (die floats 0.92 above the ground, altar top 0.30)
-                : Vector3.zero;
-            _root = new GameObject("AltarSigil").transform;
+            // Just above the sea, where the island's harmony star used to be drawn.
+            var center = IslandCenter + new Vector3(0f, SeaLevel + 0.05f, 0f);
+            _root = new GameObject("PrayerStarSigil").transform;
             _root.SetParent(transform, false);
             _root.position = center;
             // Lines are drawn in the local XY plane and face the root's Z axis, which points up.
@@ -122,7 +129,7 @@ namespace DestinyGarden.Presentation
             for (int i = 0; i < 72; i++)
             {
                 float a = i / 72f * Mathf.PI * 2f;
-                _ring.SetPosition(i, new Vector3(Mathf.Cos(a), Mathf.Sin(a), 0f) * (StarRadius * 1.08f));
+                _ring.SetPosition(i, new Vector3(Mathf.Cos(a), Mathf.Sin(a), 0f) * StarRadius);
             }
 
             var gObj = new GameObject("SigilGlints");
@@ -135,7 +142,7 @@ namespace DestinyGarden.Presentation
             main.maxParticles = 600;
             main.startLifetime = new ParticleSystem.MinMaxCurve(1.0f, 2.2f);
             main.startSpeed = 0f;
-            main.startSize = new ParticleSystem.MinMaxCurve(0.04f, 0.10f);
+            main.startSize = new ParticleSystem.MinMaxCurve(0.06f, 0.16f);
             main.simulationSpace = ParticleSystemSimulationSpace.World;
             var em = _glints.emission; em.enabled = false;
             var shape = _glints.shape; shape.enabled = false;
@@ -149,7 +156,13 @@ namespace DestinyGarden.Presentation
 
             _hintRoot = new GameObject("SevenHint").transform;
             _hintRoot.SetParent(transform, false);
-            _hintRoot.position = center + Vector3.up * 0.01f;
+            _hintRoot.position = center + Vector3.up * 0.02f;
+
+            _thread = NewLine(transform, "DieToStarThread", 24, false);
+            _thread.alignment = LineAlignment.View;
+            _thread.useWorldSpace = true;
+            _thread.widthMultiplier = 0.05f;
+            _thread.enabled = false;
             _hintMat = IslandHarmony.GlowMaterial(ProceduralArt.GlowSprite(), new Color(1f, 0.9f, 0.62f, 0f), 3007);
 
             BuildLabel();
@@ -254,7 +267,7 @@ namespace DestinyGarden.Presentation
                 q.name = "HintLight";
                 q.transform.SetParent(_hintRoot, false);
                 q.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
-                q.transform.localScale = Vector3.one * 0.30f;
+                q.transform.localScale = Vector3.one * 0.9f;
                 var r = q.GetComponent<MeshRenderer>();
                 r.sharedMaterial = _hintMat;
                 r.shadowCastingMode = ShadowCastingMode.Off;
@@ -294,7 +307,7 @@ namespace DestinyGarden.Presentation
             _current.Alpha = 0f;
             _points = points;
             _sinceChange = 0f;
-            _boost = ReducedMotion ? 0f : 420f;
+            _boost = ReducedMotion ? 0f : 160f;
         }
 
         /// <summary>
@@ -322,7 +335,8 @@ namespace DestinyGarden.Presentation
         {
             _hintTarget = 0f; // the old hint fades while the die speaks
             if (Audio != null) Audio.PlayFaceNote(faceId);
-            yield return new WaitForSeconds(0.45f);
+            // The die's answer runs down to the star as a thread of light.
+            yield return Thread(points, 0.55f);
             Change(points);
             yield return new WaitForSeconds(0.55f);
             _flash = points >= 7 ? 1f : points == 6 ? 0.5f : 0.25f;
@@ -344,6 +358,13 @@ namespace DestinyGarden.Presentation
             }
             yield return new WaitForSeconds(0.4f);
             SetHint(faceId); // lights for the face that would complete seven next time
+        }
+
+        private IEnumerator QaRollThenReveal(int points, int face, int prev, List<Vector3> tops)
+        {
+            // The die tumbles as in a roll (the star whirls with it), then the answer is revealed.
+            yield return View.PlayOutcome(null, "light", null);
+            yield return PlayRevealCore(points, face, prev, tops);
         }
 
         /// <summary>
@@ -368,21 +389,21 @@ namespace DestinyGarden.Presentation
             _hintAlpha = 1f;
             var cam = Camera.main;
             var c = _root.position;
-            cam.transform.SetPositionAndRotation(c + new Vector3(-1.9f, 2.3f, -2.6f),
-                Quaternion.LookRotation(c + Vector3.up * 0.25f - (c + new Vector3(-1.9f, 2.3f, -2.6f)), Vector3.up));
+            var camPos = c + new Vector3(0f, 21f, -23f);
+            cam.transform.SetPositionAndRotation(camPos, Quaternion.LookRotation(c + Vector3.up * 1.5f - camPos, Vector3.up));
             var tops = new List<Vector3>();
             for (int i = 0; i < 7; i++)
             {
                 float a = i * 0.9f;
-                var p = c + new Vector3(Mathf.Cos(a) * 1.6f, 0f, Mathf.Sin(a) * 1.6f);
+                var p = c + new Vector3(Mathf.Cos(a) * 4f, 0f, Mathf.Sin(a) * 4f);
                 p.y = IslandTerrain.Height(p.x, p.z) + 0.2f;
                 tops.Add(p);
             }
             yield return new WaitForSeconds(0.6f);
-            StartCoroutine(PlayRevealCore(points, face, prev, tops));
+            StartCoroutine(QaRollThenReveal(points, face, prev, tops));
             var rt = new RenderTexture(960, 540, 24);
             var tex = new Texture2D(960, 540, TextureFormat.RGB24, false);
-            for (int f = 0; f < 22; f++)
+            for (int f = 0; f < 30; f++)
             {
                 yield return new WaitForEndOfFrame();
                 cam.targetTexture = rt;
@@ -398,21 +419,60 @@ namespace DestinyGarden.Presentation
             UnityEngine.Application.Quit();
         }
 
+        /// <summary>A thread of light from the die down to the nearest point of the star's circle.</summary>
+        private IEnumerator Thread(int points, float seconds)
+        {
+            if (_thread == null || View == null || View.DiceTransform == null) yield break;
+            Vector3 from = View.DiceTransform.position;
+            var flat = new Vector3(from.x - _root.position.x, 0f, from.z - _root.position.z);
+            Vector3 to = _root.position + (flat.sqrMagnitude > 1e-4f ? flat.normalized : Vector3.forward) * StarRadius;
+            var col = StarColor(points);
+            int n = _thread.positionCount;
+            _thread.enabled = true;
+            for (float t = 0f; t < seconds + 0.6f; t += Time.deltaTime)
+            {
+                float head = ReducedMotion ? 1f : Mathf.Clamp01(t / seconds);
+                float fade = 1f - Mathf.Clamp01((t - seconds) / 0.6f);
+                for (int i = 0; i < n; i++)
+                {
+                    float u = i / (float)(n - 1) * head;
+                    // A gentle arc: out from the die, then down to the sea.
+                    var p = Vector3.Lerp(from, to, u) + Vector3.up * (Mathf.Sin(u * Mathf.PI) * 1.2f);
+                    _thread.SetPosition(i, p);
+                }
+                var grad = new Gradient();
+                grad.SetKeys(new[] { new GradientColorKey(col, 0f), new GradientColorKey(Color.white, 1f) },
+                    new[] { new GradientAlphaKey(0.15f * fade, 0f), new GradientAlphaKey(0.9f * fade, 1f) });
+                _thread.colorGradient = grad;
+                yield return null;
+            }
+            _thread.enabled = false;
+            if (_glints != null)
+                for (int i = 0; i < 24; i++)
+                    _glints.Emit(new ParticleSystem.EmitParams
+                    {
+                        position = to + UnityEngine.Random.insideUnitSphere * 0.4f, velocity = Vector3.up * UnityEngine.Random.Range(0.2f, 0.7f),
+                        startColor = new Color(col.r, col.g, col.b, 0.9f), startLifetime = UnityEngine.Random.Range(1f, 1.8f)
+                    }, 1);
+        }
+
         private Color GlintColor(int points) =>
             points >= 8 ? RainbowColors[UnityEngine.Random.Range(0, RainbowColors.Length)] : StarColor(points);
 
         private void EmitBurst(int points)
         {
             if (_glints == null) return;
-            int n = points >= 8 ? 90 : points == 7 ? 60 : points == 6 ? 22 : 10;
+            int n = points >= 8 ? 160 : points == 7 ? 112 : points == 6 ? 48 : 25;
             var c = _root.position;
             for (int i = 0; i < n; i++)
             {
-                float a = UnityEngine.Random.value * Mathf.PI * 2f;
-                float r = StarRadius * UnityEngine.Random.Range(0.3f, 1.1f);
-                var pos = c + new Vector3(Mathf.Cos(a) * r, 0.02f, Mathf.Sin(a) * r);
+                // Glints rise from the star's points on the sea.
+                int k = i % Mathf.Max(5, points);
+                float a = -_angle * Mathf.Deg2Rad + Mathf.PI * 0.5f + k * Mathf.PI * 2f / Mathf.Max(5, points);
+                float r = StarRadius * UnityEngine.Random.Range(0.92f, 1.02f);
+                var pos = c + new Vector3(Mathf.Cos(a) * r, 0.05f, Mathf.Sin(a) * r);
                 var vel = ReducedMotion ? Vector3.zero
-                    : new Vector3(Mathf.Cos(a) * 0.12f, UnityEngine.Random.Range(0.25f, points >= 7 ? 0.9f : 0.45f), Mathf.Sin(a) * 0.12f);
+                    : new Vector3(0f, UnityEngine.Random.Range(0.4f, points >= 7 ? 1.6f : 0.8f), 0f);
                 var col = GlintColor(points);
                 _glints.Emit(new ParticleSystem.EmitParams
                 {
@@ -511,6 +571,29 @@ namespace DestinyGarden.Presentation
 
         // ------------------------------------------------------------------ motion
 
+        /// <summary>
+        /// How far the star turns this frame, geared to the die: between rolls it follows the die's slow
+        /// turn (Gear), while the die tumbles it spins with it. The die's snap back to rest is ignored.
+        /// </summary>
+        private float DieTurn()
+        {
+            if (View == null || View.DiceTransform == null) return 0f;
+            var rot = View.DiceTransform.rotation;
+            if (!_haveDiceRot) { _lastDiceRot = rot; _haveDiceRot = true; return 0f; }
+            float total = Quaternion.Angle(_lastDiceRot, rot);
+            float yaw = Mathf.DeltaAngle(Yaw(_lastDiceRot), Yaw(rot));
+            _lastDiceRot = rot;
+            if (total < 3f) return yaw * Gear;                     // resting: the slow turn about the vertical
+            if (total > 40f) return 0f;                            // the snap back to rest
+            return total * TumbleSpin;                             // tumbling: the star whirls along
+        }
+
+        private static float Yaw(Quaternion q)
+        {
+            var f = q * Vector3.forward;
+            return Mathf.Atan2(f.x, f.z) * Mathf.Rad2Deg;
+        }
+
         private void Update()
         {
             if (_root == null || _current == null) return;
@@ -528,30 +611,30 @@ namespace DestinyGarden.Presentation
             _sinceChange += dt;
             _boost *= Mathf.Exp(-dt * 1.8f);
             _flash = Mathf.MoveTowards(_flash, 0f, dt * 0.45f);
-            float spin = ReducedMotion ? 0f : BaseSpin + _boost;
-            _angle = (_angle + spin * dt) % 360f;
+            _angle = (_angle + DieTurn() + (ReducedMotion ? 0f : _boost * dt)) % 360f;
+            _root.rotation = Quaternion.Euler(0f, -_angle, 0f) * Quaternion.Euler(90f, 0f, 0f);
 
             float breathe = 0.82f + 0.18f * Mathf.Sin(Time.time * 1.2f);
-            float strength = _points >= 7 ? 0.75f : 0.55f;
+            float strength = _points >= 7 ? 0.62f : 0.42f;
 
             // The new star settles in, larger at first, and turns with the old one leaving.
             float inK = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.15f, 1.1f, _sinceChange));
             _current.Scale = Mathf.Lerp(1.28f, 1f, inK);
             _current.Alpha = inK;
-            _current.Root.localRotation = Quaternion.Euler(0f, 0f, _angle);
+            _current.Root.localRotation = Quaternion.identity;
             Paint(_current, (strength + 0.35f * _flash) * breathe * _current.Alpha);
 
             if (_leaving != null)
             {
                 float outK = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0f, 0.7f, _sinceChange));
                 _leaving.Scale = Mathf.Lerp(1f, 0.55f, outK);
-                _leaving.Root.localRotation = Quaternion.Euler(0f, 0f, -_angle * 1.6f);
+                _leaving.Root.localRotation = Quaternion.Euler(0f, 0f, _sinceChange * 120f);
                 Paint(_leaving, strength * breathe * (1f - outK));
                 if (outK >= 1f) { Destroy(_leaving.Root.gameObject); _leaving = null; }
             }
 
             var rc = StarColor(_points);
-            float ringA = (0.22f + 0.30f * _flash) * breathe;
+            float ringA = (0.06f + 0.30f * _flash) * breathe; // the gold circle of the seven lights is already there
             _ring.startColor = _ring.endColor = new Color(rc.r, rc.g, rc.b, ringA);
 
             // Hint lights travel slowly round the outside of the ring.
@@ -561,13 +644,13 @@ namespace DestinyGarden.Presentation
                 float pulse = 0.75f + 0.25f * Mathf.Sin(Time.time * 2.1f);
                 _hintMat.color = new Color(1f, 0.93f, 0.70f, _hintAlpha * pulse);
                 int k = _hintOrbs.Count;
-                float baseA = ReducedMotion ? 0f : Time.time * 0.35f;
+                float baseA = -_angle * Mathf.Deg2Rad + (ReducedMotion ? 0f : Time.time * 0.12f);
                 for (int i = 0; i < k; i++)
                 {
                     float a = baseA + i * Mathf.PI * 2f / k;
                     // They float a little above the grass, rising and falling one after another.
-                    float bob = ReducedMotion ? 0f : 0.04f * Mathf.Sin(Time.time * 1.6f + i * 1.3f);
-                    _hintOrbs[i].localPosition = new Vector3(Mathf.Cos(a) * StarRadius * 1.2f, 0.16f + bob, Mathf.Sin(a) * StarRadius * 1.2f);
+                    float bob = ReducedMotion ? 0f : 0.08f * Mathf.Sin(Time.time * 1.6f + i * 1.3f);
+                    _hintOrbs[i].localPosition = new Vector3(Mathf.Cos(a) * StarRadius, 0.25f + bob, Mathf.Sin(a) * StarRadius);
                 }
             }
         }

@@ -2132,3 +2132,30 @@ Git diff whitespace check: pass
 ### 触ったファイル
 
 - Domain/PrayerStar.cs、Presentation/AltarSigil.cs・AudioSynth.cs、Presentation/GardenBootstrap.cs（前回足した1行の差し替えだけ）、Tests/EditMode/SacredTonesTests.cs、docs/unity-garden/ECOLOGY.md §8.3、PROGRESS.md。
+
+## Jam 祈りの星を島の下の海へ・サイコロと連動（2026-11-13）
+
+### 完了したこと
+
+- 本人の指定（「サイコロと下の芒星はリンクするように」「芒星はそこじゃなくて島の下のやつ」）を受け、祈りの星を祭壇から**島の下の海**
+  （七つの灯の輪、半径 13.4）へ移した。以前そこに描いていた調和の芒星は表示しない（`SacredAtmosphere.SetStar(0)`）。調和の芒星が増えたときの音と一行も外した
+  （祈りの星の音・表示と重ならないように）。
+- サイコロとの連動: 星はサイコロのゆっくりした回転に歯車のように合わせて回り（×0.35）、サイコロが転がる間は一緒に勢いよく回る。
+  答えが出るとサイコロから海の星へ光の糸が降り、そこで星が切り替わる。七への灯も海の輪の上を巡る。
+- 名前を `AltarSigil` から `PrayerStarSigil` に変えた。
+
+### 完了基準の結果（コマンド出力の要約）
+
+- Unity EditMode: `total="52" passed="52" failed="0"`。隔離プレビューの macOS ビルド `Succeeded`。
+- 隔離プレビューで、サイコロを転がしてから答えを出す流れを0.2秒ごとに30コマ撮影した（`-dgRevealFrames`、振らず台帳にも書かない）。
+  転がる間に星の先が輪に沿って動くこと、サイコロから海へ降りる光の糸、八芒星の虹色、その後もサイコロの回転に合わせて星が回り続けることを確認した。
+  通常の視点（6投後）でも、島の外側に星の先が見えることを確認した。本来の庭の台帳の SHA-256 は d605e4eb… のまま。
+
+### 要確定・申し送り
+
+- 海の星は島に隠れて先だけが見える（以前の調和の芒星と同じ見え方）。もっと見せたい場合は線の太さ・明るさ、または島の外へ広げる。
+- GardenBootstrap.cs の変更: 調和の芒星の表示を 0 にし、その音と一行の3行を削除した（Codex 側はこの行を変えていない）。
+
+### 触ったファイル
+
+- Presentation/PrayerStarSigil.cs（AltarSigil.cs から改名）、Presentation/GardenBootstrap.cs、Tests/EditMode/SacredTonesTests.cs、docs/unity-garden/ECOLOGY.md §8.3、PROGRESS.md。

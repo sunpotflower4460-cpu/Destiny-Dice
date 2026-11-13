@@ -71,16 +71,16 @@ namespace DestinyGarden.Tests
         [Test]
         public void StarLoops_DrawFiveSixSevenAndEightPointedStars()
         {
-            var five = AltarSigil.StarLoops(5);
+            var five = PrayerStarSigil.StarLoops(5);
             Assert.AreEqual(1, five.Count); Assert.AreEqual(5, five[0].Length);
-            var six = AltarSigil.StarLoops(6);
+            var six = PrayerStarSigil.StarLoops(6);
             Assert.AreEqual(2, six.Count, "the hexagram is two triangles");
             Assert.IsTrue(six.All(l => l.Length == 3));
-            Assert.AreEqual(7, AltarSigil.StarLoops(7)[0].Length);
-            Assert.AreEqual(8, AltarSigil.StarLoops(8)[0].Length);
-            Assert.AreEqual(0, AltarSigil.StarLoops(0).Count);
+            Assert.AreEqual(7, PrayerStarSigil.StarLoops(7)[0].Length);
+            Assert.AreEqual(8, PrayerStarSigil.StarLoops(8)[0].Length);
+            Assert.AreEqual(0, PrayerStarSigil.StarLoops(0).Count);
             foreach (int n in new[] { 5, 6, 7, 8 })
-                foreach (var loop in AltarSigil.StarLoops(n))
+                foreach (var loop in PrayerStarSigil.StarLoops(n))
                 {
                     foreach (var v in loop) Assert.AreEqual(1f, v.magnitude, 1e-4f);
                     // Every point of a loop is distinct, and the loop skips around the circle (a star, not a polygon).
@@ -106,8 +106,8 @@ namespace DestinyGarden.Tests
                 new RoundSummary { WorldRevision = 1, Resolved = true, FaceId = 2, PrayerStar = 6 },
                 new RoundSummary { WorldRevision = 1, Resolved = false, FaceId = 5 }
             };
-            Assert.AreEqual(2, AltarSigil.LastFace(h), "an unresolved round is not the last face");
-            Assert.AreEqual(0, AltarSigil.LastFace(new List<RoundSummary>()));
+            Assert.AreEqual(2, PrayerStarSigil.LastFace(h), "an unresolved round is not the last face");
+            Assert.AreEqual(0, PrayerStarSigil.LastFace(new List<RoundSummary>()));
         }
 
         [Test]
@@ -134,16 +134,16 @@ namespace DestinyGarden.Tests
         [Test]
         public void LastStar_ReadsTheLastResolvedRoll()
         {
-            Assert.AreEqual(5, AltarSigil.LastStar(new List<RoundSummary>()));
+            Assert.AreEqual(5, PrayerStarSigil.LastStar(new List<RoundSummary>()));
             var h = new List<RoundSummary>
             {
                 new RoundSummary { WorldRevision = 0, Resolved = true },
                 new RoundSummary { WorldRevision = 1, Resolved = true, PrayerStar = 7 },
                 new RoundSummary { WorldRevision = 1, Resolved = false }
             };
-            Assert.AreEqual(7, AltarSigil.LastStar(h));
+            Assert.AreEqual(7, PrayerStarSigil.LastStar(h));
             h.Add(new RoundSummary { WorldRevision = 2, Resolved = true, PrayerStar = 0 });
-            Assert.AreEqual(5, AltarSigil.LastStar(h), "older records without a prayer star show the star of life");
+            Assert.AreEqual(5, PrayerStarSigil.LastStar(h), "older records without a prayer star show the star of life");
         }
     }
 }

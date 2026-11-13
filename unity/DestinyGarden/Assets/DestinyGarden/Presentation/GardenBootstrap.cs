@@ -22,7 +22,7 @@ namespace DestinyGarden.Presentation
         private GardenWonders _wonders;
         private GardenLife _life;
         private IslandHarmony _islandHarmony;
-        private AltarSigil _sigil; // prayer star beneath the die (prayer-star.v1)
+        private PrayerStarSigil _sigil; // prayer star on the sea, geared to the die (prayer-star.v1)
         private int _harmonyNow = -1, _lastStar = -1;
         private readonly QualityMonitor _quality = new QualityMonitor();
         private float _vitalityNow;
@@ -86,7 +86,7 @@ namespace DestinyGarden.Presentation
             _islandHarmony.View = _view;
             _islandHarmony.Build();
             _audio = gameObject.AddComponent<GardenAudio>();
-            _sigil = gameObject.AddComponent<AltarSigil>();
+            _sigil = gameObject.AddComponent<PrayerStarSigil>();
             _sigil.View = _view;
             _sigil.Audio = _audio;
             _sigil.Build();
@@ -254,12 +254,9 @@ namespace DestinyGarden.Presentation
                 foreach (var p in _coordinator.State.Plants)
                     if (p.Stage == PlantStage.Flower && p.Species == t.Id) { blooming.Add(t.LabelJa); break; }
             _ui.ShowComposition(blooming, value);
-            _atmosphere.SetStar(star);
+            _atmosphere.SetStar(0); // the star on the sea is now the prayer star, geared to the die (PrayerStarSigil)
             _view.SetBalance(live.Yin, live.Yang);
             _islandHarmony.ShowNetwork(_coordinator.State, value);
-            if (_lastStar >= 0 && star > _lastStar) _audio.PlayStarUp(star);
-            if (_lastStar >= 0 && star > _lastStar && !_busy)
-                _ui.ShowStatus(star == 8 ? "島が、八つの光に包まれた。" : star == 7 ? "七つの灯が、星のかたちに結ばれた。" : "海の灯が、五つの光で結ばれた。");
             _lastStar = star;
         }
 
