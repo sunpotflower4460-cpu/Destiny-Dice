@@ -101,7 +101,7 @@ namespace DestinyGarden.Presentation
                 _intentKind = kind; _intentValue = value;
                 _ui.ShowIntentSelection(kind, value);
                 ShowPreparedFaces();
-                _ui.ShowStatus(kind == "none" ? "意図を添えずに振ります。" : "願いを添えました。配面は変わりません。");
+                _ui.ShowStatus(null);
             };
             _ui.OnSiteSelected = (mode, siteId) =>
             {
@@ -139,8 +139,8 @@ namespace DestinyGarden.Presentation
             _view.Flora.Snap();
             _view.SnapClock();
             _ui.ShowStatus(_coordinator.LuckySevenOffered && !_coordinator.LuckySevenAdded
-                ? "七つめの面が、そっと現れている。"
-                : "公開された面を見て、サイコロを振ってください。");
+                ? "「七つめの面を加える」で、幸運の七を使えます。"
+                : _coordinator.State.WorldRevision == 0 ? "振るたび、水・風・光・種の恵みが庭に届きます。" : null);
             // Begin seeing the whole bottle; glide in to the garden when the visitor begins.
             var cam = _view.ViewCamera;
             var rig = _view.Rig;
@@ -440,7 +440,7 @@ namespace DestinyGarden.Presentation
 
         private IEnumerator RollFlow()
         {
-            if (_busy) yield break;
+            if (_busy || _ui.IsPanelOpen || _ui.IsOpening) yield break;
             if (_coordinator.Phase == CoordinatorPhase.Prepared)
                 _coordinator.CommitIntent(_intentKind, _intentValue);
             if (_coordinator.Phase != CoordinatorPhase.IntentCommitted) yield break;
@@ -512,7 +512,7 @@ namespace DestinyGarden.Presentation
                 : outcome.LuckySeven ? "七の目。恵みが重なって届いた。"
                 : moment?.Detail ?? (moment != null ? RecipeCatalog.LabelJa(outcome.RecipeId) + "の一投。" : EcologyLine(outcome));
             if (luckStatus != null) _ui.ShowStatus(luckStatus);
-            else if (_coordinator.LuckySevenOffered) _ui.ShowStatus("七つめの面が、そっと現れている。");
+            else if (_coordinator.LuckySevenOffered) _ui.ShowStatus("「七つめの面を加える」で、幸運の七を使えます。");
             string weather = _coordinator.CurrentWeather.LabelJa;
             string site = CareTargets.Name(_coordinator.CurrentFaces.ResolvedSiteId);
             _ui.ShowHeader(weather, site, _coordinator.State.WorldRevision);
