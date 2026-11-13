@@ -151,9 +151,25 @@ namespace DestinyGarden.Domain
         /// </summary>
         /// <summary>
         /// flora.v2: how strongly the recent blessings lean a seed toward a species (0..8 per matching blessing kind).
-        /// Water: wet-loving species (moisture from 400‰). Light: sun-loving species. Wind: wind-sown seeds and
-        /// flowers pollinators love (bee + butterfly at least 3). Seed: berry plants.
+        /// Water: moisture lovers (from 300‰). Light: sun lovers. Wind: wind-sown seeds and flowers pollinators love
+        /// (bee + butterfly at least 3). Seed: plants that spread themselves (berries, wind-sown seeds).
         /// </summary>
+        public const int AnsweredWishLeaning = 10; // flora.v2: a wish that came true settles into this roll's seeds
+
+        /// <summary>Whether a species is one the blessing leans toward (the same matches as Leaning).</summary>
+        public static bool Suits(SpeciesTraits t, ElementId e)
+        {
+            if (t == null) return false;
+            switch (e)
+            {
+                case ElementId.Water: return t.MoistMin >= 300;                 // moisture lovers
+                case ElementId.Light: return t.Light == 0;                      // sun lovers
+                case ElementId.Wind: return t.WindSeed || Math.Max(0, t.Bee) + Math.Max(0, t.Butterfly) >= 3; // wind-sown, pollinator flowers
+                case ElementId.Seed: return t.Berries || t.WindSeed;            // plants that spread themselves
+            }
+            return false;
+        }
+
         public static int Leaning(SpeciesTraits t, IList<string> recentRecipeIds)
         {
             if (t == null || recentRecipeIds == null) return 0;
@@ -167,16 +183,18 @@ namespace DestinyGarden.Domain
                     case ElementId.Seed: seed++; break;
                 }
             int w = 0;
-            if (t.MoistMin >= 400) w += water;
-            if (t.Light == 0) w += light;
-            if (t.WindSeed || Math.Max(0, t.Bee) + Math.Max(0, t.Butterfly) >= 3) w += wind;
-            if (t.Berries) w += seed;
+            if (Suits(t, ElementId.Water)) w += water;
+            if (Suits(t, ElementId.Light)) w += light;
+            if (Suits(t, ElementId.Wind)) w += wind;
+            if (Suits(t, ElementId.Seed)) w += seed;
             return w;
         }
 
         public static string ChooseSpecies(WorldState s, PlantState plant, string carrier, string parentSpecies, Func<int, int> pick,
-            IList<string> recentRecipeIds = null)
+            IList<string> recentRecipeIds = null, string answeredRecipeId = null, int anchorCellId = -1)
         {
+            // prayer-star.v2: near the blessing's site, the recent blessings lean a seed twice as strongly.
+            int leaningScale = anchorCellId >= 0 && Dist(plant.CellId, anchorCellId) <= PrayerStar.SiteReach ? 2 : 1;
             var fit = FittingAt(s, plant.CellId);
             if (fit.Count == 0) return "dandelion";
             var weights = new int[fit.Count];
@@ -190,7 +208,9 @@ namespace DestinyGarden.Domain
                 if (carrier == "fluff" && t.WindSeed) w += 8;
                 if (carrier == "butterfly") w += Math.Max(0, t.Butterfly) * 2;
                 if (carrier == "bee") w += Math.Max(0, t.Bee) * 2;
-                w += Leaning(t, recentRecipeIds);
+                w += Leaning(t, recentRecipeIds) * leaningScale;
+                // An answered wish: this roll's seeds lean strongly toward what its blessing favours.
+                if (answeredRecipeId != null && Suits(t, RecipeCatalog.ElementOf(answeredRecipeId))) w += AnsweredWishLeaning;
                 // flora.v2: crowding. The more of the same species close by, the less a seed becomes it.
                 int same = 0;
                 foreach (var other in s.Plants)

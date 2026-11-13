@@ -13,7 +13,13 @@ namespace DestinyGarden.Domain
     /// </summary>
     public static class Lifecycle
     {
-        public const string RulesVersion = "lifecycle.v2";
+        public const string RulesVersion = "lifecycle.v3";
+        public const string RootKind = "root";       // EcologyEffect.Kind: a suited plant the weather did not move puts down roots
+        public const string WitherKind = "wither";   // EcologyEffect.Kind: a plant that no longer suits its place withered
+        public const string WitheredEvent = "Withered";
+        public const int RootGrowth = 30;
+        public const int WitherAfter = 8;            // idle rolls in an unsuitable place before a plant withers
+        public const int MaxWithersPerRoll = 1;
         public const string FruitKind = "fruit";     // EcologyEffect.Kind: the seed a pollinated flower lets fall
         public const string ReturnKind = "return";   // EcologyEffect.Kind: a flower returned to the soil
         public const string HumusKind = "humus";     // EcologyEffect.Kind: a neighbour fed by it
@@ -26,11 +32,25 @@ namespace DestinyGarden.Domain
         {
             switch (species)
             {
-                case "dandelion": return 12;
-                case "cosmos": case "poppy": case "sunflower": case "daisy": return 20;
-                case null: return 20;
-                default: return 30;
+                case "dandelion": return 16;
+                case "cosmos": case "poppy": case "sunflower": case "daisy": return 26;
+                case null: return 26;
+                default: return 40;
             }
+        }
+
+        /// <summary>
+        /// lifecycle.v3: plants that went WitherAfter rolls without growing in a place that no longer suits them
+        /// (the soil dried or drowned) wither, at most one a roll, the longest idle first. They leave nothing.
+        /// </summary>
+        public static List<PlantState> Wither(WorldState s)
+        {
+            var due = new List<PlantState>();
+            foreach (var p in s.Plants) if (p.Stage != PlantStage.Flower && p.IdleRolls >= WitherAfter) due.Add(p);
+            due.Sort((a, b) => a.IdleRolls != b.IdleRolls ? b.IdleRolls.CompareTo(a.IdleRolls) : a.CellId.CompareTo(b.CellId));
+            if (due.Count > MaxWithersPerRoll) due.RemoveRange(MaxWithersPerRoll, due.Count - MaxWithersPerRoll);
+            foreach (var p in due) s.Plants.Remove(p);
+            return due;
         }
 
         /// <summary>Counts one more roll for every flower, then removes the flowers that return this roll.</summary>

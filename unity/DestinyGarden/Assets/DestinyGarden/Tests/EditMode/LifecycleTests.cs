@@ -15,15 +15,15 @@ namespace DestinyGarden.Tests
         public void Advance_CountsBloom_AndReturnsTheLongestPastFirst()
         {
             var s = new WorldState();
-            s.Plants.Add(Flower("a", 10, "dandelion", 11));   // reaches 12 = span: due, 0 past
-            s.Plants.Add(Flower("b", 11, "lavender", 32));    // 33 vs 30: 3 past
-            s.Plants.Add(Flower("c", 12, "cosmos", 20));      // 21 vs 20: 1 past
+            s.Plants.Add(Flower("a", 10, "dandelion", 15));   // reaches 16 = span: due, 0 past
+            s.Plants.Add(Flower("b", 11, "lavender", 42));    // 43 vs 40: 3 past
+            s.Plants.Add(Flower("c", 12, "cosmos", 26));      // 27 vs 26: 1 past
             s.Plants.Add(new PlantState { PlantId = "d", CellId = 13, Growth = 900, Stage = PlantStage.Leaf, Species = "cosmos" });
             var gone = Lifecycle.Advance(s);
             Assert.AreEqual(Lifecycle.MaxReturnsPerRoll, gone.Count);
             Assert.AreEqual("b", gone[0].PlantId, "the one longest past its span returns first");
             CollectionAssert.AreEqual(new[] { "a", "c", "d" }, s.Plants.Select(p => p.PlantId).ToArray());
-            Assert.AreEqual(12, s.PlantAt(10).BloomRolls, "the others wait for a later roll");
+            Assert.AreEqual(16, s.PlantAt(10).BloomRolls, "the others wait for a later roll");
             Assert.AreEqual(0, s.PlantAt(13).BloomRolls, "only flowers count");
         }
 
@@ -100,13 +100,14 @@ namespace DestinyGarden.Tests
                 {
                     var gone = o.Simulation.PostState.PlantAt(ret.CellId);
                     var fruit = eco.Effects.FirstOrDefault(e => e.Kind == Lifecycle.FruitKind);
-                    // Pollinated before this roll, or visited in this roll's ecology step.
+                    // Pollinated before this roll, visited in this roll's ecology step, or under this roll's rainbow eight.
                     bool visited = (gone != null && gone.Pollinated) ||
-                                   eco.Visits.Any(v => (v.Kind == Ecology.Bee || v.Kind == Ecology.Butterfly) && v.Cells.Contains(ret.CellId));
+                                   eco.Visits.Any(v => (v.Kind == Ecology.Bee || v.Kind == Ecology.Butterfly) && v.Cells.Contains(ret.CellId)) ||
+                                   eco.PrayerStar.Points >= 8;
                     if (fruit != null)
                     {
                         fruits++;
-                        Assert.IsTrue(visited, "only a visited flower bears seed");
+                        Assert.IsTrue(visited, "only a visited flower (or one under the rainbow) bears seed");
                         Assert.AreEqual(ret.CellId, fruit.CellId, "the seed takes root where its parent stood");
                         Assert.AreEqual(fruit.Species, eco.PostState.PlantAt(fruit.CellId).Species);
                         if (fruit.Species == ret.Species) inherited++;
@@ -117,6 +118,72 @@ namespace DestinyGarden.Tests
             Assert.Greater(fruits, 0, "pollinated flowers bear seed over 200 rolls");
             Assert.Greater(inherited, 0, "and often their own kind");
             TestContext.WriteLine($"fruits={fruits} inherited={inherited} plainReturns={plainReturns}");
+        }
+
+        [Test]
+        public void IdlePlants_RootWhereTheyFit_AndWitherWhereTheyDoNot()
+        {
+            var coord = new GardenCoordinator(new MemoryJournalForLifecycle(), new FixedEntropy("idle"), new SequentialIds());
+            coord.CreateRun();
+            coord.Prepare();
+            int withered = 0, rooted = 0;
+            for (int i = 0; i < 200; i++)
+            {
+                coord.CommitIntent("none", null);
+                var before = coord.State.Clone();
+                var o = coord.Roll();
+                coord.Prepare();
+                var w = o.Ecology.Effects.Where(e => e.Kind == Lifecycle.WitherKind).ToList();
+                Assert.LessOrEqual(w.Count, Lifecycle.MaxWithersPerRoll);
+                foreach (var e in w)
+                {
+                    withered++;
+                    var was = before.PlantAt(e.CellId);
+                    Assert.NotNull(was);
+                    Assert.AreNotEqual(PlantStage.Flower, was.Stage);
+                    Assert.GreaterOrEqual(was.IdleRolls, Lifecycle.WitherAfter - 1, "only a plant idle for the whole span withers");
+                    Assert.IsFalse(Flora.Fits(Flora.Get(was.Species), o.Simulation.PostState, e.CellId), "only where its place no longer suits it");
+                }
+                foreach (var e in o.Ecology.Effects.Where(e => e.Kind == Lifecycle.RootKind))
+                {
+                    rooted++;
+                    Assert.LessOrEqual(e.Amount, Lifecycle.RootGrowth);
+                }
+            }
+            Assert.Greater(rooted, 0, "suited plants on dry soil put down roots");
+            TestContext.WriteLine($"withered={withered} rootedEffects={rooted}");
+        }
+
+        [Test]
+        public void RarerWishes_CallMoreSpirits()
+        {
+            var coord = new GardenCoordinator(new MemoryJournalForLifecycle(), new FixedEntropy("spirits"), new SequentialIds());
+            coord.CreateRun();
+            coord.Prepare();
+            int faceWishSpiritsMax = 0, familySpiritsMax = 0;
+            for (int i = 0; i < 300; i++)
+            {
+                bool face = i % 2 == 0;
+                int matching;
+                if (face) { coord.CommitIntent("face", "3"); matching = 1; }
+                else
+                {
+                    string el = RecipeCatalog.ElementOf(coord.CurrentFaces.Faces[0]).ToString().ToLowerInvariant();
+                    coord.CommitIntent("family", el);
+                    matching = coord.MatchingFaces;
+                }
+                int faces = coord.CurrentFaces.Faces.Length;
+                var o = coord.Roll();
+                coord.Prepare();
+                var spirit = o.Ecology.Visit(Ecology.Spirit);
+                if (!o.IntentMatched) { Assert.IsNull(spirit); continue; }
+                int allowed = System.Math.Min(PrayerSpirits.MaxSpirits, (faces + matching - 1) / matching);
+                Assert.LessOrEqual(spirit.Cells.Count, allowed);
+                if (face) faceWishSpiritsMax = System.Math.Max(faceWishSpiritsMax, spirit.Cells.Count);
+                else familySpiritsMax = System.Math.Max(familySpiritsMax, spirit.Cells.Count);
+            }
+            Assert.Greater(faceWishSpiritsMax, 3, "a one-face wish can call more than three spirits");
+            TestContext.WriteLine($"faceWishSpiritsMax={faceWishSpiritsMax} familySpiritsMax={familySpiritsMax}");
         }
 
         private sealed class MemoryJournalForLifecycle : IJournalWriter

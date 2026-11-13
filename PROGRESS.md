@@ -2283,3 +2283,41 @@ Git diff whitespace check: pass
 
 - Domain: GardenTypes.cs・CanonicalJson.cs（Pollinated）、Ecology.cs（受粉・実り・訪れの順番）、Lifecycle.cs、PrayerStar.cs。Presentation: PrayerStarSigil.cs。
 - Tests: LifecycleTests.cs、EcologyTests.cs、PrayerStarTests.cs、SacredTonesTests.cs、LongPlayTests.cs。docs/unity-garden/ECOLOGY.md §9.4・§9.5、PROGRESS.md。
+
+## Jam 仕組みの総点検 — 独立レビュー・再開の正しさ・止まる株・見える星の恵み・届け先・願いの重み（2026-11-14）
+
+### 完了したこと
+
+- 本人の方向付け「仕組みを最大限ブラッシュアップ」。全仕組みの寄与を計測する `SystemHealthTests`（成長の内訳・新しい株の出どころ・住人の頻度・3つの祈り方の比較）を作り、
+  決まりのコードを独立したレビュー（読むだけ）にかけ、8件の指摘をコードで確かめてから直した（ECOLOGY.md §10）。
+- 正しさ:
+  - 再開を DATA_CONTRACT §3 どおりにした。`IntentCommitted` 後の再開で願いが消えていた。`DrawEntropyCommitted`・`OutcomeCommitted` 後の再開で乱数を引き直していた。
+    出目の並びが二重に数えられ得た。以前からあった不具合で、`ResumeTests` 5件で確認した。
+  - 七つめの面がある回のラッキーナンバーの確率表示を 1/7 にした（以前は常に 1/6）。
+- 止まる株（lifecycle.v3）: 合う場所で自然の成長がない株は根を張って +30、合わなくなった場所で8投止まった株は枯れる（一投1株）。
+  菌根の「網が育ったか」の判定を直し、止まった株へ先に分ける。虫の訪れは、同じ好みならまだ受粉していない花へ先に行く。
+- 星の恵みを目に見える形にした（五 +60×1株、六 一段×1株、七 半段×7株、八 一段×全株）。届け先の近く（距離3以内）が先。届け先の近くでは祈りの傾きが2倍。
+- 願いの重み: 叶った願いの精霊の数を min(7, 面の数÷合う面の数) にした（面の願い 6、3面の系統 2）。叶った一投の芽吹きは、その恵みに合う種へ +10。
+  恵みに「合う種」の定めを広げた（水=湿り好き 300‰〜、種=自分で広がる種）。八芒星の一投では咲いている花がみな受粉する。
+- 寿命 1.3 倍（16・26・40）。成り立たない綿毛の天気の条件を外した（振る舞いは不変）。§8.1 の表と実装の食い違い（調和 8 と 7）を直した。
+- 一投ごとの因果の一行に、届け先・段階の恵み・枯れたことを加えた。枯れた場所に鈍い色の粒を出す。
+
+### 完了基準の結果（コマンド出力の要約）
+
+- Unity EditMode: `total="75" passed="75" failed="0"`。隔離プレビューの macOS ビルド `Succeeded`。
+- 計測（6庭×60投）: 成長の内訳 自然 47〜51%・星 27〜31%・根 11〜13%。60投後の花 25〜28（直前の版 11〜17）。
+  叶った一投の芽吹きが恵みに合う割合 51〜66%（叶わない一投 41〜46%）。虹の八 約15〜51投に1回（祈り方による）。
+- 長期プレイ（6庭×200投）: 空く場所 約0.35/投、種の面 0.15〜0.25/投、芽吹き 約1/投、花 21〜31、種の数 11〜12。
+- 祈り方の庭（8庭×48投）: 花 18〜29・咲いている種 10〜11（直前 11〜14・7〜9）。水=キンポウゲ・野イチゴ、光=コスモス・ポピー、種=野ばら、風=タンポポの原っぱ。
+- 隔離プレビューで40投後の庭（花と蝶、調和 8/8）と、保存からの再開を確認。例外 0。本来の庭の台帳の SHA-256 は d605e4eb… のまま。
+- `pnpm typecheck` 0、`pnpm test` 183 passed、`pnpm build` built。
+
+### 要確定・申し送り
+
+- 星の恵みが成長の約3割。自然の恵みより目立たせたくなければ、七の株数か八の段数を下げる。
+- 実際の一投での演出（因果の一行の読みやすさ、枯れた粒、七への灯）は実機で未確認。
+
+### 触ったファイル
+
+- Application/GardenCoordinator.cs。Domain: Ecology.cs、PrayerStar.cs、Lifecycle.cs、Flora.cs、GardenTypes.cs、CanonicalJson.cs。Presentation: PrayerStarSigil.cs。
+- Tests: ResumeTests.cs・SystemHealthTests.cs（新規）、LifecycleTests.cs、PrayerStarTests.cs、FloraTests.cs、HarmonyTests.cs、EcologyTests.cs、SacredTonesTests.cs。docs/unity-garden/ECOLOGY.md §3・§8・§9・§10、PROGRESS.md。

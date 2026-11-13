@@ -57,6 +57,23 @@ namespace DestinyGarden.Application
         private readonly List<string> _rolledRecipes = new List<string>(); // oldest first, this run
         private readonly List<int> _rolledFaces = new List<int>();          // oldest first, this run (prayer star)
         public IReadOnlyList<string> RolledRecipes => _rolledRecipes;
+        public int MatchingFaces { get; private set; }  // faces that would answer the committed wish
+
+        // A round restored after its draw or outcome was saved is resolved from what was saved (DATA_CONTRACT §3):
+        // no new entropy, the same face. Faces and recipes join the run's history only once the round is Resolved.
+        private bool _pendingAcquisition;
+        private byte[] _pendingOutcomeBytes, _pendingOracleBytes, _pendingEcologyBytes;
+        private bool _hasPendingOutcome;
+        private int _pendingFaceId, _pendingCardIndex;
+        private string _pendingRecipeId;
+
+        private void ClearPending()
+        {
+            _pendingAcquisition = false;
+            _pendingOutcomeBytes = _pendingOracleBytes = _pendingEcologyBytes = null;
+            _hasPendingOutcome = false;
+            _pendingFaceId = 0; _pendingCardIndex = 0; _pendingRecipeId = null;
+        }
         public bool LuckySevenOffered { get; private set; }
         public bool LuckySevenAdded => CurrentFaces != null && CurrentFaces.Faces.Length == LuckySeven.FaceId;
 
@@ -212,6 +229,7 @@ namespace DestinyGarden.Application
                 foreach (string f in CurrentFaces.Faces)
                     if (RecipeCatalog.ElementOf(f).ToString().ToLowerInvariant() == value) matchFaces++;
             if (LastIntentKind == "face" && value != null) matchFaces = 1;
+            MatchingFaces = matchFaces;
             _writer.Append("IntentCommitted", RunId, CurrentRoundId, new Dictionary<string, object>
             {
                 ["kind"] = LastIntentKind,
@@ -228,21 +246,41 @@ namespace DestinyGarden.Application
             if (Phase != CoordinatorPhase.IntentCommitted)
                 throw new InvalidOperationException("Roll requires a committed intent (use kind=none).");
             string roundId = CurrentRoundId;
-            _writer.Append("AcquisitionStarted", RunId, roundId, new Dictionary<string, object>
+            byte[] outcomeBytes, oracleBytes, ecologyBytes;
+            if (_pendingOutcomeBytes != null)
             {
-                ["entropySource"] = _entropy.SourceName
-            });
-
-            byte[] outcomeBytes = _entropy.GetBytes(32);
-            byte[] oracleBytes = _entropy.GetBytes(32);
-            byte[] ecologyBytes = _entropy.GetBytes(64);
-            _writer.Append("DrawEntropyCommitted", RunId, roundId, new Dictionary<string, object>
+                // Resumed after the draw was saved: interpret the saved material, never draw again.
+                outcomeBytes = _pendingOutcomeBytes; oracleBytes = _pendingOracleBytes; ecologyBytes = _pendingEcologyBytes;
+            }
+            else if (_pendingAcquisition)
             {
-                ["outcomeBase64"] = Convert.ToBase64String(outcomeBytes),
-                ["oracleBase64"] = Convert.ToBase64String(oracleBytes),
-                ["ecologyBase64"] = Convert.ToBase64String(ecologyBytes),
-                ["source"] = _entropy.SourceName
-            });
+                // The process ended after acquisition started and before its material was saved.
+                _writer.Append("InterruptedUnresolved", RunId, roundId, new Dictionary<string, object>
+                {
+                    ["reason"] = "acquisition_interrupted_before_material_saved"
+                });
+                ClearPending();
+                Phase = CoordinatorPhase.Ready;
+                CurrentRoundId = null; CurrentFaces = null;
+                return null;
+            }
+            else
+            {
+                _writer.Append("AcquisitionStarted", RunId, roundId, new Dictionary<string, object>
+                {
+                    ["entropySource"] = _entropy.SourceName
+                });
+                outcomeBytes = _entropy.GetBytes(32);
+                oracleBytes = _entropy.GetBytes(32);
+                ecologyBytes = _entropy.GetBytes(64);
+                _writer.Append("DrawEntropyCommitted", RunId, roundId, new Dictionary<string, object>
+                {
+                    ["outcomeBase64"] = Convert.ToBase64String(outcomeBytes),
+                    ["oracleBase64"] = Convert.ToBase64String(oracleBytes),
+                    ["ecologyBase64"] = Convert.ToBase64String(ecologyBytes),
+                    ["source"] = _entropy.SourceName
+                });
+            }
 
             int faceCount = CurrentFaces.Faces.Length;
             int faceId = faceCount == LuckySeven.FaceId
@@ -254,24 +292,34 @@ namespace DestinyGarden.Application
                 {
                     ["reason"] = "outcome_entropy_exhausted"
                 });
+                ClearPending();
                 Phase = CoordinatorPhase.Ready;
                 CurrentRoundId = null; CurrentFaces = null;
                 return null;
             }
             int cardRoll = EntropyBuffer.RollD6(oracleBytes, out _, out _);
             int cardIndex = cardRoll < 0 ? -1 : cardRoll - 1;
+            if (_hasPendingOutcome)
+            {
+                // The saved outcome is the record; the same bytes give the same face, which is checked here.
+                if (_pendingFaceId != faceId || _pendingRecipeId != CurrentFaces.Faces[faceId - 1])
+                    throw new InvalidOperationException("Saved outcome does not match its saved material.");
+                cardIndex = _pendingCardIndex;
+            }
             string recipeId = CurrentFaces.Faces[faceId - 1];
             bool luckyRolled = faceCount == LuckySeven.FaceId && faceId == LuckySeven.FaceId;
 
-            _writer.Append("OutcomeCommitted", RunId, roundId, new Dictionary<string, object>
-            {
-                ["faceId"] = faceId,
-                ["recipeId"] = recipeId,
-                ["cardIndex"] = cardIndex,
-                ["cardStatus"] = cardIndex < 0 ? "unavailable_entropy_exhausted" : "drawn",
-                ["faceCount"] = faceCount,
-                ["luckySeven"] = luckyRolled
-            });
+            if (!_hasPendingOutcome)
+                _writer.Append("OutcomeCommitted", RunId, roundId, new Dictionary<string, object>
+                {
+                    ["faceId"] = faceId,
+                    ["recipeId"] = recipeId,
+                    ["cardIndex"] = cardIndex,
+                    ["cardStatus"] = cardIndex < 0 ? "unavailable_entropy_exhausted" : "drawn",
+                    ["faceCount"] = faceCount,
+                    ["luckySeven"] = luckyRolled
+                });
+            ClearPending();
 
             int anchor = Sites.ById(CurrentFaces.ResolvedSiteId).CenterCellId;
             var resolvedRecipe = luckyRolled
@@ -285,24 +333,25 @@ namespace DestinyGarden.Application
 
             string cardId = cardIndex >= 0 ? OracleCatalogData.CardOrder[cardIndex] : null;
             var message = Oracle.Select(roundId, sim, resolvedRecipe, cardId, RecentThree());
-            _recentMessageIds.Add(message.TemplateId);
-            while (_recentMessageIds.Count > 3) _recentMessageIds.RemoveAt(0);
 
             // Ecology step (ECOLOGY.md): after the natural simulation, from saved bytes only.
+            // The run's history takes this roll only after Resolved is saved (below).
             bool matched = LuckySeven.IntentMatched(LastIntentKind, LastIntentValue, faceId, recipeId);
-            _rolledRecipes.Add(recipeId);
+            var recent = new List<string>(_rolledRecipes) { recipeId };
             int previousFace = _rolledFaces.Count > 0 ? _rolledFaces[_rolledFaces.Count - 1] : 0;
-            _rolledFaces.Add(faceId);
             var eco = DestinyGarden.Domain.Ecology.Apply(sim.PostState, new EcologyContext
             {
                 RoundId = roundId,
                 CurrentRecipeId = recipeId,
-                RecentRecipeIds = _rolledRecipes,
+                RecentRecipeIds = recent,
                 PrayerAnswered = matched,
                 Sim = sim,
                 Weather = CurrentWeather,
                 FaceId = faceId,
-                PreviousFaceId = previousFace
+                PreviousFaceId = previousFace,
+                AnchorCellId = anchor,
+                SpiritCount = matched ? Math.Min(PrayerSpirits.MaxSpirits,
+                    (faceCount + Math.Max(1, MatchingFaces) - 1) / Math.Max(1, MatchingFaces)) : 0
             }, ecologyBytes, n => _ids.NewId("plant") + "-eco" + n);
 
             var events = new List<object>();
@@ -346,6 +395,10 @@ namespace DestinyGarden.Application
                 }
             });
 
+            _rolledRecipes.Add(recipeId);
+            _rolledFaces.Add(faceId);
+            _recentMessageIds.Add(message.TemplateId);
+            while (_recentMessageIds.Count > 3) _recentMessageIds.RemoveAt(0);
             Phase = CoordinatorPhase.Resolved;
             _luckyEarned = matched;
             return new RollOutcome
@@ -384,6 +437,7 @@ namespace DestinyGarden.Application
             _luckyEarned = false; LuckySevenOffered = false;
             _rolledRecipes.Clear();
             _rolledFaces.Clear();
+            ClearPending();
             _weatherEntropyByPeriod.Clear();
             _recentMessageIds.Clear();
 
@@ -427,6 +481,7 @@ namespace DestinyGarden.Application
                             };
                             LuckySevenOffered = e.Payload.TryGetValue("luckySevenOffered", out object lo) && lo is bool lb && lb;
                             _luckyEarned = false;
+                            ClearPending();
                             Phase = CoordinatorPhase.Prepared;
                             break;
                         }
@@ -440,18 +495,36 @@ namespace DestinyGarden.Application
                     case "IntentCommitted":
                         _restoreIntentKind = e.Payload["kind"] as string;
                         _restoreIntentValue = e.Payload["value"] as string;
+                        // The wish belongs to the round: a resumed roll must judge it as it was made.
+                        LastIntentKind = _restoreIntentKind ?? "none";
+                        LastIntentValue = _restoreIntentValue;
+                        MatchingFaces = e.Payload.TryGetValue("matchingFaces", out object mfv) ? WorldStateSerializer.ToInt(mfv) : 0;
                         if (Phase == CoordinatorPhase.Prepared) Phase = CoordinatorPhase.IntentCommitted;
                         break;
+                    case "AcquisitionStarted":
+                        _pendingAcquisition = true;
+                        break;
+                    case "DrawEntropyCommitted":
+                        _pendingOutcomeBytes = Convert.FromBase64String((string)e.Payload["outcomeBase64"]);
+                        _pendingOracleBytes = Convert.FromBase64String((string)e.Payload["oracleBase64"]);
+                        _pendingEcologyBytes = e.Payload.TryGetValue("ecologyBase64", out object eb) && eb is string ebs
+                            ? Convert.FromBase64String(ebs) : new byte[0];
+                        break;
                     case "OutcomeCommitted":
-                        if (e.Payload["recipeId"] is string rolledRecipe)
-                        {
-                            _rolledRecipes.Add(rolledRecipe);
-                            _rolledFaces.Add(WorldStateSerializer.ToInt(e.Payload["faceId"]));
-                        }
+                        _hasPendingOutcome = true;
+                        _pendingFaceId = WorldStateSerializer.ToInt(e.Payload["faceId"]);
+                        _pendingRecipeId = e.Payload["recipeId"] as string;
+                        _pendingCardIndex = e.Payload.TryGetValue("cardIndex", out object ci) ? WorldStateSerializer.ToInt(ci) : -1;
                         _luckyEarned = LuckySeven.IntentMatched(_restoreIntentKind, _restoreIntentValue,
                             WorldStateSerializer.ToInt(e.Payload["faceId"]), e.Payload["recipeId"] as string);
                         break;
                     case "Resolved":
+                        if (_hasPendingOutcome && _pendingRecipeId != null)
+                        {
+                            _rolledRecipes.Add(_pendingRecipeId);
+                            _rolledFaces.Add(_pendingFaceId);
+                        }
+                        ClearPending();
                         State = WorldStateSerializer.FromPayload(
                             (Dictionary<string, object>)e.Payload["postState"]);
                         if (e.Payload.TryGetValue("selectedMessage", out object sm) &&
@@ -465,6 +538,7 @@ namespace DestinyGarden.Application
                         break;
                     case "PreparationInterrupted":
                     case "InterruptedUnresolved":
+                        ClearPending();
                         CurrentFaces = null; CurrentRoundId = null;
                         Phase = CoordinatorPhase.Ready;
                         break;

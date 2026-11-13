@@ -377,18 +377,21 @@ namespace DestinyGarden.Presentation
             if (_glints != null && View != null)
                 foreach (var e in outcome.Ecology.Events)
                 {
-                    if (e.Kind != Lifecycle.ReturnedEvent) continue;
+                    bool withered = e.Kind == Lifecycle.WitheredEvent;
+                    if (e.Kind != Lifecycle.ReturnedEvent && !withered) continue;
                     var at = View.CellTop(e.CellId);
                     for (int i = 0; i < 18; i++)
                         _glints.Emit(new ParticleSystem.EmitParams
                         {
                             position = at + new Vector3(UnityEngine.Random.Range(-0.25f, 0.25f), UnityEngine.Random.Range(0f, 0.5f), UnityEngine.Random.Range(-0.25f, 0.25f)),
                             velocity = ReducedMotion ? Vector3.zero : Vector3.up * UnityEngine.Random.Range(0.15f, 0.45f),
-                            startColor = new Color(1f, 0.86f, 0.62f, 0.75f), startLifetime = UnityEngine.Random.Range(1.4f, 2.4f)
+                            // A withered seedling leaves a few dull motes; a returned flower a warm rise of light.
+                            startColor = withered ? new Color(0.72f, 0.66f, 0.55f, 0.45f) : new Color(1f, 0.86f, 0.62f, 0.75f),
+                            startLifetime = UnityEngine.Random.Range(1.4f, 2.4f)
                         }, 1);
                 }
             StartCoroutine(ShowCauseLater(CauseLine(outcome.Ecology)));
-            yield return PlayRevealCore(star.Points, outcome.FaceId, previousFaceId, tops);
+            yield return PlayRevealCore(star.Points, outcome.FaceId, previousFaceId, tops, outcome.FaceCount);
         }
 
         private IEnumerator ShowCauseLater(string line)
@@ -397,7 +400,7 @@ namespace DestinyGarden.Presentation
             ShowCause(line);
         }
 
-        private IEnumerator PlayRevealCore(int points, int faceId, int previousFaceId, List<Vector3> tops)
+        private IEnumerator PlayRevealCore(int points, int faceId, int previousFaceId, List<Vector3> tops, int faceCount = 6)
         {
             _hintTarget = 0f; // the old hint fades while the die speaks
             if (Audio != null) Audio.PlayFaceNote(faceId);
@@ -411,8 +414,7 @@ namespace DestinyGarden.Presentation
             if (points >= 7)
             {
                 string sub = points >= 8 ? "ラッキーナンバーに、陰陽と島の調和が重なった"
-                    : faceId == LuckySeven.FaceId ? "七の目　・　偶然なら 1/7"
-                    : $"前の目 {previousFaceId} と今の目 {faceId} で七　・　偶然なら 1/6";
+                    : LuckyOddsLine(faceId, previousFaceId, faceCount);
                 ShowLabel(points, sub, false);
             }
             yield return new WaitForSeconds(0.5f);
@@ -523,6 +525,17 @@ namespace DestinyGarden.Presentation
                     }, 1);
         }
 
+        /// <summary>
+        /// The lucky number and its honest chance: one face out of the faces on the die this round
+        /// (1/6, or 1/7 when the seventh face was added).
+        /// </summary>
+        public static string LuckyOddsLine(int faceId, int previousFaceId, int faceCount)
+        {
+            int n = Mathf.Max(1, faceCount);
+            return faceId == LuckySeven.FaceId ? $"七の目　・　偶然なら 1/{n}"
+                : $"前の目 {previousFaceId} と今の目 {faceId} で七　・　偶然なら 1/{n}";
+        }
+
         private Color GlintColor(int points) =>
             points >= 8 ? RainbowColors[UnityEngine.Random.Range(0, RainbowColors.Length)] : StarColor(points);
 
@@ -607,26 +620,34 @@ namespace DestinyGarden.Presentation
         public static string CauseLine(EcologyResult eco)
         {
             if (eco == null || eco.PrayerStar == null) return null;
-            int gifts = 0, fruit = 0, returned = 0, plain = 0;
+            int gifts = 0, fruit = 0, returned = 0, plain = 0, withered = 0;
             foreach (var e in eco.Effects)
             {
                 if (e.Kind == PrayerStar.GiftKind && e.Amount > 0) gifts++;
                 if (e.Kind == Lifecycle.FruitKind) fruit++;
                 if (e.Kind == Lifecycle.ReturnKind) returned++;
+                if (e.Kind == Lifecycle.WitherKind) withered++;
             }
             plain = returned - fruit;
             var parts = new List<string>();
             if (gifts > 0)
             {
-                string where = !eco.PrayerStar.HasElement ? "若い芽へ"
-                    : eco.PrayerStar.Element == ElementId.Water ? "水の恵み → 乾いた土の株へ"
-                    : eco.PrayerStar.Element == ElementId.Light ? "光の恵み → 日向を好む株へ"
-                    : eco.PrayerStar.Element == ElementId.Wind ? "風の恵み → 蜂や蝶に好かれる株へ"
+                var star = eco.PrayerStar;
+                string what = star.GiftGrowth > 0 ? $"星の恵み {gifts}株に ＋{star.GiftGrowth}" : $"星の恵みで {gifts}株が一段育った";
+                string site = null;
+                if (star.Points < 8)
+                    foreach (var st in Sites.All) if (st.CenterCellId == star.AnchorCellId) site = st.LabelJa;
+                string where = !star.HasElement ? "若い芽へ"
+                    : star.Element == ElementId.Water ? "水の恵み → 乾いた土の株へ"
+                    : star.Element == ElementId.Light ? "光の恵み → 日向を好む株へ"
+                    : star.Element == ElementId.Wind ? "風の恵み → 蜂や蝶に好かれる株へ"
                     : "種の恵み → いちばん若い芽へ";
-                parts.Add($"星の恵み {gifts}株　{where}");
+                parts.Add(what + (site != null ? $"（{site}のあたりから）" : "") + "　" + where);
             }
+            if (eco.PrayerStar.Points >= 8) parts.Add("八の虹の下で、咲いている花がみな実りを結んだ");
             if (fruit > 0) parts.Add("蜂や蝶の訪れた花が土に還り、実りを落とした");
             else if (plain > 0) parts.Add("花がひとつ土に還り、となりを養った");
+            if (withered > 0) parts.Add("合わなくなった土で、芽がひとつ枯れた");
             return parts.Count > 0 ? string.Join("　・　", parts) : null;
         }
 

@@ -58,7 +58,9 @@ namespace DestinyGarden.Tests
         [Test]
         public void Gift_GoesToTheYoungestNonFloweringPlants()
         {
-            Assert.AreEqual(new[] { 5, 16, 77, 88 }, new[] { 5, 6, 7, 8 }.Select(PrayerStar.GiftGrowthFor).ToArray());
+            Assert.AreEqual(new[] { 60, 0, 0, 0 }, new[] { 5, 6, 7, 8 }.Select(PrayerStar.GiftGrowthFor).ToArray(), "0 = one full stage");
+            Assert.AreEqual(new[] { 1, 1, 7, int.MaxValue }, new[] { 5, 6, 7, 8 }.Select(PrayerStar.GiftRecipientsFor).ToArray());
+            Assert.AreEqual(new[] { 250, 240, 350, 750, 1000, 0 }, new[] { 0, 10, 400, 750, 1500, 2500 }.Select(PrayerStar.ToNextStage).ToArray());
             var s = new WorldState();
             int[] growth = { 2500, 10, 900, 10, 400, 0, 1600, 1200 };
             for (int i = 0; i < growth.Length; i++)
@@ -68,7 +70,12 @@ namespace DestinyGarden.Tests
                     Stage = growth[i] >= 2500 ? PlantStage.Flower : growth[i] >= 1500 ? PlantStage.Bud : PlantStage.Leaf
                 });
             var five = PrayerStar.Recipients(s, PrayerStar.Read(1, 0, "seed_single", null, false, 0));
-            CollectionAssert.AreEqual(new[] { 105, 101, 103, 104, 102 }, five, "growth order, then cell order");
+            CollectionAssert.AreEqual(new[] { 105 }, five, "five: the youngest one");
+            var seven = PrayerStar.Recipients(s, PrayerStar.Read(3, 4, "seed_single", "seed_single", false, 0));
+            CollectionAssert.AreEqual(new[] { 105, 101, 103, 104, 102, 107, 106 }, seven, "growth order, then cell order");
+            // The blessing's site comes first: with the site at cell 106, the plants within three cells lead.
+            var near = PrayerStar.Recipients(s, PrayerStar.Read(1, 0, "seed_single", null, false, 0, 106));
+            Assert.LessOrEqual(PrayerStar.Dist(near[0], 106), PrayerStar.SiteReach);
             var eight = PrayerStar.Recipients(s, new PrayerStarReading { Points = 8, GiftRecipients = PrayerStar.GiftRecipientsFor(8) });
             Assert.AreEqual(7, eight.Count, "the eight reaches every plant not yet in flower");
             Assert.IsFalse(eight.Contains(100));
@@ -136,7 +143,7 @@ namespace DestinyGarden.Tests
                 foreach (var g in gifts)
                 {
                     Assert.Greater(g.Amount, 0);
-                    Assert.LessOrEqual(g.Amount, star.GiftGrowth);
+                    Assert.LessOrEqual(g.Amount, star.GiftGrowth > 0 ? star.GiftGrowth : star.Points == 7 ? 500 : 1000, "five: +60; seven half a stage; otherwise one stage");
                 }
                 Assert.AreEqual(o.Simulation.PostState.TotalWater(), o.Ecology.PostState.TotalWater(), "the star never moves water");
                 Assert.AreEqual(star.Points >= 8, PrayerStar.IsRainbow(o.LuckySeven, o.Simulation, o.Ecology),
@@ -144,6 +151,23 @@ namespace DestinyGarden.Tests
             }
             Assert.IsTrue(points.Contains(5) && points.Contains(6) && points.Contains(7),
                 "160 rolls should show the five-, six- and seven-pointed stars: " + string.Join(",", points));
+        }
+
+        [Test]
+        public void RainbowEight_LetsEveryFlowerSetSeed()
+        {
+            int eights = 0;
+            for (int run = 0; run < 8 && eights == 0; run++)
+                foreach (var o in Play(new Memory(), "rainbow-seed-" + run, 160))
+                {
+                    if (o.Ecology.PrayerStar.Points < 8) continue;
+                    eights++;
+                    // Flowers counted this roll (BloomRolls > 0) were in bloom under the rainbow; one opened later by the
+                    // returning plants' nourishment has not been counted yet.
+                    foreach (var p in o.Ecology.PostState.Plants.Where(p => p.Stage == PlantStage.Flower && p.BloomRolls > 0))
+                        Assert.IsTrue(p.Pollinated, "every flower under the rainbow sets seed");
+                }
+            Assert.Greater(eights, 0, "fixtures should reach an eight-pointed star");
         }
 
         [Test]

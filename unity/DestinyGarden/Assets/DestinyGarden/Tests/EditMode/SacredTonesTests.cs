@@ -140,12 +140,26 @@ namespace DestinyGarden.Tests
             };
             eco.Effects.Add(new DestinyGarden.Domain.EcologyEffect { Kind = DestinyGarden.Domain.PrayerStar.GiftKind, CellId = 10, Amount = 16 });
             eco.Effects.Add(new DestinyGarden.Domain.EcologyEffect { Kind = DestinyGarden.Domain.PrayerStar.GiftKind, CellId = 11, Amount = 16 });
-            Assert.AreEqual("星の恵み 2株　水の恵み → 乾いた土の株へ", PrayerStarSigil.CauseLine(eco));
+            Assert.AreEqual("星の恵みで 2株が一段育った　水の恵み → 乾いた土の株へ", PrayerStarSigil.CauseLine(eco));
+            var atSite = new DestinyGarden.Domain.EcologyResult
+            {
+                PrayerStar = DestinyGarden.Domain.PrayerStar.Read(1, 0, "light_soft", null, false, 3, DestinyGarden.Domain.Sites.ById("inlet").CenterCellId)
+            };
+            atSite.Effects.Add(new DestinyGarden.Domain.EcologyEffect { Kind = DestinyGarden.Domain.PrayerStar.GiftKind, CellId = 10, Amount = 60 });
+            Assert.AreEqual("星の恵み 1株に ＋60（入口のあたりから）　光の恵み → 日向を好む株へ", PrayerStarSigil.CauseLine(atSite));
             eco.Effects.Add(new DestinyGarden.Domain.EcologyEffect { Kind = DestinyGarden.Domain.Lifecycle.ReturnKind, CellId = 20 });
             StringAssert.EndsWith("花がひとつ土に還り、となりを養った", PrayerStarSigil.CauseLine(eco));
             eco.Effects.Add(new DestinyGarden.Domain.EcologyEffect { Kind = DestinyGarden.Domain.Lifecycle.FruitKind, CellId = 20, Seed = true });
             StringAssert.EndsWith("蜂や蝶の訪れた花が土に還り、実りを落とした", PrayerStarSigil.CauseLine(eco));
             Assert.IsNull(PrayerStarSigil.CauseLine(new DestinyGarden.Domain.EcologyResult()), "no star, no line");
+        }
+
+        [Test]
+        public void LuckyOdds_FollowTheFacesOnTheDie()
+        {
+            Assert.AreEqual("前の目 3 と今の目 4 で七　・　偶然なら 1/6", PrayerStarSigil.LuckyOddsLine(4, 3, 6));
+            Assert.AreEqual("前の目 3 と今の目 4 で七　・　偶然なら 1/7", PrayerStarSigil.LuckyOddsLine(4, 3, 7), "a seventh face makes each face 1/7");
+            Assert.AreEqual("七の目　・　偶然なら 1/7", PrayerStarSigil.LuckyOddsLine(7, 2, 7));
         }
 
         [Test]

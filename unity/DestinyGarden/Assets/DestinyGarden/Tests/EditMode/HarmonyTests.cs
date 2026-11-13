@@ -99,9 +99,9 @@ namespace DestinyGarden.Tests
                     Assert.LessOrEqual(e.Amount, eco.Harmony.Value * Ecology.MycorrhizaPerHarmony);
                     Assert.Greater(e.Amount, 0);
                 }
-                // Recipients are at most three per network.
+                // Recipients are at most one per six plants of a network (at least three).
                 foreach (var net in eco.Networks)
-                    Assert.LessOrEqual(myco.Count(e => net.Contains(e.CellId)), Ecology.MycorrhizaRecipients);
+                    Assert.LessOrEqual(myco.Count(e => net.Contains(e.CellId)), Ecology.MycorrhizaRecipientsFor(net.Count));
                 shared += myco.Count;
             }
             Assert.Greater(shared, 0, "the network should share growth at some point in 60 rolls");
