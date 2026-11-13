@@ -94,11 +94,14 @@ namespace DestinyGarden.Tests
                     }
                 }
                 var top = species.OrderByDescending(x => x.Value).ThenBy(x => x.Key).Take(4).ToList();
+                // Simpson diversity (1 - sum p^2): 0 = one species, closer to 1 = many species evenly.
+                double simpson = 1.0 - species.Values.Sum(v => Math.Pow(v / (double)Math.Max(1, named), 2));
                 tops.Add(top[0].Key);
                 lines.Add($"{kv.Key}: plants {plants / (double)gardens:0.0}, flowers {flowers / (double)gardens:0.0}, " +
                           $"blooming species {blooming / (double)gardens:0.0}, sun-lovers {100.0 * sunLovers / Math.Max(1, named):0}%, " +
                           $"shade-lovers {100.0 * shadeLovers / Math.Max(1, named):0}%, wet-lovers {100.0 * wetLovers / Math.Max(1, named):0}%, " +
                           $"soil moisture {moisture / (double)gardens / GardenMapData.CellCount:0}‰, star gift/roll {gift / (double)(gardens * rolls):0.0}, " +
+                          $"diversity {simpson:0.00}, species {species.Count}, " +
                           "top " + string.Join(" ", top.Select(x => $"{x.Key}{100.0 * x.Value / Math.Max(1, named):0}%")));
             }
             string report = string.Join(" | ", lines);

@@ -27,6 +27,9 @@ namespace DestinyGarden.Domain
     {
         public const string RulesVersion = "flora.v2";
         public const int LeaningWindow = 8;   // flora.v2: the blessings of the last eight rolls lean germination
+        public const string Pioneer = "dandelion";
+        public const int PioneerStepsBackAt = 4;  // flora.v2: where this many species fit, the pioneer's base weight halves
+        public const int CrowdingReach = 2;       // flora.v2: same species within this distance crowd a seed (x3/(3+n))
         public const int ThriveGrowth = 4;
 
         private static SpeciesTraits T(string id, string ja, int hard, int dMin, int dMax, int mMin, int mMax, int light,
@@ -42,10 +45,10 @@ namespace DestinyGarden.Domain
         {
             T("cosmos", "コスモス", 520, 350, 1000, 0, 800, 0, 2, 1),
             T("daisy", "デイジー", 800, 0, 1000, 150, 900, 1, 1, 1),
-            T("bellflower", "ホタルブクロ", 500, 0, 1000, 300, 1000, 2, 0, 1),
+            T("bellflower", "ホタルブクロ", 650, 0, 1000, 300, 1000, 2, 0, 1),   // flora.v2: 500 -> 650 (rock shade is harder)
             T("poppy", "ポピー", 900, 450, 1000, 0, 700, 0, 0, 2),
             T("sunflower", "ヒマワリ", 480, 0, 1000, 300, 1000, 0, 1, 2, drains: 150),
-            T("foxglove", "ジギタリス", 480, 0, 1000, 300, 1000, 2, -1, 2),
+            T("foxglove", "ジギタリス", 650, 0, 1000, 300, 1000, 2, -1, 2),     // flora.v2: 480 -> 650
             T("anemone", "アネモネ", 520, 0, 1000, 250, 900, 1, 0, 1),
             T("iris", "アイリス", 650, 0, 520, 500, 1000, 1, 1, 1, drains: -150),
             T("forgetmenot", "ワスレナグサ", 480, 0, 600, 450, 1000, 1, 1, 0),
@@ -180,13 +183,19 @@ namespace DestinyGarden.Domain
             for (int i = 0; i < fit.Count; i++)
             {
                 var t = fit[i];
-                int w = 2;
+                // flora.v2: the pioneer takes the ground where little else fits, and steps back where many do.
+                int w = t.Id == Pioneer && fit.Count >= PioneerStepsBackAt ? 1 : 2;
                 if (parentSpecies != null && t.Id == parentSpecies) w += 10;
                 if (carrier == "bird" && t.Berries) w += 6;
                 if (carrier == "fluff" && t.WindSeed) w += 8;
                 if (carrier == "butterfly") w += Math.Max(0, t.Butterfly) * 2;
                 if (carrier == "bee") w += Math.Max(0, t.Bee) * 2;
                 w += Leaning(t, recentRecipeIds);
+                // flora.v2: crowding. The more of the same species close by, the less a seed becomes it.
+                int same = 0;
+                foreach (var other in s.Plants)
+                    if (other != plant && other.Species == t.Id && Dist(other.CellId, plant.CellId) <= CrowdingReach) same++;
+                w = Math.Max(1, w * 3 / (3 + same));
                 weights[i] = w;
             }
             if (plant.OriginKind == "initialMap" || pick == null)
