@@ -2506,3 +2506,18 @@ Unity metadata: 76 C# files have meta; 103 unique GUIDs
 - Presentation: GardenUi.cs、GardenBootstrap.cs
 - Tests: GardenMemoriesTests.cs（新規とmeta）、GardenMomentsTests.cs
 - docs/unity-garden/GARDEN_MEMORY.md（新規）・EVENT_EXPRESSION.md・EXPERIENCE.md・ECOLOGY.md、tools/ecology-check/README.md、PROGRESS.md
+
+## Parallel work: 最新の統合と、仕組み/見かけの分担（2026-11-13）
+### 完了したこと
+- ユーザーから「一度最新までマージ」「Codexは仕組み側、Claude Codeは見かけ側で並行してぶつからないように」と明示された。PR #30のゲーム変更と分担の準備を今回の統合対象にする。
+- `AGENTS.md` とClaude Codeが読む `CLAUDE.md` に分担の入口を追加した。具体的な担当・接続・Git運用は `docs/unity-garden/PARALLEL_WORK.md` へ記録した。
+- CodexはDomain / Application / Infrastructureと仕組みのテスト、Claude CodeはPresentation全体・GardenBootstrapの表示接続・素材・シーン・PresentationTestsとUnity確認を担当する。既存の公開APIを保ち、担当外に必要な変更は具体的な引き継ぎとして記録する。
+- ブランチとcheckout/worktreeを分離する。進捗は担当別の作業ファイルへ分け、共有のPROGRESS.mdやプロジェクト設定を同時編集しない。過去の進捗や相手の変更を上書きしない。
+### 検証結果
+- 統合対象のゲームcommit `ccd7a970916f4d4d795c7294649ab8839602c5e6` について、GitHub Actionsの `CI`（run 448）と `Garden ecology`（run 9）が両方 `success` であることを再確認した。C#213件・Web183件の実行結果は直前の項目に記載済み。
+- 今回追加するのは分担用Markdownのみ。ゲーム実装、テスト、保存形式、既存実験、凍結プロトコルを変更しない。既存の同名CLAUDE.mdや担当指示がないことを確認して追加した。
+### 未確認・申し送り
+- Unityのコンパイル・描画・入力・音・性能は引き続き未確認。ユーザーの明示的な指示によりmainへ統合するが、検証済みや配布済みという意味へ変えない。
+- Claude Codeは最新mainを取得し、CLAUDE.mdと分担文書を読んで見かけ用ブランチを開始する。担当境界を越える修正は必要な接続を記録して順番に扱う。
+### 触ったファイル
+- AGENTS.md、CLAUDE.md、docs/unity-garden/PARALLEL_WORK.md、PROGRESS.md
