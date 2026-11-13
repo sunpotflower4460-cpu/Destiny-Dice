@@ -113,6 +113,7 @@ namespace DestinyGarden.Presentation
             };
             _ui.OnResetView = () => { if (_view != null && _view.Rig != null) _view.Rig.ResetView(); };
             _ui.OnObserveCell = cell => { if (!_busy) _view.FocusObservedCell(cell); };
+            _ui.OnReadMemory = key => GardenMemories.Project(_journal.ReadAll().Entries, _coordinator.RunId, key);
             _ui.OnExport = ExportNow;
             _ui.OnAddLuckySeven = () =>
             {

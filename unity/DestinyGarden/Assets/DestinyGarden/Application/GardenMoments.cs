@@ -8,7 +8,7 @@ namespace DestinyGarden.Application
 {
     public sealed class GardenMoment
     {
-        public string RoundId, RecipeId, Kind, Species, Actor, Habitat, Headline, Detail;
+        public string RoundId, RecipeId, Kind, Species, Actor, Habitat, Headline, Detail, MemoryKey;
         public int Revision, CellId, FromCell, Rank;
         public string Caption => Revision + "投目" + (RecipeId != null ? "・" + RecipeCatalog.LabelJa(RecipeId) : "") + " / " + (Habitat ?? "庭");
     }
@@ -29,11 +29,11 @@ namespace DestinyGarden.Application
         {
             var candidates = new List<GardenMoment>(); if (state == null) return candidates;
             recipeId = recipeId ?? care?.RecipeId;
-            void Add(string kind, int c, int from, int rank, string headline, string detail = null, string species = null, string actor = null)
+            void Add(string kind, int c, int from, int rank, string headline, string detail = null, string species = null, string actor = null, string memoryKey = null)
             {
                 if (c < 0 || c >= GardenMapData.CellCount) return;
                 candidates.Add(new GardenMoment { RoundId = roundId, RecipeId = recipeId, Revision = state.WorldRevision, Kind = kind,
-                    CellId = c, FromCell = from, Rank = rank, Species = species, Actor = actor, Habitat = LivingEcosystem.Habitat(state, c), Headline = headline, Detail = detail });
+                    CellId = c, FromCell = from, Rank = rank, Species = species, Actor = actor, Habitat = LivingEcosystem.Habitat(state, c), Headline = headline, Detail = detail, MemoryKey = memoryKey });
             }
             EcologicalLink At(string kind, EcologicalLink source, bool species = false, bool actor = false)
             {
@@ -104,7 +104,7 @@ namespace DestinyGarden.Application
                     case "resident-returned": headline = actor + "の命がひとつ、土へ還った。"; rank = 83; break;
                     case "resident-dispersed": headline = "育った" + actor + "が、庭の外へ旅立った。"; rank = 102; break;
                 }
-                if (headline != null) Add(e.Kind, e.ToCell, e.FromCell, rank, headline, detail, e.Species, e.Actor);
+                if (headline != null) Add(e.Kind, e.ToCell, e.FromCell, rank, headline, detail, e.Species, e.Actor, MemoryKey(state, e, events, roundId));
             }
             foreach (var e in events)
             {
@@ -118,7 +118,7 @@ namespace DestinyGarden.Application
                     : stage == 2 ? plant + "が、葉を開いた。" : stage == 1 ? plant + "が、芽を出した。" : plant + "の種が、土に入った。";
                 bool placed = false; foreach (var earlier in events) if (earlier.Kind == "SeedPlaced" && earlier.PlantId == p.PlantId) placed = true;
                 string detail = placed && stage > 0 ? "この投で蒔かれた種から、育った芽。" : null;
-                Add(e.Kind, e.CellId, e.CellId, 72 + stage * 7, headline, detail, p.Species);
+                Add(e.Kind, e.CellId, e.CellId, 72 + stage * 7, headline, detail, p.Species, memoryKey: "p:" + p.PlantId);
             }
             candidates.Sort((a, b) => a.Rank != b.Rank ? b.Rank.CompareTo(a.Rank)
                 : ((a.CellId + state.WorldRevision * 13) % 256) != ((b.CellId + state.WorldRevision * 13) % 256)
@@ -135,6 +135,37 @@ namespace DestinyGarden.Application
                     Kind = "recorded-roll", CellId = -1, FromCell = -1, Headline = text });
             }
             return result;
+        }
+        private static string MemoryKey(WorldState state, EcologicalLink link, IList<GardenEvent> events, string roundId)
+        {
+            if (link.Kind == "seed-buried" && roundId != null && state.Ecosystem?.Succession != null)
+            {
+                string id = null;
+                foreach (var seed in state.Ecosystem.Succession.SeedBank)
+                    if (seed.SourceRoundId == roundId && seed.BornRevision == state.WorldRevision && seed.CellId == link.ToCell &&
+                        seed.ParentCellId == link.FromCell && seed.Species == link.Species && seed.Carrier == link.Actor)
+                    { if (id != null) return null; id = seed.SeedId; }
+                return id == null ? null : "s:" + id;
+            }
+            var plant = state.PlantAt(link.ToCell);
+            foreach (var ev in events)
+            {
+                if (ev.CellId != link.ToCell) continue;
+                if (ev.Kind == "ReturnedToSoil") return link.Kind == "returned-to-soil" && ev.PlantId != null ? "p:" + ev.PlantId : null;
+            }
+            if (plant == null || plant.Species != link.Species) return null;
+            if (link.Kind == "seed-awakened" || link.Kind == "clonal-rooted")
+            {
+                foreach (var ev in events)
+                    if (ev.PlantId == plant.PlantId && ev.CellId == plant.CellId && ev.Kind == (link.Kind == "seed-awakened" ? "Germinated" : "VegetativeRooted")) return "p:" + plant.PlantId;
+                return null;
+            }
+            switch (link.Kind)
+            {
+                case "care-nectar": case "recovered": case "stressed": case "fruited": case "flower-rest":
+                case "pollinated": case "nectar-fed": case "nutrient-shared": case "nitrogen-fixed": return "p:" + plant.PlantId;
+                default: return null;
+            }
         }
         public static List<GardenMoment> Recent(IList<JournalEntry> entries, string runId, int maxRounds = 12)
         {

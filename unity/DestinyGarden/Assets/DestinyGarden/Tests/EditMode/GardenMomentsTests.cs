@@ -30,7 +30,7 @@ namespace DestinyGarden.Tests
         private static EcologicalLink Link(string kind, int cell = 85, string actor = "bee", string species = "daisy", int amount = 1) =>
             new EcologicalLink { Kind = kind, Actor = actor, Species = species, ToCell = cell, FromCell = cell, Amount = amount };
         private static List<GardenMoment> Read(WorldState state, params EcologicalLink[] links) => GardenMoments.Read(state, links, new GardenEvent[0], "light_beam", "r7");
-        private static string Signature(IList<GardenMoment> moments) => string.Join("\n", moments.Select(m => m.Kind + "|" + m.CellId + "|" + m.Habitat + "|" + m.Headline + "|" + m.Detail + "|" + m.Caption));
+        private static string Signature(IList<GardenMoment> moments) => string.Join("\n", moments.Select(m => m.Kind + "|" + m.CellId + "|" + m.Habitat + "|" + m.Headline + "|" + m.Detail + "|" + m.Caption + "|" + m.MemoryKey));
 
         [Test]
         public void LightAndAVisit_FormASceneOnlyFromTheSameRecordedFlower()

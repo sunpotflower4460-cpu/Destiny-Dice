@@ -21,6 +21,7 @@ namespace DestinyGarden.Presentation
         public Action OnAddLuckySeven;
         public Action OnResetView;
         public Action<int> OnObserveCell;
+        public Func<string, GardenMemory> OnReadMemory;
 
         private Font _font;
         private Text _header;
@@ -70,6 +71,13 @@ namespace DestinyGarden.Presentation
         private List<RoundSummary> _historyData = new List<RoundSummary>();
         private bool _observationDetails;
         private Button _observationModeButton, _momentFocusButton;
+        private Button _momentPrevious, _momentNext, _memoryButton;
+        private Text _momentCounter;
+        private int _momentIndex;
+        private GardenMoment _selectedMoment;
+        private GardenMemory _memoryView;
+        private bool _memoryDirty;
+        private readonly Dictionary<string, int> _memoryNext = new Dictionary<string, int>();
         private GardenMoment _focusedMoment;
         private WorldState _observationState;
         private string _observationHabitat;
@@ -334,15 +342,32 @@ namespace DestinyGarden.Presentation
                 string label = labels[i];
                 _observationChips[label] = MakeChip(_observationPanel.transform, new Vector2(0.5f, 1f),
                     new Vector2(-375f + 150f * i, -36f), new Vector2(140f, 40f), label, 17, () =>
-                    { _observationHabitat = label == "全体" ? null : label; RenderObservation(); });
+                    { _observationHabitat = label == "全体" ? null : label; _momentIndex = 0; _memoryView = null; RenderObservation(); });
             }
+            _momentPrevious = MakeChip(_observationPanel.transform, new Vector2(0.5f, 1f), new Vector2(-340f, -88f),
+                new Vector2(180f, 34f), "新しい出来事", 16, () =>
+                { if (_memoryView != null) OpenMemory(_memoryView.ParentKey); else { _momentIndex--; RenderObservation(); } });
+            _momentNext = MakeChip(_observationPanel.transform, new Vector2(0.5f, 1f), new Vector2(-140f, -88f),
+                new Vector2(180f, 34f), "前の出来事", 16, () =>
+                {
+                    if (_memoryView == null) { _momentIndex++; RenderObservation(); return; }
+                    _memoryNext.TryGetValue(_memoryView.Key, out int index);
+                    if (_memoryView.Next.Count == 0) return;
+                    var link = _memoryView.Next[index % _memoryView.Next.Count];
+                    _memoryNext[_memoryView.Key] = index + 1; OpenMemory(link.Key);
+                });
+            _momentCounter = MakeText(_observationPanel.transform, new Vector2(0.5f, 1f), new Vector2(40f, -88f),
+                new Vector2(140f, 34f), 16, TextAnchor.MiddleCenter);
+            _memoryButton = MakeChip(_observationPanel.transform, new Vector2(0.5f, 1f), new Vector2(290f, -88f),
+                new Vector2(300f, 34f), "この株の歩み", 16, () =>
+                { if (_memoryView != null) { _memoryView = null; RenderObservation(); } else OpenMemory(_selectedMoment?.MemoryKey); });
             _observationText = MakeScrollableText(_observationPanel.transform, new Vector2(940f, 360f), 18);
             _observationText.transform.parent.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, 12f);
             _observationModeButton = MakeChip(_observationPanel.transform, new Vector2(0.5f, 0f), new Vector2(-185f, 84f),
                 new Vector2(350f, 40f), "見通し・しくみを読む", 17, () =>
                 { _observationDetails = !_observationDetails; RenderObservation(); RenderHistory(); });
             _momentFocusButton = MakeChip(_observationPanel.transform, new Vector2(0.5f, 0f), new Vector2(185f, 84f),
-                new Vector2(350f, 40f), "最初の出来事の場所を見る", 17, () =>
+                new Vector2(350f, 40f), "この出来事の場所を見る", 17, () =>
                 {
                     if (_focusedMoment == null || _focusedMoment.CellId < 0 || !_rollEnabled) return;
                     ShowMessage(null, null, _focusedMoment);
@@ -621,16 +646,40 @@ namespace DestinyGarden.Presentation
         private void RenderObservation()
         {
             if (_observationText == null || _observationState == null || !_observationPanel.activeSelf) return;
+            if (_memoryDirty && !_observationDetails)
+            {
+                if (_memoryView != null) _memoryView = OnReadMemory?.Invoke(_memoryView.Key);
+                _memoryDirty = false;
+            }
+            var moments = new List<GardenMoment>();
+            foreach (var moment in _recentMoments) if (_observationHabitat == null || moment.Habitat == _observationHabitat) moments.Add(moment);
+            _momentIndex = Math.Max(0, Math.Min(_momentIndex, moments.Count - 1));
+            _selectedMoment = moments.Count == 0 ? null : moments[_momentIndex];
+            _focusedMoment = _memoryView?.Focus ?? _selectedMoment;
             if (_observationDetails && _careOutlook == null && _outlookPrepared != null)
                 _careOutlook = CareOutlook.Build(_outlookState, _outlookPrepared, _outlookWeather);
             string text = _observationDetails ? (_careOutlook?.Describe(_observationHabitat) ?? "") + (_carePlan ?? "") +
                 CareAftercare.Describe(_aftercareNotes, _observationHabitat, 3) + "\n" + EcologyInspection.Describe(_observationState, _observationHabitat) +
                 CareTargets.Guidance(_observationState, _observationHabitat)
-                : GardenMoments.Describe(_recentMoments, _observationHabitat) + CareAftercare.Describe(_aftercareNotes, _observationHabitat, 1);
+                : _memoryView != null ? _memoryView.Describe()
+                : GardenMoments.Describe(_selectedMoment != null ? new[] { _selectedMoment } : new GardenMoment[0], _observationHabitat) +
+                    (_selectedMoment?.Revision == _observationState.WorldRevision ? CareAftercare.Describe(_aftercareNotes, _observationHabitat, 1) : "");
             SetScrollableText(_observationText, text);
-            _observationModeButton.GetComponentInChildren<Text>().text = _observationDetails ? "出来事へ戻る" : "見通し・しくみを読む";
-            _focusedMoment = GardenMoments.First(_recentMoments, _observationHabitat);
+            _observationModeButton.GetComponentInChildren<Text>().text = _observationDetails ? (_memoryView != null ? "歩みへ戻る" : "出来事へ戻る") : "見通し・しくみを読む";
+            _momentPrevious.gameObject.SetActive(!_observationDetails); _momentNext.gameObject.SetActive(!_observationDetails);
+            _momentCounter.gameObject.SetActive(!_observationDetails);
+            _memoryButton.gameObject.SetActive(!_observationDetails && (_memoryView != null || _selectedMoment?.MemoryKey != null));
+            _momentPrevious.GetComponentInChildren<Text>().text = _memoryView != null ? _memoryView.ParentLabel : "新しい出来事";
+            _momentPrevious.interactable = _memoryView != null ? _memoryView.ParentKey != null : _momentIndex > 0;
+            int paths = _memoryView?.Next.Count ?? 0;
+            _memoryNext.TryGetValue(_memoryView?.Key ?? "", out int next);
+            _momentNext.GetComponentInChildren<Text>().text = _memoryView != null ? (_memoryView.IsSeed ? "芽吹いた株へ" : "残した命へ") + (paths > 1 ? " " + (next % paths + 1) + "/" + paths : "") : "前の出来事";
+            _momentNext.interactable = _memoryView != null ? paths > 0 : _momentIndex + 1 < moments.Count;
+            _momentCounter.text = _memoryView != null ? (_memoryView.IsSeed ? "種の記録" : "株の記録") : (moments.Count == 0 ? "0 / 0" : (_momentIndex + 1) + " / " + moments.Count);
+            _memoryButton.GetComponentInChildren<Text>().text = _memoryView != null ? "出来事へ戻る" : _selectedMoment?.MemoryKey?.StartsWith("s:", StringComparison.Ordinal) == true ? "この種の歩み" : "この株の歩み";
+            _memoryButton.interactable = _memoryView != null || _selectedMoment?.MemoryKey != null;
             _momentFocusButton.gameObject.SetActive(!_observationDetails);
+            _momentFocusButton.GetComponentInChildren<Text>().text = _memoryView != null ? "最後に記録された場所を見る" : "この出来事の場所を見る";
             _momentFocusButton.interactable = _rollEnabled && _focusedMoment != null && _focusedMoment.CellId >= 0;
             _careTargetButton.gameObject.SetActive(CareRules.Enabled(_observationState));
             _careTargetButton.interactable = _observationHabitat != null;
@@ -641,6 +690,13 @@ namespace DestinyGarden.Presentation
                 pair.Value.GetComponent<Image>().color = active ? ChipActive : ChipColor;
                 pair.Value.GetComponentInChildren<Text>().color = active ? GoldText : TextColor;
             }
+        }
+        private void OpenMemory(string key)
+        {
+            if (key == null) return;
+            var memory = OnReadMemory?.Invoke(key);
+            if (memory == null) { ShowStatus("この命の記録は、まだ見つからなかった。"); return; }
+            _memoryView = memory; _memoryDirty = false; RenderObservation();
         }
 
         private Text _composition;
@@ -793,7 +849,21 @@ namespace DestinyGarden.Presentation
         public void RefreshHistory(List<RoundSummary> history, IList<GardenMoment> moments = null)
         {
             _historyData = history;
-            if (moments != null) _recentMoments = new List<GardenMoment>(moments);
+            if (moments != null)
+            {
+                _recentMoments = new List<GardenMoment>(moments);
+                if (_momentIndex > 0 && _selectedMoment != null)
+                {
+                    int index = 0; _momentIndex = 0;
+                    foreach (var moment in _recentMoments)
+                    {
+                        if (_observationHabitat != null && moment.Habitat != _observationHabitat) continue;
+                        if (moment.RoundId == _selectedMoment.RoundId && moment.CellId == _selectedMoment.CellId && moment.Kind == _selectedMoment.Kind) { _momentIndex = index; break; }
+                        index++;
+                    }
+                }
+                if (_memoryView != null) _memoryDirty = true;
+            }
             _aftercareNotes = CareAftercare.Project(history);
             RenderHistory();
             RefreshGraph(history);

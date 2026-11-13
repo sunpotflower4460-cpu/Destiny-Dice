@@ -2453,3 +2453,55 @@ C# 9 syntax: 74 files, 0 errors (syntax only; Unity type checking requires the e
 - Presentation: GardenBootstrap.cs、GardenUi.cs、GardenView.cs
 - Tests: GardenMomentsTests.cs（新規とmeta）
 - docs/unity-garden/EVENT_EXPRESSION.md（新規）・EXPERIENCE.md・CARE_GUIDANCE.md・ECOLOGY.md、tools/ecology-check/README.md、PROGRESS.md
+
+## Garden memory: 一株と一粒の続きから、世代を読む（2026-11-13）
+### 完了したこと
+- 継続の依頼に対し、同じPR #30の生態系を深める範囲で、出来事から株・種の歩みへ移る入口を追加した。「基本説明よりは起きたことで説明・表現する」方針を維持し、生態・配面・保存形式はv8のままにする。
+- 観察で最近12投の出来事を一件ずつ送り/戻しでき、選んだ文と場所の対象を切り替えられる。居場所で絞り、株・種が特定できた場面だけ「この株の歩み」「この種の歩み」を出す。過去の出来事へ現在の振り返りを混ぜない。
+- 読み取り用の `GardenMemories` を追加。ダイスの種、初期の株、土の種からの芽、つる・地下茎の子株を区別し、実際の由来と直近8件の節目を読む。成長だけでなく、光を受けた蜜の補充、花粉の到着、結実、回復、花を閉じたこと、土への還元も含める。
+- 保存された株ID・種ID・親株IDで、親株 → 鳥/風が運んだ種 → 子株、または親株 → つる/地下茎の子株をたどる。親が土へ還った後も続きに移れる。記録に存在する対象だけを結び、続きは現在も残るものを優先して最大8件を抜粋。種・子株の総数はIDで重複を除いて併記する。
+- 同じ場所・種類だけから親子を作らない。株IDを持たない関係は、その投の終了状態にいる同種の株へ結び、同じセルの還元/入れ替わりの投では省く。種が落ちた入口には、同じ投・出生投・種類・運び手・出発/到着セルで一粒だけ特定できることを要求する。
+- ない記録から誕生・枯死・種の失効を作らず、最初/最後に確認できた投を示す。各節目の面と居場所は当時の記録から読み、生まれた投のスナップショットがなければ現在で補わない。過去の命を今の庭へ作り直さない。
+- 歩みを開いた時だけ同じrunの保存記録を走査し、表示する節目に必要な状態だけ復元する。自然の再計算は行わない。観察を閉じた連続投擲では歩みを再走査せず、次に表示する時に更新する。返す表示データにジャーナルの参照を残さない。
+### 検証結果（実際の出力）
+- `.NET SDK 8.0.428` で実際のUnity内Domain / Application / InfrastructureとEditModeテストを直接実行。既存195件に18ケースを追加した。Unity依存のPresentationTests 5件は除外している。
+
+```text
+$ dotnet test tools/ecology-check/Ecology.Check.csproj --configuration Release --no-restore --nologo --logger 'console;verbosity=normal'
+Test Run Successful.
+Total tests: 213
+     Passed: 213
+ Total time: 55.5369 Seconds
+life histories: 96 real rounds; 27 exact identities and 45 lineage links match JSON history without mutation
+actual scenes: 32 live rounds; latest 3 rounds match JSON history
+```
+
+- 親の死後の種/子株、鳥・風・つる・地下茎、同じセルの別株、種IDや場所が食い違う候補、休息、光・受粉・結実、0量、欠けた記録、居場所の変化、抜粋と総数、run分離、読み取り前後の不変性を検証した。
+- 実coordinatorの96投から、最近12投の入口27個体と45本の由来/続きリンクをJSON復帰後と照合した。どのリンクも実在する記録へ移れること、文と親の一致、状態ハッシュと台帳内容が変わらないことを確認した。32投の既存照合も、文・場所・順序に加えて歩みの入口IDを含む。
+- 旧v3〜v8の既知ハッシュ、長期継続と復帰、各生態の資源収支・出生上限、ダイスの作用と意図による出目不変のテストも維持して通過した。
+
+```text
+$ npx --yes pnpm@10 typecheck
+> tsc -b --noEmit
+$ npx --yes pnpm@10 test
+ Test Files  41 passed (41)
+      Tests  183 passed (183)
+$ npx --yes pnpm@10 build
+> tsc -b && vite build
+✓ 102 modules transformed.
+✓ built in 253ms
+C# 9 syntax: 76 files, 0 errors (syntax only; Unity type checking requires the editor).
+Unity metadata: 76 C# files have meta; 103 unique GUIDs
+```
+
+- 前回と同様にpnpm 10で既存スクリプトを実行した。既存の `jeep-sqlite` による `crypto` browser externalization警告とVSTestの環境変数案内は残るが、各コマンドは正常終了した。`git diff --check` も成功した。
+- Domain、既存実験の `src/`、凍結プロトコル、台帳の書き込み経路は変更していない。表示用のIDを保存形式へ追加せず、元のカード・状態・抽選へ書き戻す経路を追加していない。
+### 未確認・申し送り
+- Unityエディタ/実行可能なWebGLプレイヤーがないため、Unityの型解決・全EditMode・ビルド・描画・入力・音・fpsは未確認。213件は実C#の.NET実行であり、Unity検証済みとは扱わない。PR #30はドラフトで継続し、配布ビルドや公開は更新しない。
+- Unity 6000.3.23f1で、出来事の送り/戻しと居場所切替、親株/種/子株/出来事への往復、複数の続き、見通し詳細との往復、過去の場所の輪郭、閉じたままの連続投擲後の再表示、保存復帰を確認する。追加行の文字と操作、小画面・タッチ/ホイールの収まり、長い履歴で歩みを初めて開く時の応答時間も確認が必要。
+- 歩みは全保存記録からの抜粋である。IDのない住人個体の系譜や、特定の一投だけが原因だったという断定は追加しない。普段は実際の出来事を先に伝える方針を維持する。
+### 触ったファイル
+- Application: GardenMemories.cs（新規とmeta）、GardenMoments.cs
+- Presentation: GardenUi.cs、GardenBootstrap.cs
+- Tests: GardenMemoriesTests.cs（新規とmeta）、GardenMomentsTests.cs
+- docs/unity-garden/GARDEN_MEMORY.md（新規）・EVENT_EXPRESSION.md・EXPERIENCE.md・ECOLOGY.md、tools/ecology-check/README.md、PROGRESS.md
