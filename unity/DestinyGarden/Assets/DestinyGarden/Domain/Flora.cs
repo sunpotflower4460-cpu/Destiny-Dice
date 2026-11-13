@@ -26,7 +26,12 @@ namespace DestinyGarden.Domain
     public static class Flora
     {
         public const string RulesVersion = "flora.v2";
+        public const string BlessingRulesVersion = "flora.v3";
         public const int LegacySpeciesCount = 15;
+        public const int LeaningWindow = 8;
+        public const string Pioneer = "dandelion";
+        public const int PioneerStepsBackAt = 4;  // flora.v2: where this many species fit, the pioneer's base weight halves
+        public const int CrowdingReach = 2;       // flora.v2: same species within this distance crowd a seed (x3/(3+n))
         public const int ThriveGrowth = 4;
 
         private static SpeciesTraits T(string id, string ja, int hard, int dMin, int dMax, int mMin, int mMax, int light,
@@ -142,9 +147,14 @@ namespace DestinyGarden.Domain
             return Math.Max(0, Math.Min(1000, d));
         }
 
-        public static bool Fits(SpeciesTraits t, WorldState s, int c)
+        internal static int HardnessLimit(SpeciesTraits t, bool blessingRules) =>
+            blessingRules && (t.Id == "bellflower" || t.Id == "foxglove") ? 650 : t.MaxHardness;
+
+        public static bool Fits(SpeciesTraits t, WorldState s, int c) => Fits(t, s, c, s.Ecosystem?.BlessingFlora == true);
+
+        internal static bool Fits(SpeciesTraits t, WorldState s, int c, bool blessingRules)
         {
-            if (Hardness(s, c) > t.MaxHardness) return false;
+            if (Hardness(s, c) > HardnessLimit(t, blessingRules)) return false;
             int d = Drainage(s, c);
             if (d < t.DrainMin || d > t.DrainMax) return false;
             int m = Moisture(s, c);
@@ -155,36 +165,70 @@ namespace DestinyGarden.Domain
             return true;
         }
 
-        public static List<SpeciesTraits> FittingAt(WorldState s, int c)
+        public static List<SpeciesTraits> FittingAt(WorldState s, int c) => FittingAt(s, c, s.Ecosystem?.BlessingFlora == true);
+
+        private static List<SpeciesTraits> FittingAt(WorldState s, int c, bool blessingRules)
         {
             var list = new List<SpeciesTraits>();
             for (int i = 0; i < (s.Ecosystem == null ? LegacySpeciesCount : All.Length); i++)
-                if (Fits(All[i], s, c)) list.Add(All[i]);
+                if (Fits(All[i], s, c, blessingRules)) list.Add(All[i]);
             return list;
         }
 
         /// <summary>
-        /// A species for a plant that has none yet. Fitting species are weighted by how the seed came:
-        /// the parent flower's species is inherited when it fits; birds bring berry plants; the wind
-        /// brings wind-sown seeds; the gardener's die can bring any fitting species. Draws come only
-        /// from the given picker (saved ecology bytes); initial plants use their id (no chance).
-        /// When nothing fits, the pioneer dandelion takes the place.
+        /// flora.v2: how strongly the recent blessings lean a seed toward a species (0..8 per matching blessing kind).
+        /// Water: wet-loving species (moisture from 400‰). Light: sun-loving species. Wind: wind-sown seeds and
+        /// flowers pollinators love (bee + butterfly at least 3). Seed: berry plants.
         /// </summary>
-        public static string ChooseSpecies(WorldState s, PlantState plant, string carrier, string parentSpecies, Func<int, int> pick)
+        public static int Leaning(SpeciesTraits t, IList<string> recentRecipeIds)
         {
-            var fit = FittingAt(s, plant.CellId);
-            if (fit.Count == 0) return "dandelion";
+            if (t == null || recentRecipeIds == null) return 0;
+            int water = 0, light = 0, wind = 0, seed = 0;
+            for (int i = Math.Max(0, recentRecipeIds.Count - LeaningWindow); i < recentRecipeIds.Count; i++)
+                switch (RecipeCatalog.ElementOf(recentRecipeIds[i]))
+                {
+                    case ElementId.Water: water++; break;
+                    case ElementId.Light: light++; break;
+                    case ElementId.Wind: wind++; break;
+                    case ElementId.Seed: seed++; break;
+                }
+            int w = 0;
+            if (t.MoistMin >= 400) w += water;
+            if (t.Light == 0) w += light;
+            if (t.WindSeed || Math.Max(0, t.Bee) + Math.Max(0, t.Butterfly) >= 3) w += wind;
+            if (t.Berries) w += seed;
+            return w;
+        }
+
+        /// <summary>
+        /// Choose from species that fit, weighted by seed origin and, when provided, recent blessings.
+        /// The picker uses saved ecology bytes. Initial plants use their id.
+        /// </summary>
+        public static string ChooseSpecies(WorldState s, PlantState plant, string carrier, string parentSpecies, Func<int, int> pick,
+            IList<string> recentRecipeIds = null)
+        {
+            bool blessingRules = recentRecipeIds != null;
+            var fit = FittingAt(s, plant.CellId, blessingRules || s.Ecosystem?.BlessingFlora == true);
+            if (fit.Count == 0) return Pioneer;
             var weights = new int[fit.Count];
             for (int i = 0; i < fit.Count; i++)
             {
                 var t = fit[i];
-                int w = 2;
+                int w = blessingRules && t.Id == Pioneer && fit.Count >= PioneerStepsBackAt ? 1 : 2;
                 if (s.Ecosystem?.Habitat != null) w += HabitatRules.Suitability(t, s, plant.CellId) / 200;
                 if (parentSpecies != null && t.Id == parentSpecies) w += 10;
                 if (carrier == "bird" && t.Berries) w += 6;
                 if (carrier == "fluff" && t.WindSeed) w += 8;
                 if (carrier == "butterfly") w += Math.Max(0, t.Butterfly) * 2;
                 if (carrier == "bee") w += Math.Max(0, t.Bee) * 2;
+                if (blessingRules)
+                {
+                    w += Leaning(t, recentRecipeIds);
+                    int same = 0;
+                    foreach (var other in s.Plants)
+                        if (other != plant && other.Species == t.Id && Dist(other.CellId, plant.CellId) <= CrowdingReach) same++;
+                    w = Math.Max(1, w * 3 / (3 + same));
+                }
                 weights[i] = w;
             }
             if (plant.OriginKind == "initialMap" || pick == null)

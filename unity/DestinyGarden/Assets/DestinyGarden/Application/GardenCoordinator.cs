@@ -55,6 +55,8 @@ namespace DestinyGarden.Application
         private bool _luckyEarned;
         private string _restoreIntentKind, _restoreIntentValue;
         private readonly List<string> _rolledRecipes = new List<string>(); // oldest first, this run
+        private readonly List<int> _rolledFaces = new List<int>();          // oldest first, this run (prayer star)
+        private bool _prayerStarEnabled;
         public IReadOnlyList<string> RolledRecipes => _rolledRecipes;
         public bool LuckySevenOffered { get; private set; }
         public bool LuckySevenAdded => CurrentFaces != null && CurrentFaces.Faces.Length == LuckySeven.FaceId;
@@ -69,15 +71,19 @@ namespace DestinyGarden.Application
             RunId = _ids.NewId("run");
             State = WorldState.CreateInitial();
             State.Ecosystem = EcosystemState.CreateCurrent();
+            State.Ecosystem.BlessingFlora = true;
+            _prayerStarEnabled = true;
             PreferenceMode = "auto"; PreferenceSiteId = null;
             _weatherEntropyByPeriod.Clear();
             _luckyEarned = false; LuckySevenOffered = false;
             _rolledRecipes.Clear();
+            _rolledFaces.Clear();
             _writer.Append("RunStarted", RunId, null, new Dictionary<string, object>
             {
                 ["gameId"] = "destiny-garden",
                 ["ecologyPolicyVersion"] = CareRules.RulesVersion,
-                ["floraPolicyVersion"] = Flora.RulesVersion,
+                ["floraPolicyVersion"] = Flora.BlessingRulesVersion,
+                ["prayerStarPolicyVersion"] = PrayerStar.RulesVersion,
                 ["runLifecycleVersion"] = RuleVersions.RunLifecycle,
                 ["simulationProfile"] = RuleVersions.SimulationProfile,
                 ["mapVersion"] = RuleVersions.Map,
@@ -304,6 +310,8 @@ namespace DestinyGarden.Application
             // Ecology step (ECOLOGY.md): after the natural simulation, from saved bytes only.
             bool matched = LuckySeven.IntentMatched(LastIntentKind, LastIntentValue, faceId, recipeId);
             _rolledRecipes.Add(recipeId);
+            int previousFace = _rolledFaces.Count > 0 ? _rolledFaces[_rolledFaces.Count - 1] : 0;
+            _rolledFaces.Add(faceId);
             var eco = DestinyGarden.Domain.Ecology.Apply(sim.PostState, new EcologyContext
             {
                 RoundId = roundId,
@@ -312,7 +320,9 @@ namespace DestinyGarden.Application
                 PrayerAnswered = matched,
                 Sim = sim,
                 Dice = resolvedRecipe,
-                Weather = CurrentWeather
+                Weather = CurrentWeather,
+                FaceId = _prayerStarEnabled ? faceId : 0,
+                PreviousFaceId = previousFace
             }, ecologyBytes, n => _ids.NewId("plant") + "-eco" + n);
 
             var events = new List<object>();
@@ -391,8 +401,12 @@ namespace DestinyGarden.Application
             if (!read.ChainValid) throw new InvalidOperationException("Journal chain invalid: " + read.Error);
             RunId = null; State = null; CurrentFaces = null; CurrentRoundId = null;
             Phase = CoordinatorPhase.NoRun;
+            _prayerStarEnabled = false;
             _luckyEarned = false; LuckySevenOffered = false;
             _rolledRecipes.Clear();
+            _rolledFaces.Clear();
+            string resolvedRecipeId = null;
+            int resolvedFaceId = 0;
             _weatherEntropyByPeriod.Clear();
             _recentMessageIds.Clear();
 
@@ -406,10 +420,15 @@ namespace DestinyGarden.Application
                         RunId = e.RunId;
                         State = WorldStateSerializer.FromPayload(
                             (Dictionary<string, object>)e.Payload["initialState"]);
+                        _prayerStarEnabled = e.Payload.TryGetValue("prayerStarPolicyVersion", out object starPolicy) &&
+                            starPolicy as string == PrayerStar.RulesVersion;
                         PreferenceMode = "auto"; PreferenceSiteId = null;
                         LastIntentKind = "none"; LastIntentValue = null;
                         _luckyEarned = false; LuckySevenOffered = false;
                         _rolledRecipes.Clear();
+                        _rolledFaces.Clear();
+                        resolvedRecipeId = null;
+                        resolvedFaceId = 0;
                         Phase = CoordinatorPhase.Ready;
                         break;
                     case "CareFocusChanged":
@@ -455,13 +474,24 @@ namespace DestinyGarden.Application
                         if (Phase == CoordinatorPhase.Prepared) Phase = CoordinatorPhase.IntentCommitted;
                         break;
                     case "OutcomeCommitted":
-                        if (e.Payload["recipeId"] is string rolledRecipe) _rolledRecipes.Add(rolledRecipe);
-                        _luckyEarned = LuckySeven.IntentMatched(_restoreIntentKind, _restoreIntentValue,
-                            WorldStateSerializer.ToInt(e.Payload["faceId"]), e.Payload["recipeId"] as string);
+                        resolvedRecipeId = e.Payload["recipeId"] as string;
+                        resolvedFaceId = WorldStateSerializer.ToInt(e.Payload["faceId"]);
                         break;
                     case "Resolved":
+                        if (resolvedRecipeId != null)
+                        {
+                            _rolledRecipes.Add(resolvedRecipeId);
+                            _rolledFaces.Add(resolvedFaceId);
+                            _luckyEarned = LuckySeven.IntentMatched(_restoreIntentKind, _restoreIntentValue, resolvedFaceId, resolvedRecipeId);
+                        }
+                        resolvedRecipeId = null;
+                        resolvedFaceId = 0;
                         State = WorldStateSerializer.FromPayload(
                             (Dictionary<string, object>)e.Payload["postState"]);
+                        // The earlier prayer-star branch recorded its policy with each outcome.
+                        if (State.Ecosystem == null && e.Payload.TryGetValue("ecology", out object ecology) &&
+                            ecology is IDictionary<string, object> observed && observed.ContainsKey("prayerStar"))
+                            _prayerStarEnabled = true;
                         if (e.Payload.TryGetValue("selectedMessage", out object sm) &&
                             sm is Dictionary<string, object> smd && smd["templateId"] is string tid)
                         {
@@ -473,6 +503,8 @@ namespace DestinyGarden.Application
                         break;
                     case "PreparationInterrupted":
                     case "InterruptedUnresolved":
+                        resolvedRecipeId = null;
+                        resolvedFaceId = 0;
                         CurrentFaces = null; CurrentRoundId = null;
                         Phase = CoordinatorPhase.Ready;
                         break;

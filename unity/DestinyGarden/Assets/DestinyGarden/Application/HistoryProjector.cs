@@ -33,6 +33,8 @@ namespace DestinyGarden.Application
         public int Star;          // 0, 5, 7 or 8
         public List<EcologicalLink> Relations = new List<EcologicalLink>(); // ecology.v4; absent in old records
         public CareReport Care;
+        public int PrayerStar;    // 5..8, the star beneath the die (prayer-star.v1); 0 for older records
+        public bool LuckyNumber;  // the prayer star reached the lucky number seven
         public List<string> Germinated = new List<string>(); // species that took root this roll (ecology.v3)
     }
 
@@ -108,6 +110,11 @@ namespace DestinyGarden.Application
                                 if (ecod.TryGetValue("care", out object cr) && cr is IDictionary<string, object> care) s.Care = CareReport.FromPayload(care);
                                 if (ecod.TryGetValue("harmony", out object hv)) s.Harmony = WorldStateSerializer.ToInt(hv);
                                 if (ecod.TryGetValue("star", out object sv)) s.Star = WorldStateSerializer.ToInt(sv);
+                                if (ecod.TryGetValue("prayerStar", out object ps) && ps is IDictionary<string, object> psd)
+                                {
+                                    s.PrayerStar = WorldStateSerializer.ToInt(psd["points"]);
+                                    s.LuckyNumber = psd["luckyNumber"] is bool ln && ln;
+                                }
                                 if (ecod.TryGetValue("relations", out object rl) && rl is IEnumerable links)
                                     foreach (IDictionary<string, object> link in links)
                                     {

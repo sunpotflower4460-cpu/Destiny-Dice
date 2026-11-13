@@ -8,7 +8,7 @@ dotnet test tools/ecology-check/Ecology.Check.csproj --configuration Release
 
 Unityプロジェクト内の **実際の** Domain / Application / Infrastructure と、既存のEditModeテストを直接コンパイルして実行します。
 追加のゲーム実装や写経した参照モデルはありません。Unityに依存する診断ログのみ `UnityDebug.cs` で置き換えます。
-`PresentationTests.cs` はUnityエンジンが必要なので除外しています。
+`PresentationTests.cs`、`CottageTests.cs`、`SacredTonesTests.cs` は Unity の表示アセンブリを参照するため、Unity の EditMode で実行します。
 
 生態v4〜v8のテストでは有限の養分、受粉から結実までの時間、種の厳密な継承、餌と隠れ場所、植物の回復と世代交代、
 腐植への分解収支、土地との相性、つる・地下茎の費用と出生上限、境目の記録、保存復帰を検証します。

@@ -53,17 +53,20 @@ namespace DestinyGarden.Tests
                 var after = o.Ecology.PostState;
                 Assert.AreEqual(before.TotalWater(), after.TotalWater(), "ecology never moves water");
                 var seeds = o.Ecology.Effects.Where(e => e.Seed).ToList();
-                Assert.LessOrEqual(seeds.Count, Ecology.MaxSeedsPerRoll);
+                Assert.LessOrEqual(seeds.Count(e => e.Kind != Lifecycle.FruitKind), Ecology.MaxSeedsPerRoll);
+                Assert.LessOrEqual(seeds.Count(e => e.Kind == Lifecycle.FruitKind), Lifecycle.MaxReturnsPerRoll);
                 foreach (var e in seeds)
                 {
                     Assert.AreEqual(1, GardenMapData.Plantable[e.CellId], "seed on a plantable cell");
-                    Assert.IsNull(before.PlantAt(e.CellId), "seed only on an empty cell");
+                    if (e.Kind == Lifecycle.FruitKind)
+                        Assert.IsTrue(o.Ecology.Effects.Exists(x => x.Kind == Lifecycle.ReturnKind && x.CellId == e.CellId), "fruit only where its parent returned");
+                    else Assert.IsNull(before.PlantAt(e.CellId), "seed only on an empty cell");
                     Assert.AreEqual("ecology", after.PlantAt(e.CellId).OriginKind);
                 }
                 if (seeds.Count > 0) seededRolls++;
                 Assert.AreEqual(after.Plants.Count, after.Plants.Select(p => p.CellId).Distinct().Count(), "one plant per cell");
                 foreach (var p in after.Plants) Assert.LessOrEqual(p.Growth, 2500);
-                foreach (var e in o.Ecology.Effects.Where(e => !e.Seed && e.Kind != Ecology.Germinate)) Assert.Greater(e.Amount, 0);
+                foreach (var e in o.Ecology.Effects.Where(e => !e.Seed && e.Kind != Ecology.Germinate && e.Kind != Lifecycle.ReturnKind)) Assert.Greater(e.Amount, 0);
             }
             Assert.Greater(seededRolls, 0, "residents should carry some seeds over 120 rolls");
         }

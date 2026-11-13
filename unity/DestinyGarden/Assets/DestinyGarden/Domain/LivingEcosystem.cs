@@ -146,6 +146,7 @@ namespace DestinyGarden.Domain
             ctx.Care = CareRules.Enabled(s) ? CareMeasure.Measure(ctx) : null;
             var buf = new EntropyBuffer(bytes ?? new byte[0]);
             var stages = new SimulationResult();
+            var recentBlessings = e.BlessingFlora ? ctx.RecentRecipeIds ?? Array.Empty<string>() : null;
             int planted = 0;
             int Pick(int count)
             {
@@ -171,10 +172,10 @@ namespace DestinyGarden.Domain
             {
                 if (p.Species == null)
                 {
-                    p.Species = Flora.ChooseSpecies(s, p, p.OriginKind, null, Pick);
+                    p.Species = Flora.ChooseSpecies(s, p, p.OriginKind, null, Pick, recentBlessings);
                     var t = Flora.Get(p.Species);
                     r.Effects.Add(new EcologyEffect { Kind = Ecology.Germinate, CellId = p.CellId, Species = p.Species,
-                        Softened = t != null && Flora.BaseHardness(p.CellId) > t.MaxHardness });
+                        Softened = t != null && Flora.BaseHardness(p.CellId) > Flora.HardnessLimit(t, e.BlessingFlora) });
                 }
                 if (!e.Cycles.ContainsKey(p.PlantId)) e.Cycles.Add(p.PlantId, new PlantCycle());
             }
@@ -484,6 +485,7 @@ namespace DestinyGarden.Domain
                 if (visit.Kind != Ecology.Spirit && visit.Kind != Ecology.Fish && visit.Kind != Ecology.Petals) residents++;
             if (e.Succession?.Community != null) residents = CommunityRules.ResidentKinds(r.Visits);
             r.Harmony = Harmony.Read(ctx.RecentRecipeIds, residents, Flora.BloomingSpecies(s));
+            PrayerStar.ApplyGift(r, ctx, (cell, amount) => Feed(PrayerStar.GiftKind, s.PlantAt(cell), amount));
             r.Networks = Networks(s);
             r.Events.AddRange(stages.Events);
             return r;
