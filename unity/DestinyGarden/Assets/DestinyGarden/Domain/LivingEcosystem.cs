@@ -81,7 +81,9 @@ namespace DestinyGarden.Domain
             void Add(string kind, List<int> cells, int cap = 6)
             {
                 if (cells.Count == 0) return;
-                visits.Add(new EcologyVisit { Kind = kind, Cells = cells.GetRange(0, Math.Min(cap, cells.Count)) });
+                var selected = e.Succession != null ? SuccessionRules.SelectVisits(s, kind, cells, cap)
+                    : cells.GetRange(0, Math.Min(cap, cells.Count));
+                if (selected.Count > 0) visits.Add(new EcologyVisit { Kind = kind, Cells = selected });
             }
             bool rain = weather != null && weather.Id == WeatherId.Drizzle;
             if (!rain) { Add(Ecology.Bee, bees, 3); Add(Ecology.Butterfly, butterflies, 3); }
@@ -153,6 +155,12 @@ namespace DestinyGarden.Domain
                 if (!e.Cycles.ContainsKey(p.PlantId)) e.Cycles.Add(p.PlantId, new PlantCycle());
             }
 
+            if (e.Succession != null)
+            {
+                SuccessionRules.AgeSeedBank(s, r);
+                SuccessionRules.RefreshNectar(s, ctx.Weather);
+            }
+
             // Habitats retain a short memory of wetness and cover. One wet roll cannot conjure a wetland.
             for (int c = 0; c < GardenMapData.CellCount; c++)
             {
@@ -179,20 +187,36 @@ namespace DestinyGarden.Domain
                     var p = s.PlantAt(c);
                     if (p == null || p.Stage != PlantStage.Flower) continue;
                     var life = e.Cycles[p.PlantId];
+                    if (e.Succession != null && !SuccessionRules.Forage(s, p, actor, r)) continue;
                     if (life.Pollen >= 6) continue;
                     life.Pollen++;
                     Link("pollinated", actor, c, c, 1, p.Species);
                 }
             }
             foreach (string actor in new[] { Ecology.Bee, Ecology.Butterfly })
-                if (Visit(actor) is EcologyVisit pollinator) Pollinate(actor, pollinator.Cells);
+                if (Visit(actor) is EcologyVisit pollinator)
+                {
+                    if (e.Succession != null && actor == Ecology.Butterfly)
+                    {
+                        // Bees may have used the nectar already. Butterflies can choose another
+                        // suitable flower instead of following a now-empty route from the snapshot.
+                        var available = new List<int>();
+                        foreach (var p in Ordered(s))
+                            if (p.Stage == PlantStage.Flower && Living(s, p) && Flora.Get(p.Species).Butterfly > 0) available.Add(p.CellId);
+                        pollinator.Cells = SuccessionRules.SelectFlowers(s, actor, available, 3);
+                        if (pollinator.Cells.Count == 0) { r.Visits.Remove(pollinator); continue; }
+                    }
+                    Pollinate(actor, pollinator.Cells);
+                }
             if (Visit(Hoverfly) != null)
             {
                 var nearbyFlowers = new List<int>();
                 foreach (var p in Ordered(s))
-                    if (p.Stage == PlantStage.Flower && Near(Visit(Hoverfly).Cells, p.CellId, 2) && Flora.Get(p.Species).Bee > 0)
+                    if (p.Stage == PlantStage.Flower && Near(Visit(Hoverfly).Cells, p.CellId, 2) && Flora.Get(p.Species).Bee > 0 &&
+                        (e.Succession == null || p.Species == "daisy" || p.Species == "yarrow" || p.Species == "goldenrod" || p.Species == "buttercup"))
                         nearbyFlowers.Add(p.CellId);
-                Pollinate(Hoverfly, nearbyFlowers.GetRange(0, Math.Min(3, nearbyFlowers.Count)));
+                Pollinate(Hoverfly, e.Succession != null ? SuccessionRules.SelectFlowers(s, Hoverfly, nearbyFlowers, 3)
+                    : nearbyFlowers.GetRange(0, Math.Min(3, nearbyFlowers.Count)));
             }
 
             // Detrital food web: every mineralised unit is removed from litter before becoming a nutrient.
@@ -295,6 +319,13 @@ namespace DestinyGarden.Domain
                     if (strategy.SelfFertile && life.Pollen < 6) life.Pollen++;
                     if (!life.Fruited && life.BloomAge >= 3 && life.Pollen >= 2 && life.Stress < 12)
                     {
+                        if (e.Succession != null && life.Seeds > 0)
+                        {
+                            SuccessionRules.ReleaseRipeSeed(s, p, life, ctx.RoundId, r);
+                            int returned = Math.Min(life.Seeds, ResourceCap - e.Litter[c]);
+                            if (life.Seeds > 0) Link("seed-expired", SuccessionRules.SeedBank, c, c, returned, p.Species);
+                            e.Litter[c] += returned;
+                        }
                         life.Seeds = (t.Berries ? 3 : 2) + (strategy.Season == PlantStrategies.SeasonAt(s) ? 1 : 0);
                         life.Fruited = true;
                         Link("fruited", "flower", c, c, life.Seeds, p.Species);
@@ -307,6 +338,7 @@ namespace DestinyGarden.Domain
             var routes = new[] { SeedFall, Ecology.Bird, Ecology.Fluff };
             for (int step = 0; step < routes.Length; step++)
             {
+                if (e.Succession != null && SuccessionRules.Deposits(r) >= SuccessionRules.MaxDeposits) break;
                 string route = routes[(step + s.WorldRevision % routes.Length) % routes.Length];
                 if (route != SeedFall && Visit(route) == null) continue;
                 var parents = new List<PlantState>();
@@ -326,8 +358,9 @@ namespace DestinyGarden.Domain
                 for (int c = 0; c < GardenMapData.CellCount; c++)
                 {
                     int d = Distance(parent.CellId, c);
-                    if (GardenMapData.Plantable[c] != 1 || s.PlantAt(c) != null || afterSim.PlantAt(c) != null ||
-                        !Flora.Fits(Flora.Get(parent.Species), s, c)) continue;
+                    if (GardenMapData.Plantable[c] != 1) continue;
+                    if (e.Succession != null ? !SuccessionRules.HasSpace(s, c)
+                        : s.PlantAt(c) != null || afterSim.PlantAt(c) != null || !Flora.Fits(Flora.Get(parent.Species), s, c)) continue;
                     bool within = route == Ecology.Bird ? d >= 2 && d <= 8
                         : route == Ecology.Fluff ? c % 16 - parent.CellId % 16 >= 2 && c % 16 - parent.CellId % 16 <= 5 && Math.Abs(c / 16 - parent.CellId / 16) <= 1
                         : d >= 1 && d <= 2;
@@ -340,6 +373,11 @@ namespace DestinyGarden.Domain
                 int index = Pick(targets.Count);
                 if (index < 0) break;
                 int cell = targets[index];
+                if (e.Succession != null)
+                {
+                    if (SuccessionRules.Store(s, parent, cell, route, ctx.RoundId, r)) e.Cycles[parent.PlantId].Seeds--;
+                    continue;
+                }
                 var seed = new PlantState
                 {
                     PlantId = newPlantId != null ? newPlantId(planted) : "eco-" + s.WorldRevision + "-" + cell,
@@ -360,6 +398,7 @@ namespace DestinyGarden.Domain
                 var strategy = PlantStrategies.Get(p.Species);
                 if (life.Stress >= StressLimit || life.Age >= strategy.Longevity)
                 {
+                    if (e.Succession != null) SuccessionRules.ReleaseRipeSeed(s, p, life, ctx.RoundId, r);
                     int returned = Math.Min(12, ResourceCap - e.Litter[p.CellId]);
                     e.Litter[p.CellId] += returned;
                     Link("returned-to-soil", life.Stress >= StressLimit ? "stress" : "lifecycle", p.CellId, p.CellId, returned, p.Species);
@@ -396,6 +435,11 @@ namespace DestinyGarden.Domain
             if (ctx.Sim != null && ctx.Sim.Discharged > 0) r.Visits.Add(new EcologyVisit { Kind = Ecology.Fish });
             if (ctx.CurrentRecipeId != null && RecipeCatalog.ElementOf(ctx.CurrentRecipeId) == ElementId.Wind && Flora.BloomingSpecies(s) > 0)
                 r.Visits.Add(new EcologyVisit { Kind = Ecology.Petals });
+            if (e.Succession != null)
+            {
+                SuccessionRules.Awaken(s, afterSim, r, newPlantId);
+                SuccessionRules.CleanMemory(s);
+            }
             int residents = 0;
             foreach (var visit in r.Visits)
                 if (visit.Kind != Ecology.Spirit && visit.Kind != Ecology.Fish && visit.Kind != Ecology.Petals) residents++;

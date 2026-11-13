@@ -6,6 +6,7 @@ namespace DestinyGarden.Domain
     /// <summary>Saved ecological memory. Null in pre-v4 gardens; never inferred on restore.</summary>
     public sealed class EcosystemState
     {
+        public SuccessionState Succession; // null for gardens created under v4
         public int[] Litter = new int[GardenMapData.CellCount];
         public int[] Nutrients = new int[GardenMapData.CellCount];
         public int[] WetAge = new int[GardenMapData.CellCount];
@@ -21,11 +22,16 @@ namespace DestinyGarden.Domain
             return e;
         }
 
+        public static EcosystemState CreateCurrent()
+        {
+            var e = CreateInitial(); e.Succession = new SuccessionState(); return e;
+        }
+
         public EcosystemState Clone()
         {
             var e = new EcosystemState
             {
-                Litter = (int[])Litter.Clone(), Nutrients = (int[])Nutrients.Clone(),
+                Succession = Succession?.Clone(), Litter = (int[])Litter.Clone(), Nutrients = (int[])Nutrients.Clone(),
                 WetAge = (int[])WetAge.Clone(), CoverAge = (int[])CoverAge.Clone(), Aphids = (int[])Aphids.Clone()
             };
             foreach (var kv in Cycles) e.Cycles.Add(kv.Key, kv.Value.Clone());

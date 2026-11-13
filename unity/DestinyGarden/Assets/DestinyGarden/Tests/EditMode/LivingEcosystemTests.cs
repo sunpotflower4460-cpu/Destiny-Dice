@@ -254,7 +254,11 @@ namespace DestinyGarden.Tests
             for (int garden = 0; garden < 4; garden++)
             {
                 var memory = new Memory(); var entropy = new FixedEntropy("ecosystem-" + garden); var ids = new SequentialIds();
-                var coord = new GardenCoordinator(memory, entropy, ids); coord.CreateRun();
+                var coord = new GardenCoordinator(memory, entropy, ids);
+                var initial = WorldState.CreateInitial(); initial.Ecosystem = EcosystemState.CreateInitial();
+                memory.Append("RunStarted", ids.NewId("run"), null, new Dictionary<string, object>
+                { ["initialState"] = WorldStateSerializer.ToPayload(initial), ["ecologyPolicyVersion"] = LivingEcosystem.RulesVersion });
+                coord.Restore(new JournalReadResult { ChainValid = true, Entries = memory.Entries });
                 Assert.AreEqual(LivingEcosystem.RulesVersion, memory.Entries[0].Payload["ecologyPolicyVersion"]);
                 int firstSeeds = 0;
                 for (int round = 0; round < 240; round++)

@@ -366,7 +366,7 @@ namespace DestinyGarden.Presentation
                 if (e.Seed)
                 {
                     if (e.Kind == Ecology.Bird) StartCoroutine(BirdDrop(top));
-                    else StartCoroutine(SeedFall(top, e.Kind));
+                    else if (e.Kind != SuccessionRules.SeedBank) StartCoroutine(SeedFall(top, e.Kind));
                 }
                 else if (e.Amount > 0 && e.Kind != Ecology.Spirit)
                 {
@@ -378,6 +378,13 @@ namespace DestinyGarden.Presentation
                     }, 6);
                 }
             }
+            foreach (var link in eco.Relations)
+                if (link.Kind == "seed-buried")
+                {
+                    var top = View.CellTop(link.ToCell);
+                    if (link.Actor == Ecology.Bird) StartCoroutine(BirdDrop(top));
+                    else StartCoroutine(SeedFall(top, link.Actor));
+                }
             if (eco.Has(Ecology.Fish)) _fishUntil = Time.time + 14f;
             if (eco.Has(Ecology.Petals) && View != null)
             {

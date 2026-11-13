@@ -26,6 +26,7 @@ namespace DestinyGarden.Application
         public bool LuckySeven;   // the published 7th face was rolled
         public bool Bloomed;      // at least one flower opened in this round
         public List<string> EcologyKinds = new List<string>(); // residents present after this roll
+        public int SeedBankDeposits, SeedBankSprouts; // v5 separates seed arrival from a later emergence
         public int EcologySeeds;  // seeds carried by residents
         public int EcologyGrowth; // growth added by residents
         public int Harmony = -1;  // 0..8 (ecology.v2); -1 for older records
@@ -107,12 +108,16 @@ namespace DestinyGarden.Application
                                 if (ecod.TryGetValue("star", out object sv)) s.Star = WorldStateSerializer.ToInt(sv);
                                 if (ecod.TryGetValue("relations", out object rl) && rl is IEnumerable links)
                                     foreach (IDictionary<string, object> link in links)
+                                    {
+                                        if (link["kind"] as string == "seed-buried") s.SeedBankDeposits += WorldStateSerializer.ToInt(link["amount"]);
+                                        if (link["kind"] as string == "seed-awakened") s.SeedBankSprouts += WorldStateSerializer.ToInt(link["amount"]);
                                         s.Relations.Add(new EcologicalLink
                                         {
                                             Kind = link["kind"] as string, Actor = link["actor"] as string, Species = link["species"] as string,
                                             FromCell = WorldStateSerializer.ToInt(link["fromCell"]), ToCell = WorldStateSerializer.ToInt(link["toCell"]),
                                             Amount = WorldStateSerializer.ToInt(link["amount"])
                                         });
+                                    }
                                 foreach (var v in (IEnumerable)ecod["visits"])
                                     if (v is IDictionary<string, object> vd && vd["kind"] is string vk) s.EcologyKinds.Add(vk);
                                 foreach (var ef in (IEnumerable)ecod["effects"])

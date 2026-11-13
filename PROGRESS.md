@@ -2113,3 +2113,47 @@ vite v8.1.4 building client environment for production...
 - Presentation: EcosystemResidents.cs（新規）、GardenLife.cs、GardenUi.cs、GardenBootstrap.cs、GardenView.cs、PlantForms.cs、IslandHarmony.cs
 - Tests: LivingEcosystemTests.cs（新規）、HarmonyTests.cs（旧版のテストを旧状態から起動）
 - tools/ecology-check/、.github/workflows/garden-ecology.yml、.gitignore、docs/unity-garden/ECOLOGY.md・ECOSYSTEM_V4.md、PROGRESS.md
+
+## Ecology v5: 土の記憶・花蜜・庭を観察（2026-11-13）
+### 完了したこと
+- 本人の継続依頼「さらにブラッシュアップ」に対し、前回のPR #30の生態系を一つの目的で深化。24種の数は維持し、過去の植物・居場所・花を訪れる命の関係を深めた。仕様は `docs/unity-garden/ECOSYSTEM_V5.md`。
+- 休眠する種を保存。散布は即座に株を作らず、土へ同種の種を残す。親のID・場所・投・運び手を保ち、2歩以上と空き地・水/光/土・養分2を待って芽吹く。親の退場後も子が生まれる。
+- 土の種は全体96粒、セルごと3粒、種を届けるのは一投2粒まで。古い種は土へ還り、期限や個体メモリは有限。休息の頃を経験してから芽吹くサクラソウ・スミレ・アネモネなど、種ごとの戦略を導入。
+- 花蜜（0〜6）と訪花の記憶を保存。晴れ2/薄曇り1/小雨0で補い、訪花で1を消費。受粉が必要・長く訪れていない・好みの花を巡り、毎回最初の3セルだけが訪問される偏りを解消。蜂が食べた後、蝶は残る蜜から経路を選び直す。ハナアブは開いた花に限定。
+- 分解者・捕食者は実在する資源が豊かな場所へ。得点が同じなら投数で巡り、地図の前方だけが常に作用する偏りを抑えた。
+- 右メニューに「庭を観察」。全体と5つの居場所で、今の株・花・土の資源・眠る種を読む。株ごとに由来、花蜜、乾湿・光・硬さ・排水・養分・小虫・混雑を根拠つきで表示。種が今何を待つか、条件が戻ってもまだ回復に時間が必要な株も区別する。
+- 種の着地と後の芽吹きを、関係イベント・履歴の集計・演出で区別。履歴は保存済みの原因、観察は現在の状態を共通のドメイン投影から読む。
+- 新規庭だけ `ecology.v5`。保存済みv3/v4は規則を変えず復帰。`succession` を持たないv4のペイロードでは新しいキーを省略し、初期状態・48投後の既知ハッシュとの一致を検証。
+### 完了基準の結果（実行出力）
+```text
+dotnet test tools/ecology-check/Ecology.Check.csproj --configuration Release
+Test Run Successful.
+Total tests: 65
+     Passed: 65
+```
+- 前回の50件＋今回15件。実際のDomain/Application/Infrastructureを.NET 8でコンパイル・実行。Unity依存のPresentationTests 5件は含めない。
+- v5の384投×2庭を、継続と96投後の復帰それぞれで走らせ、計1536投の全状態ハッシュを照合。途中復帰による分岐なし。水の不変、種の供給2粒と芽吹き2株、貯蔵96粒・セル3粒、蜜の範囲、現在の個体メモリの掃除、セル重複なしを確認。
+- v5の2庭で23/24種。384投後の株数36・42、土へ残った種379・390粒、そこからの芽吹き104・111株、土の種の最大96粒。受粉・花蜜・休眠種の着地/目覚め/還元を含む14種類の関係イベントが発生。
+- v3の初期/24投の既知ハッシュと、v4（改修前 `578f711`）の初期 `e0a4eabc212de46929090ca4cdbcef2d8b51936ddc7647a4f599b34b310b5ace` /48投 `bc0bb990d677452a3baf62eb910b15908c8e1f4f6e41de888ba58c5cd61170f2` を照合。
+```text
+npx --yes pnpm@10 typecheck
+> tsc -b --noEmit                         (exit 0)
+npx --yes pnpm@10 test
+Test Files 41 passed (41)
+Tests      183 passed (183)
+npx --yes pnpm@10 build
+✓ 102 modules transformed.
+✓ built in 355ms
+```
+- C#9構文検査はUnity内55ファイル、エラー0。`git diff --check` 成功。既存実験の `src/`・凍結プロトコル・水のシミュレーションには触れていない。乱数の取得・保存順序を変えず、過去のジャーナルを書き換える経路は追加していない。
+- 前回PR #30のGitHub側 `CI` と `Garden ecology` は本着手前にsuccessを確認。本追記時点で今回の変更のリモートCIは未実行。
+### 未確認・申し送り
+- この環境にUnityエディタと実行可能なWebGLプレイヤーがないため、Unityでの型解決・全EditMode実行・3D表示・観察パネルの選択/スクロール・音・fpsは未検証。.NETとC#構文検査をUnityの実行確認とは扱わない。
+- Unity 6000.3.23f1で、新規の来場者→複数投→観察の6フィルタ→種が残る投と後の芽吹き→再読み込み→旧v3/v4の復帰を確認する。特に観察の長文、狭いWebGL枠での右メニュー、タッチスクロールと住人の実際の飛行を確認する。
+- 今回も実配布ビルド・提出画像・ストア公開は更新しない。ルールと新UIを含めてPR #30を更新し、Unity確認前のドラフトを維持する。
+### 触ったファイル
+- Domain: SuccessionState.cs、SuccessionSerializer.cs、SuccessionRules.cs、EcologyInspection.cs（新規とmeta）、EcosystemState.cs、EcosystemSerializer.cs、LivingEcosystem.cs、Ecology.cs、EcologyObservations.cs
+- Application: GardenCoordinator.cs、HistoryProjector.cs
+- Presentation: GardenUi.cs、GardenBootstrap.cs、GardenLife.cs
+- Tests: SuccessionTests.cs（新規とmeta）、LivingEcosystemTests.cs（v4の長期試験をv4で固定）
+- docs/unity-garden/ECOSYSTEM_V5.md（新規）、ECOLOGY.md、tools/ecology-check/README.md、PROGRESS.md

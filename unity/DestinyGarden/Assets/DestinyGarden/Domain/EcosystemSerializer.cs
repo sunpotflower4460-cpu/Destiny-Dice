@@ -19,11 +19,13 @@ namespace DestinyGarden.Domain
                     ["pollen"] = p.Pollen, ["seeds"] = p.Seeds, ["fruited"] = p.Fruited
                 });
             }
-            return new Dictionary<string, object>
+            var payload = new Dictionary<string, object>
             {
                 ["litter"] = (int[])e.Litter.Clone(), ["nutrients"] = (int[])e.Nutrients.Clone(), ["wetAge"] = (int[])e.WetAge.Clone(),
                 ["coverAge"] = (int[])e.CoverAge.Clone(), ["aphids"] = (int[])e.Aphids.Clone(), ["cycles"] = cycles
             };
+            if (e.Succession != null) payload["succession"] = SuccessionSerializer.ToPayload(e.Succession);
+            return payload;
         }
 
         public static EcosystemState FromPayload(IDictionary<string, object> d)
@@ -37,6 +39,8 @@ namespace DestinyGarden.Domain
                     Age = Int(p, "age"), Stress = Int(p, "stress"), BloomAge = Int(p, "bloomAge"),
                     Pollen = Int(p, "pollen"), Seeds = Int(p, "seeds"), Fruited = (bool)p["fruited"]
                 });
+            if (d.TryGetValue("succession", out object succession) && succession is IDictionary<string, object> sd)
+                e.Succession = SuccessionSerializer.FromPayload(sd);
             return e;
         }
 

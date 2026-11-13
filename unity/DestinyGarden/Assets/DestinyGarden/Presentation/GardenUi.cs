@@ -53,6 +53,11 @@ namespace DestinyGarden.Presentation
         private GameObject _titleCard;
         private readonly Dictionary<string, Button> _intentChips = new Dictionary<string, Button>();
         private readonly Dictionary<string, Button> _siteChips = new Dictionary<string, Button>();
+        private GameObject _observationPanel;
+        private Text _observationText;
+        private WorldState _observationState;
+        private string _observationHabitat;
+        private readonly Dictionary<string, Button> _observationChips = new Dictionary<string, Button>();
         private GameObject _historyPanel;
         private Text _historyText;
         private GameObject _graphPanel;
@@ -245,6 +250,8 @@ namespace DestinyGarden.Presentation
             MakeChip(canvasObj.transform, new Vector2(1f, 1f), new Vector2(-96f, -408f), new Vector2(150f, 48f),
                 "図鑑", 20, () => TogglePanel(_guidePanel));
             MakeChip(canvasObj.transform, new Vector2(1f, 1f), new Vector2(-96f, -466f), new Vector2(150f, 48f),
+                "庭を観察", 18, () => TogglePanel(_observationPanel));
+            MakeChip(canvasObj.transform, new Vector2(1f, 1f), new Vector2(-96f, -524f), new Vector2(150f, 48f),
                 "視点を戻す", 18, () => OnResetView?.Invoke());
 
             BuildGoals(canvasObj.transform);
@@ -302,6 +309,19 @@ namespace DestinyGarden.Presentation
             _guideText = MakeScrollableText(_guidePanel.transform, new Vector2(940f, 560f), 18);
             _guideText.supportRichText = true;
             _guidePanel.SetActive(false);
+
+            _observationPanel = MakePanel(canvas, new Vector2(1000f, 600f));
+            var labels = new List<string> { "全体" }; labels.AddRange(EcologyInspection.Habitats);
+            for (int i = 0; i < labels.Count; i++)
+            {
+                string label = labels[i];
+                _observationChips[label] = MakeChip(_observationPanel.transform, new Vector2(0.5f, 1f),
+                    new Vector2(-375f + 150f * i, -36f), new Vector2(140f, 40f), label, 17, () =>
+                    { _observationHabitat = label == "全体" ? null : label; RenderObservation(); });
+            }
+            _observationText = MakeScrollableText(_observationPanel.transform, new Vector2(940f, 492f), 18);
+            _observationText.transform.parent.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -24f);
+            _observationPanel.SetActive(false);
 
             _settingsPanel = MakePanel(canvas, new Vector2(520f, 340f));
             MakeLabel(_settingsPanel.transform, new Vector2(-220f, 110f), "音量", 20);
@@ -390,6 +410,7 @@ namespace DestinyGarden.Presentation
             _graphPanel.SetActive(false);
             _settingsPanel.SetActive(false);
             if (_guidePanel != null) _guidePanel.SetActive(false);
+            if (_observationPanel != null) _observationPanel.SetActive(false);
             panel.SetActive(show);
         }
 
@@ -503,6 +524,8 @@ namespace DestinyGarden.Presentation
             {
                 sb.AppendLine("<color=#a8e6c8>" + EcologyObservations.HabitatSummary(state) + "</color>\n");
                 sb.AppendLine("<b>つながりを育てる</b>\n花に昆虫が訪れると受粉し、数投かけて実ります。種は親と同じ種類を受け継ぎ、合う土へ。\n花は休み、寿命を終えた株は落ち葉になり、分解者が次の芽の養分へ戻します。\n水辺は湿りが続くと、草木の陰は背の高い株が育つと生まれます。投数で巡る四つの時期も、結実の量に影響します。\n");
+                if (state.Ecosystem.Succession != null)
+                    sb.AppendLine("土の中に残った種は、空き地や湿り、光、養分を待ちます。サクラソウ・スミレ・アネモネは休息の頃を経てから芽吹きます。\n蜂と蝶は花蜜を使い、受粉を待つ花と、長く訪れていない花へ巡ります。『庭を観察』から株や種の今を眺められます。\n");
                 sb.AppendLine("<b>この庭で出会った小さな命</b>");
                 foreach (string kind in new[] { Ecology.Bee, Ecology.Butterfly, LivingEcosystem.Hoverfly, Ecology.Bird,
                     Ecology.Mushroom, Ecology.Worm, LivingEcosystem.Springtail, LivingEcosystem.Snail,
@@ -533,10 +556,31 @@ namespace DestinyGarden.Presentation
                 if (t.WindSeed) works.Add("綿毛で旅する");
                 sb.AppendLine($"<color=#ffe2a6>{t.LabelJa}</color>　{string.Join("・", parts)}" +
                               (works.Count > 0 ? $"　<color=#a8e6c8>→ {string.Join("・", works)}</color>" : ""));
-                if (living) sb.AppendLine("　<color=#b7cdc3>" + PlantStrategies.Describe(t.Id) + "</color>\n");
+                if (living)
+                {
+                    string dormancy = state.Ecosystem.Succession != null && SeedStrategies.Get(t.Id).NeedsRestSeason ? "・種は休息の頃を経てから芽吹く" : "";
+                    sb.AppendLine("　<color=#b7cdc3>" + PlantStrategies.Describe(t.Id) + dormancy + "</color>\n");
+                }
             }
             SetScrollableText(_guideText, sb.ToString());
         }
+        public void ShowObservation(WorldState state)
+        {
+            _observationState = state;
+            RenderObservation();
+        }
+        private void RenderObservation()
+        {
+            if (_observationText == null || _observationState == null) return;
+            SetScrollableText(_observationText, EcologyInspection.Describe(_observationState, _observationHabitat));
+            foreach (var pair in _observationChips)
+            {
+                bool active = pair.Key == (_observationHabitat ?? "全体");
+                pair.Value.GetComponent<Image>().color = active ? ChipActive : ChipColor;
+                pair.Value.GetComponentInChildren<Text>().color = active ? GoldText : TextColor;
+            }
+        }
+
         private Text _composition;
 
         /// <summary>What this garden has become: flowers in bloom now and its harmony.</summary>
@@ -690,8 +734,10 @@ namespace DestinyGarden.Presentation
                     (r.LuckySeven && r.Bloomed ? " ∞虹" : ""));
                 var lives = new List<string>();
                 foreach (var k in r.EcologyKinds) { string n = ResidentLabelJa(k); if (n != null && !lives.Contains(n)) lives.Add(n); }
-                if (lives.Count > 0 || r.EcologySeeds > 0 || r.Harmony >= 0)
-                    sb.AppendLine("　〔" + string.Join("・", lives) + "〕" + (r.EcologySeeds > 0 ? $" 種がこぼれた ×{r.EcologySeeds}" : "") +
+                if (lives.Count > 0 || r.EcologySeeds > 0 || r.SeedBankDeposits > 0 || r.Harmony >= 0)
+                    sb.AppendLine("　〔" + string.Join("・", lives) + "〕" +
+                                  (r.SeedBankDeposits > 0 ? $" 土に残った種 ×{r.SeedBankDeposits}" : "") +
+                                  (r.SeedBankSprouts > 0 ? $" 眠った種が芽吹いた ×{r.SeedBankSprouts}" : r.EcologySeeds > 0 ? $" 種がこぼれた ×{r.EcologySeeds}" : "") +
                                   (r.Harmony >= 0 ? $"　☯{r.Harmony}" : ""));
                 string relationship = EcologyObservations.Highlight(r.Relations);
                 if (relationship != null) sb.AppendLine("　<color=#a8e6c8>" + relationship + "</color>");

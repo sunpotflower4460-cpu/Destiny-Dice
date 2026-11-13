@@ -390,6 +390,7 @@ namespace DestinyGarden.Presentation
             var residents = new HashSet<string>();
             foreach (var r in history) foreach (string kind in r.EcologyKinds) residents.Add(kind);
             _ui.ShowGuide(discovered, _coordinator.State, residents);
+            _ui.ShowObservation(_coordinator.State);
             UpdateButterflies(history);
             float vitality = Vitality();
             _vitalityNow = vitality;

@@ -62,6 +62,11 @@ namespace DestinyGarden.Domain
             {
                 case "seed-dispersed": return e.Actor == Ecology.Bird ? $"小鳥が{plant}の実を運び、離れた土に種を残した。"
                     : e.Actor == Ecology.Fluff ? $"風に乗った{plant}の種が、東の土へ。" : $"{plant}の実った種が、そばの土にこぼれた。";
+                case "seed-buried": return e.Actor == Ecology.Bird ? $"小鳥が運んだ{plant}の種が、土の中で時を待つ。"
+                    : e.Actor == Ecology.Fluff ? $"風が運んだ{plant}の種が、次の芽吹きを待つ。" : $"{plant}の種が土に残り、次の命を待っている。";
+                case "seed-awakened": return $"土に眠っていた{plant}の種が、居場所を見つけて芽吹いた。";
+                case "seed-expired": return $"眠っていた{plant}の種が、土へ静かに還った。";
+                case "nectar-fed": return $"{actor}が{plant}の蜜を味わい、花から花へ。";
                 case "pollinated": return $"{actor}が{plant}を訪れ、花粉を届けた。";
                 case "fruited": return $"受粉を終えた{plant}に、次の世代の種が実った。";
                 case "decomposed": return $"{actor}が落ち葉をほどき、土に養分を戻した。";
@@ -80,8 +85,8 @@ namespace DestinyGarden.Domain
 
         public static string Highlight(IList<EcologicalLink> links)
         {
-            foreach (string kind in new[] { "seed-dispersed", "returned-to-soil", "recovered", "stressed", "fruited",
-                "flower-rest", "nutrient-shared", "nitrogen-fixed", "predation", "decomposed", "pollinated" })
+            foreach (string kind in new[] { "seed-awakened", "seed-buried", "seed-dispersed", "returned-to-soil", "recovered", "stressed", "fruited",
+                "flower-rest", "nutrient-shared", "nitrogen-fixed", "predation", "decomposed", "pollinated", "nectar-fed", "seed-expired" })
                 foreach (var e in links) if (e.Kind == kind) return Describe(e);
             return null;
         }
