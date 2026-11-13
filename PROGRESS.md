@@ -2105,3 +2105,30 @@ Git diff whitespace check: pass
 - Domain: PrayerStar.cs（新規）、Ecology.cs。Application: GardenCoordinator.cs、HistoryProjector.cs。
 - Presentation: AltarSigil.cs（新規）、AudioSynth.cs、GardenAudio.cs、GardenBootstrap.cs（数行）。
 - Tests: PrayerStarTests.cs、SacredTonesTests.cs（新規）。docs/unity-garden/ECOLOGY.md §8、PROGRESS.md。
+
+## Jam 祈りの星の磨き込み — 七への灯・陰陽の六芒星・D長調の鐘・動きの確認（2026-11-13）
+
+### 完了したこと
+
+- 七への灯: 直前の目 n のとき、祭壇の星の外側を 7−n 個の小さな灯がゆっくり巡る（次にその目が出ればラッキーナンバー）。言葉では説明しない手がかり。
+  再開時も記録の最後の目から灯を戻す（`AltarSigil.ShowSaved(history)`、`PrayerStar.FaceCompletingSeven`）。
+- 六芒星を陰（水色）と陽（金色）の二つの三角で描くようにした。
+- 一投ごとの鐘を C5 から D5（上のド）にして、出目の音・星の和音と同じ D長調にそろえた。
+- QA専用の起動引数 `-dgRevealFrames DIR`（`-dgStarReveal N -dgFace F -dgPrevFace P`）: 祭壇の近くから星の切り替わりを0.2秒ごとに保存する。振らず、台帳にも書かない。
+
+### 完了基準の結果（コマンド出力の要約）
+
+- Unity EditMode: `total="52" passed="52" failed="0"`（七への灯と最後の目の読み取り、鐘の基本周波数の2件を追加）。
+- 隔離プレビュー（別の会社名・製品名・バンドルID）で七・六・八の切り替わりを各22コマ撮影: 古い星が回りながら縮み、新しい星が大きめに現れて落ち着く、
+  金の光の粒が昇り、恵みの株に光が降りる、六芒星の二色、八芒星の虹色と虹色の粒、七への灯を確認した。本来の庭の台帳の SHA-256 は撮影前後で d605e4eb… のまま。
+- 鐘の実測: −19.5 → −19.1 LUFS（音量はほぼ同じ）、基本周波数 D5。
+
+### 要確定・申し送り
+
+- 七への灯は控えめな表示にした。気づきにくければ数や明るさを上げる。
+- 撮影用の近いカメラでは、ラベルがサイコロの後ろに一部隠れる（撮影専用の表示方法のため。通常のプレイでは画面の最前面に出る）。
+- 実機での一投と耳での確認は本人に依頼する。
+
+### 触ったファイル
+
+- Domain/PrayerStar.cs、Presentation/AltarSigil.cs・AudioSynth.cs、Presentation/GardenBootstrap.cs（前回足した1行の差し替えだけ）、Tests/EditMode/SacredTonesTests.cs、docs/unity-garden/ECOLOGY.md §8.3、PROGRESS.md。

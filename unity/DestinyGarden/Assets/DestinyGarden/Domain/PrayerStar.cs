@@ -50,6 +50,10 @@ namespace DestinyGarden.Domain
                    faceId + previousFaceId == LuckySum;
         }
 
+        /// <summary>The face that would make the lucky number on the next roll (7 - last face), 0 when none does.</summary>
+        public static int FaceCompletingSeven(int lastFaceId) =>
+            lastFaceId >= 1 && lastFaceId <= 6 ? LuckySum - lastFaceId : 0;
+
         /// <param name="faceId">Face rolled this time (1..7).</param>
         /// <param name="previousFaceId">Face of the previous resolved roll in this run, 0 for none.</param>
         /// <param name="recipeId">Recipe rolled this time.</param>

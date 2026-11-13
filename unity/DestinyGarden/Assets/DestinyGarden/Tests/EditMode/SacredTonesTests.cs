@@ -92,6 +92,46 @@ namespace DestinyGarden.Tests
         }
 
         [Test]
+        public void SevenHint_IsTheOppositeFace_AndLastFaceIsRead()
+        {
+            Assert.AreEqual(4, DestinyGarden.Domain.PrayerStar.FaceCompletingSeven(3));
+            Assert.AreEqual(6, DestinyGarden.Domain.PrayerStar.FaceCompletingSeven(1));
+            Assert.AreEqual(0, DestinyGarden.Domain.PrayerStar.FaceCompletingSeven(7), "nothing completes seven after the seventh face");
+            Assert.AreEqual(0, DestinyGarden.Domain.PrayerStar.FaceCompletingSeven(0));
+            for (int f = 1; f <= 6; f++)
+                Assert.IsTrue(DestinyGarden.Domain.PrayerStar.IsLuckyNumber(DestinyGarden.Domain.PrayerStar.FaceCompletingSeven(f), f));
+            var h = new List<RoundSummary>
+            {
+                new RoundSummary { WorldRevision = 0, Resolved = true },
+                new RoundSummary { WorldRevision = 1, Resolved = true, FaceId = 2, PrayerStar = 6 },
+                new RoundSummary { WorldRevision = 1, Resolved = false, FaceId = 5 }
+            };
+            Assert.AreEqual(2, AltarSigil.LastFace(h), "an unresolved round is not the last face");
+            Assert.AreEqual(0, AltarSigil.LastFace(new List<RoundSummary>()));
+        }
+
+        [Test]
+        public void RollBell_IsUpperDo()
+        {
+            // The bell's fundamental (largest partial) sits at D5 so it agrees with the face notes.
+            var s = AudioSynth.Bell();
+            int n = 8192, start = (int)(0.02 * AudioSynth.Rate);
+            double best = 0, bestF = 0;
+            for (double f = 500; f <= 680; f += 0.5)
+            {
+                double re = 0, im = 0;
+                for (int i = 0; i < n; i++)
+                {
+                    double ph = 2 * Math.PI * f * i / AudioSynth.Rate;
+                    re += s[start + i] * Math.Cos(ph); im += s[start + i] * Math.Sin(ph);
+                }
+                double m = re * re + im * im;
+                if (m > best) { best = m; bestF = f; }
+            }
+            Assert.AreEqual(587.33, bestF, 3.0);
+        }
+
+        [Test]
         public void LastStar_ReadsTheLastResolvedRoll()
         {
             Assert.AreEqual(5, AltarSigil.LastStar(new List<RoundSummary>()));

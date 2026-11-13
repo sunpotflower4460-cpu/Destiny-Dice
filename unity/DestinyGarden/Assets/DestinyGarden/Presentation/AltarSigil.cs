@@ -50,11 +50,26 @@ namespace DestinyGarden.Presentation
         private float _angle, _boost, _sinceChange = 99f, _flash;
         private int _points;
         private int _qaStar; // QA capture only (-dgStar N)
+        private bool _qaCameraCanvas; // QA only: render the label canvas through the camera
+        private readonly List<Transform> _hintOrbs = new List<Transform>();
+        private Material _hintMat;
+        private Transform _hintRoot;
+        private float _hintAlpha, _hintTarget;
         private Canvas _labelCanvas;
 
         private CanvasGroup _labelGroup;
         private Text _labelTitle, _labelSub;
         private Coroutine _labelRoutine;
+
+        /// <summary>The face of the last resolved roll (0 before any roll).</summary>
+        public static int LastFace(List<RoundSummary> history)
+        {
+            if (history != null)
+                for (int i = history.Count - 1; i >= 0; i--)
+                    if (history[i].Resolved && history[i].WorldRevision > 0)
+                        return history[i].FaceId ?? 0;
+            return 0;
+        }
 
         /// <summary>The star the last resolved roll left (5 before any roll or for older records).</summary>
         public static int LastStar(List<RoundSummary> history)
@@ -132,6 +147,11 @@ namespace DestinyGarden.Presentation
             gObj.GetComponent<ParticleSystemRenderer>().material =
                 IslandHarmony.GlowMaterial(ProceduralArt.GlowSprite(), Color.white, 3330);
 
+            _hintRoot = new GameObject("SevenHint").transform;
+            _hintRoot.SetParent(transform, false);
+            _hintRoot.position = center + Vector3.up * 0.01f;
+            _hintMat = IslandHarmony.GlowMaterial(ProceduralArt.GlowSprite(), new Color(1f, 0.9f, 0.62f, 0f), 3007);
+
             BuildLabel();
             ShowSaved(5);
 
@@ -139,11 +159,15 @@ namespace DestinyGarden.Presentation
             // with its label for a capture. It never writes to the journal.
             string[] args = Environment.GetCommandLineArgs();
             for (int i = 0; i + 1 < args.Length; i++)
+            {
                 if (args[i] == "-dgStar" && int.TryParse(args[i + 1], out int qa) && qa >= 5 && qa <= 8)
                 {
                     _qaStar = qa;
+                    _qaCameraCanvas = true;
                     ShowSaved(qa);
                 }
+                if (args[i] == "-dgRevealFrames") StartCoroutine(QaFilmstrip(args[i + 1], args));
+            }
         }
 
         private LineRenderer NewLine(Transform parent, string name, int count, bool loop)
@@ -202,10 +226,51 @@ namespace DestinyGarden.Presentation
                 }
                 else
                 {
+                    // The hexagram is yin and yang joined: one triangle of water-blue, one of sun-gold.
+                    if (layer.Points == 6 && layer.Lines.Count == 2)
+                        c = line == layer.Lines[0] ? YinColor : YangColor;
                     line.startColor = new Color(c.r, c.g, c.b, alpha);
                     line.endColor = new Color(c.r, c.g, c.b, alpha);
                 }
             }
+        }
+
+        private static readonly Color YinColor = new Color(0.60f, 0.82f, 1f);
+        private static readonly Color YangColor = new Color(1f, 0.82f, 0.50f);
+
+        /// <summary>
+        /// Small lights circle the star, as many as the face that would complete seven with the last face
+        /// (none after a seven). A wordless hint; the chance of that face stays the same.
+        /// </summary>
+        public void SetHint(int lastFaceId)
+        {
+            int k = PrayerStar.FaceCompletingSeven(lastFaceId);
+            foreach (var o in _hintOrbs) if (o != null) Destroy(o.gameObject);
+            _hintOrbs.Clear();
+            for (int i = 0; i < k; i++)
+            {
+                var q = GameObject.CreatePrimitive(PrimitiveType.Quad);
+                Destroy(q.GetComponent<Collider>());
+                q.name = "HintLight";
+                q.transform.SetParent(_hintRoot, false);
+                q.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+                q.transform.localScale = Vector3.one * 0.30f;
+                var r = q.GetComponent<MeshRenderer>();
+                r.sharedMaterial = _hintMat;
+                r.shadowCastingMode = ShadowCastingMode.Off;
+                r.receiveShadows = false;
+                _hintOrbs.Add(q.transform);
+            }
+            _hintAlpha = 0f;
+            _hintTarget = k > 0 ? 1f : 0f;
+        }
+
+        /// <summary>Shows the star and the hint the last saved roll left (start of play, restore).</summary>
+        public void ShowSaved(List<RoundSummary> history)
+        {
+            ShowSaved(LastStar(history));
+            SetHint(LastFace(history));
+            _hintAlpha = _hintTarget;
         }
 
         /// <summary>Shows a saved star at once (start of play, restore). No sound, no label.</summary>
@@ -241,21 +306,6 @@ namespace DestinyGarden.Presentation
             var star = outcome?.Ecology?.PrayerStar;
             if (star == null) yield break;
             int previousFaceId = star.FaceSum > 0 ? star.FaceSum - outcome.FaceId : 0;
-            if (Audio != null) Audio.PlayFaceNote(outcome.FaceId);
-            yield return new WaitForSeconds(0.45f);
-            Change(star.Points);
-            yield return new WaitForSeconds(0.55f);
-            _flash = star.Points >= 7 ? 1f : star.Points == 6 ? 0.5f : 0.25f;
-            if (Audio != null) Audio.PlayStarChord(star.Points);
-            EmitBurst(star.Points);
-            if (star.Points >= 7)
-            {
-                string sub = star.Points >= 8 ? "ラッキーナンバーに、陰陽と島の調和が重なった"
-                    : outcome.FaceId == LuckySeven.FaceId ? "七の目　・　偶然なら 1/7"
-                    : $"前の目 {previousFaceId} と今の目 {outcome.FaceId} で七　・　偶然なら 1/6";
-                ShowLabel(star.Points, sub, false);
-            }
-            yield return new WaitForSeconds(0.5f);
             // The gift: light falls on each plant that the star actually nourished.
             var tops = new List<Vector3>();
             foreach (var e in outcome.Ecology.Effects)
@@ -265,12 +315,87 @@ namespace DestinyGarden.Presentation
                 float h = plant != null ? 0.12f + 0.75f * plant.Growth / 2500f : 0.15f;
                 tops.Add(View.CellTop(e.CellId) + Vector3.up * h);
             }
-            int perPlant = star.Points >= 8 ? 14 : star.Points == 7 ? 10 : star.Points == 6 ? 5 : 3;
+            yield return PlayRevealCore(star.Points, outcome.FaceId, previousFaceId, tops);
+        }
+
+        private IEnumerator PlayRevealCore(int points, int faceId, int previousFaceId, List<Vector3> tops)
+        {
+            _hintTarget = 0f; // the old hint fades while the die speaks
+            if (Audio != null) Audio.PlayFaceNote(faceId);
+            yield return new WaitForSeconds(0.45f);
+            Change(points);
+            yield return new WaitForSeconds(0.55f);
+            _flash = points >= 7 ? 1f : points == 6 ? 0.5f : 0.25f;
+            if (Audio != null) Audio.PlayStarChord(points);
+            EmitBurst(points);
+            if (points >= 7)
+            {
+                string sub = points >= 8 ? "ラッキーナンバーに、陰陽と島の調和が重なった"
+                    : faceId == LuckySeven.FaceId ? "七の目　・　偶然なら 1/7"
+                    : $"前の目 {previousFaceId} と今の目 {faceId} で七　・　偶然なら 1/6";
+                ShowLabel(points, sub, false);
+            }
+            yield return new WaitForSeconds(0.5f);
+            int perPlant = points >= 8 ? 14 : points == 7 ? 10 : points == 6 ? 5 : 3;
             for (int i = 0; i < tops.Count; i++)
             {
-                Shower(tops[i], star.Points, perPlant);
-                if (!ReducedMotion) yield return new WaitForSeconds(star.Points >= 8 ? 0.05f : 0.09f);
+                Shower(tops[i], points, perPlant);
+                if (!ReducedMotion) yield return new WaitForSeconds(points >= 8 ? 0.05f : 0.09f);
             }
+            yield return new WaitForSeconds(0.4f);
+            SetHint(faceId); // lights for the face that would complete seven next time
+        }
+
+        /// <summary>
+        /// QA only (explicit -dgRevealFrames DIR, never in normal play): plays one reveal close to the altar
+        /// (-dgStarReveal N, -dgFace F, -dgPrevFace P) and saves a frame every 0.2 s, then quits.
+        /// Nothing is rolled and nothing is written to the journal.
+        /// </summary>
+        private IEnumerator QaFilmstrip(string dir, string[] args)
+        {
+            int points = 7, face = 4, prev = 3;
+            for (int i = 0; i + 1 < args.Length; i++)
+            {
+                if (args[i] == "-dgStarReveal") int.TryParse(args[i + 1], out points);
+                if (args[i] == "-dgFace") int.TryParse(args[i + 1], out face);
+                if (args[i] == "-dgPrevFace") int.TryParse(args[i + 1], out prev);
+            }
+            System.IO.Directory.CreateDirectory(dir);
+            yield return new WaitForSeconds(1.0f);
+            _qaCameraCanvas = true;
+            ShowSaved(5);
+            SetHint(prev);
+            _hintAlpha = 1f;
+            var cam = Camera.main;
+            var c = _root.position;
+            cam.transform.SetPositionAndRotation(c + new Vector3(-1.9f, 2.3f, -2.6f),
+                Quaternion.LookRotation(c + Vector3.up * 0.25f - (c + new Vector3(-1.9f, 2.3f, -2.6f)), Vector3.up));
+            var tops = new List<Vector3>();
+            for (int i = 0; i < 7; i++)
+            {
+                float a = i * 0.9f;
+                var p = c + new Vector3(Mathf.Cos(a) * 1.6f, 0f, Mathf.Sin(a) * 1.6f);
+                p.y = IslandTerrain.Height(p.x, p.z) + 0.2f;
+                tops.Add(p);
+            }
+            yield return new WaitForSeconds(0.6f);
+            StartCoroutine(PlayRevealCore(points, face, prev, tops));
+            var rt = new RenderTexture(960, 540, 24);
+            var tex = new Texture2D(960, 540, TextureFormat.RGB24, false);
+            for (int f = 0; f < 22; f++)
+            {
+                yield return new WaitForEndOfFrame();
+                cam.targetTexture = rt;
+                cam.Render();
+                cam.targetTexture = null;
+                RenderTexture.active = rt;
+                tex.ReadPixels(new Rect(0, 0, 960, 540), 0, 0);
+                tex.Apply();
+                RenderTexture.active = null;
+                System.IO.File.WriteAllBytes(System.IO.Path.Combine(dir, $"frame{f:00}.png"), tex.EncodeToPNG());
+                yield return new WaitForSeconds(0.2f);
+            }
+            UnityEngine.Application.Quit();
         }
 
         private Color GlintColor(int points) =>
@@ -389,12 +514,12 @@ namespace DestinyGarden.Presentation
         private void Update()
         {
             if (_root == null || _current == null) return;
-            if (_qaStar > 0 && _labelCanvas != null && _labelCanvas.renderMode == RenderMode.ScreenSpaceOverlay && Camera.main != null)
+            if (_qaCameraCanvas && _labelCanvas != null && _labelCanvas.renderMode == RenderMode.ScreenSpaceOverlay && Camera.main != null)
             {
                 // QA capture renders the camera into a texture, which an overlay canvas skips.
                 _labelCanvas.renderMode = RenderMode.ScreenSpaceCamera;
                 _labelCanvas.worldCamera = Camera.main;
-                _labelCanvas.planeDistance = 4f;
+                _labelCanvas.planeDistance = 1.2f;
                 if (_qaStar >= 7)
                     ShowLabel(_qaStar, _qaStar == 7 ? "前の目 3 と今の目 4 で七　・　偶然なら 1/6"
                         : "ラッキーナンバーに、陰陽と島の調和が重なった", true);
@@ -428,6 +553,23 @@ namespace DestinyGarden.Presentation
             var rc = StarColor(_points);
             float ringA = (0.22f + 0.30f * _flash) * breathe;
             _ring.startColor = _ring.endColor = new Color(rc.r, rc.g, rc.b, ringA);
+
+            // Hint lights travel slowly round the outside of the ring.
+            _hintAlpha = Mathf.MoveTowards(_hintAlpha, _hintTarget, dt * 0.8f);
+            if (_hintMat != null)
+            {
+                float pulse = 0.75f + 0.25f * Mathf.Sin(Time.time * 2.1f);
+                _hintMat.color = new Color(1f, 0.93f, 0.70f, _hintAlpha * pulse);
+                int k = _hintOrbs.Count;
+                float baseA = ReducedMotion ? 0f : Time.time * 0.35f;
+                for (int i = 0; i < k; i++)
+                {
+                    float a = baseA + i * Mathf.PI * 2f / k;
+                    // They float a little above the grass, rising and falling one after another.
+                    float bob = ReducedMotion ? 0f : 0.04f * Mathf.Sin(Time.time * 1.6f + i * 1.3f);
+                    _hintOrbs[i].localPosition = new Vector3(Mathf.Cos(a) * StarRadius * 1.2f, 0.16f + bob, Mathf.Sin(a) * StarRadius * 1.2f);
+                }
+            }
         }
     }
 }

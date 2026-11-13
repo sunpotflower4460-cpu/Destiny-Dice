@@ -90,7 +90,7 @@ namespace DestinyGarden.Presentation
             _sigil.View = _view;
             _sigil.Audio = _audio;
             _sigil.Build();
-            _sigil.ShowSaved(AltarSigil.LastStar(HistoryProjector.Project(_journal.ReadAll().Entries, _coordinator.RunId)));
+            _sigil.ShowSaved(HistoryProjector.Project(_journal.ReadAll().Entries, _coordinator.RunId));
             _ui = gameObject.AddComponent<GardenUi>();
             _ui.Audio = _audio;
             _ui.View = _view;

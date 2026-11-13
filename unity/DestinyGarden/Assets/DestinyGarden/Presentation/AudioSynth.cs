@@ -305,8 +305,8 @@ namespace DestinyGarden.Presentation
             return Finish(o, 0.5, 0.02);
         }
 
-        /// <summary>The bell that answers each roll.</summary>
-        public static float[] Bell(double f = 523.25)
+        /// <summary>The bell that answers each roll: upper do (D5), so the face's note that follows stays in D major.</summary>
+        public static float[] Bell(double f = 587.33)
         {
             var d = new double[(int)(3.2 * Rate)];
             Strike(d, 0, f, 1.0, 1.0);
