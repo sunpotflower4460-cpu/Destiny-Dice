@@ -405,6 +405,8 @@ namespace DestinyGarden.Application
             _luckyEarned = false; LuckySevenOffered = false;
             _rolledRecipes.Clear();
             _rolledFaces.Clear();
+            string resolvedRecipeId = null;
+            int resolvedFaceId = 0;
             _weatherEntropyByPeriod.Clear();
             _recentMessageIds.Clear();
 
@@ -425,6 +427,8 @@ namespace DestinyGarden.Application
                         _luckyEarned = false; LuckySevenOffered = false;
                         _rolledRecipes.Clear();
                         _rolledFaces.Clear();
+                        resolvedRecipeId = null;
+                        resolvedFaceId = 0;
                         Phase = CoordinatorPhase.Ready;
                         break;
                     case "CareFocusChanged":
@@ -470,15 +474,18 @@ namespace DestinyGarden.Application
                         if (Phase == CoordinatorPhase.Prepared) Phase = CoordinatorPhase.IntentCommitted;
                         break;
                     case "OutcomeCommitted":
-                        if (e.Payload["recipeId"] is string rolledRecipe)
-                        {
-                            _rolledRecipes.Add(rolledRecipe);
-                            _rolledFaces.Add(WorldStateSerializer.ToInt(e.Payload["faceId"]));
-                        }
-                        _luckyEarned = LuckySeven.IntentMatched(_restoreIntentKind, _restoreIntentValue,
-                            WorldStateSerializer.ToInt(e.Payload["faceId"]), e.Payload["recipeId"] as string);
+                        resolvedRecipeId = e.Payload["recipeId"] as string;
+                        resolvedFaceId = WorldStateSerializer.ToInt(e.Payload["faceId"]);
                         break;
                     case "Resolved":
+                        if (resolvedRecipeId != null)
+                        {
+                            _rolledRecipes.Add(resolvedRecipeId);
+                            _rolledFaces.Add(resolvedFaceId);
+                            _luckyEarned = LuckySeven.IntentMatched(_restoreIntentKind, _restoreIntentValue, resolvedFaceId, resolvedRecipeId);
+                        }
+                        resolvedRecipeId = null;
+                        resolvedFaceId = 0;
                         State = WorldStateSerializer.FromPayload(
                             (Dictionary<string, object>)e.Payload["postState"]);
                         // The earlier prayer-star branch recorded its policy with each outcome.
@@ -496,6 +503,8 @@ namespace DestinyGarden.Application
                         break;
                     case "PreparationInterrupted":
                     case "InterruptedUnresolved":
+                        resolvedRecipeId = null;
+                        resolvedFaceId = 0;
                         CurrentFaces = null; CurrentRoundId = null;
                         Phase = CoordinatorPhase.Ready;
                         break;
