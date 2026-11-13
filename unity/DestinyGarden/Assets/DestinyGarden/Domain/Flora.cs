@@ -25,7 +25,8 @@ namespace DestinyGarden.Domain
     /// </summary>
     public static class Flora
     {
-        public const string RulesVersion = "flora.v1";
+        public const string RulesVersion = "flora.v2";
+        public const int LeaningWindow = 8;   // flora.v2: the blessings of the last eight rolls lean germination
         public const int ThriveGrowth = 4;
 
         private static SpeciesTraits T(string id, string ja, int hard, int dMin, int dMax, int mMin, int mMax, int light,
@@ -145,7 +146,33 @@ namespace DestinyGarden.Domain
         /// from the given picker (saved ecology bytes); initial plants use their id (no chance).
         /// When nothing fits, the pioneer dandelion takes the place.
         /// </summary>
-        public static string ChooseSpecies(WorldState s, PlantState plant, string carrier, string parentSpecies, Func<int, int> pick)
+        /// <summary>
+        /// flora.v2: how strongly the recent blessings lean a seed toward a species (0..8 per matching blessing kind).
+        /// Water: wet-loving species (moisture from 400‰). Light: sun-loving species. Wind: wind-sown seeds and
+        /// flowers pollinators love (bee + butterfly at least 3). Seed: berry plants.
+        /// </summary>
+        public static int Leaning(SpeciesTraits t, IList<string> recentRecipeIds)
+        {
+            if (t == null || recentRecipeIds == null) return 0;
+            int water = 0, light = 0, wind = 0, seed = 0;
+            for (int i = Math.Max(0, recentRecipeIds.Count - LeaningWindow); i < recentRecipeIds.Count; i++)
+                switch (RecipeCatalog.ElementOf(recentRecipeIds[i]))
+                {
+                    case ElementId.Water: water++; break;
+                    case ElementId.Light: light++; break;
+                    case ElementId.Wind: wind++; break;
+                    case ElementId.Seed: seed++; break;
+                }
+            int w = 0;
+            if (t.MoistMin >= 400) w += water;
+            if (t.Light == 0) w += light;
+            if (t.WindSeed || Math.Max(0, t.Bee) + Math.Max(0, t.Butterfly) >= 3) w += wind;
+            if (t.Berries) w += seed;
+            return w;
+        }
+
+        public static string ChooseSpecies(WorldState s, PlantState plant, string carrier, string parentSpecies, Func<int, int> pick,
+            IList<string> recentRecipeIds = null)
         {
             var fit = FittingAt(s, plant.CellId);
             if (fit.Count == 0) return "dandelion";
@@ -159,6 +186,7 @@ namespace DestinyGarden.Domain
                 if (carrier == "fluff" && t.WindSeed) w += 8;
                 if (carrier == "butterfly") w += Math.Max(0, t.Butterfly) * 2;
                 if (carrier == "bee") w += Math.Max(0, t.Bee) * 2;
+                w += Leaning(t, recentRecipeIds);
                 weights[i] = w;
             }
             if (plant.OriginKind == "initialMap" || pick == null)

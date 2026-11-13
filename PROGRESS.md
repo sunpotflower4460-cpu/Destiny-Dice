@@ -2159,3 +2159,39 @@ Git diff whitespace check: pass
 ### 触ったファイル
 
 - Presentation/PrayerStarSigil.cs（AltarSigil.cs から改名）、Presentation/GardenBootstrap.cs、Tests/EditMode/SacredTonesTests.cs、docs/unity-garden/ECOLOGY.md §8.3、PROGRESS.md。
+
+## Jam 星の頂点に灯・出目で育ち方が変わる庭（prayer-star.v2・flora.v2）（2026-11-13）
+
+### 完了したこと
+
+- 本人の指定「芒星の頂点に点が来るように（動いている時はよい）」: 星の各頂点の水面に光の点を置いた。海の七つの灯籠（SacredAtmosphere の SevenLights）は、
+  星が落ち着くと頂点の真上へ寄り、動いている間は遅れてついていく。五・六芒星では余った灯籠が小さくなって消え、八芒星では八つめの灯籠を加える。
+  灯籠は横位置だけを動かす（SacredAtmosphere は上下の揺れだけを書き換えるため衝突しない。Codex 版の水面の映り込みにも対応）。
+- 七への灯を海の輪からサイコロのまわりへ移した（海の輪の上には頂点以外の点を置かない）。
+- 出目で庭の育ち方が変わる仕組みを二つ足した（ECOLOGY.md §7.3a・§8.1a）:
+  - prayer-star.v2: 星の恵みが先に届く株を、その一投の恵みで変える（水=乾いた土、光=日向の日向好き、風=蜂と蝶に好かれる種、種=若い株）。
+  - flora.v2: 芽吹きの種の重みに、直近8投の恵みの傾きを足す（水=湿り好き、光=日向好き、風=風散布・虫に好かれる種、種=実のなる種）。
+- 計測テスト `GardenPathsTests.Measure_GardensFollowTheirBlessings` を追加（水・光・風・種のどれかが半分出る4通りの祈り方で、8つの庭×48投）。
+
+### 完了基準の結果（コマンド出力の要約）
+
+- Unity EditMode: `total="55" passed="55" failed="0"`。隔離プレビューの macOS ビルド `Succeeded`。本来の庭の台帳の SHA-256 は d605e4eb… のまま。
+- 祈り方ごとの庭（48投後、8庭の平均。前は prayer-star.v2 のみ、後は flora.v2 も適用）:
+  - 水: 湿り好き 10% → 15%、上位 タンポポ19% コスモス12% アイリス9% キンポウゲ9%、土の湿り 121‰
+  - 光: 日向好き 27% → 39%、上位 タンポポ23% コスモス14% ポピー12% ヒマワリ9%
+  - 風: 上位 タンポポ30% コスモス12% 野ばら11% デイジー10%（花 21.4 と最少）
+  - 種: 株 53.6・花 32.3 と最多、上位 タンポポ18% 野ばら15% コスモス11% 野イチゴ11%
+- 星の出現率（720投）: 五 24.3%、六 55.1%、七 18.2%、八 2.4%。虹の八 約18投に1回。
+- 隔離プレビューの撮影: 七・五芒星で、頂点の水面の点と、その真上に寄った灯籠を確認した。動いている間の遅れも確認した。
+
+### 要確定・申し送り
+
+- タンポポがどの祈り方でも最多。土が全体に乾いていて（67〜121‰）、多くの種の湿りの下限（250〜300‰以上）に届かず、合う種がない場所は先駆けのタンポポになるため。
+  日陰好き（ホタルブクロ・ジギタリス）はほぼ0%。水の量を変えるのは自然シミュレーション（水収支の検証つき）の変更になるので、今回は触っていない。
+- サイコロのまわりの七への灯は、明るい草の上では淡い（少し大きくしたが、大きくした後の見え方は未撮影）。
+- 灯籠は SacredAtmosphere の内部の名前（SevenLights / Light* / Lantern reflection）で探している。Codex 側で名前が変わると灯籠は動かない（星は表示される）。
+
+### 触ったファイル
+
+- Domain: PrayerStar.cs、Flora.cs、Ecology.cs。Presentation: PrayerStarSigil.cs。
+- Tests: PrayerStarTests.cs、FloraTests.cs、GardenPathsTests.cs（新規）。docs/unity-garden/ECOLOGY.md §7.3a・§8、PROGRESS.md。

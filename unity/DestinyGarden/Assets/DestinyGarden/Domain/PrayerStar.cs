@@ -13,14 +13,19 @@ namespace DestinyGarden.Domain
         public int FaceSum;         // this face + the previous face (0 when there was no previous roll)
         public int GiftGrowth;      // growth given to each recipient
         public int GiftRecipients;  // how many plants may receive (int.MaxValue = every non-flowering plant)
+        public bool HasElement;     // prayer-star.v2: the rolled blessing steers where the gift goes
+        public ElementId Element;
     }
 
     /// <summary>
-    /// The prayer star (prayer-star.v1, docs/unity-garden/ECOLOGY.md §8). A star of light lies on the
+    /// The prayer star (prayer-star.v2, docs/unity-garden/ECOLOGY.md §8). A star of light lies on the
     /// altar beneath the die. Each roll turns it into a five-, six-, seven- or eight-pointed star,
     /// decided only by facts already saved for the roll (the faces, the blessings, the wish, the harmony
     /// reading); it draws no chance of its own. The star then gives a little growth to the youngest
-    /// plants that are not yet in flower, more the more points it has.
+    /// plants that are not yet in flower, more the more points it has. Which plants come first follows the
+    /// rolled blessing (prayer-star.v2): water seeks the driest soil, light the sun-lovers standing in the sun,
+    /// wind the flowers that bees and butterflies love, seed the youngest seedlings. So the faces that come up
+    /// steer what kind of garden grows.
     ///
     /// - 5 五芒星 (the star of life): every roll.
     /// - 6 六芒星 (yin and yang joined): the blessing changed between yin (water, seed) and yang
@@ -32,7 +37,7 @@ namespace DestinyGarden.Domain
     /// </summary>
     public static class PrayerStar
     {
-        public const string RulesVersion = "prayer-star.v1";
+        public const string RulesVersion = "prayer-star.v2";
         public const string GiftKind = "star";          // EcologyEffect.Kind for the star's gift
         public const int LuckySum = 7;
         public const int OctagramHarmony = 7;
@@ -63,6 +68,7 @@ namespace DestinyGarden.Domain
             string previousRecipeId, bool wishAnswered, int harmonyValue)
         {
             var r = new PrayerStarReading { WishAnswered = wishAnswered };
+            if (recipeId != null) { r.HasElement = true; r.Element = RecipeCatalog.ElementOf(recipeId); }
             if (recipeId != null && previousRecipeId != null)
                 r.YinYangUnion = Harmony.IsYin(RecipeCatalog.ElementOf(recipeId)) !=
                                  Harmony.IsYin(RecipeCatalog.ElementOf(previousRecipeId));
@@ -78,12 +84,45 @@ namespace DestinyGarden.Domain
             return r;
         }
 
-        /// <summary>The youngest plants not yet in flower (growth, then cell order), as many as the star gives to.</summary>
+        /// <summary>
+        /// Where the rolled blessing sends the gift first (lower = sooner). Ties fall to the youngest plant, then cell order.
+        /// Water: driest soil. Light: sun-loving species in the sun, then plants in the sun. Wind: the flowers
+        /// pollinators love most. Seed (or no element): youngest only.
+        /// </summary>
+        public static int Priority(WorldState s, PlantState p, PrayerStarReading star)
+        {
+            if (star == null || !star.HasElement) return 0;
+            var t = Flora.Get(p.Species);
+            switch (star.Element)
+            {
+                case ElementId.Water:
+                    return Flora.Moisture(s, p.CellId);
+                case ElementId.Light:
+                    {
+                        bool sun = !Flora.IsRockShade(p.CellId);
+                        int light = t != null ? t.Light : 1;
+                        return sun && light == 0 ? 0 : sun ? 1 : 2;
+                    }
+                case ElementId.Wind:
+                    return t != null ? 4 - (Math.Max(0, t.Bee) + Math.Max(0, t.Butterfly)) : 4;
+                default:
+                    return 0;
+            }
+        }
+
+        /// <summary>Plants not yet in flower in the blessing's order (see Priority), as many as the star gives to.</summary>
         public static List<int> Recipients(WorldState s, PrayerStarReading star)
         {
             var young = new List<PlantState>();
             foreach (var p in s.Plants) if (p.Stage != PlantStage.Flower && p.Growth < 2500) young.Add(p);
-            young.Sort((a, b) => a.Growth != b.Growth ? a.Growth.CompareTo(b.Growth) : a.CellId.CompareTo(b.CellId));
+            var prio = new Dictionary<PlantState, int>();
+            foreach (var p in young) prio[p] = Priority(s, p, star);
+            young.Sort((a, b) =>
+            {
+                int c = prio[a].CompareTo(prio[b]);
+                if (c != 0) return c;
+                return a.Growth != b.Growth ? a.Growth.CompareTo(b.Growth) : a.CellId.CompareTo(b.CellId);
+            });
             var cells = new List<int>();
             for (int i = 0; i < young.Count && i < star.GiftRecipients; i++) cells.Add(young[i].CellId);
             return cells;
@@ -107,7 +146,8 @@ namespace DestinyGarden.Domain
             ["yinYangUnion"] = r.YinYangUnion,
             ["wishAnswered"] = r.WishAnswered,
             ["faceSum"] = (long)r.FaceSum,
-            ["giftGrowth"] = (long)r.GiftGrowth
+            ["giftGrowth"] = (long)r.GiftGrowth,
+            ["giftElement"] = r.HasElement ? r.Element.ToString().ToLowerInvariant() : null
         };
     }
 }

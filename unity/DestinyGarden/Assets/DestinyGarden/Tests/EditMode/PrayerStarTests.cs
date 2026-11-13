@@ -67,11 +67,35 @@ namespace DestinyGarden.Tests
                     PlantId = "p" + i, CellId = 100 + i, Growth = growth[i],
                     Stage = growth[i] >= 2500 ? PlantStage.Flower : growth[i] >= 1500 ? PlantStage.Bud : PlantStage.Leaf
                 });
-            var five = PrayerStar.Recipients(s, PrayerStar.Read(1, 0, "water_drop", null, false, 0));
+            var five = PrayerStar.Recipients(s, PrayerStar.Read(1, 0, "seed_single", null, false, 0));
             CollectionAssert.AreEqual(new[] { 105, 101, 103, 104, 102 }, five, "growth order, then cell order");
             var eight = PrayerStar.Recipients(s, new PrayerStarReading { Points = 8, GiftRecipients = PrayerStar.GiftRecipientsFor(8) });
             Assert.AreEqual(7, eight.Count, "the eight reaches every plant not yet in flower");
             Assert.IsFalse(eight.Contains(100));
+        }
+
+        [Test]
+        public void Gift_FollowsTheRolledBlessing()
+        {
+            // Two young plants: one on dry soil in the sun (a sun-loving cosmos), one on wet soil in rock shade
+            // (a shade-loving bellflower, loved by nobody in particular).
+            int sunny = -1, shady = -1;
+            for (int c = 0; c < GardenMapData.CellCount && (sunny < 0 || shady < 0); c++)
+            {
+                if (GardenMapData.Plantable[c] != 1 || GardenMapData.SoilCapacity[c] <= 0) continue;
+                if (!Flora.IsRockShade(c) && sunny < 0) sunny = c;
+                else if (Flora.IsRockShade(c) && shady < 0) shady = c;
+            }
+            Assert.GreaterOrEqual(sunny, 0); Assert.GreaterOrEqual(shady, 0);
+            var s = new WorldState();
+            s.SoilWater[shady] = GardenMapData.SoilCapacity[shady];   // wet
+            s.Plants.Add(new PlantState { PlantId = "sun", CellId = sunny, Growth = 600, Stage = PlantStage.Sprout, Species = "cosmos" });
+            s.Plants.Add(new PlantState { PlantId = "shade", CellId = shady, Growth = 100, Stage = PlantStage.Sprout, Species = "bellflower" });
+            int First(string recipe) => PrayerStar.Recipients(s, PrayerStar.Read(1, 0, recipe, null, false, 0))[0];
+            Assert.AreEqual(sunny, First("water_drop"), "water seeks the driest soil");
+            Assert.AreEqual(sunny, First("light_soft"), "light seeks the sun-lover in the sun");
+            Assert.AreEqual(sunny, First("wind_breeze"), "wind seeks what pollinators love (cosmos: butterflies 2, bees 1)");
+            Assert.AreEqual(shady, First("seed_single"), "seed seeks the youngest");
         }
 
         private static List<RollOutcome> Play(IJournalWriter journal, string seed, int rolls)

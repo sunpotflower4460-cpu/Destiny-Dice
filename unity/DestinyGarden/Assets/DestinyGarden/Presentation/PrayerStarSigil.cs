@@ -43,11 +43,13 @@ namespace DestinyGarden.Presentation
         {
             public Transform Root;
             public readonly List<LineRenderer> Lines = new List<LineRenderer>();
+            public Material NodeMat;   // the points of light on the star's vertices
             public int Points;
             public float Alpha, Scale = 1f;
         }
 
         private Material _lineMat;
+        private Texture2D _nodeTex;
         private Transform _root;
         private Layer _current, _leaving;
         private LineRenderer _ring;
@@ -56,6 +58,17 @@ namespace DestinyGarden.Presentation
         private Quaternion _lastDiceRot = Quaternion.identity;
         private bool _haveDiceRot;
         private LineRenderer _thread;
+
+        // The seven lanterns on the sea (SacredAtmosphere's "SevenLights") come to rest on the star's points.
+        private Transform _lanternRing;
+        private readonly List<Transform> _lanterns = new List<Transform>();
+        private readonly List<Transform> _lanternRefl = new List<Transform>();
+        private readonly List<Vector3> _lanternScale = new List<Vector3>(), _reflScale = new List<Vector3>();
+        private readonly List<float> _lanternDeg = new List<float>(), _lanternShow = new List<float>();
+        private int[] _lanternVertex = new int[0];
+        private int _assignedPoints = -1;
+        private float _lanternRadius = StarRadius;
+        private bool _lanternsSnapped;
         private int _points;
         private int _qaStar; // QA capture only (-dgStar N)
         private bool _qaCameraCanvas; // QA only: render the label canvas through the camera
@@ -117,6 +130,7 @@ namespace DestinyGarden.Presentation
         public void Build()
         {
             _lineMat = IslandHarmony.GlowMaterial(null, Color.white, 3006);
+            _nodeTex = ProceduralArt.GlowSprite();
             // Just above the sea, where the island's harmony star used to be drawn.
             var center = IslandCenter + new Vector3(0f, SeaLevel + 0.05f, 0f);
             _root = new GameObject("PrayerStarSigil").transform;
@@ -221,6 +235,22 @@ namespace DestinyGarden.Presentation
                 }
                 layer.Lines.Add(line);
             }
+            // A point of light on every vertex, on the water (the lanterns come to rest above them).
+            layer.NodeMat = IslandHarmony.GlowMaterial(_nodeTex, Color.white, 3007);
+            for (int v = 0; v < points; v++)
+            {
+                float a = Mathf.PI * 0.5f + v * Mathf.PI * 2f / points;
+                var q = GameObject.CreatePrimitive(PrimitiveType.Quad);
+                Destroy(q.GetComponent<Collider>());
+                q.name = "StarPoint";
+                q.transform.SetParent(layer.Root, false);
+                q.transform.localPosition = new Vector3(Mathf.Cos(a), Mathf.Sin(a), 0f) * StarRadius;
+                q.transform.localScale = Vector3.one * 0.85f;
+                var r = q.GetComponent<MeshRenderer>();
+                r.sharedMaterial = layer.NodeMat;
+                r.shadowCastingMode = ShadowCastingMode.Off;
+                r.receiveShadows = false;
+            }
             return layer;
         }
 
@@ -229,6 +259,11 @@ namespace DestinyGarden.Presentation
             if (layer == null) return;
             layer.Root.localScale = Vector3.one * layer.Scale;
             var c = StarColor(layer.Points);
+            if (layer.NodeMat != null)
+            {
+                var nc = layer.Points >= 8 ? new Color(1f, 0.95f, 0.9f) : layer.Points == 6 ? new Color(0.85f, 0.88f, 0.95f) : c;
+                layer.NodeMat.color = new Color(nc.r, nc.g, nc.b, Mathf.Clamp01(alpha * 1.6f));
+            }
             foreach (var line in layer.Lines)
             {
                 if (layer.Points >= 8)
@@ -252,7 +287,7 @@ namespace DestinyGarden.Presentation
         private static readonly Color YangColor = new Color(1f, 0.82f, 0.50f);
 
         /// <summary>
-        /// Small lights circle the star, as many as the face that would complete seven with the last face
+        /// Small lights circle the die, as many as the face that would complete seven with the last face
         /// (none after a seven). A wordless hint; the chance of that face stays the same.
         /// </summary>
         public void SetHint(int lastFaceId)
@@ -267,7 +302,7 @@ namespace DestinyGarden.Presentation
                 q.name = "HintLight";
                 q.transform.SetParent(_hintRoot, false);
                 q.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
-                q.transform.localScale = Vector3.one * 0.9f;
+                q.transform.localScale = Vector3.one * 0.24f;
                 var r = q.GetComponent<MeshRenderer>();
                 r.sharedMaterial = _hintMat;
                 r.shadowCastingMode = ShadowCastingMode.Off;
@@ -290,8 +325,8 @@ namespace DestinyGarden.Presentation
         public void ShowSaved(int points)
         {
             points = Mathf.Clamp(_qaStar > 0 ? _qaStar : points, 5, 8);
-            if (_leaving != null) { Destroy(_leaving.Root.gameObject); _leaving = null; }
-            if (_current != null) Destroy(_current.Root.gameObject);
+            if (_leaving != null) { DestroyLayer(_leaving); _leaving = null; }
+            if (_current != null) DestroyLayer(_current);
             _current = MakeLayer(points);
             _current.Alpha = 1f;
             _points = points;
@@ -299,9 +334,16 @@ namespace DestinyGarden.Presentation
             _boost = 0f;
         }
 
+        private void DestroyLayer(Layer layer)
+        {
+            if (layer == null) return;
+            if (layer.NodeMat != null) Destroy(layer.NodeMat);
+            Destroy(layer.Root.gameObject);
+        }
+
         private void Change(int points)
         {
-            if (_leaving != null) Destroy(_leaving.Root.gameObject);
+            if (_leaving != null) DestroyLayer(_leaving);
             _leaving = _current;
             _current = MakeLayer(points);
             _current.Alpha = 0f;
@@ -588,6 +630,105 @@ namespace DestinyGarden.Presentation
             return total * TumbleSpin;                             // tumbling: the star whirls along
         }
 
+        // ------------------------------------------------------------------ lanterns on the star's points
+
+        private void FindLanterns()
+        {
+            _lanternRing = transform.Find("SevenLights");
+            if (_lanternRing == null) return;
+            var lights = new List<Transform>();
+            foreach (Transform child in _lanternRing)
+            {
+                if (child.name.StartsWith("Light")) lights.Add(child);
+                else if (child.name == "Lantern reflection") _lanternRefl.Add(child);
+            }
+            lights.Sort((a, b) => string.CompareOrdinal(a.name, b.name));
+            if (lights.Count == 0) { _lanternRing = null; return; }
+            var p0 = lights[0].localPosition;
+            _lanternRadius = new Vector2(p0.x, p0.z).magnitude;
+            // An eighth lantern for the eight-pointed star, made like the others.
+            var extra = Instantiate(lights[0].gameObject, _lanternRing);
+            extra.name = "Light8 (prayer star)";
+            lights.Add(extra.transform);
+            if (_lanternRefl.Count > 0)
+            {
+                var r = Instantiate(_lanternRefl[0].gameObject, _lanternRing);
+                r.name = "Lantern reflection (prayer star)";
+                _lanternRefl.Add(r.transform);
+            }
+            foreach (var l in lights)
+            {
+                _lanterns.Add(l);
+                _lanternScale.Add(l.localScale);
+                _lanternDeg.Add(Mathf.Atan2(l.localPosition.z, l.localPosition.x) * Mathf.Rad2Deg);
+                _lanternShow.Add(1f);
+            }
+            foreach (var r in _lanternRefl) _reflScale.Add(r.localScale);
+        }
+
+        /// <summary>Ring-local angle (degrees) of the star's vertex v, as the star lies now.</summary>
+        private float VertexDeg(int v, int n)
+        {
+            float a = Mathf.PI * 0.5f + v * Mathf.PI * 2f / n;
+            var world = _root.TransformPoint(new Vector3(Mathf.Cos(a), Mathf.Sin(a), 0f) * _lanternRadius);
+            var local = _lanternRing.InverseTransformPoint(world);
+            return Mathf.Atan2(local.z, local.x) * Mathf.Rad2Deg;
+        }
+
+        /// <summary>Each point of the star takes the nearest free lantern; spare lanterns rest unseen.</summary>
+        private void AssignLanterns(int n)
+        {
+            _assignedPoints = n;
+            _lanternVertex = new int[_lanterns.Count];
+            for (int j = 0; j < _lanternVertex.Length; j++) _lanternVertex[j] = -1;
+            int usable = n >= 8 ? _lanterns.Count : Mathf.Min(7, _lanterns.Count);
+            for (int v = 0; v < n; v++)
+            {
+                float target = VertexDeg(v, n);
+                int best = -1; float bestD = float.MaxValue;
+                for (int j = 0; j < usable; j++)
+                {
+                    if (_lanternVertex[j] >= 0) continue;
+                    float d = Mathf.Abs(Mathf.DeltaAngle(_lanternDeg[j], target));
+                    if (d < bestD) { bestD = d; best = j; }
+                }
+                if (best >= 0) _lanternVertex[best] = v;
+            }
+        }
+
+        private void LateUpdate()
+        {
+            if (_root == null) return;
+            if (_lanternRing == null && _lanterns.Count == 0) FindLanterns();
+            if (_lanternRing == null) return;
+            if (_points != _assignedPoints) AssignLanterns(_points);
+            float dt = Time.deltaTime;
+            bool snap = ReducedMotion || !_lanternsSnapped;
+            // While the star whirls the lanterns trail behind; once it rests they sit on its points.
+            float follow = snap ? 1f : 1f - Mathf.Exp(-dt * 2.4f);
+            for (int j = 0; j < _lanterns.Count; j++)
+            {
+                int v = _lanternVertex.Length > j ? _lanternVertex[j] : -1;
+                if (v >= 0) _lanternDeg[j] += Mathf.DeltaAngle(_lanternDeg[j], VertexDeg(v, _points)) * follow;
+                _lanternShow[j] = snap ? (v >= 0 ? 1f : 0f) : Mathf.MoveTowards(_lanternShow[j], v >= 0 ? 1f : 0f, dt * 0.9f);
+                float rad = _lanternDeg[j] * Mathf.Deg2Rad;
+                var l = _lanterns[j];
+                var p = l.localPosition;
+                if (j >= 7) p.y = 0.9f + (ReducedMotion ? 0f : Mathf.Sin(Time.time * 0.8f + j * 0.9f) * 0.18f); // our own lantern bobs like the rest
+                l.localPosition = new Vector3(Mathf.Cos(rad) * _lanternRadius, p.y, Mathf.Sin(rad) * _lanternRadius);
+                float show = Mathf.SmoothStep(0f, 1f, _lanternShow[j]);
+                l.localScale = _lanternScale[j] * show;
+                if (j < _lanternRefl.Count)
+                {
+                    var r = _lanternRefl[j];
+                    r.localPosition = new Vector3(Mathf.Cos(rad) * _lanternRadius, r.localPosition.y, Mathf.Sin(rad) * _lanternRadius);
+                    r.localRotation = Quaternion.Euler(90f, 0f, -_lanternDeg[j]);
+                    r.localScale = _reflScale[j] * show;
+                }
+            }
+            _lanternsSnapped = true;
+        }
+
         private static float Yaw(Quaternion q)
         {
             var f = q * Vector3.forward;
@@ -630,7 +771,7 @@ namespace DestinyGarden.Presentation
                 _leaving.Scale = Mathf.Lerp(1f, 0.55f, outK);
                 _leaving.Root.localRotation = Quaternion.Euler(0f, 0f, _sinceChange * 120f);
                 Paint(_leaving, strength * breathe * (1f - outK));
-                if (outK >= 1f) { Destroy(_leaving.Root.gameObject); _leaving = null; }
+                if (outK >= 1f) { DestroyLayer(_leaving); _leaving = null; }
             }
 
             var rc = StarColor(_points);
@@ -644,13 +785,15 @@ namespace DestinyGarden.Presentation
                 float pulse = 0.75f + 0.25f * Mathf.Sin(Time.time * 2.1f);
                 _hintMat.color = new Color(1f, 0.93f, 0.70f, _hintAlpha * pulse);
                 int k = _hintOrbs.Count;
-                float baseA = -_angle * Mathf.Deg2Rad + (ReducedMotion ? 0f : Time.time * 0.12f);
+                if (View != null && View.DiceTransform != null)
+                    _hintRoot.position = View.DiceTransform.position + Vector3.down * 0.32f;
+                float baseA = ReducedMotion ? 0f : Time.time * 0.9f;
                 for (int i = 0; i < k; i++)
                 {
                     float a = baseA + i * Mathf.PI * 2f / k;
                     // They float a little above the grass, rising and falling one after another.
-                    float bob = ReducedMotion ? 0f : 0.08f * Mathf.Sin(Time.time * 1.6f + i * 1.3f);
-                    _hintOrbs[i].localPosition = new Vector3(Mathf.Cos(a) * StarRadius, 0.25f + bob, Mathf.Sin(a) * StarRadius);
+                    float bob = ReducedMotion ? 0f : 0.03f * Mathf.Sin(Time.time * 1.6f + i * 1.3f);
+                    _hintOrbs[i].localPosition = new Vector3(Mathf.Cos(a) * 0.62f, bob, Mathf.Sin(a) * 0.62f);
                 }
             }
         }

@@ -361,7 +361,7 @@ namespace DestinyGarden.Domain
                 string carrier = carriedBy.TryGetValue(p.CellId, out string ck) ? ck
                     : p.OriginKind == "seedInput" ? "die" : p.OriginKind;
                 string parentSpecies = parentOf.TryGetValue(p.CellId, out int pc) ? s.PlantAt(pc)?.Species : null;
-                p.Species = Flora.ChooseSpecies(s, p, carrier, parentSpecies, n => Pick(n));
+                p.Species = Flora.ChooseSpecies(s, p, carrier, parentSpecies, n => Pick(n), ctx.RecentRecipeIds);
                 var t = Flora.Get(p.Species);
                 bool softened = t != null && Flora.BaseHardness(p.CellId) > t.MaxHardness;
                 r.Effects.Add(new EcologyEffect { Kind = Germinate, CellId = p.CellId, Species = p.Species, Softened = softened });

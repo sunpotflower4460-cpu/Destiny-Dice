@@ -130,5 +130,22 @@ namespace DestinyGarden.Tests
             var withSpecies = WorldStateSerializer.FromPayload(WorldStateSerializer.ToPayload(s));
             Assert.AreEqual("daisy", withSpecies.Plants.First(p => p.PlantId == s.Plants[0].PlantId).Species);
         }
+
+        [Test]
+        public void Leaning_FollowsTheRecentBlessings()
+        {
+            var iris = Flora.Get("iris"); var cosmos = Flora.Get("cosmos"); var rose = Flora.Get("wildrose");
+            var dandelion = Flora.Get("dandelion");
+            var waters = new[] { "water_drop", "water_rain", "water_drop" };
+            Assert.AreEqual(3, Flora.Leaning(iris, waters), "iris loves wet soil");
+            Assert.AreEqual(0, Flora.Leaning(cosmos, waters));
+            Assert.AreEqual(2, Flora.Leaning(cosmos, new[] { "light_soft", "light_beam" }), "cosmos needs sun");
+            Assert.AreEqual(1, Flora.Leaning(rose, new[] { "seed_single" }), "seed leans to berry plants");
+            Assert.AreEqual(1, Flora.Leaning(dandelion, new[] { "wind_breeze" }), "wind leans to wind-sown seeds");
+            Assert.AreEqual(0, Flora.Leaning(iris, null));
+            // Only the last eight rolls count.
+            var old = Enumerable.Repeat("water_rain", 5).Concat(Enumerable.Repeat("light_soft", 8)).ToList();
+            Assert.AreEqual(0, Flora.Leaning(iris, old));
+        }
     }
 }
