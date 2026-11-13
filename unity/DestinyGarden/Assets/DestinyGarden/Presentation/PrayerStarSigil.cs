@@ -82,6 +82,7 @@ namespace DestinyGarden.Presentation
         private Text _labelTitle, _labelSub;
         private CanvasGroup _causeGroup;
         private Canvas _causeCanvas;
+        private readonly List<Vector3> _communityTops = new List<Vector3>();
         private Image _causeBacking;
         private Text _causeText;
         private Coroutine _causeRoutine;
@@ -366,6 +367,14 @@ namespace DestinyGarden.Presentation
             var star = outcome?.Ecology?.PrayerStar;
             if (star == null) yield break;
             int previousFaceId = star.FaceSum > 0 ? star.FaceSum - outcome.FaceId : 0;
+            // community.v1: the plants an answering community fed (saved effects).
+            _communityTops.Clear();
+            foreach (var e in outcome.Ecology.Effects)
+            {
+                if (e.Kind != Communities.AnswerKind || e.Amount <= 0) continue;
+                var cp = state != null ? state.PlantAt(e.CellId) : null;
+                _communityTops.Add(View.CellTop(e.CellId) + Vector3.up * (cp != null ? 0.12f + 0.75f * cp.Growth / 2500f : 0.15f));
+            }
             // The gift: light falls on each plant that the star actually nourished.
             var tops = new List<Vector3>();
             foreach (var e in outcome.Ecology.Effects)
@@ -392,8 +401,10 @@ namespace DestinyGarden.Presentation
                             startLifetime = UnityEngine.Random.Range(1.4f, 2.4f)
                         }, 1);
                 }
-            string cause = CauseLine(outcome.Ecology), hint = HintLine(outcome.FaceId);
-            StartCoroutine(ShowCauseLater(cause != null && hint != null ? cause + "\n" + hint : cause ?? hint));
+            var lines = new List<string>();
+            foreach (var l in new[] { CauseLine(outcome.Ecology), HintLine(outcome.FaceId), SeasonLine(outcome) })
+                if (!string.IsNullOrEmpty(l)) lines.Add(l);
+            StartCoroutine(ShowCauseLater(lines.Count > 0 ? string.Join("\n", lines) : null));
             StartCoroutine(CycleToneLater(CycleToneFor(outcome.Ecology)));
             yield return PlayRevealCore(star.Points, outcome.FaceId, previousFaceId, tops, outcome.FaceCount);
         }
@@ -444,6 +455,8 @@ namespace DestinyGarden.Presentation
             }
             yield return new WaitForSeconds(0.5f);
             int perPlant = points >= 8 ? 14 : points == 7 ? 10 : points == 6 ? 5 : 3;
+            foreach (var c in _communityTops) Shower(c, 6, 3); // community.v1: the answering community glints too
+            _communityTops.Clear();
             for (int i = 0; i < tops.Count; i++)
             {
                 Shower(tops[i], points, perPlant);
@@ -685,11 +698,26 @@ namespace DestinyGarden.Presentation
                     : "種の恵み → いちばん若い芽へ";
                 parts.Add(what + (site != null ? $"（{site}のあたりから）" : "") + "　" + where);
             }
+            foreach (var c in eco.Answered)
+            {
+                string blessing = c.Element == ElementId.Water ? "水" : c.Element == ElementId.Light ? "光" : c.Element == ElementId.Wind ? "風" : "種";
+                parts.Add($"{c.LabelJa}（{c.Cells.Count}株）が{blessing}の恵みに応えた");
+            }
             if (eco.PrayerStar.Points >= 8) parts.Add("八の虹の下で、咲いている花がみな実りを結んだ");
             if (fruit > 0) parts.Add("蜂や蝶の訪れた花が土に還り、実りを落とした");
             else if (plain > 0) parts.Add("花がひとつ土に還り、となりを養った");
             if (withered > 0) parts.Add("合わなくなった土で、芽がひとつ枯れた");
             return parts.Count > 0 ? string.Join("　・　", parts) : null;
+        }
+
+        /// <summary>The season's wish (season.v1): what the garden asks, how long is left, or that it came true.</summary>
+        public static string SeasonLine(RollOutcome o)
+        {
+            var g = o != null ? Seasons.Get(o.SeasonGoalId) : null;
+            if (g == null) return null;
+            if (o.SeasonMetNow) return $"季節の願いが叶った：{g.LabelJa}　・　次の回に七つめの面が現れる";
+            if (o.SeasonMet) return $"季節の願い：{g.LabelJa}（叶った）";
+            return o.SeasonRollsLeft > 0 ? $"季節の願い：{g.LabelJa}（あと {o.SeasonRollsLeft} 投）" : $"季節の願い：{g.LabelJa}（今季はここまで）";
         }
 
         /// <summary>The words for the hint: which face would make the lucky number next (no change in its chance).</summary>

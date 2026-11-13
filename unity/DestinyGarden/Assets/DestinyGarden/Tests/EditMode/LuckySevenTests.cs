@@ -114,7 +114,8 @@ namespace DestinyGarden.Tests
                 Assert.NotNull(outcome);
                 coord.Prepare();
                 if (outcome.IntentMatched) break;
-                Assert.IsFalse(coord.LuckySevenOffered, "a missed wish never offers the seventh face");
+                Assert.AreEqual(outcome.SeasonMetNow, coord.LuckySevenOffered,
+                    "a missed wish offers the seventh face only when the season's wish came true (season.v1)");
             }
             Assert.IsTrue(outcome.IntentMatched, "fixture should produce a matched wish within 40 rolls");
             Assert.IsTrue(coord.LuckySevenOffered);

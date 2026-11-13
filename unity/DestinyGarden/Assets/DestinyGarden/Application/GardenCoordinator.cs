@@ -21,6 +21,10 @@ namespace DestinyGarden.Application
         public SelectedMessage Message;
         public WeatherDefinition Weather;
         public string SiteId;
+        public string SeasonGoalId;     // season.v1: what the garden asks for this season
+        public bool SeasonMet;          // met at some roll of this season
+        public bool SeasonMetNow;       // met by this roll (brings the seventh face to the next round)
+        public int SeasonRollsLeft;     // rolls left in the season after this one
     }
 
     /// <summary>
@@ -58,6 +62,13 @@ namespace DestinyGarden.Application
         private readonly List<int> _rolledFaces = new List<int>();          // oldest first, this run (prayer star)
         public IReadOnlyList<string> RolledRecipes => _rolledRecipes;
         public int MatchingFaces { get; private set; }  // faces that would answer the committed wish
+
+        // season.v1: the season's goal, chosen at its first roll and saved with every Resolved.
+        private int _seasonIndex = -1;
+        public string SeasonGoalId { get; private set; }
+        public bool SeasonMet { get; private set; }
+
+        private void ResetSeason() { _seasonIndex = -1; SeasonGoalId = null; SeasonMet = false; }
 
         // A round restored after its draw or outcome was saved is resolved from what was saved (DATA_CONTRACT §3):
         // no new entropy, the same face. Faces and recipes join the run's history only once the round is Resolved.
@@ -100,6 +111,7 @@ namespace DestinyGarden.Application
             _rolledFaces.Clear();
             ClearPending();
             ResetIntent();
+            ResetSeason();
             _writer.Append("RunStarted", RunId, null, new Dictionary<string, object>
             {
                 ["gameId"] = "destiny-garden",
@@ -364,6 +376,29 @@ namespace DestinyGarden.Application
                     (faceCount + Math.Max(1, MatchingFaces) - 1) / Math.Max(1, MatchingFaces)) : 0
             }, ecologyBytes, n => _ids.NewId("plant") + "-eco" + n);
 
+            // season.v1: a new season's goal is chosen from the garden before its first roll; meeting it in the
+            // season (once) brings the seventh face to the next round.
+            int revision = eco.PostState.WorldRevision;
+            int season = Seasons.IndexOf(revision);
+            if (season != _seasonIndex)
+            {
+                _seasonIndex = season;
+                SeasonGoalId = Seasons.Pick(season, State, _rolledRecipes, CurrentWeather).Id;
+                SeasonMet = false;
+            }
+            bool seasonMetNow = !SeasonMet && Seasons.IsMet(SeasonGoalId, eco.PostState, eco.Communities,
+                eco.Harmony != null ? eco.Harmony.Value : 0, eco.Has(DestinyGarden.Domain.Ecology.Butterfly));
+            if (seasonMetNow) SeasonMet = true;
+            var ecologyPayload = DestinyGarden.Domain.Ecology.ToPayload(eco);
+            ecologyPayload["season"] = new Dictionary<string, object>
+            {
+                ["rulesVersion"] = Seasons.RulesVersion,
+                ["index"] = (long)season,
+                ["goal"] = SeasonGoalId,
+                ["met"] = SeasonMet,
+                ["metNow"] = seasonMetNow
+            };
+
             var events = new List<object>();
             foreach (var e in sim.Events)
             {
@@ -392,7 +427,7 @@ namespace DestinyGarden.Application
                 ["discharged"] = sim.Discharged,
                 ["evaporated"] = sim.Evaporated,
                 ["weatherId"] = CurrentWeather.Id.ToString(),
-                ["ecology"] = DestinyGarden.Domain.Ecology.ToPayload(eco),
+                ["ecology"] = ecologyPayload,
                 ["selectedMessage"] = new Dictionary<string, object>
                 {
                     ["templateId"] = message.TemplateId,
@@ -410,10 +445,12 @@ namespace DestinyGarden.Application
             _recentMessageIds.Add(message.TemplateId);
             while (_recentMessageIds.Count > 3) _recentMessageIds.RemoveAt(0);
             Phase = CoordinatorPhase.Resolved;
-            _luckyEarned = matched;
+            _luckyEarned = matched || seasonMetNow;
             return new RollOutcome
             {
                 FaceId = faceId, FaceCount = faceCount, LuckySeven = luckyRolled, IntentMatched = matched,
+                SeasonGoalId = SeasonGoalId, SeasonMet = SeasonMet, SeasonMetNow = seasonMetNow,
+                SeasonRollsLeft = Seasons.RollsLeft(revision),
                 Ecology = eco,
                 RecipeId = recipeId, CardIndex = cardIndex,
                 Simulation = sim, StateHashAfter = afterHash,
@@ -452,6 +489,7 @@ namespace DestinyGarden.Application
             _rolledRecipes.Clear();
             _rolledFaces.Clear();
             ClearPending();
+            ResetSeason();
             _weatherEntropyByPeriod.Clear();
             _recentMessageIds.Clear();
 
@@ -471,6 +509,7 @@ namespace DestinyGarden.Application
                         _rolledFaces.Clear();
                         ClearPending();
                         ResetIntent();
+                        ResetSeason();
                         Phase = CoordinatorPhase.Ready;
                         break;
                     case "CareFocusChanged":
@@ -543,6 +582,14 @@ namespace DestinyGarden.Application
                         ClearPending();
                         State = WorldStateSerializer.FromPayload(
                             (Dictionary<string, object>)e.Payload["postState"]);
+                        if (e.Payload.TryGetValue("ecology", out object ecoRec) && ecoRec is IDictionary<string, object> ecoRecD &&
+                            ecoRecD.TryGetValue("season", out object seasonRec) && seasonRec is IDictionary<string, object> sd)
+                        {
+                            _seasonIndex = WorldStateSerializer.ToInt(sd["index"]);
+                            SeasonGoalId = sd["goal"] as string;
+                            SeasonMet = sd["met"] is bool smb && smb;
+                            if (sd["metNow"] is bool mnb && mnb) _luckyEarned = true;
+                        }
                         if (e.Payload.TryGetValue("selectedMessage", out object sm) &&
                             sm is Dictionary<string, object> smd && smd["templateId"] is string tid)
                         {

@@ -191,7 +191,8 @@ namespace DestinyGarden.Domain
         }
 
         public static string ChooseSpecies(WorldState s, PlantState plant, string carrier, string parentSpecies, Func<int, int> pick,
-            IList<string> recentRecipeIds = null, string answeredRecipeId = null, int anchorCellId = -1)
+            IList<string> recentRecipeIds = null, string answeredRecipeId = null, int anchorCellId = -1,
+            IList<Community> communities = null)
         {
             // prayer-star.v2: near the blessing's site, the recent blessings lean a seed twice as strongly.
             int leaningScale = anchorCellId >= 0 && Dist(plant.CellId, anchorCellId) <= PrayerStar.SiteReach ? 2 : 1;
@@ -211,6 +212,8 @@ namespace DestinyGarden.Domain
                 w += Leaning(t, recentRecipeIds) * leaningScale;
                 // An answered wish: this roll's seeds lean strongly toward what its blessing favours.
                 if (answeredRecipeId != null && Suits(t, RecipeCatalog.ElementOf(answeredRecipeId))) w += AnsweredWishLeaning;
+                // community.v1: near a community, seeds lean toward its kind (it spreads like a habitat corridor).
+                w += Communities.SpreadWeight(communities, t, plant.CellId);
                 // flora.v2: crowding. The more of the same species close by, the less a seed becomes it.
                 int same = 0;
                 foreach (var other in s.Plants)

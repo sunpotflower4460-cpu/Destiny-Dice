@@ -29,6 +29,8 @@ namespace DestinyGarden.Domain
         public HarmonyReading Harmony;                              // ecology.v2
         public List<List<int>> Networks = new List<List<int>>();    // mycorrhizal networks (cells), ecology.v2
         public PrayerStarReading PrayerStar;                        // ecology.v4; null when the face was not given
+        public List<Community> Communities = new List<Community>(); // community.v1: communities after this roll's ecology
+        public List<Community> Answered = new List<Community>();    // community.v1: communities that answered this roll's blessing
 
         public bool Has(string kind) => Visits.Exists(v => v.Kind == kind);
         public EcologyVisit Visit(string kind) => Visits.Find(v => v.Kind == kind);
@@ -132,7 +134,10 @@ namespace DestinyGarden.Domain
             var butterflyFlowers = Favoured(s, flowers, t => t.Butterfly);
             if (beeFlowers.Count > 0)
                 visits.Add(new EcologyVisit { Kind = Bee, Cells = beeFlowers.GetRange(0, Math.Min(3, beeFlowers.Count)) });
-            if (butterflyFlowers.Count > 0 && NatureBalance.AllElementsWithinWindow(recentRecipeIds ?? new string[0]))
+            // community.v1: a nectar patch also calls butterflies (a restored habitat brings its creatures).
+            var communities = DestinyGarden.Domain.Communities.Find(s);
+            bool nectar = communities.Exists(c => c.Element == ElementId.Wind && c.Cells.Count >= DestinyGarden.Domain.Communities.CallsCreaturesAt);
+            if (butterflyFlowers.Count > 0 && (nectar || NatureBalance.AllElementsWithinWindow(recentRecipeIds ?? new string[0])))
                 visits.Add(new EcologyVisit { Kind = Butterfly, Cells = butterflyFlowers.GetRange(0, Math.Min(3, butterflyFlowers.Count)) });
 
             var moss = new List<int>();
@@ -159,12 +164,17 @@ namespace DestinyGarden.Domain
 
             var puddles = new List<int>();
             for (int c = 0; c < GardenMapData.CellCount; c++) if (s.SurfaceWater[c] > 0) puddles.Add(c);
+            var wetland = communities.Find(c => c.Element == ElementId.Water && c.Cells.Count >= DestinyGarden.Domain.Communities.CallsCreaturesAt);
             if (puddles.Count >= 2) visits.Add(new EcologyVisit { Kind = Dragonfly, Cells = puddles.GetRange(0, Math.Min(4, puddles.Count)) });
+            else if (wetland != null) // community.v1: dragonflies over a wetland stand
+                visits.Add(new EcologyVisit { Kind = Dragonfly, Cells = wetland.Cells.GetRange(0, Math.Min(4, wetland.Cells.Count)) });
 
             int insects = 0;
             foreach (var v in visits)
                 if (v.Kind == Bee || v.Kind == Butterfly || v.Kind == Firefly || v.Kind == Dragonfly) insects++;
-            if (insects >= 2) visits.Add(new EcologyVisit { Kind = Bird });
+            // community.v1: a berry thicket also calls small birds.
+            if (insects >= 2 || communities.Exists(c => c.Element == ElementId.Seed && c.Cells.Count >= DestinyGarden.Domain.Communities.CallsCreaturesAt))
+                visits.Add(new EcologyVisit { Kind = Bird });
 
             // Fluff flies on a wind roll. (The weather clause BaseWindQ >= 300 could never hold: the windiest weather is 100.)
             bool windy = currentRecipeId != null && RecipeCatalog.ElementOf(currentRecipeId) == ElementId.Wind;
@@ -368,6 +378,9 @@ namespace DestinyGarden.Domain
             var dew = Get(Dew);
             if (dew != null) r.Visits.Add(dew);
 
+            // community.v1: communities as the natural simulation left them (they lean this roll's seeds).
+            var communitiesBefore = DestinyGarden.Domain.Communities.Find(afterSim);
+
             // 15. Germination (ecology.v3): every plant without a species becomes one that fits its
             // place, weighted by how its seed came. Cell order; draws from the saved ecology bytes.
             var unnamed = new List<PlantState>();
@@ -379,7 +392,7 @@ namespace DestinyGarden.Domain
                     : p.OriginKind == "seedInput" ? "die" : p.OriginKind;
                 string parentSpecies = parentOf.TryGetValue(p.CellId, out int pc) ? s.PlantAt(pc)?.Species : null;
                 p.Species = Flora.ChooseSpecies(s, p, carrier, parentSpecies, n => Pick(n), ctx.RecentRecipeIds,
-                    ctx.PrayerAnswered ? ctx.CurrentRecipeId : null, ctx.AnchorCellId);
+                    ctx.PrayerAnswered ? ctx.CurrentRecipeId : null, ctx.AnchorCellId, communitiesBefore);
                 var t = Flora.Get(p.Species);
                 bool softened = t != null && Flora.BaseHardness(p.CellId) > t.MaxHardness;
                 r.Effects.Add(new EcologyEffect { Kind = Germinate, CellId = p.CellId, Species = p.Species, Softened = softened });
@@ -475,6 +488,19 @@ namespace DestinyGarden.Domain
                     foreach (var p in s.Plants) if (p.Stage == PlantStage.Flower) p.Pollinated = true;
             }
 
+            // 18b. community.v1: the communities of this roll's blessing answer: the plants in and next to them grow.
+            if (ctx.FaceId > 0 && ctx.CurrentRecipeId != null)
+            {
+                var rolled = RecipeCatalog.ElementOf(ctx.CurrentRecipeId);
+                foreach (var c in DestinyGarden.Domain.Communities.Find(s))
+                {
+                    if (c.Element != rolled) continue;
+                    r.Answered.Add(c);
+                    foreach (int cell in DestinyGarden.Domain.Communities.AnswerCells(s, c))
+                        Nourish(DestinyGarden.Domain.Communities.AnswerKind, cell, DestinyGarden.Domain.Communities.AnswerGrowth);
+                }
+            }
+
             // 19. The cycle (lifecycle.v1): flowers past their span return to the soil and feed their neighbours.
             if (ctx.FaceId > 0)
             {
@@ -497,7 +523,7 @@ namespace DestinyGarden.Domain
                             };
                             s.Plants.Add(seedling);
                             seedling.Species = Flora.ChooseSpecies(s, seedling, Lifecycle.FruitKind, gone.Species, n => Pick(n), ctx.RecentRecipeIds,
-                                ctx.PrayerAnswered ? ctx.CurrentRecipeId : null, ctx.AnchorCellId);
+                                ctx.PrayerAnswered ? ctx.CurrentRecipeId : null, ctx.AnchorCellId, communitiesBefore);
                             r.Effects.Add(new EcologyEffect { Kind = Lifecycle.FruitKind, CellId = cell, Seed = true, Species = seedling.Species });
                             var ft = Flora.Get(seedling.Species);
                             bool fsoft = ft != null && Flora.BaseHardness(cell) > ft.MaxHardness;
@@ -512,6 +538,7 @@ namespace DestinyGarden.Domain
                 }
             }
 
+            r.Communities = DestinyGarden.Domain.Communities.Find(s);
             r.Events.AddRange(stageEvents.Events);
             return r;
         }
@@ -575,6 +602,18 @@ namespace DestinyGarden.Domain
                 ["exhausted"] = r.Exhausted
             };
             if (r.PrayerStar != null) payload["prayerStar"] = DestinyGarden.Domain.PrayerStar.ToPayload(r.PrayerStar);
+            if (r.Communities.Count > 0 || r.Answered.Count > 0)
+            {
+                // community.v1: the communities the roll left, and those that answered its blessing (before the cycle).
+                var list = new List<object>();
+                foreach (var c in r.Communities)
+                    list.Add(new Dictionary<string, object> { ["kind"] = c.Kind, ["size"] = (long)c.Cells.Count });
+                var answered = new List<object>();
+                foreach (var c in r.Answered)
+                    answered.Add(new Dictionary<string, object> { ["kind"] = c.Kind, ["size"] = (long)c.Cells.Count });
+                payload["communities"] = list;
+                payload["answeredCommunities"] = answered;
+            }
             return payload;
         }
     }

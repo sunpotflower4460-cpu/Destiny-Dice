@@ -2353,3 +2353,35 @@ Git diff whitespace check: pass
 
 - Application/GardenCoordinator.cs。Domain: Ecology.cs、LuckySeven.cs。Presentation: PrayerStarSigil.cs、AudioSynth.cs、GardenAudio.cs、GardenBootstrap.cs（自分で足した1行）。
 - Tests: ResumeTests.cs、LifecycleTests.cs、SacredTonesTests.cs。docs/unity-garden/ECOLOGY.md §11、PROGRESS.md。
+
+## Jam 似たゲームを参考にした仕組み — 群落と季節の願い（community.v1・season.v1）（2026-11-14）
+
+### 完了したこと
+
+- 本人の方向付け「似たゲームを探し、仕組みとして参考にして修正改善」。Web 検索とページ取得のツールがモデル設定のエラーで使えなかったため、
+  アプリ内ブラウザで Wikipedia の Terra Nil・Cascadia・Wingspan・Photosynthesis の記述を読んで確認した（Spirit Island の元素の閾値は
+  参照先がボット確認を求めたため使っていない）。ECOLOGY.md §12 に対応表。
+- 群落（Domain/Community.cs）: 同じ恵みの核の種の花が隣り合って3株以上で群落。恵みが出ると応えて周りが育つ（Wingspan のエンジン）、
+  近くの芽吹きがその種類へ寄って広がる（Cascadia の回廊）、4株以上で蝶・トンボ・小鳥を呼ぶ（Terra Nil の生き物の帰還）。
+- 季節の願い（Domain/Season.cs、GardenCoordinator）: 12投ごとに庭に足りないものを一つ願い、叶えると次の回に七つめの面（Wingspan のラウンド目標・Terra Nil の段階目標）。
+  記録と再開に対応。
+- 表示: 一投ごとの因果の一行に群落の応え、その下に次のラッキーナンバーの目、季節の願い（3行まで）。
+
+### 完了基準の結果（コマンド出力の要約）
+
+- Unity EditMode: `total="84" passed="84" failed="0"`（群落3件・季節3件を追加。幸運の七のテストは「願いが外れても季節の願いが叶った回だけは七つめが出る」に合わせた）。
+- 群落: 4庭×80投で群落のある回 75%、群落が応えた回 約0.5/投。生き物の頻度（6庭×60投）: 蝶 32〜38%、トンボ 70〜73%、小鳥 81〜86%（初案は 84〜88%・87〜89%・90% で多すぎたため絞った）。
+- 季節: 120投で10季節中4つが叶った。
+- WebGL ビルド `Succeeded (22814064 bytes)`。アプリ内ブラウザで振り、因果の一行・次のラッキーナンバー・季節の願い（「咲いている花を5種に（あと 6 投）」）の3行が読めることを確認。
+  季節のない旧版で保存した庭も、途中の季節から正しく始まった。コンソールに例外 0。
+- `pnpm typecheck` 0、`pnpm test` 183 passed、`pnpm build` built。
+
+### 要確定・申し送り
+
+- 季節の願いの表示は一投ごとの因果の一行の中だけ（常に見える場所には出していない。常設するなら GardenUi 側の領域が要る）。
+- 群落の範囲を地面に描く表示はない（応えたときの光の粒と一行だけ）。
+
+### 触ったファイル
+
+- Domain: Community.cs・Season.cs（新規）、Ecology.cs、Flora.cs。Application/GardenCoordinator.cs。Presentation/PrayerStarSigil.cs。
+- Tests: CommunityTests.cs・SeasonTests.cs（新規）、LuckySevenTests.cs。docs/unity-garden/ECOLOGY.md §12・§13、PROGRESS.md。
