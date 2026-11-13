@@ -138,20 +138,23 @@ namespace DestinyGarden.Presentation
             var homePos = cam.transform.position;
             var homeRot = cam.transform.rotation;
             _homePos = homePos; _homeRot = homeRot;
-            var farPos = new Vector3(4f, 15f, -27f);
-            var farRot = Quaternion.LookRotation(new Vector3(7.5f, 5.6f, 7.5f) - farPos, Vector3.up);
             rig.Lock();
-            cam.transform.SetPositionAndRotation(farPos, farRot);
             if (s_skipTitle)
             {
                 s_skipTitle = false;
+                FrameOpening(cam, withTitle: false);
                 _ui.ShowTitleCard(false);
-                StartCoroutine(GlideCamera(rig, cam, farPos, farRot, homePos, homeRot, 3.2f));
+                StartCoroutine(GlideCamera(rig, cam, homePos, homeRot, 3.2f));
             }
             else
             {
-                _ui.ShowTitleCard(true);
-                _ui.OnTitleClosed = () => StartCoroutine(GlideCamera(rig, cam, farPos, farRot, homePos, homeRot, 3.2f));
+                FrameOpening(cam);
+                _ui.ShowTitleCard(true, opening: true);
+                _ui.OnTitleClosed = () =>
+                {
+                    _ui.OnTitleClosed = null;
+                    StartCoroutine(GlideCamera(rig, cam, homePos, homeRot, 3.2f));
+                };
             }
 
             // QA hook (explicit launch arguments only; never active in normal play):
@@ -172,8 +175,24 @@ namespace DestinyGarden.Presentation
             if (capturePath != null) StartCoroutine(CaptureRoutine(capturePath, autoRolls, wonders));
         }
 
-        private static IEnumerator GlideCamera(CameraRig rig, Camera cam, Vector3 p0, Quaternion r0, Vector3 p1, Quaternion r1, float seconds)
+        private static void FrameOpening(Camera cam, bool withTitle = true)
         {
+            bool side = GardenUi.UseSideTitle(cam.aspect);
+            bool stacked = withTitle && !side;
+            var center = IslandTerrain.Center;
+            float pullback = Mathf.Max(1f, 1.25f / cam.aspect);
+            var position = stacked
+                ? new Vector3(center.x, 20f, center.y - 60f * pullback)
+                : new Vector3(center.x - 2.7f, 19.25f, center.y - 46f * pullback);
+            float shift = withTitle && side ? 10.2f * cam.aspect / (16f / 9f) : 0f;
+            var aim = new Vector3(center.x - shift, stacked ? -2f : 5.05f, center.y);
+            cam.transform.SetPositionAndRotation(position, Quaternion.LookRotation(aim - position, Vector3.up));
+        }
+
+        private static IEnumerator GlideCamera(CameraRig rig, Camera cam, Vector3 p1, Quaternion r1, float seconds)
+        {
+            Vector3 p0 = cam.transform.position;
+            Quaternion r0 = cam.transform.rotation;
             for (float t = 0f; t < seconds; t += Time.deltaTime)
             {
                 float k = Mathf.SmoothStep(0f, 1f, t / seconds);
@@ -187,6 +206,7 @@ namespace DestinyGarden.Presentation
         private void Update()
         {
             if (_view == null) return;
+            if (_ui.IsOpening) FrameOpening(_view.ViewCamera);
             if (_audio != null) _audio.SetScene(_vitalityNow, _harmonyNow, _birdsNow, _view.Sky.Night);
             if (_quality.Feed(Time.unscaledDeltaTime)) _view.ApplyQuality(_quality.Level);
             if (_wonders != null) _wonders.ReducedMotion = _view.ReducedMotion;

@@ -136,10 +136,11 @@ namespace DestinyGarden.Presentation
             float grey = _weatherId == WeatherId.Drizzle ? 0.6f : _weatherId == WeatherId.Cloudy ? 0.25f : 0f;
             float wi = _weatherId == WeatherId.Clear ? 1f : _weatherId == WeatherId.Cloudy ? 0.8f : 0.7f;
             _sunBase = Color.Lerp(_sky.Sun, new Color(0.78f, 0.84f, 0.92f), grey);
-            _sun.intensity = _sky.SunIntensity * wi * 0.92f;
+            // Keep leaf and sand detail in direct daylight, especially when seen from above.
+            _sun.intensity = _sky.SunIntensity * wi * Mathf.Lerp(0.80f, 0.92f, _sky.Night);
             _sun.transform.rotation = Quaternion.Euler(_sky.Elevation, _sky.Azimuth, 0f);
             _fill.color = _sky.Fill;
-            _fill.intensity = _sky.FillIntensity * (_weatherId == WeatherId.Clear ? 1f : 1.25f);
+            _fill.intensity = _sky.FillIntensity * Mathf.Lerp(1.02f, 1.21f, _sky.Moisture);
             RenderSettings.ambientLight = _sky.Ambient * (_weatherId == WeatherId.Drizzle ? 0.94f : 1f);
             var haze = Color.Lerp(_sky.Haze * 0.62f, _sky.Horizon.gamma, _sky.Moisture * 0.35f);
             RenderSettings.fogColor = haze;
@@ -910,6 +911,14 @@ namespace DestinyGarden.Presentation
 
         private void LateUpdate()
         {
+            if (_dof != null && _dof.active)
+            {
+                var camera = ViewCamera.transform;
+                Vector3 island = new Vector3(IslandSeed.Center.x, 1f, IslandSeed.Center.y);
+                float depth = Vector3.Dot(island - camera.position, camera.forward);
+                _dof.gaussianStart.value = Mathf.Max(37f, depth + 13f);
+                _dof.gaussianEnd.value = _dof.gaussianStart.value + 20f;
+            }
             UpdateGrowers();
             foreach (var petals in _fallingPetals)
             {

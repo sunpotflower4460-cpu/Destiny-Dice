@@ -228,39 +228,6 @@ namespace DestinyGarden.Presentation
         private static float SoftStep(float start, float end, float x) =>
             Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(start, end, x));
 
-        /// <summary>
-        /// Screen overlay that makes the view feel like looking into a glass vessel: a faint cool
-        /// rim of light at the edges and two soft curved reflections. Mostly transparent.
-        /// </summary>
-        public static Texture2D GlassEdge()
-        {
-            const int w = 320, h = 180;
-            var tex = new Texture2D(w, h, TextureFormat.RGBA32, false) { name = "GlassEdge", wrapMode = TextureWrapMode.Clamp };
-            var c = new Color[w * h];
-            for (int y = 0; y < h; y++)
-                for (int x = 0; x < w; x++)
-                {
-                    float u = x / (float)(w - 1), v = y / (float)(h - 1);
-                    // Elliptical vessel edge.
-                    float ex = (u - 0.5f) / 0.5f, ey = (v - 0.5f) / 0.5f;
-                    float r = Mathf.Sqrt(ex * ex * 0.92f + ey * ey * 1.05f);
-                    float rim = Mathf.Clamp01((r - 0.86f) / 0.40f);
-                    float a = rim * rim * 0.34f;
-                    var col = new Color(0.62f, 0.82f, 0.92f, a);
-                    // Curved reflections: left tall arc, right thin arc.
-                    float arcL = Mathf.Abs(u - (0.075f + 0.05f * Mathf.Pow(v - 0.5f, 2) * 4f));
-                    float sL = Mathf.Clamp01(1f - arcL / 0.016f) * Mathf.Clamp01(1f - Mathf.Abs(v - 0.52f) / 0.36f);
-                    float arcR = Mathf.Abs(u - (0.935f - 0.04f * Mathf.Pow(v - 0.5f, 2) * 4f));
-                    float sR = Mathf.Clamp01(1f - arcR / 0.008f) * Mathf.Clamp01(1f - Mathf.Abs(v - 0.60f) / 0.22f);
-                    float s = Mathf.Max(sL * 0.16f, sR * 0.12f);
-                    if (s > 0f) col = new Color(Mathf.Lerp(col.r, 1f, 0.7f), Mathf.Lerp(col.g, 1f, 0.7f), 1f, Mathf.Max(col.a, s));
-                    c[y * w + x] = col;
-                }
-            tex.SetPixels(c);
-            tex.Apply();
-            return tex;
-        }
-
         /// <summary>Flat disc mesh (radius r, rings x segments) with uv spanning [0,1] across the diameter.</summary>
         public static Mesh DiscMesh(float radius, int segments)
         {

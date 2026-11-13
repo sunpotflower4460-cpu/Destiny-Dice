@@ -19,7 +19,8 @@ namespace DestinyGarden.Presentation
         private int _starPoints;
         private float _starAlpha, _starTarget;
         private const float RingRadius = 13.4f;
-        private Material _bottleMat;
+        private Material _farGlass, _nearGlass, _lipGlass;
+        private MeshRenderer _bottle;
         private Material _orbMat;
         private ParticleSystem _motes;
         private Material _starsMat, _skyMat, _haloMat, _wakeMat, _ringMat, _harmonyMat, _motesMat;
@@ -34,6 +35,8 @@ namespace DestinyGarden.Presentation
         private static readonly int MoonId = Shader.PropertyToID("_DGSkyMoon");
         private static readonly int WeatherId = Shader.PropertyToID("_DGSkyWeather");
         private static readonly int WaterTintId = Shader.PropertyToID("_WaterTint");
+        private static readonly int GlassVisibilityId = Shader.PropertyToID("_Visibility");
+        private static readonly int BottleWaterlineId = Shader.PropertyToID("_BottleWaterline");
 
         /// <summary>The sea, the lights and the sky follow the saved hour and weather.</summary>
         private void SetSky(SkyState sky, bool reducedMotion)
@@ -281,48 +284,29 @@ namespace DestinyGarden.Presentation
         private void BuildBottle()
         {
             var glass = Shader.Find("DestinyGarden/Glass");
-            if (glass == null) return; // without the glass shader a bottle would look opaque; skip it
-            var profile = new[]
-            {
-                new Vector2(14.2f, -1.1f), new Vector2(14.45f, 1.5f), new Vector2(14.35f, 4.5f), new Vector2(13.6f, 7.4f),
-                new Vector2(11.4f, 10.0f), new Vector2(7.6f, 12.1f), new Vector2(4.2f, 13.3f), new Vector2(3.3f, 14.3f),
-                new Vector2(3.2f, 15.6f), new Vector2(3.6f, 15.9f)
-            };
-            const int seg = 96;
-            var verts = new List<Vector3>(); var norms = new List<Vector3>(); var uvs = new List<Vector2>(); var tris = new List<int>();
-            for (int i = 0; i < profile.Length; i++)
-            {
-                Vector2 prev = profile[Mathf.Max(0, i - 1)], next = profile[Mathf.Min(profile.Length - 1, i + 1)];
-                Vector2 tan = (next - prev).normalized;
-                Vector2 n2 = new Vector2(tan.y, -tan.x);
-                for (int j = 0; j <= seg; j++)
-                {
-                    float a = j / (float)seg * Mathf.PI * 2f;
-                    float c = Mathf.Cos(a), sn = Mathf.Sin(a);
-                    verts.Add(new Vector3(c * profile[i].x, profile[i].y, sn * profile[i].x));
-                    norms.Add(new Vector3(c * n2.x, n2.y, sn * n2.x).normalized);
-                    uvs.Add(new Vector2(j / (float)seg, i / (float)(profile.Length - 1)));
-                }
-            }
-            for (int i = 0; i + 1 < profile.Length; i++)
-                for (int j = 0; j < seg; j++)
-                {
-                    int a = i * (seg + 1) + j, b = a + 1, c2 = a + seg + 1, d = c2 + 1;
-                    tris.Add(a); tris.Add(c2); tris.Add(b); tris.Add(b); tris.Add(c2); tris.Add(d);
-                }
-            var mesh = new Mesh { name = "Bottle" };
-            _bottleMesh = mesh;
-            mesh.SetVertices(verts); mesh.SetNormals(norms); mesh.SetUVs(0, uvs); mesh.SetTriangles(tris, 0);
-            mesh.RecalculateBounds();
+            if (glass == null) return;
+
+            _bottleMesh = BottleMesh.Create();
+            _farGlass = GlassMaterial("Far glass", CullMode.Front, (int)RenderQueue.Transparent - 11);
+            _nearGlass = GlassMaterial("Near glass", CullMode.Back, 3050);
+            _nearGlass.SetFloat("_NearWall", 1f);
+            _lipGlass = GlassMaterial("Rolled glass lip", CullMode.Back, 3051);
+            _lipGlass.SetFloat("_Lip", 1f);
             var obj = new GameObject("Bottle");
             obj.transform.SetParent(transform, false);
             obj.transform.position = Center + new Vector3(0f, SeaLevel, 0f);
-            obj.AddComponent<MeshFilter>().sharedMesh = mesh;
-            var r = obj.AddComponent<MeshRenderer>();
-            _bottleMat = new Material(glass);
-            r.sharedMaterial = _bottleMat;
-            r.shadowCastingMode = ShadowCastingMode.Off;
-            r.receiveShadows = false;
+            obj.AddComponent<MeshFilter>().sharedMesh = _bottleMesh;
+            _bottle = obj.AddComponent<MeshRenderer>();
+            _bottle.sharedMaterials = new[] { _farGlass, _nearGlass, _lipGlass };
+            _bottle.shadowCastingMode = ShadowCastingMode.Off;
+            _bottle.receiveShadows = false;
+
+            Material GlassMaterial(string name, CullMode cull, int queue)
+            {
+                var material = new Material(glass) { name = name, renderQueue = queue };
+                material.SetFloat("_Cull", (float)cull);
+                return material;
+            }
         }
 
         private void LateUpdate()
@@ -335,16 +319,20 @@ namespace DestinyGarden.Presentation
             float t = _motionTime;
             Shader.SetGlobalVector(WeatherId, new Vector4(sky.CloudCover, sky.Night, t, 0f));
             var camera = View.ViewCamera;
-            if (_bottleMat != null && camera != null)
+            if (_bottle != null && camera != null)
             {
-                float distance = Vector3.Distance(camera.transform.position, Center);
-                float wideShot = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(30f, 38f, distance));
-                float lowAngle = 1f - Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.28f, 0.57f, -camera.transform.forward.y));
-                float outside = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(18f, 24f, distance));
-                float glass = Mathf.Max(wideShot, lowAngle * outside);
-                float overhead = 1f - 0.85f * Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.60f, 0.90f, -camera.transform.forward.y));
-                _bottleMat.SetFloat("_RimStrength", Mathf.Lerp(0.036f, 0.21f, glass) * overhead);
-                _bottleMat.SetFloat("_SpecStrength", Mathf.Lerp(0.04f, 0.27f, glass) * overhead);
+                Vector3 offset = camera.transform.position - Center;
+                float horizontal = new Vector2(offset.x, offset.z).magnitude;
+                float outside = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(15f, 25f, horizontal));
+                float wide = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(25f, 39f, offset.magnitude));
+                float low = 1f - Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.45f, 0.70f, -camera.transform.forward.y));
+                float visible = outside * low;
+                float detail = wide * visible;
+                _bottle.enabled = visible > 0f;
+                _farGlass.SetFloat(GlassVisibilityId, visible * Mathf.Lerp(0.20f, 1f, wide));
+                _nearGlass.SetFloat(GlassVisibilityId, detail);
+                _lipGlass.SetFloat(GlassVisibilityId, detail);
+                _seaMat.SetVector(BottleWaterlineId, new Vector4(BottleMesh.WaterlineRadius, detail, 0f, 0f));
             }
             if (_star != null)
             {
@@ -375,7 +363,9 @@ namespace DestinyGarden.Presentation
             Destroy(_starMesh);
             Destroy(_starsMat);
             Destroy(_starlight);
-            Destroy(_bottleMat);
+            Destroy(_farGlass);
+            Destroy(_nearGlass);
+            Destroy(_lipGlass);
             Destroy(_bottleMesh);
             Destroy(_orbMat);
             Destroy(_haloMat);

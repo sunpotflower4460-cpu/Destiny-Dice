@@ -52,6 +52,13 @@ namespace DestinyGarden.Presentation
         }
         private Text _facesLabel;
         private GameObject _titleCard;
+        private RectTransform _openingCard;
+        private Text _openingHeading, _openingTagline;
+        private Button _enterButton;
+        private GameObject _guideCard;
+        private Image _titleDim;
+        private CanvasGroup _gardenControls;
+        internal bool IsOpening { get; private set; }
         private readonly Dictionary<string, Button> _intentChips = new Dictionary<string, Button>();
         private readonly Dictionary<string, Button> _siteChips = new Dictionary<string, Button>();
         private GameObject _historyPanel;
@@ -138,17 +145,16 @@ namespace DestinyGarden.Presentation
             var scaler = canvasObj.AddComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(1600, 900);
+            scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.Expand;
             canvasObj.AddComponent<GraphicRaycaster>();
 
-            // Glass vessel edge: drawn first so every control sits above it; never takes clicks.
-            var glass = new GameObject("GlassEdge");
-            glass.transform.SetParent(canvasObj.transform, false);
-            var glassImg = glass.AddComponent<RawImage>();
-            glassImg.texture = ProceduralArt.GlassEdge();
-            glassImg.raycastTarget = false;
-            var glassRect = glass.GetComponent<RectTransform>();
-            glassRect.anchorMin = Vector2.zero; glassRect.anchorMax = Vector2.one;
-            glassRect.offsetMin = Vector2.zero; glassRect.offsetMax = Vector2.zero;
+            var controls = new GameObject("GardenControls", typeof(RectTransform));
+            controls.transform.SetParent(canvasObj.transform, false);
+            var controlsRect = controls.GetComponent<RectTransform>();
+            controlsRect.anchorMin = Vector2.zero;
+            controlsRect.anchorMax = Vector2.one;
+            controlsRect.offsetMin = controlsRect.offsetMax = Vector2.zero;
+            _gardenControls = controls.AddComponent<CanvasGroup>();
             if (FindFirstObjectByType<UnityEngine.EventSystems.EventSystem>() == null)
             {
                 var es = new GameObject("EventSystem");
@@ -156,14 +162,15 @@ namespace DestinyGarden.Presentation
                 es.AddComponent<UnityEngine.InputSystem.UI.InputSystemUIInputModule>();
             }
 
-            _header = MakeText(canvasObj.transform, new Vector2(0f, 1f), new Vector2(36f, -40f),
+            var parent = controls.transform;
+            _header = MakeText(parent, new Vector2(0f, 1f), new Vector2(36f, -40f),
                 new Vector2(535f, 30f), 22, TextAnchor.MiddleLeft);
             AddBacking(_header, new Vector2(12f, 8f));
-            _messageCard = MakeText(canvasObj.transform, new Vector2(0.5f, 1f), new Vector2(0f, -104f),
+            _messageCard = MakeText(parent, new Vector2(0.5f, 1f), new Vector2(0f, -104f),
                 new Vector2(940f, 76f), 27, TextAnchor.MiddleCenter);
             _messageBacking = AddBacking(_messageCard, new Vector2(18f, 6f));
             ShowMessage(null, null);
-            _status = MakeText(canvasObj.transform, new Vector2(0.5f, 0f), new Vector2(0f, 214f),
+            _status = MakeText(parent, new Vector2(0.5f, 0f), new Vector2(0f, 214f),
                 new Vector2(720f, 30f), 18, TextAnchor.MiddleCenter);
             AddBacking(_status, new Vector2(12f, 4f));
 
@@ -177,15 +184,15 @@ namespace DestinyGarden.Presentation
                     if (_luckyChipMode == "offer") OnAddLuckySeven?.Invoke();
                     else if (_luckyChipMode == "face") OnIntentSelected?.Invoke("face", "7");
                 };
-                _faceChips[i] = MakeChip(canvasObj.transform, new Vector2(0.5f, 0f),
+                _faceChips[i] = MakeChip(parent, new Vector2(0.5f, 0f),
                     new Vector2(0f, 148f), new Vector2(FaceWidth(i), 46f), "", 16, click);
             }
             _faceChips[6].gameObject.SetActive(false);
-            _facesLabel = MakeText(canvasObj.transform, new Vector2(0.5f, 0f), new Vector2(0f, 118f),
+            _facesLabel = MakeText(parent, new Vector2(0.5f, 0f), new Vector2(0f, 118f),
                 new Vector2(900f, 24f), 14, TextAnchor.MiddleCenter);
             _facesLabel.color = new Color(0.86f, 0.92f, 0.90f, 0.85f);
 
-            _rollButton = MakeChip(canvasObj.transform, new Vector2(0.5f, 0f),
+            _rollButton = MakeChip(parent, new Vector2(0.5f, 0f),
                 new Vector2(0f, 36f), new Vector2(300f, 72f), "サイコロを振る", 26,
                 () => OnRoll?.Invoke());
             _rollButton.GetComponent<Image>().color = new Color(0.88f, 0.72f, 0.45f, 0.98f);
@@ -195,10 +202,10 @@ namespace DestinyGarden.Presentation
             SetLine(_rollButton, GoldLine, 1f);
 
             // Wishes and destination live in a drawer, out of sight until wanted.
-            _wishToggle = MakeChip(canvasObj.transform, new Vector2(0.5f, 0f), new Vector2(-268f, 50f),
+            _wishToggle = MakeChip(parent, new Vector2(0.5f, 0f), new Vector2(-268f, 50f),
                 new Vector2(196f, 44f), "願いをかける", 17, () => _drawer.SetActive(!_drawer.activeSelf));
             _drawer = new GameObject("WishDrawer");
-            _drawer.transform.SetParent(canvasObj.transform, false);
+            _drawer.transform.SetParent(parent, false);
             var drawerImg = _drawer.AddComponent<Image>();
             drawerImg.sprite = Rounded;
             drawerImg.type = Image.Type.Sliced;
@@ -234,25 +241,25 @@ namespace DestinyGarden.Presentation
             _drawer.SetActive(false);
 
             // Right-side menu.
-            MakeChip(canvasObj.transform, new Vector2(1f, 1f), new Vector2(-96f, -60f), new Vector2(150f, 48f),
+            MakeChip(parent, new Vector2(1f, 1f), new Vector2(-96f, -60f), new Vector2(150f, 48f),
                 "記録", 20, () => TogglePanel(_historyPanel));
-            MakeChip(canvasObj.transform, new Vector2(1f, 1f), new Vector2(-96f, -118f), new Vector2(150f, 48f),
+            MakeChip(parent, new Vector2(1f, 1f), new Vector2(-96f, -118f), new Vector2(150f, 48f),
                 "庭の歩み", 20, () => TogglePanel(_graphPanel));
-            MakeChip(canvasObj.transform, new Vector2(1f, 1f), new Vector2(-96f, -176f), new Vector2(150f, 48f),
+            MakeChip(parent, new Vector2(1f, 1f), new Vector2(-96f, -176f), new Vector2(150f, 48f),
                 "書き出し", 20, () => OnExport?.Invoke());
-            MakeChip(canvasObj.transform, new Vector2(1f, 1f), new Vector2(-96f, -234f), new Vector2(150f, 48f),
+            MakeChip(parent, new Vector2(1f, 1f), new Vector2(-96f, -234f), new Vector2(150f, 48f),
                 "次の来場者", 20, () => OnSwitchVisitor?.Invoke());
-            MakeChip(canvasObj.transform, new Vector2(1f, 1f), new Vector2(-96f, -292f), new Vector2(150f, 48f),
+            MakeChip(parent, new Vector2(1f, 1f), new Vector2(-96f, -292f), new Vector2(150f, 48f),
                 "設定", 20, () => TogglePanel(_settingsPanel));
-            MakeChip(canvasObj.transform, new Vector2(1f, 1f), new Vector2(-96f, -350f), new Vector2(150f, 48f),
+            MakeChip(parent, new Vector2(1f, 1f), new Vector2(-96f, -350f), new Vector2(150f, 48f),
                 "遊び方", 20, () => ShowTitleCard(true));
-            MakeChip(canvasObj.transform, new Vector2(1f, 1f), new Vector2(-96f, -408f), new Vector2(150f, 48f),
+            MakeChip(parent, new Vector2(1f, 1f), new Vector2(-96f, -408f), new Vector2(150f, 48f),
                 "図鑑", 20, () => TogglePanel(_guidePanel));
-            MakeChip(canvasObj.transform, new Vector2(1f, 1f), new Vector2(-96f, -466f), new Vector2(150f, 48f),
+            MakeChip(parent, new Vector2(1f, 1f), new Vector2(-96f, -466f), new Vector2(150f, 48f),
                 "視点を戻す", 18, () => OnResetView?.Invoke());
 
-            BuildGoals(canvasObj.transform);
-            BuildPanels(canvasObj.transform);
+            BuildGoals(parent);
+            BuildPanels(parent);
             BuildTitleCard(canvasObj.transform);
         }
 
@@ -437,6 +444,7 @@ namespace DestinyGarden.Presentation
 
         private void Update()
         {
+            if (IsOpening) LayoutOpeningCard();
             if (_rollPulse && _rollButton != null)
                 _rollButton.transform.localScale = Vector3.one * (1f + 0.035f * (0.5f + 0.5f * Mathf.Sin(Time.unscaledTime * 3.2f)));
             if (_luckyChipMode == "offer" && _faceChips[6] != null)
@@ -546,17 +554,36 @@ namespace DestinyGarden.Presentation
         {
             _titleCard = new GameObject("TitleCard");
             _titleCard.transform.SetParent(canvas, false);
-            var dim = _titleCard.AddComponent<Image>();
-            dim.color = new Color(0.01f, 0.02f, 0.05f, 0.62f);
+            _titleDim = _titleCard.AddComponent<Image>();
             var dimRect = _titleCard.GetComponent<RectTransform>();
             dimRect.anchorMin = Vector2.zero; dimRect.anchorMax = Vector2.one;
             dimRect.offsetMin = Vector2.zero; dimRect.offsetMax = Vector2.zero;
             var close = _titleCard.AddComponent<Button>();
-            close.targetGraphic = dim;
+            close.targetGraphic = _titleDim;
             close.onClick.AddListener(() => ShowTitleCard(false));
 
-            var panel = MakePanel(_titleCard.transform, new Vector2(1060f, 500f));
-            panel.SetActive(true);
+            var opening = new GameObject("Opening", typeof(RectTransform));
+            opening.transform.SetParent(_titleCard.transform, false);
+            _openingCard = opening.GetComponent<RectTransform>();
+            _openingHeading = MakeText(opening.transform, new Vector2(0f, 1f), Vector2.zero, new Vector2(545f, 76f),
+                60, TextAnchor.MiddleLeft);
+            _openingHeading.text = "Destiny Garden";
+            _openingHeading.color = new Color(1f, 0.94f, 0.79f);
+            _openingTagline = MakeText(opening.transform, new Vector2(0f, 1f), new Vector2(4f, -85f), new Vector2(537f, 76f),
+                24, TextAnchor.UpperLeft);
+            _openingTagline.text = "瓶の中の土と水から、\nあなただけの庭が育つ。";
+            _openingTagline.color = new Color(0.86f, 0.94f, 0.95f);
+            var enter = MakeChip(opening.transform, new Vector2(0f, 1f), new Vector2(4f, -164f),
+                new Vector2(308f, 62f), "庭に入る  ·  Enter", 23, () => ShowTitleCard(false));
+            _enterButton = enter;
+            enter.GetComponent<Image>().color = new Color(0.88f, 0.72f, 0.45f, 0.98f);
+            var enterLabel = enter.GetComponentInChildren<Text>();
+            enterLabel.color = GoldText;
+            enterLabel.GetComponent<Shadow>().enabled = false;
+            SetLine(enter, GoldLine, 1f);
+
+            _guideCard = MakePanel(_titleCard.transform, new Vector2(1060f, 500f));
+            var panel = _guideCard;
             var title = MakeText(panel.transform, new Vector2(0.5f, 1f), new Vector2(0f, -36f), new Vector2(980f, 80f), 60,
                 TextAnchor.MiddleCenter);
             title.text = "Destiny Garden";
@@ -577,12 +604,12 @@ namespace DestinyGarden.Presentation
                 "・<color=#ffd36b>ときおり、願いが形になることがあります。</color>";
             var en = MakeText(panel.transform, new Vector2(0.5f, 1f), new Vector2(0f, -352f), new Vector2(940f, 70f), 17,
                 TextAnchor.UpperLeft);
-            en.text = "From earth and water in a sealed bottle, a garden of your own grows. Each roll is a prayer:\n" +
+            en.text = "From earth and water in a glass bottle, a garden of your own grows. Each roll is a prayer:\n" +
                       "plants take root only where they can live, small lives carry seeds, and the island grows as one.";
             en.color = new Color(0.78f, 0.84f, 0.86f);
             var tap = MakeText(panel.transform, new Vector2(0.5f, 0f), new Vector2(0f, 26f), new Vector2(600f, 36f), 20,
                 TextAnchor.MiddleCenter);
-            tap.text = "クリック／タップで始める　·　Click to begin";
+            tap.text = "庭に戻る  ·  Back to the garden";
             tap.color = new Color(1f, 0.82f, 0.45f);
             // Clicks on the panel also close the card.
             var panelButton = panel.AddComponent<Button>();
@@ -592,11 +619,40 @@ namespace DestinyGarden.Presentation
 
         public Action OnTitleClosed;
 
-        public void ShowTitleCard(bool show)
+        internal static bool UseSideTitle(float aspect) => aspect >= 1.70f;
+
+        private void LayoutOpeningCard()
+        {
+            var rect = _titleCard.GetComponent<RectTransform>();
+            bool side = UseSideTitle(rect.rect.width / Mathf.Max(1f, rect.rect.height));
+            var anchor = new Vector2(side ? 0.07f : 0.5f, side ? 0.50f : 0.075f);
+            if (_openingCard.anchorMin == anchor) return;
+            _openingCard.anchorMin = _openingCard.anchorMax = anchor;
+            _openingCard.pivot = new Vector2(side ? 0f : 0.5f, side ? 0.5f : 0f);
+            _openingCard.anchoredPosition = Vector2.zero;
+            _openingCard.sizeDelta = side ? new Vector2(545f, 280f) : new Vector2(545f, 230f);
+            _openingHeading.alignment = side ? TextAnchor.MiddleLeft : TextAnchor.MiddleCenter;
+            _openingTagline.alignment = side ? TextAnchor.UpperLeft : TextAnchor.UpperCenter;
+            ((RectTransform)_enterButton.transform).anchoredPosition = new Vector2(side ? 4f : 118.5f, -164f);
+        }
+
+        public void ShowTitleCard(bool show, bool opening = false)
         {
             if (_titleCard == null) return;
             bool wasOpen = _titleCard.activeSelf;
+            IsOpening = show && opening;
+            _openingCard.gameObject.SetActive(opening);
+            _guideCard.SetActive(!opening);
+            _titleDim.color = new Color(0.01f, 0.02f, 0.05f, opening ? 0.10f : 0.62f);
+            _gardenControls.alpha = opening ? 0f : 1f;
+            _gardenControls.interactable = !show;
+            _gardenControls.blocksRaycasts = !show;
             _titleCard.SetActive(show);
+            if (IsOpening)
+            {
+                LayoutOpeningCard();
+                _enterButton.Select();
+            }
             if (wasOpen && !show) OnTitleClosed?.Invoke();
         }
 

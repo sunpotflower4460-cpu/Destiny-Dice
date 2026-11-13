@@ -27,7 +27,7 @@ namespace DestinyGarden.Presentation
         public float HomePitch => _homePitch;
         public float HomeDist => _homeDist;
 
-        public const float MinPitch = 16f, MaxPitch = 74f, MinDist = 12f, MaxDist = 30f;
+        public const float MinPitch = 16f, MaxPitch = 74f, MinDist = 12f, MaxDist = 46f;
 
         public void SyncFromCamera()
         {
@@ -138,7 +138,10 @@ namespace DestinyGarden.Presentation
             float cp = Mathf.Cos(_pitch * Mathf.Deg2Rad), sp = Mathf.Sin(_pitch * Mathf.Deg2Rad);
             float cy = Mathf.Cos(_yaw * Mathf.Deg2Rad), sy = Mathf.Sin(_yaw * Mathf.Deg2Rad);
             Vector3 pos = Target + _dist * new Vector3(sy * cp, sp, cy * cp);
-            Cam.transform.SetPositionAndRotation(pos, Quaternion.LookRotation(Target - pos, Vector3.up));
+            // Give the mouth of the bottle room at the end of the pullback.
+            float lift = Mathf.SmoothStep(0f, 6.2f, Mathf.InverseLerp(30f, MaxDist, _dist));
+            Vector3 aim = Target + Vector3.up * lift;
+            Cam.transform.SetPositionAndRotation(pos, Quaternion.LookRotation(aim - pos, Vector3.up));
         }
 
         private void LateUpdate()

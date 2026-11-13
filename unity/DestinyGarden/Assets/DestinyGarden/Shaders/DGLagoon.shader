@@ -5,6 +5,7 @@ Shader "DestinyGarden/Lagoon"
         [NoScaleOffset] _CoastMap ("Shore distance, depth, exposure", 2D) = "white" {}
         _CoastParams ("Island center, inverse map width, distance range", Vector) = (7.5, 7.5, 0.0322581, 5)
         _WaterTint ("Water tint", Vector) = (0.55, 0.75, 0.85, 0)
+        _BottleWaterline ("Bottle radius and visibility", Vector) = (14.28, 0, 0, 0)
     }
     SubShader
     {
@@ -28,6 +29,7 @@ Shader "DestinyGarden/Lagoon"
             CBUFFER_START(UnityPerMaterial)
                 float4 _CoastParams;
                 half4 _WaterTint;
+                float4 _BottleWaterline;
             CBUFFER_END
 
             struct Attributes { float4 positionOS : POSITION; };
@@ -49,6 +51,7 @@ Shader "DestinyGarden/Lagoon"
             half4 frag(Varyings input) : SV_Target
             {
                 float2 p = input.positionWS.xz - _CoastParams.xy;
+                float radius = length(p);
                 float time = _DGSkyWeather.z;
                 float range = distance(_WorldSpaceCameraPos, input.positionWS);
                 float detailFade = 1.0 - smoothstep(22.0, 52.0, range);
@@ -68,7 +71,7 @@ Shader "DestinyGarden/Lagoon"
                 float3 coast = SAMPLE_TEXTURE2D(_CoastMap, sampler_CoastMap, coastUV).rgb;
                 float shore = (coast.r - 0.5) * _CoastParams.w;
                 float exposed = coast.b;
-                float depth = lerp(coast.g, 1.0, smoothstep(13.0, 16.0, length(p)));
+                float depth = lerp(coast.g, 1.0, smoothstep(13.0, 16.0, radius));
                 float shoal = (1.0 - smoothstep(0.0, 0.78, depth)) * lerp(0.92, 0.46, exposed);
                 float seabed = (1.0 - smoothstep(0.0, 0.23, depth)) * (1.0 - exposed * 0.91);
                 half3 tint = 0.53 + _WaterTint.rgb * 0.74;
@@ -103,6 +106,14 @@ Shader "DestinyGarden/Lagoon"
                 float lace = smoothstep(-0.69, 0.54, sin(ripples * 1.36 + swell) * 0.44 + sin(crossSwell));
                 half foam = (wash * lerp(0.26, 0.48, exposed) * (0.34 + lace * 0.66) + crest * breaks * 0.20) * detailFade;
                 water = lerp(water, half3(0.63, 0.79, 0.75) * (0.36 + _WaterTint.rgb * 0.68), foam);
+
+                // The submerged heel has a soft contact shadow and picks up light on nearby ripples.
+                float foot = radius - _BottleWaterline.x;
+                float contact = 1.0 - smoothstep(0.02, 0.37, abs(foot + 0.08));
+                float glint = 1.0 - smoothstep(0.04, 0.56, abs(foot - 0.26 - slope.x * 2.3));
+                water *= 1.0 - contact * _BottleWaterline.y * 0.19;
+                water += (reflectedSky * 0.12 + half3(0.016, 0.035, 0.043))
+                    * glint * (0.28 + broken * 0.72) * _BottleWaterline.y;
                 // The outer sea fades to the same horizontal sky seen through the dome.
                 float viewDepth = -TransformWorldToView(input.positionWS).z;
                 half fog = ComputeFogFactorZ0ToFar(max(viewDepth - _ProjectionParams.y, 0.0));
@@ -110,7 +121,7 @@ Shader "DestinyGarden/Lagoon"
                 toward.y = 0.0;
                 half3 horizon = GardenSkyGradient(SafeNormalize(toward));
                 half3 fogged = MixFogColor(water, horizon, fog);
-                return half4(lerp(fogged, horizon, smoothstep(41.0, 76.0, length(p))), 1);
+                return half4(lerp(fogged, horizon, smoothstep(41.0, 76.0, radius)), 1);
             }
             ENDHLSL
         }
