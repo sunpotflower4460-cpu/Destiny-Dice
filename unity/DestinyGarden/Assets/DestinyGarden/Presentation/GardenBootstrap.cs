@@ -75,6 +75,7 @@ namespace DestinyGarden.Presentation
             _view.Seed = islandSeed;
             _view.Build();
             _atmosphere = gameObject.AddComponent<SacredAtmosphere>();
+            _atmosphere.View = _view;
             _atmosphere.Build();
             _wonders = gameObject.AddComponent<GardenWonders>();
             _wonders.View = _view;
@@ -120,6 +121,7 @@ namespace DestinyGarden.Presentation
             _ui.OnResetView = () => { if (_view != null && _view.Rig != null) _view.Rig.ResetView(); };
             _ui.OnObserveCell = cell => { if (!_busy) _view.FocusObservedCell(cell); };
             _ui.OnReadMemory = key => GardenMemories.Project(_journal.ReadAll().Entries, _coordinator.RunId, key);
+            _ui.OnViewHouse = () => _view.LookAtHouse();
             _ui.OnExport = ExportNow;
             _ui.OnAddLuckySeven = () =>
             {
@@ -145,20 +147,23 @@ namespace DestinyGarden.Presentation
             var homePos = cam.transform.position;
             var homeRot = cam.transform.rotation;
             _homePos = homePos; _homeRot = homeRot;
-            var farPos = new Vector3(7.5f, 13.6f, -13.5f);
-            var farRot = Quaternion.LookRotation(new Vector3(7.5f, 5.6f, 9.0f) - farPos, Vector3.up);
             rig.Lock();
-            cam.transform.SetPositionAndRotation(farPos, farRot);
             if (s_skipTitle)
             {
                 s_skipTitle = false;
+                FrameOpening(cam, withTitle: false);
                 _ui.ShowTitleCard(false);
-                StartCoroutine(GlideCamera(rig, cam, farPos, farRot, homePos, homeRot, 3.2f));
+                StartCoroutine(GlideCamera(rig, cam, homePos, homeRot, 3.2f));
             }
             else
             {
-                _ui.ShowTitleCard(true);
-                _ui.OnTitleClosed = () => StartCoroutine(GlideCamera(rig, cam, farPos, farRot, homePos, homeRot, 3.2f));
+                FrameOpening(cam);
+                _ui.ShowTitleCard(true, opening: true);
+                _ui.OnTitleClosed = () =>
+                {
+                    _ui.OnTitleClosed = null;
+                    StartCoroutine(GlideCamera(rig, cam, homePos, homeRot, 3.2f));
+                };
             }
 
             // QA hook (explicit launch arguments only; never active in normal play):
@@ -179,8 +184,24 @@ namespace DestinyGarden.Presentation
             if (capturePath != null) StartCoroutine(CaptureRoutine(capturePath, autoRolls, wonders));
         }
 
-        private static IEnumerator GlideCamera(CameraRig rig, Camera cam, Vector3 p0, Quaternion r0, Vector3 p1, Quaternion r1, float seconds)
+        private static void FrameOpening(Camera cam, bool withTitle = true)
         {
+            bool side = GardenUi.UseSideTitle(cam.aspect);
+            bool stacked = withTitle && !side;
+            var center = IslandTerrain.Center;
+            float pullback = Mathf.Max(1f, 1.25f / cam.aspect);
+            var position = stacked
+                ? new Vector3(center.x, 20f, center.y - 60f * pullback)
+                : new Vector3(center.x - 2.7f, 19.25f, center.y - 46f * pullback);
+            float shift = withTitle && side ? 10.2f * cam.aspect / (16f / 9f) : 0f;
+            var aim = new Vector3(center.x - shift, stacked ? -2f : 5.05f, center.y);
+            cam.transform.SetPositionAndRotation(position, Quaternion.LookRotation(aim - position, Vector3.up));
+        }
+
+        private static IEnumerator GlideCamera(CameraRig rig, Camera cam, Vector3 p1, Quaternion r1, float seconds)
+        {
+            Vector3 p0 = cam.transform.position;
+            Quaternion r0 = cam.transform.rotation;
             for (float t = 0f; t < seconds; t += Time.deltaTime)
             {
                 float k = Mathf.SmoothStep(0f, 1f, t / seconds);
@@ -194,7 +215,7 @@ namespace DestinyGarden.Presentation
         private void Update()
         {
             if (_view == null) return;
-            if (_atmosphere != null) { _atmosphere.ReducedMotion = _view.ReducedMotion; _atmosphere.SetSky(_view.Sky, _view.Phase); }
+            if (_ui.IsOpening) FrameOpening(_view.ViewCamera);
             if (_audio != null) _audio.SetScene(_vitalityNow, _harmonyNow, _birdsNow, _view.Sky.Night);
             if (_quality.Feed(Time.unscaledDeltaTime)) _view.ApplyQuality(_quality.Level);
             if (_wonders != null) _wonders.ReducedMotion = _view.ReducedMotion;
@@ -308,16 +329,19 @@ namespace DestinyGarden.Presentation
             var kinds = new List<string>();
             foreach (var v in presence) kinds.Add(v.Kind);
             _ui.ShowResidents(kinds);
-            _birdsNow = kinds.Contains("bird");
+            _birdsNow = kinds.Contains(Ecology.Bird);
             UpdateHarmony(history, kinds.Count);
-            bool active = presence.Exists(v => v.Kind == Ecology.Butterfly);
+            var butterfly = presence.Find(v => v.Kind == Ecology.Butterfly);
             var tops = new List<Vector3>();
-            foreach (var plant in _coordinator.State.Plants)
-                if (plant.Stage == PlantStage.Flower)
-                    tops.Add(_view.CellTop(plant.CellId) + Vector3.up * (0.80f + plant.Growth / 2500f * 0.44f));
-            _wonders.SetButterflies(active, tops);
-            if (active && !_butterfliesShown && !_busy) _ui.ShowStatus("どこからか、蝶が。");
-            _butterfliesShown = active;
+            if (butterfly != null)
+                foreach (int cell in butterfly.Cells)
+                {
+                    var plant = _coordinator.State.PlantAt(cell);
+                    if (plant != null) tops.Add(_view.PlantTip(plant));
+                }
+            _wonders.SetButterflies(butterfly != null, tops);
+            if (butterfly != null && !_butterfliesShown && !_busy) _ui.ShowStatus("どこからか、蝶が。");
+            _butterfliesShown = butterfly != null;
         }
 
         private IEnumerator CaptureRoutine(string path, int autoRolls, bool wonders)
@@ -395,6 +419,9 @@ namespace DestinyGarden.Presentation
             var moments = GardenMoments.Recent(read.Entries, _coordinator.RunId);
             _ui.RefreshHistory(history, moments);
             if (rolledFaceId == 0 && moments.Count > 0) _ui.ShowMessage(null, null, moments[0]);
+            var house = CottageGrowth.Project(_coordinator.State.WorldRevision, history);
+            _view.ShowHouse(house);
+            _ui.ShowHouse(house.Label);
             var discovered = new HashSet<string>();
             foreach (var r in history) foreach (var g in r.Germinated) discovered.Add(g);
             foreach (var p in _coordinator.State.Plants) if (p.Species != null) discovered.Add(p.Species);
@@ -469,7 +496,12 @@ namespace DestinyGarden.Presentation
                 // (or, if all were in flower, to the plants the blessing reached).
                 var cells = spirit.Cells.Count > 0 ? spirit.Cells : PrayerSpirits.ReachedPlantCells(outcome.Simulation);
                 var tops = new List<Vector3>();
-                foreach (int cell in cells) tops.Add(_view.CellTop(cell) + Vector3.up * 0.75f);
+                foreach (int cell in cells)
+                {
+                    var plant = _coordinator.State.PlantAt(cell);
+                    var tip = plant != null ? _view.PlantTip(plant) : _view.CellTop(cell);
+                    tops.Add(tip + Vector3.up * 0.09f);
+                }
                 StartCoroutine(_wonders.PlayPrayerSpirits(tops));
             }
             _coordinator.Prepare();

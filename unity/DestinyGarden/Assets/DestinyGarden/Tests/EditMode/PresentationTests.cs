@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using DestinyGarden.Domain;
 using DestinyGarden.Presentation;
 using UnityEngine;
 using NUnit.Framework;
@@ -94,6 +95,173 @@ namespace DestinyGarden.Tests
             Assert.Greater(differing, 20, "islands should differ in where their highlands lie");
         }
 
+        [TestCase(13)]
+        [TestCase(211)]
+        [TestCase(11879)]
+        public void IslandCoast_VariesAroundTheIsland_WhileTheGardenStaysAboveWater(int value)
+        {
+            var previous = IslandTerrain.Seed;
+            try
+            {
+                var seed = IslandSeed.FromValue(value);
+                IslandTerrain.Configure(seed);
+                for (int c = 0; c < GardenMapData.CellCount; c++)
+                {
+                    if (GardenMapData.SoilCapacity[c] == 0) continue;
+                    float expected = 0.30f + GardenMapData.CellHeight[c] / 1140f * 0.85f;
+                    Assert.That(IslandTerrain.Height(c % 16, c / 16), Is.EqualTo(expected).Within(0.0001f), $"soil cell {c}");
+                }
+
+                float min = 13f, max = 8f;
+                for (int i = 0; i < 48; i++)
+                {
+                    float angle = i * (2f * Mathf.PI / 48f);
+                    float land = 8f, sea = 12.8f;
+                    Assert.Greater(HeightAt(angle, land), IslandTerrain.SeaLevel);
+                    Assert.Less(HeightAt(angle, sea), IslandTerrain.SeaLevel);
+                    for (int j = 0; j < 12; j++)
+                    {
+                        float r = (land + sea) * 0.5f;
+                        if (HeightAt(angle, r) > IslandTerrain.SeaLevel) land = r;
+                        else sea = r;
+                    }
+                    min = Mathf.Min(min, land);
+                    max = Mathf.Max(max, land);
+                }
+                Assert.Greater(max - min, 1.9f, "the bays should cut inside the headlands");
+                Assert.Greater(IslandTerrain.Height(seed.River[0].x, seed.River[0].y), IslandTerrain.SeaLevel + 0.20f);
+                var mouth = seed.River[seed.River.Length - 1];
+                Assert.Less(IslandTerrain.Height(mouth.x, mouth.y), IslandTerrain.SeaLevel);
+            }
+            finally
+            {
+                IslandTerrain.Configure(previous);
+            }
+
+            float HeightAt(float angle, float radius)
+            {
+                var p = IslandSeed.At(angle, radius);
+                return IslandTerrain.Height(p.x, p.y);
+            }
+        }
+
+        [Test]
+        public void TreeForms_KeepCurvedStemsAndLeafFacesOrientedToTheirNormals()
+        {
+            foreach (TreeForms.Kind kind in Enum.GetValues(typeof(TreeForms.Kind)))
+            {
+                var tree = TreeForms.Build(kind, 211);
+                Assert.AreEqual(tree.V.Count, tree.N.Count, kind.ToString());
+                Assert.AreEqual(tree.V.Count, tree.C.Count, kind.ToString());
+                Assert.That(tree.T.Count % 3, Is.Zero, kind.ToString());
+                for (int i = 0; i < tree.T.Count; i += 3)
+                {
+                    int a = tree.T[i], b = tree.T[i + 1], c = tree.T[i + 2];
+                    var face = Vector3.Cross(tree.V[b] - tree.V[a], tree.V[c] - tree.V[a]);
+                    float alignment = Vector3.Dot(face, tree.N[a] + tree.N[b] + tree.N[c]);
+                    Assert.That(alignment, Is.GreaterThan(0f), $"{kind}, triangle {i / 3}");
+                }
+            }
+        }
+
+        [Test]
+        public void PlantForms_BuildEverySavedSpeciesAndStageWithUsableGeometry()
+        {
+            var root = new Vector3(7.4f, 0.64f, 8.2f);
+            int[] growth = { 0, 500, 1150, 1800, 2500 };
+            var stages = (PlantStage[])Enum.GetValues(typeof(PlantStage));
+            foreach (var species in Flora.All)
+            {
+                var plant = new PlantState { PlantId = "mesh-" + species.Id, Species = species.Id };
+                var form = PlantForms.Choose(plant, root);
+                Assert.AreEqual(species.LabelJa, PlantForms.LabelJa(form));
+                foreach (var stage in stages)
+                {
+                    plant.Stage = stage;
+                    plant.Growth = growth[(int)stage];
+                    var mesh = new FoliageMesh { Root = new Vector4(root.x, root.y, root.z, -1f) };
+                    PlantForms.Build(mesh, plant, root, form);
+                    string label = $"{species.Id}, {stage}";
+                    Assert.That(mesh.V.Count, Is.GreaterThan(0).And.LessThan(5000), label);
+                    Assert.AreEqual(mesh.V.Count, mesh.N.Count, label);
+                    Assert.AreEqual(mesh.V.Count, mesh.C.Count, label);
+                    Assert.AreEqual(mesh.V.Count, mesh.R.Count, label);
+                    Assert.That(mesh.T.Count, Is.GreaterThan(0), label);
+                    Assert.That(mesh.T.Count % 3, Is.Zero, label);
+                    float highest = root.y;
+                    foreach (var vertex in mesh.V) highest = Mathf.Max(highest, vertex.y);
+                    Assert.That(highest - root.y, Is.InRange(0.005f, stage == PlantStage.Seed ? 0.065f : 1.6f), label);
+                    for (int i = 0; i < mesh.T.Count; i += 3)
+                    {
+                        var a = mesh.V[mesh.T[i]];
+                        var face = Vector3.Cross(mesh.V[mesh.T[i + 1]] - a, mesh.V[mesh.T[i + 2]] - a);
+                        if (face.sqrMagnitude <= 1e-15f || float.IsNaN(face.sqrMagnitude))
+                            Assert.Fail($"{label}, triangle {i / 3} is degenerate");
+                    }
+                }
+            }
+        }
+
+        [Test]
+        public void GardenLife_RefreshShowsOnlyTheResidentsInTheReportedSites()
+        {
+            var root = new GameObject("Resident test");
+            try
+            {
+                var view = root.AddComponent<GardenView>();
+                var life = root.AddComponent<GardenLife>();
+                life.View = view;
+                life.ReducedMotion = true;
+                life.Build();
+                var garden = WorldState.CreateInitial();
+                int site = garden.Plants[0].CellId;
+                var visits = new List<EcologyVisit>
+                {
+                    new EcologyVisit { Kind = Ecology.Bee, Cells = new List<int> { site } },
+                    new EcologyVisit { Kind = Ecology.Dragonfly, Cells = new List<int> { site } },
+                    new EcologyVisit { Kind = Ecology.Firefly, Cells = new List<int> { site } },
+                    new EcologyVisit { Kind = Ecology.Worm, Cells = new List<int> { site } },
+                    new EcologyVisit { Kind = Ecology.Bird }
+                };
+                life.ShowPresence(visits, garden);
+                var dragonfly = root.transform.Find("Dragonfly 1");
+                var firefly = root.transform.Find("Firefly 1");
+                Assert.That(dragonfly.gameObject.activeSelf);
+                Assert.That(dragonfly.GetComponentsInChildren<MeshRenderer>().Length, Is.EqualTo(5));
+                Assert.That(Vector3.Distance(dragonfly.position, view.CellTop(site)), Is.LessThan(1.5f));
+                Assert.That(firefly.Find("Lantern"), Is.Not.Null);
+                Assert.That(root.transform.Find("Bee 1").gameObject.activeSelf);
+                Assert.That(root.transform.Find("Small bird").gameObject.activeSelf);
+                Assert.That(root.transform.Find("Earthworm 1").gameObject.activeSelf);
+                Assert.That(root.transform.Find("Earthworm 2").gameObject.activeSelf, Is.False);
+                Assert.That(root.transform.Find("Fish 1").gameObject.activeSelf, Is.False);
+                life.ShowPresence(new List<EcologyVisit>(), garden);
+                Assert.That(dragonfly.gameObject.activeSelf, Is.False);
+                Assert.That(firefly.gameObject.activeSelf, Is.False);
+                Assert.That(root.transform.Find("Small bird").gameObject.activeSelf, Is.False);
+                Assert.That(root.transform.Find("Earthworm 1").gameObject.activeSelf, Is.False);
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(root);
+            }
+        }
+
+        [Test]
+        public void BlossomPetalSprite_HasAnOpaqueBodyAndTransparentCorners()
+        {
+            var petal = ProceduralArt.BlossomPetalSprite();
+            try
+            {
+                Assert.That(petal.GetPixelBilinear(0.5f, 0.5f).a, Is.GreaterThan(0.9f));
+                Assert.That(petal.GetPixel(0, 0).a, Is.Zero);
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(petal);
+            }
+        }
+
         [Test]
         public void SkyClock_StartsInMorning_ReachesNight_AndWraps()
         {
@@ -109,7 +277,30 @@ namespace DestinyGarden.Tests
                 Assert.That(s.SunIntensity, Is.InRange(0.5f, 3f));
                 Assert.That(s.Night, Is.InRange(0f, 1f));
             }
-            Assert.Greater(SkyClock.BodyPosition(SkyClock.PhaseFor(0), false).y, 4f);
+            Assert.Greater(morning.SunVisibility, 0.8f);
+        }
+
+        [Test]
+        public void SkyClock_UsesTheSavedWeatherForCloudsAndKeepsAContinuousNightHorizon()
+        {
+            var clear = SkyClock.Evaluate(0.38f, WeatherId.Clear);
+            var cloudy = SkyClock.Evaluate(0.38f, WeatherId.Cloudy);
+            var drizzle = SkyClock.Evaluate(0.38f, WeatherId.Drizzle);
+            Assert.Less(clear.CloudCover, cloudy.CloudCover);
+            Assert.Less(cloudy.CloudCover, drizzle.CloudCover);
+            Assert.Greater(clear.SunVisibility, drizzle.SunVisibility);
+            Assert.AreEqual(clear.Night, drizzle.Night);
+
+            var dusk = SkyClock.Evaluate(0.75f);
+            var night = SkyClock.Evaluate(0.88f);
+            Assert.Greater(dusk.Twilight, clear.Twilight);
+            Assert.Greater(night.MoonVisibility, dusk.MoonVisibility);
+            Assert.That(night.MoonDirection.magnitude, Is.EqualTo(1f).Within(0.0001f));
+            Assert.Greater(night.Horizon.grayscale, night.Zenith.grayscale);
+            var midnight = SkyClock.Evaluate(0f);
+            var before = SkyClock.Evaluate(0.9999f);
+            Assert.That(Mathf.Abs(midnight.Horizon.grayscale - before.Horizon.grayscale), Is.LessThan(0.001f));
+            Assert.That(Vector3.Distance(midnight.MoonDirection, before.MoonDirection), Is.LessThan(0.01f));
         }
 
         [Test]

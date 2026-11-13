@@ -320,7 +320,8 @@ namespace DestinyGarden.Presentation
         public void ShowSaved(List<RoundSummary> history)
         {
             ShowSaved(LastStar(history));
-            SetHint(LastFace(history));
+            SetHint(history != null && history.Exists(round => round.Resolved && round.PrayerStar >= 5)
+                ? LastFace(history) : 0);
             _hintAlpha = _hintTarget;
         }
 
@@ -377,7 +378,7 @@ namespace DestinyGarden.Presentation
             if (_glints != null && View != null)
                 foreach (var e in outcome.Ecology.Events)
                 {
-                    if (e.Kind != Lifecycle.ReturnedEvent) continue;
+                    if (e.Kind != Lifecycle.ReturnedEvent && e.Kind != "ReturnedToSoil") continue;
                     var at = View.CellTop(e.CellId);
                     for (int i = 0; i < 18; i++)
                         _glints.Emit(new ParticleSystem.EmitParams
@@ -627,6 +628,10 @@ namespace DestinyGarden.Presentation
             }
             if (fruit > 0) parts.Add("蜂や蝶の訪れた花が土に還り、実りを落とした");
             else if (plain > 0) parts.Add("花がひとつ土に還り、となりを養った");
+            else if (eco.Relations.Exists(link => link.Kind == "fruited"))
+                parts.Add("花に、次の種が実った");
+            else if (eco.Relations.Exists(link => link.Kind == "returned-to-soil"))
+                parts.Add("花の株が土へ還った");
             return parts.Count > 0 ? string.Join("　・　", parts) : null;
         }
 

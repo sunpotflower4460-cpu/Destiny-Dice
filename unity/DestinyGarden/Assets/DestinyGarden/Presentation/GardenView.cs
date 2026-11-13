@@ -20,15 +20,15 @@ namespace DestinyGarden.Presentation
         private static readonly Color MoistSoil = new Color(0.46f, 0.37f, 0.28f);
         private static readonly Color WetSoil = new Color(0.38f, 0.30f, 0.23f);
         private static readonly Color WaterGlow = new Color(0.20f, 0.78f, 0.95f);
-        private static readonly Color Mist = new Color(0.30f, 0.40f, 0.52f); // pale luminous haze over the sea
+        private static readonly Color Mist = new Color(0.18f, 0.30f, 0.36f);
 
         private readonly Renderer[] _cells = new Renderer[256];
         private readonly Renderer[] _domes = new Renderer[256];
         private readonly GameObject[] _waterDiscs = new GameObject[256];
         private readonly GameObject[] _plantViews = new GameObject[256];
-        private readonly int[] _plantStageShown = new int[256];
+        private readonly (string Id, PlantForms.Species Species, PlantStage Stage, int GrowthBand, bool Suited)[] _shownPlants =
+            new (string, PlantForms.Species, PlantStage, int, bool)[GardenMapData.CellCount];
         private readonly List<KeyValuePair<Transform, float>> _swaying = new List<KeyValuePair<Transform, float>>();
-        private readonly List<Transform> _mistPlanes = new List<Transform>();
 
         private Material _soilMat;
         private Material _stoneMat;
@@ -75,12 +75,14 @@ namespace DestinyGarden.Presentation
         private Material _riverMat;
         private Material _fallMat;
         public Vector3 PerchPoint { get; private set; } = new Vector3(7.2f, 2.95f, 16.4f);
+        internal Vector3 PerchHeading { get; private set; } = Vector3.back;
         private Mesh[] _rockMeshes;
         private Mesh[] _discMeshes;
         private Mesh _leafMesh;
         private Light _sun;
         private Light _fill;
         private GameObject _dice;
+        private Mesh _diceMesh;
         private readonly List<GameObject> _topPips = new List<GameObject>();
         private static readonly int[][] PipLayouts = { new[]{4}, new[]{0,8}, new[]{0,4,8}, new[]{0,2,6,8}, new[]{0,2,4,6,8}, new[]{0,2,3,5,6,8}, new[]{0,2,3,4,5,6,8} };
         private Material _pipMat;
@@ -112,14 +114,15 @@ namespace DestinyGarden.Presentation
         private SkyState _sky = SkyClock.Evaluate(SkyClock.PhaseFor(0f));
         private float _clockRolls, _clockTarget;
         private WeatherId _weatherId = WeatherId.Clear;
-        private Material _skyMat;
+        private Light _gardenLight;
         private Bloom _bloom;
         private DepthOfField _dof;
+        private bool _rainbowFocus;
         private UniversalAdditionalCameraData _camData;
-        private Light _cottageLamp;
+        private GardenCottage _cottage;
+        internal CottagePlot HousePlot => _cottage?.Plot;
         public SkyState Sky => _sky;
         public void SnapClock() { _clockRolls = _clockTarget; ApplySky(); }
-        public float Phase => SkyClock.PhaseFor(_clockRolls);
 
         /// <summary>The island's hour follows the saved rolls; transitions glide, or snap on load.</summary>
         public void SetClock(float rolls, bool snap)
@@ -131,21 +134,23 @@ namespace DestinyGarden.Presentation
         private void ApplySky()
         {
             if (_sun == null) return;
-            _sky = SkyClock.Evaluate(SkyClock.PhaseFor(_clockRolls));
+            _sky = SkyClock.Evaluate(SkyClock.PhaseFor(_clockRolls), _weatherId);
             float grey = _weatherId == WeatherId.Drizzle ? 0.6f : _weatherId == WeatherId.Cloudy ? 0.25f : 0f;
             float wi = _weatherId == WeatherId.Clear ? 1f : _weatherId == WeatherId.Cloudy ? 0.8f : 0.7f;
             _sunBase = Color.Lerp(_sky.Sun, new Color(0.78f, 0.84f, 0.92f), grey);
-            _sun.intensity = _sky.SunIntensity * wi;
+            // Keep leaf and sand detail in direct daylight, especially when seen from above.
+            _sun.intensity = _sky.SunIntensity * wi * Mathf.Lerp(0.80f, 0.92f, _sky.Night);
             _sun.transform.rotation = Quaternion.Euler(_sky.Elevation, _sky.Azimuth, 0f);
             _fill.color = _sky.Fill;
-            _fill.intensity = _sky.FillIntensity * (_weatherId == WeatherId.Clear ? 1f : 1.25f);
+            _fill.intensity = _sky.FillIntensity * Mathf.Lerp(1.02f, 1.21f, _sky.Moisture);
             RenderSettings.ambientLight = _sky.Ambient * (_weatherId == WeatherId.Drizzle ? 0.94f : 1f);
-            RenderSettings.fogColor = _sky.Haze;
-            if (ViewCamera != null) ViewCamera.backgroundColor = _sky.Haze;
-            if (_skyMat != null) _skyMat.SetColor("_BaseColor", _sky.Haze * 1.25f);
-            if (_bloom != null && _qualityLevel < 2) _bloom.intensity.value = 0.85f * _sky.Bloom;
-            if (_lightShaft != null) _lightShaft.SetActive(_weatherId == WeatherId.Clear && _sky.Night < 0.5f);
-            if (_cottageLamp != null) _cottageLamp.intensity = 0.3f + 1.7f * _sky.Night;
+            var haze = Color.Lerp(_sky.Haze * 0.62f, _sky.Horizon.gamma, _sky.Moisture * 0.35f);
+            RenderSettings.fogColor = haze;
+            RenderSettings.fogStartDistance = Mathf.Lerp(30f, 23f, _sky.Moisture);
+            RenderSettings.fogEndDistance = Mathf.Lerp(63f, 51f, _sky.Moisture);
+            if (ViewCamera != null) ViewCamera.backgroundColor = haze;
+            if (_bloom != null) _bloom.intensity.value = 0.46f * _sky.Bloom;
+            if (_gardenLight != null) _gardenLight.intensity = Mathf.Lerp(0.19f, 0.46f, _sky.Night);
             ApplyBalance();
         }
 
@@ -155,12 +160,18 @@ namespace DestinyGarden.Presentation
         public void ApplyQuality(int level)
         {
             _qualityLevel = level;
-            if (_dof != null) _dof.active = level < 1;
+            if (_dof != null) _dof.active = level < 1 && !_rainbowFocus;
             if (_camData != null) _camData.antialiasing = level < 1 ? AntialiasingMode.SubpixelMorphologicalAntiAliasing : AntialiasingMode.None;
             if (_sun != null) _sun.shadows = level < 2 ? LightShadows.Soft : LightShadows.None;
             if (_bloom != null) _bloom.active = level < 3;
             var asset = UniversalRenderPipeline.asset;
             if (asset != null) asset.renderScale = level >= 3 ? 0.7f : 1f;
+        }
+
+        internal void SetRainbowFocus(bool active)
+        {
+            _rainbowFocus = active;
+            if (_dof != null) _dof.active = _qualityLevel < 1 && !active;
         }
 
         /// <summary>Yin and yang of the recent rolls tint the light: yin cooler, yang warmer (subtle).</summary>
@@ -217,11 +228,9 @@ namespace DestinyGarden.Presentation
             _careRing.SetActive(cell >= 0);
             if (cell >= 0) _careRing.transform.position = CellTop(cell) + Vector3.up * 0.06f;
         }
-        private GameObject _lightShaft;
         private ParticleSystem _rain;
-        private ParticleSystem _pollen;
         private ParticleSystem _burst;
-        private readonly MaterialPropertyBlock _block = new MaterialPropertyBlock();
+        private MaterialPropertyBlock _block;
         public bool ReducedMotion;
 
         public Vector3 CellTop(int cellId)
@@ -250,13 +259,15 @@ namespace DestinyGarden.Presentation
 
         public void Build()
         {
+            _block = new MaterialPropertyBlock();
+            _diceMesh = ProceduralArt.RoundedCubeMesh();
             IslandTerrain.Configure(Seed ?? IslandSeed.FromValue(1));
             var shader = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard");
             var unlit = Shader.Find("Universal Render Pipeline/Unlit") ?? shader;
 
             _soilMat = Lit(shader, ProceduralArt.SoilTexture(), 0.08f);
             _stoneMat = Lit(shader, ProceduralArt.StoneTexture(), 0.18f);
-            _rockMat = Lit(shader, ProceduralArt.StoneTexture(), 0.12f);
+            _rockMat = Lit(shader, ProceduralArt.StoneTexture(true), 0.12f);
             _rockMat.color = new Color(1.10f, 1.15f, 1.12f);
             _leafMat = Lit(shader, ProceduralArt.MossTexture(), 0.25f);
             _leafMat.color = new Color(0.42f, 0.95f, 0.38f);
@@ -305,8 +316,8 @@ namespace DestinyGarden.Presentation
             RenderSettings.fog = true;
             RenderSettings.fogColor = Mist;
             RenderSettings.fogMode = FogMode.Linear;
-            RenderSettings.fogStartDistance = 22f;
-            RenderSettings.fogEndDistance = 58f;
+            RenderSettings.fogStartDistance = 26f;
+            RenderSettings.fogEndDistance = 59f;
             RenderSettings.ambientLight = new Color(0.58f, 0.62f, 0.72f);
 
             var camObj = new GameObject("Main Camera") { tag = "MainCamera" };
@@ -315,8 +326,8 @@ namespace DestinyGarden.Presentation
             Rig = camObj.AddComponent<CameraRig>();
             Rig.Cam = cam;
             cam.clearFlags = CameraClearFlags.SolidColor;
-            cam.transform.position = new Vector3(7.5f, 14.8f, -7.6f);
-            cam.transform.LookAt(new Vector3(7.5f, 0.2f, 8.4f));
+            cam.transform.position = new Vector3(5.9f, 19.0f, -14.8f);
+            cam.transform.LookAt(Rig.Target);
             cam.backgroundColor = Mist;
             cam.fieldOfView = 41f;
             var camData = camObj.AddComponent<UniversalAdditionalCameraData>();
@@ -331,29 +342,29 @@ namespace DestinyGarden.Presentation
             var profile = ScriptableObject.CreateInstance<VolumeProfile>();
             var bloom = profile.Add<Bloom>(true);
             _bloom = bloom;
-            bloom.intensity.value = 0.85f;
-            bloom.threshold.value = 0.78f;
-            bloom.scatter.value = 0.72f;
+            bloom.intensity.value = 0.58f;
+            bloom.threshold.value = 0.94f;
+            bloom.scatter.value = 0.64f;
             bloom.tint.value = new Color(1.0f, 0.93f, 0.86f);
             var vignette = profile.Add<Vignette>(true);
-            vignette.intensity.value = 0.16f;
+            vignette.intensity.value = 0.15f;
             vignette.smoothness.value = 0.55f;
             var split = profile.Add<SplitToning>(true);
-            split.shadows.value = new Color(0.36f, 0.52f, 0.66f);
-            split.highlights.value = new Color(0.86f, 0.70f, 0.50f);
-            split.balance.value = -12f;
+            split.shadows.value = new Color(0.42f, 0.53f, 0.58f);
+            split.highlights.value = new Color(0.70f, 0.59f, 0.49f);
+            split.balance.value = -4f;
             var dof = profile.Add<DepthOfField>(true);
             _dof = dof;
             dof.mode.value = DepthOfFieldMode.Gaussian;
-            dof.gaussianStart.value = 25f;
-            dof.gaussianEnd.value = 48f;
-            dof.gaussianMaxRadius.value = 1.0f;
+            dof.gaussianStart.value = 37f;
+            dof.gaussianEnd.value = 54f;
+            dof.gaussianMaxRadius.value = 0.82f;
             var tonemap = profile.Add<Tonemapping>(true);
             tonemap.mode.value = TonemappingMode.ACES;
             var colors = profile.Add<ColorAdjustments>(true);
-            colors.saturation.value = 4f;
-            colors.postExposure.value = 0.50f;
-            colors.contrast.value = 12f;
+            colors.saturation.value = 1f;
+            colors.postExposure.value = 0.18f;
+            colors.contrast.value = 7f;
             volume.profile = profile;
 
             var sunObj = new GameObject("Sun");
@@ -380,10 +391,11 @@ namespace DestinyGarden.Presentation
             poolObj.transform.SetParent(transform);
             poolObj.transform.position = new Vector3(7.5f, 4.2f, 7.8f);
             var pool = poolObj.AddComponent<Light>();
+            _gardenLight = pool;
             pool.type = LightType.Point;
             pool.color = new Color(1f, 0.82f, 0.58f);
             pool.range = 11f;
-            pool.intensity = 2.2f;
+            pool.intensity = 0.19f;
             pool.shadows = LightShadows.None;
 
             IslandTerrain.ShadeCasters.Clear();
@@ -398,26 +410,14 @@ namespace DestinyGarden.Presentation
 
         private void BuildEnvironment(Shader shader, Shader unlit)
         {
-            // Gradient sky dome (inside-out sphere).
-            var sky = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-            sky.name = "SkyDome";
-            sky.transform.SetParent(transform);
-            sky.transform.position = new Vector3(7.5f, 0, 7.5f);
-            sky.transform.localScale = Vector3.one * 90f;
-            var skyMat = new Material(unlit);
-            _skyMat = skyMat;
-            skyMat.SetTexture("_BaseMap", ProceduralArt.SkyTint());
-            skyMat.SetInt("_Cull", (int)UnityEngine.Rendering.CullMode.Front);
-            sky.GetComponent<Renderer>().material = skyMat;
-            sky.GetComponent<Renderer>().shadowCastingMode = ShadowCastingMode.Off;
-            Destroy(sky.GetComponent<Collider>());
+            BuildCottage(shader);
 
-            // The round sacred island: one continuous terrain (IslandTerrain) instead of a board.
+            // One continuous terrain for the garden and its shore.
             var islandObj = new GameObject("Island");
             islandObj.transform.SetParent(transform);
             islandObj.AddComponent<MeshFilter>().sharedMesh = IslandTerrain.BuildMesh();
             var islandRenderer = islandObj.AddComponent<MeshRenderer>();
-            var islandMat = Lit(shader, IslandTerrain.BakeColor(), 0.12f);
+            var islandMat = Lit(shader, IslandTerrain.BakeColor(HousePlot), 0.12f);
             islandRenderer.material = islandMat;
             islandRenderer.receiveShadows = true;
             islandRenderer.shadowCastingMode = ShadowCastingMode.On;
@@ -426,10 +426,11 @@ namespace DestinyGarden.Presentation
             var riverObj = new GameObject("River");
             riverObj.transform.SetParent(transform);
             riverObj.AddComponent<MeshFilter>().sharedMesh = IslandTerrain.BuildRiverMesh();
-            // Glowing water drawn unlit with soft banks; scrolls downstream in Update.
+            // Translucent stream with soft banks and downstream glints.
             _riverMat = new Material(Shader.Find("Sprites/Default") ?? unlit);
-            _riverMat.SetTexture("_MainTex", ProceduralArt.RiverTexture());
-            _riverMat.color = new Color(0.85f, 0.97f, 1f, 0.95f);
+            var riverTexture = ProceduralArt.RiverTexture();
+            _riverMat.SetTexture("_MainTex", riverTexture);
+            _riverMat.color = new Color(0.95f, 1f, 0.98f, 0.97f);
             _riverMat.renderQueue = 2990;
             var riverRenderer = riverObj.AddComponent<MeshRenderer>();
             riverRenderer.material = _riverMat;
@@ -440,9 +441,9 @@ namespace DestinyGarden.Presentation
             springLightObj.transform.position = new Vector3(spring.x, IslandTerrain.Height(spring.x, spring.y) + 0.8f, spring.y);
             var springLight = springLightObj.AddComponent<Light>();
             springLight.type = LightType.Point;
-            springLight.color = new Color(0.55f, 0.95f, 1f);
-            springLight.range = 4.5f;
-            springLight.intensity = 1.6f;
+            springLight.color = new Color(0.60f, 0.93f, 0.88f);
+            springLight.range = 3.6f;
+            springLight.intensity = 0.68f;
             springLight.shadows = LightShadows.None;
 
             // The spring: a glowing pool under a small cascade falling from a rock set toward the highlands.
@@ -455,7 +456,7 @@ namespace DestinyGarden.Presentation
                 pool.AddComponent<MeshFilter>().sharedMesh = ProceduralArt.DiscMesh(0.95f, 32);
                 var poolMat = new Material(Shader.Find("Sprites/Default") ?? unlit);
                 poolMat.SetTexture("_MainTex", ProceduralArt.GlowSprite());
-                poolMat.color = new Color(0.50f, 0.92f, 1f, 0.9f);
+                poolMat.color = new Color(0.52f, 0.89f, 0.80f, 0.55f);
                 poolMat.renderQueue = 2992;
                 var pr = pool.AddComponent<MeshRenderer>();
                 pr.material = poolMat;
@@ -469,10 +470,12 @@ namespace DestinyGarden.Presentation
                 var cr = cliff.AddComponent<MeshRenderer>();
                 cr.material = _rockMat;
                 cr.shadowCastingMode = ShadowCastingMode.On;
+                PerchPoint = RockTop(_rockMeshes[1], cliff.transform.localToWorldMatrix);
+                PerchHeading = new Vector3(-outward.x, 0f, -outward.y);
                 IslandTerrain.AddShade(spring.x + outward.x, spring.y + outward.y, 1.2f);
                 _fallMat = new Material(Shader.Find("Sprites/Default") ?? unlit);
-                _fallMat.SetTexture("_MainTex", ProceduralArt.RiverTexture());
-                _fallMat.color = new Color(0.85f, 0.97f, 1f, 0.9f);
+                _fallMat.SetTexture("_MainTex", riverTexture);
+                _fallMat.color = new Color(0.90f, 1f, 0.98f, 0.84f);
                 _fallMat.renderQueue = 2993;
                 float yaw = Mathf.Atan2(outward.x, outward.y) * Mathf.Rad2Deg;
                 for (int k = 0; k < 2; k++)
@@ -503,94 +506,132 @@ namespace DestinyGarden.Presentation
                 mistObj.GetComponent<ParticleSystemRenderer>().material = mmat;
             }
 
-            // Standing stones along the shore and on the hills, placed by this island's seed.
-            float tallest = -1f;
-            for (int i = 0; i < IslandTerrain.Seed.Stones.Length; i++)
-            {
-                var st = IslandTerrain.Seed.Stones[i];
-                float x = 7.5f + Mathf.Cos(st.Angle) * st.Radius, z = 7.5f + Mathf.Sin(st.Angle) * st.Radius;
-                float baseY = IslandTerrain.Height(x, z);
-                var rock = new GameObject("DecorRock");
-                rock.transform.SetParent(transform);
-                rock.transform.position = new Vector3(x, baseY + st.Height / 2f - 0.35f, z);
-                rock.transform.localScale = new Vector3(st.Width, st.Height, st.Width);
-                rock.transform.rotation = Quaternion.Euler(0, i * 67f, (i % 3 - 1) * 4f);
-                rock.AddComponent<MeshFilter>().sharedMesh = _rockMeshes[i % 3];
-                var rr = rock.AddComponent<MeshRenderer>();
-                rr.material = _rockMat;
-                rr.shadowCastingMode = ShadowCastingMode.On;
-                rr.receiveShadows = true;
-                if (st.Height > tallest) { tallest = st.Height; PerchPoint = new Vector3(x, baseY + st.Height - 0.32f, z); }
-                AddMossCap(rock.transform.position + Vector3.up * (st.Height * 0.42f), st.Width * 0.42f, 300 + i);
-                IslandTerrain.AddShade(x, z, st.Width * 1.3f);
-            }
-
-            BuildTrees(shader);
-            BuildCottage(shader);
-
-            // Drifting mist sheets around the board.
-            var mistShader = Shader.Find("Sprites/Default") ?? unlit;
-            var mistMat = new Material(mistShader);
-            var mistTex = ProceduralArt.MistSprite();
-            mistMat.SetTexture("_MainTex", mistTex);
-            mistMat.SetTexture("_BaseMap", mistTex);
-            mistMat.color = new Color(0.90f, 0.94f, 1.0f, 0.14f);
-            mistMat.SetColor("_BaseColor", new Color(0.90f, 0.94f, 1.0f, 0.14f));
-            mistMat.SetFloat("_Surface", 1f);
-            mistMat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
-            mistMat.SetFloat("_ZWrite", 0f);
-            mistMat.renderQueue = 3100;
-            mistMat.SetInt("_Cull", (int)UnityEngine.Rendering.CullMode.Off);
-            for (int i = 0; i < 6; i++)
-            {
-                var plane = GameObject.CreatePrimitive(PrimitiveType.Plane);
-                plane.name = "Mist";
-                plane.transform.SetParent(transform);
-                float a = i / 6f * Mathf.PI * 2f + 0.5f;
-                plane.transform.position = new Vector3(7.5f + Mathf.Cos(a) * 15.5f, -0.55f + (i % 2) * 0.12f, 7.5f + Mathf.Sin(a) * 15.5f);
-                plane.transform.rotation = Quaternion.Euler(0, i * 61f, 0);
-                plane.transform.localScale = new Vector3(0.85f, 1f, 0.5f);
-                plane.GetComponent<Renderer>().material = mistMat;
-                plane.GetComponent<Renderer>().shadowCastingMode = ShadowCastingMode.Off;
-                Destroy(plane.GetComponent<Collider>());
-                _mistPlanes.Add(plane.transform);
-            }
-
-            // Warm light shaft from the upper left (clear-weather accent).
-            _lightShaft = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-            _lightShaft.name = "LightShaft";
-            _lightShaft.transform.SetParent(transform);
-            _lightShaft.transform.position = new Vector3(3.2f, 7.5f, 4.2f);
-            _lightShaft.transform.rotation = Quaternion.Euler(24f, 0, 34f);
-            _lightShaft.transform.localScale = new Vector3(4.6f, 8.5f, 4.6f);
-            var shaftMat = new Material(Shader.Find("Sprites/Default") ?? unlit);
-            var shaftTex = ProceduralArt.MistSprite();
-            shaftMat.SetTexture("_MainTex", shaftTex);
-            shaftMat.SetTexture("_BaseMap", shaftTex);
-            shaftMat.color = new Color(1.0f, 0.85f, 0.55f, 0.08f);
-            shaftMat.SetColor("_BaseColor", new Color(1.0f, 0.85f, 0.55f, 0.08f));
-            shaftMat.SetFloat("_Surface", 1f);
-            shaftMat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
-            shaftMat.SetFloat("_ZWrite", 0f);
-            shaftMat.renderQueue = 3050;
-            shaftMat.SetInt("_Cull", (int)UnityEngine.Rendering.CullMode.Off);
-            _lightShaft.GetComponent<Renderer>().material = shaftMat;
-            _lightShaft.GetComponent<Renderer>().shadowCastingMode = ShadowCastingMode.Off;
-            Destroy(_lightShaft.GetComponent<Collider>());
+            BuildCoastalRocks();
+            BuildTrees();
         }
 
         /// <summary>A few small trees and shrubs on the back and side hills (never in front of the garden).</summary>
-        private void BuildTrees(Shader shader)
+        private void BuildCoastalRocks()
+        {
+            var hillside = new List<CombineInstance>();
+            var shoreline = new List<CombineInstance>();
+            var rng = new System.Random(IslandTerrain.Seed.Value ^ 87153);
+            float Range(float min, float max) => Mathf.Lerp(min, max, (float)rng.NextDouble());
+
+            float bestPerch = float.NegativeInfinity;
+            var spots = IslandTerrain.Seed.Stones;
+            for (int i = 0; i < spots.Length; i++)
+            {
+                var spot = spots[i];
+                float rockiness = IslandTerrain.ShoreRockiness(spot.Angle);
+                if (rockiness < 0.29f) continue;
+                var p = IslandTerrain.ShelteredLand(spot.Angle, spot.Radius, 1.35f, 1.15f);
+                float height = 0.45f + spot.Height * 0.46f;
+                float y = IslandTerrain.Height(p.x, p.y);
+                var rock = MakeRock(p, y + height * 0.07f, new Vector3(spot.Width * 1.36f, height, spot.Width),
+                    Quaternion.Euler(Range(-13f, 13f), spot.Angle * Mathf.Rad2Deg + 40f, Range(-16f, 16f)));
+                if (HousePlot.Overlaps(p, spot.Width * 0.53f)) continue;
+                hillside.Add(rock);
+                var crown = RockTop(rock.mesh, rock.transform);
+                var inward = IslandTerrain.Center - p;
+                float score = height + crown.y * 0.45f + Mathf.Clamp(inward.y * 0.17f, -1.1f, 1.1f);
+                if (score > bestPerch && IslandTerrain.DistanceToRiver(p.x, p.y) > 1.3f)
+                {
+                    bestPerch = score;
+                    PerchPoint = crown;
+                    PerchHeading = new Vector3(inward.x * 0.68f, 0f, -2f - Mathf.Abs(inward.y) * 0.45f);
+                }
+                IslandTerrain.AddShade(p.x, p.y, spot.Width);
+            }
+
+            // Group the slabs around exposed headlands, leaving the sandy bays open.
+            const float sectorWidth = 2f * Mathf.PI / 3f;
+            for (int sector = 0; sector < 3; sector++)
+            {
+                float middle = IslandTerrain.NearBayAngle + (sector + 0.5f) * sectorWidth;
+                float angle = middle;
+                float best = 0.35f;
+                for (int i = -9; i <= 9; i++)
+                {
+                    float a = middle + i * 0.091f;
+                    float exposure = IslandTerrain.ShoreRockiness(a);
+                    if (exposure <= best) continue;
+                    best = exposure;
+                    angle = a;
+                }
+                if (best < 0.48f) continue;
+
+                for (int i = 0; i < 8; i++)
+                {
+                    float a = angle + Range(-0.24f, 0.24f);
+                    if (IslandTerrain.ShoreRockiness(a) < 0.40f) continue;
+                    float r = IslandTerrain.ShoreRadius(a);
+                    bool tidal = i >= 4;
+                    var p = IslandSeed.At(a, r + (tidal ? Range(-0.08f, 0.93f) : Range(-1.42f, -0.18f)));
+                    float width = Range(0.57f, 1.42f) * (tidal ? 1f : 1.6f);
+                    float height = width * Range(0.44f, 0.90f);
+                    float y = tidal ? IslandTerrain.SeaLevel - Range(0.02f, 0.17f) : IslandTerrain.Height(p.x, p.y) - height * 0.17f;
+                    var rotation = Quaternion.Euler(Range(-18f, 18f), 100f - a * Mathf.Rad2Deg + Range(-25f, 25f), Range(-18f, 18f));
+                    var rock = MakeRock(p, y, new Vector3(width, height, width * Range(0.70f, 1.22f)), rotation);
+                    if (HousePlot.Overlaps(p, width * 0.49f)) continue;
+                    shoreline.Add(rock);
+                    if (!tidal) IslandTerrain.AddShade(p.x, p.y, width * 0.51f);
+                }
+            }
+
+            AddRockGroup("Mossy boulders", hillside, _rockMat);
+            AddRockGroup("Coastal outcrops", shoreline,
+                new Material(_stoneMat) { color = new Color(0.98f, 0.99f, 1.02f) });
+
+            CombineInstance MakeRock(Vector2 p, float y, Vector3 scale, Quaternion rotation) =>
+                new CombineInstance
+                {
+                    mesh = _rockMeshes[rng.Next(_rockMeshes.Length)],
+                    transform = Matrix4x4.TRS(new Vector3(p.x, y, p.y), rotation, scale)
+                };
+
+            void AddRockGroup(string name, List<CombineInstance> rocks, Material material)
+            {
+                if (rocks.Count == 0) return;
+                var mesh = new Mesh { name = name, indexFormat = UnityEngine.Rendering.IndexFormat.UInt32 };
+                mesh.CombineMeshes(rocks.ToArray());
+                var root = new GameObject(name);
+                root.transform.SetParent(transform);
+                root.AddComponent<MeshFilter>().sharedMesh = mesh;
+                root.AddComponent<MeshRenderer>().sharedMaterial = material;
+            }
+        }
+
+        private static Vector3 RockTop(Mesh mesh, Matrix4x4 transform)
+        {
+            var top = new Vector3(0f, float.NegativeInfinity, 0f);
+            foreach (var vertex in mesh.vertices)
+            {
+                var point = transform.MultiplyPoint3x4(vertex);
+                if (point.y > top.y) top = point;
+            }
+            return top;
+        }
+
+        private void BuildTrees()
         {
             var fol = Shader.Find("DestinyGarden/Foliage");
             var treeMat = new Material(fol != null ? fol : Shader.Find("Sprites/Default"));
+            treeMat.SetFloat("_CanopyLighting", 1f);
+            treeMat.SetFloat("_WindStrength", 0.11f);
+            treeMat.SetFloat("_WindSpeed", 0.89f);
             // Trees stand where this island's seed puts them (never across the default front view).
             var spots = IslandTerrain.Seed.Trees;
+            Material petalMat = null;
+            var ground = AltarGround();
+            var altar = new Vector2(ground.x, ground.z);
             for (int i = 0; i < spots.Length; i++)
             {
-                float a = spots[i].Angle;
-                float x = 7.5f + Mathf.Cos(a) * spots[i].Radius, z = 7.5f + Mathf.Sin(a) * spots[i].Radius;
                 var kind = spots[i].Kind;
+                var p = IslandTerrain.ShelteredLand(spots[i].Angle, spots[i].Radius, 1.26f,
+                    kind == TreeForms.Kind.Willow ? 0.48f : 0.96f, altar, 0.83f + spots[i].Size * 1.04f);
+                if (HousePlot.Overlaps(p, kind == TreeForms.Kind.Shrub ? 0.55f : 1.05f)) continue;
+                float x = p.x, z = p.y;
                 var root = new GameObject(kind.ToString()).transform;
                 root.SetParent(transform);
                 root.position = new Vector3(x, IslandTerrain.Height(x, z) - 0.04f, z);
@@ -600,7 +641,7 @@ namespace DestinyGarden.Presentation
                 body.transform.SetParent(root, false);
                 body.AddComponent<MeshFilter>().sharedMesh = TreeForms.Build(kind, IslandTerrain.Seed.Value % 9973 + i * 37).ToMesh(kind + "_" + i);
                 var r = body.AddComponent<MeshRenderer>();
-                r.material = treeMat;
+                r.sharedMaterial = treeMat;
                 r.shadowCastingMode = ShadowCastingMode.On;
                 // Grows in with the island: shrubs first, then trees, the blossom trees last.
                 float thr = kind == TreeForms.Kind.Shrub ? 0.40f + (i % 4) * 0.03f
@@ -608,106 +649,65 @@ namespace DestinyGarden.Presentation
                     : kind == TreeForms.Kind.Willow ? 0.56f + (i % 3) * 0.03f : 0.54f + (i % 5) * 0.035f;
                 _growers.Add(new Grower { T = root, Size = spots[i].Size * 1.3f, Threshold = thr });
                 IslandTerrain.AddShade(x, z, (kind == TreeForms.Kind.Shrub ? 0.9f : 1.7f) * spots[i].Size);
-                if (kind == TreeForms.Kind.Blossom) AddPetalFall(root);
+                if (kind == TreeForms.Kind.Blossom)
+                {
+                    if (petalMat == null)
+                    {
+                        petalMat = new Material(Shader.Find("Sprites/Default"));
+                        petalMat.SetTexture("_MainTex", ProceduralArt.BlossomPetalSprite());
+                        petalMat.renderQueue = 3150;
+                    }
+                    AddPetalFall(root, petalMat);
+                }
             }
         }
 
+        private readonly List<ParticleSystem> _fallingPetals = new List<ParticleSystem>();
+
         /// <summary>A slow drift of petals from a blossom tree.</summary>
-        private static void AddPetalFall(Transform tree)
+        private void AddPetalFall(Transform tree, Material material)
         {
             var obj = new GameObject("PetalFall");
             obj.transform.SetParent(tree, false);
-            obj.transform.localPosition = new Vector3(0f, 1.5f, 0f);
+            obj.transform.localPosition = new Vector3(0f, 1.65f, 0f);
             var ps = obj.AddComponent<ParticleSystem>();
             var main = ps.main;
             main.maxParticles = 40;
             main.startLifetime = new ParticleSystem.MinMaxCurve(4f, 6f);
             main.startSpeed = new ParticleSystem.MinMaxCurve(0.02f, 0.12f);
-            main.startSize = new ParticleSystem.MinMaxCurve(0.04f, 0.07f);
+            main.startSize = new ParticleSystem.MinMaxCurve(0.045f, 0.085f);
+            main.startRotation = new ParticleSystem.MinMaxCurve(0f, 2f * Mathf.PI);
             main.gravityModifier = 0.015f;
             main.simulationSpace = ParticleSystemSimulationSpace.World;
             main.startColor = new ParticleSystem.MinMaxGradient(new Color(1f, 0.80f, 0.86f, 0.9f), new Color(1f, 0.94f, 0.96f, 0.9f));
             var emission = ps.emission; emission.rateOverTime = 1.4f;
             var shape = ps.shape; shape.shapeType = ParticleSystemShapeType.Sphere; shape.radius = 0.7f;
             var noise = ps.noise; noise.enabled = true; noise.strength = 0.15f; noise.frequency = 0.4f;
-            var mat = new Material(Shader.Find("Sprites/Default"));
-            mat.SetTexture("_MainTex", ProceduralArt.GlowSprite());
-            mat.renderQueue = 3150;
-            obj.GetComponent<ParticleSystemRenderer>().material = mat;
-        }
-
-        private Material _mossCapMat;
-
-        /// <summary>Moss and lichen on the top of a stone (the stones are old; life has settled on them).</summary>
-        private void AddMossCap(Vector3 top, float radius, int seed)
-        {
-            if (_mossCapMat == null)
-            {
-                var fol = Shader.Find("DestinyGarden/Foliage");
-                _mossCapMat = new Material(fol != null ? fol : Shader.Find("Sprites/Default"));
-            }
-            var rng = new System.Random(seed);
-            var b = new FoliageMesh { Root = new Vector4(top.x, top.y, top.z, -1f) };
-            for (int k = 0; k < 5; k++)
-            {
-                var off = new Vector3((float)rng.NextDouble() - 0.5f, (float)rng.NextDouble() * 0.1f, (float)rng.NextDouble() - 0.5f) * radius;
-                float r = radius * (0.35f + (float)rng.NextDouble() * 0.3f);
-                var col = k % 3 == 0 ? new Color(0.70f, 0.72f, 0.44f) : new Color(0.30f + (float)rng.NextDouble() * 0.1f, 0.50f, 0.30f);
-                b.Ball(top + off, new Vector3(r, r * 0.32f, r), col, 0f, 7, 3);
-            }
-            var go = new GameObject("MossCap");
-            go.transform.SetParent(transform, false);
-            go.AddComponent<MeshFilter>().sharedMesh = b.ToMesh("MossCap");
-            go.AddComponent<MeshRenderer>().material = _mossCapMat;
+            var spin = ps.rotationOverLifetime; spin.enabled = true;
+            spin.z = new ParticleSystem.MinMaxCurve(-1.5f, 1.5f);
+            obj.GetComponent<ParticleSystemRenderer>().sharedMaterial = material;
+            _fallingPetals.Add(ps);
         }
 
         private sealed class Grower { public Transform T; public float Size; public float Threshold; }
         private readonly List<Grower> _growers = new List<Grower>();
 
-        /// <summary>A small cottage by the spring that appears when the garden has matured.</summary>
         private void BuildCottage(Shader shader)
         {
-            float a = IslandTerrain.Seed.CottageAngle, r = IslandTerrain.Seed.CottageRadius;
-            float x = 7.5f + Mathf.Cos(a) * r, z = 7.5f + Mathf.Sin(a) * r;
-            var root = new GameObject("Cottage").transform;
-            root.SetParent(transform);
-            root.position = new Vector3(x, IslandTerrain.Height(x, z) - 0.03f, z);
-            // The door faces the garden (local -z is the door side).
-            root.rotation = Quaternion.LookRotation(new Vector3(x - 7.5f, 0f, z - 7.5f), Vector3.up);
-            root.localScale = Vector3.zero;
-            var wall = Lit(shader, ProceduralArt.StoneTexture(), 0.12f);
-            wall.color = new Color(0.92f, 0.88f, 0.80f);
-            var roof = Lit(shader, ProceduralArt.MossTexture(), 0.1f);
-            roof.color = new Color(0.46f, 0.60f, 0.44f);
-            var wood = Lit(shader, ProceduralArt.WoodTexture(), 0.1f);
-            wood.color = new Color(0.55f, 0.40f, 0.30f);
-            var glow = Lit(shader, null, 0.3f);
-            glow.color = new Color(1f, 0.82f, 0.50f);
-            glow.EnableKeyword("_EMISSION");
-            glow.SetColor("_EmissionColor", new Color(2.4f, 1.6f, 0.7f));
-            GameObject Box(Material m, Vector3 p, Vector3 sc, Vector3 rot)
-            {
-                var g = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                Destroy(g.GetComponent<Collider>());
-                g.transform.SetParent(root, false);
-                g.transform.localPosition = p; g.transform.localScale = sc; g.transform.localRotation = Quaternion.Euler(rot);
-                g.GetComponent<MeshRenderer>().material = m;
-                return g;
-            }
-            Box(wall, new Vector3(0f, 0.28f, 0f), new Vector3(0.95f, 0.56f, 0.72f), Vector3.zero);
-            Box(roof, new Vector3(0f, 0.70f, 0.20f), new Vector3(1.10f, 0.06f, 0.56f), new Vector3(38f, 0f, 0f));
-            Box(roof, new Vector3(0f, 0.70f, -0.20f), new Vector3(1.10f, 0.06f, 0.56f), new Vector3(-38f, 0f, 0f));
-            Box(wood, new Vector3(0.18f, 0.20f, -0.365f), new Vector3(0.22f, 0.38f, 0.02f), Vector3.zero);
-            Box(glow, new Vector3(-0.22f, 0.32f, -0.365f), new Vector3(0.18f, 0.16f, 0.02f), Vector3.zero);
-            Box(wall, new Vector3(0.32f, 0.86f, 0.10f), new Vector3(0.12f, 0.30f, 0.12f), Vector3.zero);
-            var lampObj = new GameObject("CottageLight");
-            lampObj.transform.SetParent(root, false);
-            lampObj.transform.localPosition = new Vector3(-0.22f, 0.4f, -0.7f);
-            var lamp = lampObj.AddComponent<Light>();
-            lamp.type = LightType.Point; lamp.color = new Color(1f, 0.78f, 0.45f); lamp.range = 2.2f; lamp.intensity = 1.2f;
-            _cottageLamp = lamp;
-            _growers.Add(new Grower { T = root, Size = 1.0f, Threshold = 0.86f });
-            IslandTerrain.AddShade(x, z, 1.0f);
+            Vector3 altar = AltarGround();
+            var plot = CottagePlot.Find(IslandTerrain.Seed, new Vector2(altar.x, altar.z));
+            _cottage = new GameObject("Garden house").AddComponent<GardenCottage>();
+            _cottage.transform.SetParent(transform, false);
+            _cottage.Build(plot, shader, _diceMesh, _rockMeshes[1], IslandTerrain.Seed.Value);
+            IslandTerrain.AddShade(plot.Center.x, plot.Center.y, 1.3f);
+        }
+
+        internal void ShowHouse(CottageGrowth growth) => _cottage.Show(growth, ReducedMotion);
+
+        internal void LookAtHouse()
+        {
+            var direction = -_cottage.transform.forward + _cottage.transform.right * 0.56f;
+            Rig.FocusOnHouse(_cottage.LookAt, direction, ReducedMotion);
         }
 
         private void UpdateGrowers()
@@ -740,8 +740,9 @@ namespace DestinyGarden.Presentation
                 {
                     var rockCell = new GameObject("Rock_" + id);
                     rockCell.transform.SetParent(root.transform);
-                    rockCell.transform.position = new Vector3(x, IslandTerrain.Height(x, y) + 0.45f, y);
-                    rockCell.transform.localScale = new Vector3(1.02f, 1.85f + jitter * 0.45f, 1.0f);
+                    float height = 1.85f + jitter * 0.45f;
+                    rockCell.transform.position = new Vector3(x, IslandTerrain.Height(x, y) + height * 0.18f - 0.06f, y);
+                    rockCell.transform.localScale = new Vector3(1.02f, height, 1.0f);
                     rockCell.transform.rotation = Quaternion.Euler((jitter - 0.5f) * 8f, (id * 53) % 360, 0);
                     rockCell.AddComponent<MeshFilter>().sharedMesh = _rockMeshes[id % 3];
                     IslandTerrain.AddShade(x, y, 1.1f);
@@ -751,7 +752,6 @@ namespace DestinyGarden.Presentation
                     rr.receiveShadows = true;
                 }
                 // Soil beds are painted into the island surface (IslandTerrain.PaintBeds), not built as meshes.
-                _plantStageShown[id] = -1;
             }
 
             // Ground cover lives in IslandFlora (habitat-driven colonies), built after the cells.
@@ -760,8 +760,7 @@ namespace DestinyGarden.Presentation
         private void BuildDice(Shader shader)
         {
             // A small stone altar; the die floats above it, slowly turning and breathing.
-            var ground = CellTop(44) + new Vector3(0.35f, 0f, -0.05f);
-            ground.y = IslandTerrain.Height(ground.x, ground.z);
+            var ground = AltarGround();
             var altar = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
             Destroy(altar.GetComponent<Collider>());
             altar.name = "Altar";
@@ -771,7 +770,6 @@ namespace DestinyGarden.Presentation
             var altarMat = Lit(shader, ProceduralArt.StoneTexture(), 0.2f);
             altarMat.color = new Color(1.10f, 1.08f, 1.02f);
             altar.GetComponent<MeshRenderer>().material = altarMat;
-            AddMossCap(ground + Vector3.up * 0.26f + new Vector3(0.32f, 0f, 0.18f), 0.22f, 77);
             _altarGlow = GameObject.CreatePrimitive(PrimitiveType.Quad);
             Destroy(_altarGlow.GetComponent<Collider>());
             _altarGlow.name = "AltarGlow";
@@ -781,18 +779,19 @@ namespace DestinyGarden.Presentation
             _altarGlow.transform.localScale = Vector3.one * 1.5f;
             _altarGlowMat = IslandHarmony.GlowMaterial(ProceduralArt.GlowSprite(), new Color(0.55f, 0.95f, 1f, 0.55f), 3005);
             _altarGlow.GetComponent<MeshRenderer>().material = _altarGlowMat;
-            _diceHomePos = ground + Vector3.up * 0.92f;
+            _diceHomePos = ground + Vector3.up * 0.98f;
             _diceHomeRot = Quaternion.Euler(-16f, 30f, 6f);
 
             _dice = new GameObject("Dice");
             _dice.transform.SetParent(transform);
             _dice.transform.position = _diceHomePos;
-            _dice.transform.localScale = Vector3.one * 0.72f;
+            _dice.transform.localScale = Vector3.one * 0.86f;
             _dice.transform.rotation = _diceHomeRot;
-            _dice.AddComponent<MeshFilter>().sharedMesh = ProceduralArt.RoundedCubeMesh(0.30f);
+            _dice.AddComponent<MeshFilter>().sharedMesh = _diceMesh;
             var diceRenderer = _dice.AddComponent<MeshRenderer>();
-            var diceMat = Lit(shader, ProceduralArt.StoneTexture(), 0.35f);
-            diceMat.color = new Color(1.60f, 1.55f, 1.40f);
+            var diceMat = Lit(shader, ProceduralArt.IvoryTexture(), 0.43f);
+            diceMat.EnableKeyword("_EMISSION");
+            diceMat.SetColor("_EmissionColor", new Color(0.042f, 0.033f, 0.022f));
             diceRenderer.material = diceMat;
             diceRenderer.shadowCastingMode = ShadowCastingMode.On;
             diceRenderer.receiveShadows = true;
@@ -801,9 +800,15 @@ namespace DestinyGarden.Presentation
             pipMat.EnableKeyword("_EMISSION");
             pipMat.SetColor("_EmissionColor", PipEmission);
             _pipMat = pipMat;
-            BuildTopPips(pipMat);
-            AddPips(pipMat, Vector3.forward, 1);
-            AddPips(pipMat, Vector3.right, 1);
+            var socketMat = Lit(shader, null, 0.22f);
+            socketMat.color = new Color(0.08f, 0.18f, 0.18f);
+            for (int i = 0; i < 9; i++)
+            {
+                float x = (i % 3 - 1) * 0.24f, z = (i / 3 - 1) * 0.24f;
+                _topPips.Add(BuildPip(Vector3.up, new Vector3(x, 0f, z), pipMat, socketMat));
+            }
+            BuildPip(Vector3.forward, Vector3.zero, pipMat, socketMat);
+            BuildPip(Vector3.right, Vector3.zero, pipMat, socketMat);
             SetDiceFace(5);
 
             _focusRing = new GameObject("FocusRing");
@@ -826,19 +831,36 @@ namespace DestinyGarden.Presentation
             _focusRing.SetActive(false);
         }
 
-        private void BuildTopPips(Material pipMat)
+        private Vector3 AltarGround()
         {
-            for (int i = 0; i < 9; i++)
+            var ground = CellTop(44) + new Vector3(0.35f, 0f, -0.05f);
+            ground.y = IslandTerrain.Height(ground.x, ground.z);
+            return ground;
+        }
+
+        private GameObject BuildPip(Vector3 normal, Vector3 offset, Material pipMat, Material socketMat)
+        {
+            var pip = new GameObject("Pip");
+            pip.transform.SetParent(_dice.transform, false);
+            pip.transform.localPosition = normal * 0.5f + offset;
+            pip.transform.localRotation = Quaternion.FromToRotation(Vector3.up, normal);
+
+            void Inlay(string name, float diameter, float depth, float lift, Material material)
             {
-                var pip = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-                pip.transform.SetParent(_dice.transform, false);
-                float x = (i % 3 - 1) * 0.24f, z = (i / 3 - 1) * 0.24f;
-                pip.transform.localPosition = new Vector3(x, 0.485f, z);
-                pip.transform.localScale = Vector3.one * 0.115f;
-                pip.GetComponent<Renderer>().material = pipMat;
-                Destroy(pip.GetComponent<Collider>());
-                _topPips.Add(pip);
+                var part = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                part.name = name;
+                part.transform.SetParent(pip.transform, false);
+                part.transform.localPosition = Vector3.up * lift;
+                part.transform.localScale = new Vector3(diameter, depth, diameter);
+                var renderer = part.GetComponent<Renderer>();
+                renderer.sharedMaterial = material;
+                renderer.shadowCastingMode = ShadowCastingMode.Off;
+                Destroy(part.GetComponent<Collider>());
             }
+
+            Inlay("Socket", 0.143f, 0.024f, 0.002f, socketMat);
+            Inlay("Gem", 0.103f, 0.036f, 0.009f, pipMat);
+            return pip;
         }
 
         /// <summary>Shows the rolled face number as glowing pips on the dice top.</summary>
@@ -857,34 +879,9 @@ namespace DestinyGarden.Presentation
             _pipMat.SetColor("_EmissionColor", lucky ? LuckyPipEmission : PipEmission);
         }
 
-        private void AddPips(Material pipMat, Vector3 normal, int count)
-        {
-            Vector2[] layouts = count == 1 ? new[] { new Vector2(0, 0) }
-                : count == 3 ? new[] { new Vector2(-0.24f, -0.24f), new Vector2(0, 0), new Vector2(0.24f, 0.24f) }
-                : new[] { new Vector2(-0.24f, -0.24f), new Vector2(0.24f, -0.24f), new Vector2(0, 0), new Vector2(-0.24f, 0.24f), new Vector2(0.24f, 0.24f) };
-            Vector3 right = normal == Vector3.up ? Vector3.right : Vector3.Cross(Vector3.up, normal).normalized;
-            Vector3 up = normal == Vector3.up ? Vector3.forward : Vector3.up;
-            foreach (var p in layouts)
-            {
-                var pip = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-                pip.transform.SetParent(_dice.transform, false);
-                pip.transform.localPosition = normal * 0.485f + right * p.x + up * p.y;
-                pip.transform.localScale = Vector3.one * 0.115f;
-                pip.GetComponent<Renderer>().material = pipMat;
-                Destroy(pip.GetComponent<Collider>());
-            }
-        }
-
         private void BuildParticles(Shader unlit)
         {
             var glowTex = ProceduralArt.GlowSprite();
-            _pollen = MakeParticles("Pollen", 150, new Color(1f, 0.92f, 0.62f, 0.75f), 0.055f, 8f, unlit, glowTex);
-            var pollenMain = _pollen.main; pollenMain.startSpeed = 0.22f;
-            _pollen.transform.position = new Vector3(7.5f, 2.0f, 7.5f);
-            var shape = _pollen.shape;
-            shape.shapeType = ParticleSystemShapeType.Box;
-            shape.scale = new Vector3(17f, 2.6f, 17f);
-
             _rain = MakeParticles("Rain", 1100, new Color(0.72f, 0.90f, 1f, 0.65f), 0.045f, 1.0f, unlit, glowTex);
             var rainMain = _rain.main; rainMain.startSpeed = 7.5f; rainMain.gravityModifier = 0.35f;
             _rain.transform.position = new Vector3(7.5f, 9.5f, 7.5f);
@@ -930,7 +927,22 @@ namespace DestinyGarden.Presentation
 
         private void LateUpdate()
         {
+            if (_dof != null && _dof.active)
+            {
+                var camera = ViewCamera.transform;
+                Vector3 island = new Vector3(IslandSeed.Center.x, 1f, IslandSeed.Center.y);
+                float depth = Vector3.Dot(island - camera.position, camera.forward);
+                _dof.gaussianStart.value = Mathf.Max(37f, depth + 13f);
+                _dof.gaussianEnd.value = _dof.gaussianStart.value + 20f;
+            }
             UpdateGrowers();
+            if (_cottage != null) _cottage.UpdateAppearance(_sky, ReducedMotion, Time.deltaTime);
+            foreach (var petals in _fallingPetals)
+            {
+                if (!petals.gameObject.activeInHierarchy) continue;
+                if (ReducedMotion && !petals.isStopped) petals.Stop(false, ParticleSystemStopBehavior.StopEmittingAndClear);
+                else if (!ReducedMotion && petals.isStopped) petals.Play(false);
+            }
             if (_dice != null && !_diceRolling)
             {
                 float t = Time.time;
@@ -940,6 +952,8 @@ namespace DestinyGarden.Presentation
             if (_altarGlowMat != null)
                 _altarGlowMat.color = new Color(0.55f, 0.95f, 1f, 0.40f + 0.15f * Mathf.Sin(Time.time * 1.1f));
         }
+
+        private void OnDestroy() => Destroy(_diceMesh);
 
         private void Update()
         {
@@ -956,11 +970,6 @@ namespace DestinyGarden.Presentation
                 if (entry.Key == null) continue;
                 entry.Key.localRotation = Quaternion.Euler(
                     Mathf.Sin(t * 1.25f + entry.Value) * 2.6f, 0, Mathf.Cos(t * 1.05f + entry.Value) * 2.2f);
-            }
-            for (int i = 0; i < _mistPlanes.Count; i++)
-            {
-                var m = _mistPlanes[i];
-                m.position += new Vector3(Mathf.Sin(t * 0.07f + i * 1.7f), 0, Mathf.Cos(t * 0.05f + i)) * (0.12f * Time.deltaTime);
             }
             if (_fallMat != null) _fallMat.mainTextureOffset = new Vector2(0f, Time.time * 0.7f);
             if (_riverMat != null)
@@ -1021,16 +1030,18 @@ namespace DestinyGarden.Presentation
             var occupied = new HashSet<int>();
             foreach (var plant in state.Plants)
             {
-                occupied.Add(plant.CellId);
+                int cell = plant.CellId;
+                occupied.Add(cell);
                 // Rebuild when the stage changes or the plant has grown visibly (every 250 growth).
                 bool suited = PlantSuited(plant, state);
-                int shownKey = (int)plant.Stage * 100 + plant.Growth / 250 + (suited ? 0 : 10000) +
-                    (DestinyGarden.Domain.Flora.IndexOf(plant.Species) + 1) * 100000;
-                if (_plantStageShown[plant.CellId] != shownKey || _plantViews[plant.CellId] == null)
+                var at = PlantRoot(cell);
+                var species = PlantForms.Choose(plant, at);
+                var appearance = (plant.PlantId, species, plant.Stage, plant.Growth / 250, suited);
+                if (_shownPlants[cell] != appearance || _plantViews[cell] == null)
                 {
-                    DestroyPlantView(_plantViews[plant.CellId]);
-                    _plantViews[plant.CellId] = BuildPlant(plant);
-                    _plantStageShown[plant.CellId] = shownKey;
+                    DestroyPlantView(_plantViews[cell]);
+                    _plantViews[cell] = BuildPlant(plant, at, species, suited);
+                    _shownPlants[cell] = appearance;
                 }
             }
             for (int id = 0; id < 256; id++)
@@ -1039,7 +1050,7 @@ namespace DestinyGarden.Presentation
                 {
                     DestroyPlantView(_plantViews[id]);
                     _plantViews[id] = null;
-                    _plantStageShown[id] = -1;
+                    _shownPlants[id] = default;
                 }
             }
 
@@ -1054,36 +1065,50 @@ namespace DestinyGarden.Presentation
 
         private Material _plantMat;
 
+        private Vector3 PlantRoot(int cell)
+        {
+            var at = CellTop(cell) + IslandTerrain.PlantJitter(cell) * 0.5f;
+            at.y = IslandTerrain.Height(at.x, at.z) + 0.01f;
+            return at;
+        }
+
+        internal Vector3 PlantTip(PlantState plant)
+        {
+            var at = PlantRoot(plant.CellId);
+            return PlantForms.TipPosition(plant, at, PlantForms.Choose(plant, at));
+        }
+
         /// <summary>
         /// One swaying mesh per plant (PlantForms, DestinyGarden/Foliage), built in world space at the
         /// plant's organic position. Species follows habitat and who sowed it.
         /// </summary>
-        private GameObject BuildPlant(PlantState plant)
+        private GameObject BuildPlant(PlantState plant, Vector3 at, PlantForms.Species species, bool suited)
         {
             if (_plantMat == null)
             {
                 var fol = Shader.Find("DestinyGarden/Foliage");
                 _plantMat = new Material(fol != null ? fol : Shader.Find("Sprites/Default"));
+                _plantMat.SetFloat("_CanopyLighting", 1f);
+                _plantMat.SetFloat("_Translucency", 0.58f);
+                _plantMat.SetFloat("_WindStrength", 0.055f);
             }
-            var at = CellTop(plant.CellId) + IslandTerrain.PlantJitter(plant.CellId) * 0.5f;
-            at.y = IslandTerrain.Height(at.x, at.z) + 0.01f;
             var b = new FoliageMesh { Root = new Vector4(at.x, at.y, at.z, -1f) };
-            PlantForms.Build(b, plant, at, PlantForms.Choose(plant, at));
+            PlantForms.Build(b, plant, at, species);
             // Read clearly from the camera: scale the whole plant around its root.
-            for (int i = 0; i < b.V.Count; i++) b.V[i] = at + (b.V[i] - at) * 1.75f;
+            for (int i = 0; i < b.V.Count; i++) b.V[i] = at + (b.V[i] - at) * PlantForms.DisplayScale;
             // A plant whose place no longer suits it (Flora.Fits) looks pale and tired.
-            if (!PlantSuited(plant, _lastState))
+            if (!suited)
                 for (int i = 0; i < b.C.Count; i++)
                 {
                     var c = b.C[i];
-                    b.C[i] = new Color(Mathf.Lerp(c.r, 0.66f, 0.38f), Mathf.Lerp(c.g, 0.60f, 0.38f), Mathf.Lerp(c.b, 0.42f, 0.38f), c.a);
+                    b.C[i] = new Color(Mathf.Lerp(c.r, 0.57f, 0.24f), Mathf.Lerp(c.g, 0.53f, 0.24f), Mathf.Lerp(c.b, 0.36f, 0.24f), c.a);
                 }
             var root = new GameObject("Plant_" + plant.PlantId);
             root.transform.SetParent(transform, false);
             root.AddComponent<MeshFilter>().sharedMesh = b.ToMesh("Plant_" + plant.PlantId);
             var r = root.AddComponent<MeshRenderer>();
-            r.material = _plantMat;
-            r.shadowCastingMode = ShadowCastingMode.On;
+            r.sharedMaterial = _plantMat;
+            r.shadowCastingMode = plant.Stage >= PlantStage.Leaf ? ShadowCastingMode.On : ShadowCastingMode.Off;
             return root;
         }
 

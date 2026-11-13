@@ -12,7 +12,8 @@
     <Compile Include="../../unity/DestinyGarden/Assets/DestinyGarden/Domain/*.cs" />
     <Compile Include="../../unity/DestinyGarden/Assets/DestinyGarden/Application/*.cs" />
     <Compile Include="../../unity/DestinyGarden/Assets/DestinyGarden/Infrastructure/*.cs" />
-    <Compile Include="../../unity/DestinyGarden/Assets/DestinyGarden/Tests/EditMode/*.cs" Exclude="../../unity/DestinyGarden/Assets/DestinyGarden/Tests/EditMode/PresentationTests.cs" />
+    <Compile Include="../../unity/DestinyGarden/Assets/DestinyGarden/Tests/EditMode/*.cs"
+      Exclude="../../unity/DestinyGarden/Assets/DestinyGarden/Tests/EditMode/PresentationTests.cs;../../unity/DestinyGarden/Assets/DestinyGarden/Tests/EditMode/CottageTests.cs;../../unity/DestinyGarden/Assets/DestinyGarden/Tests/EditMode/SacredTonesTests.cs" />
     <Compile Include="UnityDebug.cs" />
   </ItemGroup>
 </Project>
