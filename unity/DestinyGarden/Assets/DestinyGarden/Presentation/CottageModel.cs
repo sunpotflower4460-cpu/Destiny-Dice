@@ -114,5 +114,79 @@ namespace DestinyGarden.Presentation
                 }
             }
         }
+
+        // Hard edges between rings preserve the profiles of the roof seams and pottery rims.
+        internal static Mesh Revolve(string name, Vector2[] profile, float startAngle = 0f, float sweep = 360f)
+        {
+            const int sides = 24;
+            var vertices = new List<Vector3>();
+            var normals = new List<Vector3>();
+            var uv = new List<Vector2>();
+            var triangles = new List<int>();
+            for (int row = 0; row + 1 < profile.Length; row++)
+            {
+                Vector2 start = profile[row], end = profile[row + 1];
+                Vector2 tangent = (end - start).normalized;
+                int first = vertices.Count;
+                for (int side = 0; side <= sides; side++)
+                {
+                    float u = side / (float)sides;
+                    float angle = (startAngle + sweep * u) * Mathf.Deg2Rad;
+                    float x = Mathf.Cos(angle), z = Mathf.Sin(angle);
+                    var normal = new Vector3(x * tangent.y, -tangent.x, z * tangent.y);
+                    vertices.Add(new Vector3(x * start.x, start.y, z * start.x));
+                    vertices.Add(new Vector3(x * end.x, end.y, z * end.x));
+                    normals.Add(normal);
+                    normals.Add(normal);
+                    uv.Add(new Vector2(u, start.y));
+                    uv.Add(new Vector2(u, end.y));
+                    if (side == sides) continue;
+                    int a = first + side * 2;
+                    triangles.Add(a);
+                    triangles.Add(a + 1);
+                    triangles.Add(a + 2);
+                    triangles.Add(a + 2);
+                    triangles.Add(a + 1);
+                    triangles.Add(a + 3);
+                }
+            }
+            var mesh = new Mesh { name = name };
+            mesh.SetVertices(vertices);
+            mesh.SetNormals(normals);
+            mesh.SetUVs(0, uv);
+            mesh.SetTriangles(triangles, 0);
+            return mesh;
+        }
+
+        internal static Mesh CreateBarrelGable(int panels)
+        {
+            var vertices = new List<Vector3>();
+            var uv = new List<Vector2>();
+            var triangles = new List<int>();
+            for (int end = -1; end <= 1; end += 2)
+            {
+                int center = vertices.Count;
+                vertices.Add(new Vector3(0f, 0f, end * 0.5f));
+                uv.Add(new Vector2(0.5f, 0f));
+                for (int i = 0; i <= panels; i++)
+                {
+                    float angle = Mathf.PI * i / panels;
+                    float x = -0.5f * Mathf.Cos(angle), y = Mathf.Sin(angle);
+                    vertices.Add(new Vector3(x, y, end * 0.5f));
+                    uv.Add(new Vector2(x + 0.5f, y));
+                    if (i == 0) continue;
+                    int tip = vertices.Count - 1;
+                    triangles.Add(center);
+                    triangles.Add(end < 0 ? tip - 1 : tip);
+                    triangles.Add(end < 0 ? tip : tip - 1);
+                }
+            }
+            var mesh = new Mesh { name = "Barrel roof gable" };
+            mesh.SetVertices(vertices);
+            mesh.SetUVs(0, uv);
+            mesh.SetTriangles(triangles, 0);
+            mesh.RecalculateNormals();
+            return mesh;
+        }
     }
 }

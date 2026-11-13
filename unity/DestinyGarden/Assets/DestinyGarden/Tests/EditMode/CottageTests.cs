@@ -18,6 +18,8 @@ namespace DestinyGarden.Tests
         [TestCase(10, CottageStage.Extension)]
         [TestCase(17, CottageStage.Extension)]
         [TestCase(18, CottageStage.Finished)]
+        [TestCase(23, CottageStage.Finished)]
+        [TestCase(24, CottageStage.Styled)]
         public void HouseBuildsInOrder(int revision, CottageStage stage)
         {
             Assert.That(CottageGrowth.Project(revision, Array.Empty<RoundSummary>()).Stage, Is.EqualTo(stage));
@@ -49,6 +51,40 @@ namespace DestinyGarden.Tests
             Assert.That(CottageGrowth.Project(10, rounds).Extension, Is.EqualTo(ElementId.Seed));
         }
 
+        [TestCase("water_rain", CottageStyle.RainHouse)]
+        [TestCase("wind_passage", CottageStyle.Windmill)]
+        [TestCase("light_beam", CottageStyle.Observatory)]
+        [TestCase("seed_scatter", CottageStyle.GreenRoof)]
+        public void LaterRollsChooseRoofAndKeepTheEarlierWing(string recipe, CottageStyle style)
+        {
+            var rounds = new List<RoundSummary>();
+            for (int i = 1; i <= 10; i++) rounds.Add(Round(i, "seed_single"));
+            for (int i = 11; i <= 18; i++) rounds.Add(Round(i, "light_soft"));
+            for (int i = 19; i <= 24; i++) rounds.Add(Round(i, recipe));
+            for (int i = 25; i <= 35; i++) rounds.Add(Round(i, "water_drop"));
+
+            Assert.That(CottageGrowth.Project(23, rounds).Style, Is.EqualTo(CottageStyle.None));
+            Assert.That(CottageGrowth.Project(24, rounds).Style, Is.EqualTo(style));
+            var later = CottageGrowth.Project(35, rounds);
+            Assert.That(later.Style, Is.EqualTo(style));
+            Assert.That(later.Extension, Is.EqualTo(ElementId.Seed));
+        }
+
+        [Test]
+        public void RoofTieUsesTheFirstResolvedFamilyInItsWindow()
+        {
+            var rounds = new List<RoundSummary> { Round(1, "seed_single"), Round(18, "light_beam") };
+            for (int i = 19; i <= 24; i++)
+                rounds.Add(Round(i, i % 2 == 1 ? "wind_breeze" : "light_soft"));
+            rounds.Add(new RoundSummary { WorldRevision = 23, RecipeId = "light_soft", Resolved = false });
+            rounds.Add(Round(24, "unknown"));
+            rounds.Reverse();
+
+            var house = CottageGrowth.Project(24, rounds);
+            Assert.That(house.Extension, Is.EqualTo(ElementId.Seed));
+            Assert.That(house.Style, Is.EqualTo(CottageStyle.Windmill));
+        }
+
         [Test]
         public void SavedRoundsRestoreTheSameHouse()
         {
@@ -59,7 +95,7 @@ namespace DestinyGarden.Tests
                 var journal = new FileJournal(path, new FixedClock());
                 var coordinator = new GardenCoordinator(journal, new FixedEntropy("house"), new SequentialIds());
                 coordinator.CreateRun();
-                for (int i = 0; i < CottageGrowth.FinishAt; i++)
+                for (int i = 0; i < CottageGrowth.StyleAt; i++)
                 {
                     Assert.That(coordinator.Prepare(), Is.Not.Null);
                     coordinator.CommitIntent("none", null);
@@ -76,8 +112,9 @@ namespace DestinyGarden.Tests
                 restored.Restore(read);
                 var restoredHouse = CottageGrowth.Project(restored.State.WorldRevision,
                     HistoryProjector.Project(read.Entries, restored.RunId));
-                Assert.That(restoredHouse.Stage, Is.EqualTo(CottageStage.Finished));
+                Assert.That(restoredHouse.Stage, Is.EqualTo(CottageStage.Styled));
                 Assert.That(restoredHouse.Extension, Is.EqualTo(original.Extension));
+                Assert.That(restoredHouse.Style, Is.EqualTo(original.Style));
                 CollectionAssert.AreEqual(saved, File.ReadAllBytes(path));
             }
             finally

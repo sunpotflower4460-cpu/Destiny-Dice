@@ -5,7 +5,7 @@ using UnityEngine.Rendering;
 
 namespace DestinyGarden.Presentation
 {
-    internal sealed class GardenCottage : MonoBehaviour
+    internal sealed partial class GardenCottage : MonoBehaviour
     {
         private const float CabinWidth = 1.48f;
         private const float CabinDepth = 1.23f;
@@ -21,7 +21,7 @@ namespace DestinyGarden.Presentation
         private Material _shadeLinen, _pathStone;
         private Shader _shader;
         private Light _lamp, _daylight, _greenhouseLamp;
-        private Transform _porch, _wing, _finish;
+        private Transform _cabinRoof, _porch, _wing, _finish, _styledRoof;
         private Transform _chime, _doorstep, _windTail;
         private CottageStage _stage;
         private ElementId _extension;
@@ -32,7 +32,7 @@ namespace DestinyGarden.Presentation
         internal CottagePlot Plot { get; private set; }
         internal string Label { get; private set; } = "小さな家";
         internal Vector3 LookAt => transform.position + transform.right * (_stage >= CottageStage.Extension ? 0.50f : 0.12f)
-            + transform.up * 0.58f - transform.forward * 0.49f;
+            + transform.up * (_stage == CottageStage.Styled ? 0.80f : 0.58f) - transform.forward * 0.49f;
 
         internal void Build(CottagePlot plot, Shader shader, Mesh roundedBox, Mesh stone, int seed)
         {
@@ -107,6 +107,8 @@ namespace DestinyGarden.Presentation
 
             var cabin = NewPart("Cottage");
             AddCabin().Build(cabin, _meshes);
+            _cabinRoof = NewPart("Cottage roof");
+            AddCabinRoof().Build(_cabinRoof, _meshes);
             var plotDetails = NewPart("Lantern and path");
             AddPath().Build(plotDetails, _meshes);
             _doorstep = NewPart("Stone doorstep");
@@ -149,11 +151,23 @@ namespace DestinyGarden.Presentation
                 BuildExtension(growth.Extension).Build(_wing, _meshes);
                 Reveal(_wing, reducedMotion);
             }
-            if (_stage == CottageStage.Finished && _finish == null)
+            if (_stage >= CottageStage.Finished && _finish == null)
             {
                 _finish = NewPart("Finished details");
                 AddFinish(growth.Extension, _finish).Build(_finish, _meshes);
                 Reveal(_finish, reducedMotion);
+            }
+            if (_stage == CottageStage.Styled && _styledRoof == null)
+            {
+                // Grow from the eaves, where the new roof meets the original walls.
+                _styledRoof = NewPart(growth.Style.ToString());
+                _styledRoof.localPosition = Vector3.up * Eave;
+                var shell = new GameObject("Roof and fittings").transform;
+                shell.SetParent(_styledRoof, false);
+                shell.localPosition = Vector3.down * Eave;
+                BuildStyle(growth.Style, shell);
+                _cabinRoof.gameObject.SetActive(false);
+                Reveal(_styledRoof, reducedMotion);
             }
             _hasProgress = true;
         }
@@ -185,7 +199,9 @@ namespace DestinyGarden.Presentation
                     Mathf.Sin(_weatherMotion * 2.3f) * 11f);
             if (_windTail != null)
                 _windTail.localRotation = Quaternion.Euler(0f, Mathf.Sin(_weatherMotion * 0.78f) * 13f, 0f);
-            if (_extension == ElementId.Water && _wing != null)
+            if (_millSails != null)
+                _millSails.localRotation = Quaternion.Euler(0f, 0f, 22f - _weatherMotion * 18f);
+            if ((_extension == ElementId.Water && _wing != null) || _rainCopper != null)
             {
                 var drift = new Vector2(_weatherMotion * 0.018f, _weatherMotion * -0.023f);
                 _water.SetTextureOffset("_BaseMap", drift);
@@ -196,6 +212,8 @@ namespace DestinyGarden.Presentation
                 _roof.SetFloat("_Smoothness", Mathf.Lerp(0.25f, 0.47f, _roofWetness));
                 _roofShade.SetFloat("_Smoothness", Mathf.Lerp(0.20f, 0.41f, _roofWetness));
                 _slate.SetFloat("_Smoothness", Mathf.Lerp(0.28f, 0.46f, _roofWetness));
+                if (_rainCopper != null)
+                    _rainCopper.SetFloat("_Smoothness", Mathf.Lerp(0.32f, 0.63f, _roofWetness));
             }
         }
 
@@ -231,9 +249,6 @@ namespace DestinyGarden.Presentation
             const float front = -CabinDepth * 0.5f;
             Foundation(model, 0f, 0f, CabinWidth + 0.07f, CabinDepth + 0.06f, 0f);
             model.Box(_plaster, new Vector3(0f, (Eave + 0.04f) * 0.5f, 0f), new Vector3(CabinWidth, Eave + 0.04f, CabinDepth));
-            model.Gable(_plaster, new Vector3(0f, Eave - 0.009f, 0f),
-                new Vector3(CabinWidth - 0.027f, Ridge - Eave + 0.013f, CabinDepth - 0.012f));
-            Roof(model, 0f, 0f, CabinWidth + 0.29f, CabinDepth + 0.26f, Eave, Ridge);
             for (int side = -1; side <= 1; side += 2)
                 for (int end = -1; end <= 1; end += 2)
                     model.Box(_trim, new Vector3(side * 0.706f, 0.43f, end * 0.593f), new Vector3(0.085f, 0.92f, 0.085f));
@@ -251,6 +266,16 @@ namespace DestinyGarden.Presentation
             Shutters(model, frontWindow, 0.41f, 0.32f);
             Window(model, new Vector3(-CabinWidth * 0.5f, 0.53f, -0.09f), 0.42f, 0.30f, 90f);
             Window(model, new Vector3(0.19f, 0.52f, -front), 0.38f, 0.30f, 180f);
+            return model;
+        }
+
+        private CottageModel AddCabinRoof()
+        {
+            var model = Model();
+            const float front = -CabinDepth * 0.5f;
+            model.Gable(_plaster, new Vector3(0f, Eave - 0.009f, 0f),
+                new Vector3(CabinWidth - 0.027f, Ridge - Eave + 0.013f, CabinDepth - 0.012f));
+            Roof(model, 0f, 0f, CabinWidth + 0.29f, CabinDepth + 0.26f, Eave, Ridge);
             model.Box(_trim, new Vector3(0f, 1.14f, front - 0.018f), new Vector3(0.20f, 0.15f, 0.065f));
             model.Box(_glow, new Vector3(0f, 1.14f, front - 0.057f), new Vector3(0.13f, 0.085f, 0.019f));
             model.Box(_wood, new Vector3(0f, Eave + 0.012f, front - 0.016f), new Vector3(CabinWidth - 0.07f, 0.055f, 0.052f));
