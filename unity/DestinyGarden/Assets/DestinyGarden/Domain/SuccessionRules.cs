@@ -105,6 +105,7 @@ namespace DestinyGarden.Domain
                 bool healthy = !s.Ecosystem.Cycles.TryGetValue(p.PlantId, out var life) || life.Stress < 12;
                 if (p.Stage != PlantStage.Flower || !healthy) { flower.Nectar = 0; continue; }
                 int refill = weather == null || weather.Id == WeatherId.Clear ? 2 : weather.Id == WeatherId.Cloudy ? 1 : 0;
+                if (s.Ecosystem.Habitat != null && HabitatRules.Suitability(Flora.Get(p.Species), s, p.CellId) < 800) refill = Math.Min(refill, 1);
                 if (Flora.Fits(Flora.Get(p.Species), s, p.CellId)) flower.Nectar = Math.Min(NectarCap, flower.Nectar + refill);
             }
         }
@@ -126,7 +127,8 @@ namespace DestinyGarden.Domain
             bool predator = kind == LivingEcosystem.Ladybird || kind == LivingEcosystem.Spider || kind == LivingEcosystem.Hoverfly;
             bool decomposer = kind == Ecology.Worm || kind == Ecology.Mushroom || kind == LivingEcosystem.Springtail || kind == LivingEcosystem.Snail;
             int Score(int c) => predator ? s.Ecosystem.Aphids[c]
-                : decomposer ? Math.Min(s.Ecosystem.Litter[c], LivingEcosystem.ResourceCap - s.Ecosystem.Nutrients[c]) : 0;
+                : decomposer ? Math.Min(s.Ecosystem.Litter[c], LivingEcosystem.ResourceCap - s.Ecosystem.Nutrients[c] +
+                    (s.Ecosystem.Habitat != null ? HabitatRules.HumusCap - s.Ecosystem.Habitat.Humus[c] : 0)) : 0;
             list.Sort((a, b) => Score(a) != Score(b) ? Score(b).CompareTo(Score(a)) : Rotation(s, a).CompareTo(Rotation(s, b)));
             return list.GetRange(0, Math.Min(cap, list.Count));
         }

@@ -27,7 +27,7 @@ namespace DestinyGarden.Domain
         public int Growth;
         public int GrowthRemainder;
         public PlantStage Stage;
-        public string OriginKind = "initialMap"; // initialMap | seedInput
+        public string OriginKind = "initialMap"; // initialMap | seedInput | ecology | vegetative
         public string SeedSourceRoundId;         // set only for seedInput plants
         public string Species;                   // ecology.v3 (Flora); null until the first ecology step sees it
 

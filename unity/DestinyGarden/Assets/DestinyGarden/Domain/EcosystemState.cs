@@ -6,6 +6,7 @@ namespace DestinyGarden.Domain
     /// <summary>Saved ecological memory. Null in pre-v4 gardens; never inferred on restore.</summary>
     public sealed class EcosystemState
     {
+        public HabitatState Habitat; // absent in saved v6 and earlier gardens
         public SuccessionState Succession; // null for gardens created under v4
         public int[] Litter = new int[GardenMapData.CellCount];
         public int[] Nutrients = new int[GardenMapData.CellCount];
@@ -24,14 +25,14 @@ namespace DestinyGarden.Domain
 
         public static EcosystemState CreateCurrent()
         {
-            var e = CreateInitial(); e.Succession = new SuccessionState { Community = new CommunityState() }; return e;
+            var e = CreateInitial(); e.Habitat = new HabitatState(); e.Succession = new SuccessionState { Community = new CommunityState() }; return e;
         }
 
         public EcosystemState Clone()
         {
             var e = new EcosystemState
             {
-                Succession = Succession?.Clone(), Litter = (int[])Litter.Clone(), Nutrients = (int[])Nutrients.Clone(),
+                Habitat = Habitat?.Clone(), Succession = Succession?.Clone(), Litter = (int[])Litter.Clone(), Nutrients = (int[])Nutrients.Clone(),
                 WetAge = (int[])WetAge.Clone(), CoverAge = (int[])CoverAge.Clone(), Aphids = (int[])Aphids.Clone()
             };
             foreach (var kv in Cycles) e.Cycles.Add(kv.Key, kv.Value.Clone());
@@ -49,6 +50,7 @@ namespace DestinyGarden.Domain
     public sealed class EcologicalLink
     {
         public string Kind, Actor, Species;
+        public string FromHabitat, ToHabitat; // optional recorded v7 context, never inferred from a later state
         public int FromCell, ToCell, Amount;
     }
 

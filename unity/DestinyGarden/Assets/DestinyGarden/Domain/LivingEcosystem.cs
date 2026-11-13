@@ -170,6 +170,7 @@ namespace DestinyGarden.Domain
                 if (!e.Cycles.ContainsKey(p.PlantId)) e.Cycles.Add(p.PlantId, new PlantCycle());
             }
 
+            if (e.Habitat != null) HabitatRules.Begin(s, r);
             if (e.Succession != null)
             {
                 SuccessionRules.AgeSeedBank(s, r);
@@ -243,6 +244,11 @@ namespace DestinyGarden.Domain
                 if (visitor == null) continue;
                 foreach (int c in visitor.Cells)
                 {
+                    if (e.Habitat != null)
+                    {
+                        HabitatRules.Decompose(s, c, actor, actor == Ecology.Worm ? 3 : 2, r);
+                        continue;
+                    }
                     int amount = Math.Min(actor == Ecology.Worm ? 3 : 2, Math.Min(e.Litter[c], ResourceCap - e.Nutrients[c]));
                     if (amount == 0) continue;
                     e.Litter[c] -= amount; e.Nutrients[c] += amount;
@@ -328,7 +334,8 @@ namespace DestinyGarden.Domain
                 if (fits && life.Stress < 12 && e.Nutrients[c] > 0 && p.Stage != PlantStage.Seed && p.Stage != PlantStage.Flower)
                 {
                     e.Nutrients[c]--;
-                    Feed(Ecology.Thrive, p, crowd >= 2 ? 4 : 12);
+                    int bonus = e.Habitat == null ? 12 : 4 + (HabitatRules.Suitability(t, s, c) - 600) * 8 / 400;
+                    Feed(Ecology.Thrive, p, crowd >= 2 ? Math.Max(1, bonus / 3) : bonus);
                 }
                 if (p.Stage == PlantStage.Flower)
                 {
@@ -458,6 +465,7 @@ namespace DestinyGarden.Domain
                 SuccessionRules.CleanMemory(s);
                 if (e.Succession.Community != null) CommunityRules.AfterActivity(s, r);
             }
+            if (e.Habitat != null) HabitatRules.End(s, r, newPlantId);
             int residents = 0;
             foreach (var visit in r.Visits)
                 if (visit.Kind != Ecology.Spirit && visit.Kind != Ecology.Fish && visit.Kind != Ecology.Petals) residents++;

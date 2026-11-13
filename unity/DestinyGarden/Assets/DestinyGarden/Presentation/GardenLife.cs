@@ -379,6 +379,16 @@ namespace DestinyGarden.Presentation
                 }
             }
             foreach (var link in eco.Relations)
+                if (link.Kind == "clonal-rooted")
+                {
+                    Vector3 from = View.CellTop(link.FromCell), to = View.CellTop(link.ToCell);
+                    for (int k = 0; k < 6; k++)
+                    {
+                        _seedGlints.transform.position = Vector3.Lerp(from, to, k / 5f) + Vector3.up * 0.08f;
+                        _seedGlints.Emit(new ParticleSystem.EmitParams { startColor = new Color(0.60f, 0.88f, 0.55f, 0.75f) }, 1);
+                    }
+                }
+            foreach (var link in eco.Relations)
                 if (link.Kind == "resident-emerged" || link.Kind == "resident-settled" || link.Kind == "refuge-moved")
                 {
                     _seedGlints.transform.position = View.CellTop(link.ToCell) + Vector3.up * 0.25f;

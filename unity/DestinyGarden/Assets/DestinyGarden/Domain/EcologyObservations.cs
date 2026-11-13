@@ -80,6 +80,12 @@ namespace DestinyGarden.Domain
             {
                 case "seed-dispersed": return e.Actor == Ecology.Bird ? $"小鳥が{plant}の実を運び、離れた土に種を残した。"
                     : e.Actor == Ecology.Fluff ? $"風に乗った{plant}の種が、東の土へ。" : $"{plant}の実った種が、そばの土にこぼれた。";
+                case "humus-formed": return $"{actor}がほどいた落ち葉の一部が、長く土を支える腐植になった。";
+                case "humus-mineralised": return "土に残った腐植から、少しずつ養分が戻った。";
+                case "clonal-rooted": return $"{plant}の" + (e.Actor == "rhizome" ? "地下茎" : "つる") +
+                    (e.FromHabitat != null && e.ToHabitat != null && e.FromHabitat != e.ToHabitat
+                        ? $"が、{e.FromHabitat}から{e.ToHabitat}の境目を越えて根づいた。" : "が伸び、そばに新しい株が根づいた。");
+                case "habitat-shifted": return $"続いていた{e.FromHabitat}が、{e.ToHabitat}の居場所へ移り変わった。";
                 case "resident-settled": return $"{actor}が、この庭に暮らす場所を見つけた。";
                 case "brood-laid": return $"{actor}が、次の命を託す卵を残した。";
                 case "resident-emerged": return $"幼い命が育ち、この庭で新しい{actor}になった。";
@@ -116,9 +122,9 @@ namespace DestinyGarden.Domain
 
         public static string Highlight(IList<EcologicalLink> links)
         {
-            foreach (string kind in new[] { "resident-emerged", "resident-settled", "refuge-moved", "brood-laid", "seed-awakened", "seed-buried", "seed-dispersed", "returned-to-soil", "recovered", "stressed", "fruited",
+            foreach (string kind in new[] { "resident-emerged", "clonal-rooted", "habitat-shifted", "resident-settled", "refuge-moved", "brood-laid", "seed-awakened", "seed-buried", "seed-dispersed", "returned-to-soil", "recovered", "stressed", "fruited",
                 "flower-rest", "nutrient-shared", "nitrogen-fixed", "predation", "decomposed", "pollinated", "nectar-fed", "seed-expired", "brood-lost", "resident-returned", "resident-left",
-                "resident-dispersed", "host-leaf-eaten", "algae-eaten", "pond-prey-eaten", "algae-grew", "pond-dried" })
+                "resident-dispersed", "host-leaf-eaten", "algae-eaten", "pond-prey-eaten", "algae-grew", "pond-dried", "humus-formed", "humus-mineralised" })
                 foreach (var e in links) if (e.Kind == kind) return Describe(e);
             return null;
         }

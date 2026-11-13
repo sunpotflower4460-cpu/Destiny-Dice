@@ -528,6 +528,8 @@ namespace DestinyGarden.Presentation
                     sb.AppendLine("土の中に残った種は、空き地や湿り、光、養分を待ちます。サクラソウ・スミレ・アネモネは休息の頃を経てから芽吹きます。\n蜂と蝶は花蜜を使い、受粉を待つ花と、長く訪れていない花へ巡ります。『庭を観察』から株や種の今を眺められます。\n");
                 if (state.Ecosystem.Succession?.Community != null)
                     sb.AppendLine("蝶・テントウムシ・ハナアブ・トンボ・カエルは、条件が続いた住み場所に定着します。卵や幼生には食べものが必要で、成体とは役割が違う命もいます。住み場所が変わってもすぐには消えず、移動や次の世代につながります。\n");
+                if (state.Ecosystem.Habitat != null)
+                    sb.AppendLine("落ち葉の一部は腐植となって土に残り、後の根を支えます。野イチゴ・タイムはつる、ハッカ・スミレは地下茎でも同種の株を広げます。親の蓄えと養分を使い、合う隣の土へ根づきます。育つ条件の中にも、よく合う場所と条件の端の場所があります。\n");
                 sb.AppendLine("<b>この庭で出会った小さな命</b>");
                 foreach (string kind in new[] { Ecology.Bee, Ecology.Butterfly, LivingEcosystem.Hoverfly, Ecology.Bird,
                     Ecology.Mushroom, Ecology.Worm, LivingEcosystem.Springtail, LivingEcosystem.Snail,
@@ -562,8 +564,10 @@ namespace DestinyGarden.Presentation
                               (works.Count > 0 ? $"　<color=#a8e6c8>→ {string.Join("・", works)}</color>" : ""));
                 if (living)
                 {
+                    string roots = state.Ecosystem.Habitat != null && HabitatRules.RootRoute(t.Id) != null
+                        ? (HabitatRules.RootRoute(t.Id) == "stolon" ? "・つるでも根づく" : "・地下茎でも増える") : "";
                     string dormancy = state.Ecosystem.Succession != null && SeedStrategies.Get(t.Id).NeedsRestSeason ? "・種は休息の頃を経てから芽吹く" : "";
-                    sb.AppendLine("　<color=#b7cdc3>" + PlantStrategies.Describe(t.Id) + dormancy + "</color>\n");
+                    sb.AppendLine("　<color=#b7cdc3>" + PlantStrategies.Describe(t.Id) + dormancy + roots + "</color>\n");
                 }
             }
             SetScrollableText(_guideText, sb.ToString());

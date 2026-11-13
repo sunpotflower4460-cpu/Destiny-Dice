@@ -243,11 +243,17 @@ namespace DestinyGarden.Presentation
                 var list = _bedWeights[i];
                 if (list != null)
                 {
-                    float sw = 0f, sm = 0f;
-                    foreach (var kv in list) { sw += kv.Value; sm += kv.Value * m[kv.Key]; }
+                    float sw = 0f, sm = 0f, sh = 0f;
+                    foreach (var kv in list)
+                    {
+                        sw += kv.Value; sm += kv.Value * m[kv.Key];
+                        if (state.Ecosystem?.Habitat != null) sh += kv.Value * state.Ecosystem.Habitat.Humus[kv.Key] / 100f;
+                    }
                     float moisture = sw > 0f ? sm / sw : 0.5f;
                     Color earth = moisture < 0.45f ? Color.Lerp(dry, moist, moisture / 0.45f)
                         : Color.Lerp(moist, wet, Mathf.Clamp01((moisture - 0.45f) / 0.40f));
+                    if (state.Ecosystem?.Habitat != null && sw > 0f)
+                        earth = Color.Lerp(earth, new Color(0.27f, 0.23f, 0.17f), Mathf.Clamp01(sh / sw) * 0.35f);
                     col = Color.Lerp(col, earth, _earthMask[i]);
                 }
                 col = Color.Lerp(col, Bank, _bankF[i] * 0.8f * green);

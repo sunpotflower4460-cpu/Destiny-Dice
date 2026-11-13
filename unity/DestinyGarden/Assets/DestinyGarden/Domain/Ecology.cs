@@ -463,7 +463,7 @@ namespace DestinyGarden.Domain
             }
             var payload = new Dictionary<string, object>
             {
-                ["rulesVersion"] = living ? (r.PostState.Ecosystem.Succession != null ?
+                ["rulesVersion"] = living && r.PostState.Ecosystem.Habitat != null ? HabitatRules.RulesVersion : living ? (r.PostState.Ecosystem.Succession != null ?
                     (r.PostState.Ecosystem.Succession.Community != null ? CommunityRules.RulesVersion : SuccessionRules.RulesVersion) : LivingEcosystem.RulesVersion) : RulesVersion,
                 ["harmony"] = r.Harmony != null ? (long)r.Harmony.Value : 0L,
                 ["star"] = r.Harmony != null ? (long)r.Harmony.Star : 0L,
@@ -477,11 +477,16 @@ namespace DestinyGarden.Domain
             {
                 var relations = new List<object>();
                 foreach (var e in r.Relations)
-                    relations.Add(new Dictionary<string, object>
+                {
+                    var relation = new Dictionary<string, object>
                     {
                         ["kind"] = e.Kind, ["actor"] = e.Actor, ["species"] = e.Species,
                         ["fromCell"] = e.FromCell, ["toCell"] = e.ToCell, ["amount"] = e.Amount
-                    });
+                    };
+                    if (e.FromHabitat != null) relation["fromHabitat"] = e.FromHabitat;
+                    if (e.ToHabitat != null) relation["toHabitat"] = e.ToHabitat;
+                    relations.Add(relation);
+                }
                 payload["relations"] = relations;
                 payload["season"] = PlantStrategies.SeasonAt(r.PostState);
             }

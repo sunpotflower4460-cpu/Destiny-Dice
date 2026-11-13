@@ -8,6 +8,7 @@ namespace DestinyGarden.Domain
     {
         public string PlantId, Label, Habitat, Origin;
         public int CellId, Stress, Nectar;
+        public int Suitability = -1, Continuity;
         public List<string> Needs = new List<string>();
     }
 
@@ -38,7 +39,8 @@ namespace DestinyGarden.Domain
                         if (m.Ancestry.TryGetValue(p.PlantId, out var ancestry))
                         {
                             bool parentAlive = s.Plants.Exists(other => other.PlantId == ancestry.ParentPlantId);
-                            reading.Origin = parentAlive ? "この庭の親株が残した種から" : "今はない親株が土に残した種から";
+                            reading.Origin = ancestry.Carrier == "stolon" ? "親株のつるが伸びて根づいた株" : ancestry.Carrier == "rhizome" ? "親株の地下茎から生まれた株"
+                                : parentAlive ? "この庭の親株が残した種から" : "今はない親株が土に残した種から";
                         }
                     }
                 }
@@ -61,6 +63,11 @@ namespace DestinyGarden.Domain
                         if (other != p && other.Stage >= PlantStage.Leaf && LivingEcosystem.Distance(other.CellId, p.CellId) <= 1 &&
                             PlantStrategies.Get(other.Species).Height >= PlantStrategies.Get(p.Species).Height) crowd++;
                     if (crowd >= 3) reading.Needs.Add("隣の株と混み合っている");
+                }
+                if (s.Ecosystem?.Habitat != null)
+                {
+                    reading.Suitability = HabitatRules.Suitability(t, s, p.CellId);
+                    reading.Continuity = HabitatInspection.Continuity(s, p.CellId);
                 }
                 list.Add(reading);
             }
@@ -89,6 +96,7 @@ namespace DestinyGarden.Domain
                 sb.AppendLine(cells == 0 ? "この居場所は、まだ庭に生まれていない。" :
                     $"落ち葉 {litter}・養分 {nutrients}　" + (species.Count == 0 ? "まだ根づいた株はない。" : string.Join("・", species)));
             }
+            sb.Append(HabitatInspection.Describe(s, habitat));
             var memory = s.Ecosystem.Succession;
             if (memory != null)
             {
@@ -113,6 +121,10 @@ namespace DestinyGarden.Domain
             foreach (var plant in readings)
             {
                 sb.AppendLine($"{plant.Label}（{plant.Habitat}）　{plant.Origin}");
+                if (plant.Suitability >= 0)
+                    sb.AppendLine("　湿り・光・硬さとの相性: " + (plant.Suitability >= 800 ? "よく合っている" : plant.Suitability >= 700 ? "合っている"
+                        : plant.Suitability >= 600 ? "育つ条件の端にいる" : "合わない条件がある") +
+                        (plant.Continuity > 0 ? $" / この居場所が{plant.Continuity}投続いている" : ""));
                 sb.AppendLine("　" + (plant.Needs.Count > 0 ? string.Join("・", plant.Needs) :
                     plant.Stress >= 12 ? "条件は戻った。負担が抜けるまで、もう少し時間が必要。" : "今の居場所の条件が合っている。") +
                     (plant.Nectar >= 0 ? (plant.Nectar > 0 ? $"　花蜜 {plant.Nectar}：訪れる命の食べもの。" : "　花蜜は補われるのを待っている。") : ""));

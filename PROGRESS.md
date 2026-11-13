@@ -2203,3 +2203,70 @@ npx --yes pnpm@10 build
 - Presentation: EcosystemResidents.cs、GardenLife.cs、GardenUi.cs
 - Tests: CommunityTests.cs（新規とmeta）、SuccessionTests.cs（v5で固定）
 - docs/unity-garden/ECOLOGY.md・ECOSYSTEM_V6.md、tools/ecology-check/README.md、PROGRESS.md
+
+## Ecology v7: 土の育ち・根の広がり・生態系の境目（2026-11-13）
+### 完了したこと
+- 「さらにブラッシュアップ」の依頼を受け、先に生きた株の働きが次の植物の居場所へ続く改修を、同じPR #30へ追加した。
+- 落ち葉を即時の養分と持続する腐植へ分配する。両方の保存上限を見て実在する落ち葉だけを分解し、二重に資源を作らない。腐植は硬さを下げ、適度な湿りで4投に1回、養分へ戻る。植物が去った後にも土の働きを残す。
+- 種類ごとの生育限界は維持し、その内側の湿り・水捌け・硬さ・光との相性を段階化した。生態による生長と花蜜の補充、サイコロ由来の種の種類選びへ反映する。
+- 野イチゴ・タイムのつる、ハッカ・スミレの地下茎を追加。同種の子株だけを作り、親の蓄え6・養分2・成長100を使う。合う隣の空き地がない時は待機し、根から1株まで、種の目覚めと合計して生態の出生2までを共有する。
+- 腐植、根の蓄え、各区画の居場所と継続時間を保存。6投以上続いた居場所が変わった時や、子株が実際の境目を越えた時は、その時の両側の環境を記録する。後の庭の状態から昔の環境を推測しない。
+- 「庭を観察」に腐植、環境が続いた区画、隣り合う異なる居場所の接点、株と土地の相性、根が広がるために待つ条件を追加。由来と図鑑では種・つる・地下茎を区別する。土の色へ腐植を反映し、根からの子株には親から隣への低い光を追加した。
+- 新規庭を `ecology.v7 / flora.v2` とした。保存済みv3〜v6には `habitat` を追加せず、各旧規則で続く。「次の来場者」から新版になる。
+### 検証結果（実際の出力）
+- `.NET SDK 8.0.428` でUnity内の実際のDomain / Application / InfrastructureとEditModeテストを直接実行した。Unity依存のPresentationTests 5件を除く既存85件＋新規16件。
+
+```text
+$ dotnet test tools/ecology-check/Ecology.Check.csproj --configuration Release --no-restore --nologo --logger 'console;verbosity=normal'
+Test Run Successful.
+Total tests: 101
+     Passed: 101
+ Total time: 43.7298 Seconds
+```
+
+- 分解の収支、保存上限、腐植の養分化、先駆けの株がいなくなった後の硬さ、相性と既存限界の整合、親の負担、待機、出生上限の共有、深い複製、観察の非破壊性、実際の草地/陰の境目を越えた履歴を確認した。
+- v7は384投×2庭×継続/64投ごとのJSON復帰の1536投。coordinatorが生成したメモリジャーナルのpayloadを正規JSONへ往復して復帰し、全投の状態ハッシュを照合した。実ファイルの384投復帰テストとは区別する（ファイルジャーナル自体のテストは既存テストに含まれる）。水量、腐植・根の蓄え・継続時間、出生数、同一セルの重複が上限内であることも確認。
+
+```text
+garden 0, restore=False: plants=36, clones=3, habitat-changes=218, humified=1254, retained-humus=663
+garden 0, restore=True:  plants=36, clones=3, habitat-changes=218, humified=1254, retained-humus=663
+garden 1, restore=False: plants=38, clones=4, habitat-changes=261, humified=1355, retained-humus=694
+garden 1, restore=True:  plants=38, clones=4, habitat-changes=261, humified=1355, retained-humus=694
+```
+
+- `clones` は実際の根からの出生数、`habitat-changes` は6投以上続いた居場所の変化数、`humified` は累計の腐植生成量、`retained-humus` は最終時点の量。同じ庭の継続/復帰は全ハッシュが一致し、異なる庭の最終ハッシュは異なる。
+- v6の1536投（定着69/99、成長10/37、最大9/10組、最後31/40株）、v5の1536投、v4の960投も従来通り通過。v3初期/24投、v4初期/48投、v5初期/96投の既知ハッシュを維持した。
+- v6改修前 `0523e33` で採取した初期/96投のハッシュを今回から固定し、v7で変わらないことを確認した。
+
+```text
+v6 initial: 9fa9c77ef7aa922143e84873086c10ca0a05304773950b3fed2289b9c6529aaf
+v6 96 rolls (v6-golden): 2963c9a052d431e2a321286ef846fa2e57fd742407a2a6fcde0da25c390c5f00
+C# 9 syntax: 65 files, 0 errors (syntax only; Unity type checking requires the editor).
+```
+
+- リポジトリ指定のpnpm 11はこの環境で依存ビルドの許可規則により起動できないため、前回同様pnpm 10で同じスクリプトを実行した。
+
+```text
+$ npx --yes pnpm@10 typecheck
+> tsc -b --noEmit
+$ npx --yes pnpm@10 test
+ Test Files  41 passed (41)
+      Tests  183 passed (183)
+$ npx --yes pnpm@10 build
+> tsc -b && vite build
+✓ 102 modules transformed.
+✓ built in 463ms
+```
+
+- Webビルドの `jeep-sqlite` による既存の `crypto` browser externalization警告は残る。VSTestは `VSTEST_ARTIFACTS_DIRECTORY` 未設定の案内を出したが、101件は正常終了した。
+- `git diff --check`: 成功。既存実験の `src/`、凍結プロトコル、`Simulation`、台帳の書き込み経路は変更していない。外部乱数API呼び出し、時刻依存、保存済みジャーナルの編集経路は追加していない。
+### 未確認・申し送り
+- Unityエディタ/実行可能なWebGLプレイヤーがこの環境にない。Unityの型解決・全EditMode・土の色と子株の光の描画・フィルタ/スクロール/タッチ入力・音・fpsは未検証。101件は実C#の.NET実行であり、Unity検証済みとは扱わない。
+- Unity 6000.3.23f1で、新しい来場者→庭の成長→腐植・相性・根の待機理由→子株の由来と境目を越えた履歴を確認する。幼生を含む既存の姿、狭いWebGL枠での観察の長文と操作、描画負荷も確認が必要。
+- 旧v3〜v6のジャーナル復帰で同じ規則が続くことをUnity側でも確認する。値は投数で進むゲームの調整値であり現実の土壌/生物の推定値ではない。配布ビルド・提出画像・ストア公開は更新せず、PR #30はUnity確認前のドラフトで継続する。
+### 触ったファイル
+- Domain: HabitatState.cs、HabitatSerializer.cs、HabitatRules.cs、HabitatInspection.cs（新規とmeta）、EcosystemState.cs、EcosystemSerializer.cs、Flora.cs、GardenTypes.cs、LivingEcosystem.cs、SuccessionRules.cs、Ecology.cs、EcologyInspection.cs、EcologyObservations.cs
+- Application: GardenCoordinator.cs、HistoryProjector.cs
+- Presentation: IslandTerrain.cs、GardenLife.cs、GardenUi.cs
+- Tests: HabitatTests.cs（新規とmeta）、CommunityTests.cs（v6で固定）
+- docs/unity-garden/ECOLOGY.md・ECOSYSTEM_V7.md、tools/ecology-check/README.md、PROGRESS.md

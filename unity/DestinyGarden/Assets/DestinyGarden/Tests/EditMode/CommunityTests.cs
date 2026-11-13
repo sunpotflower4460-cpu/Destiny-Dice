@@ -21,7 +21,7 @@ namespace DestinyGarden.Tests
         }
         private static WorldState Soil(int moisture = 600)
         {
-            var s = WorldState.CreateInitial(); s.Plants.Clear(); s.WorldRevision = 1; s.Ecosystem = EcosystemState.CreateCurrent();
+            var s = WorldState.CreateInitial(); s.Plants.Clear(); s.WorldRevision = 1; s.Ecosystem = EcosystemState.CreateCurrent(); s.Ecosystem.Habitat = null;
             for (int c = 0; c < 256; c++) s.SoilWater[c] = GardenMapData.SoilCapacity[c] * moisture / 1000;
             return s;
         }
@@ -299,7 +299,11 @@ namespace DestinyGarden.Tests
                 List<string> Play(bool resume)
                 {
                     var memory = new Memory(); var ids = new SequentialIds(); var entropy = new FixedEntropy("community-" + garden);
-                    var coord = new GardenCoordinator(memory, entropy, ids); coord.CreateRun();
+                    var coord = new GardenCoordinator(memory, entropy, ids);
+                    var initial = WorldState.CreateInitial(); initial.Ecosystem = EcosystemState.CreateCurrent(); initial.Ecosystem.Habitat = null;
+                    memory.Append("RunStarted", ids.NewId("run"), null, new Dictionary<string, object>
+                    { ["initialState"] = WorldStateSerializer.ToPayload(initial), ["ecologyPolicyVersion"] = CommunityRules.RulesVersion });
+                    coord.Restore(new JournalReadResult { ChainValid = true, Entries = memory.Entries });
                     Assert.AreEqual(CommunityRules.RulesVersion, memory.Entries[0].Payload["ecologyPolicyVersion"]);
                     var hashes = new List<string>(); int births = 0, settlements = 0, maxFamilies = 0;
                     for (int roll = 0; roll < 384; roll++)

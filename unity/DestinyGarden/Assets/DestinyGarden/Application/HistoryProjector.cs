@@ -115,7 +115,9 @@ namespace DestinyGarden.Application
                                         {
                                             Kind = link["kind"] as string, Actor = link["actor"] as string, Species = link["species"] as string,
                                             FromCell = WorldStateSerializer.ToInt(link["fromCell"]), ToCell = WorldStateSerializer.ToInt(link["toCell"]),
-                                            Amount = WorldStateSerializer.ToInt(link["amount"])
+                                            Amount = WorldStateSerializer.ToInt(link["amount"]),
+                                            FromHabitat = link.TryGetValue("fromHabitat", out object fh) ? fh as string : null,
+                                            ToHabitat = link.TryGetValue("toHabitat", out object th) ? th as string : null
                                         });
                                     }
                                 foreach (var v in (IEnumerable)ecod["visits"])

@@ -25,6 +25,7 @@ namespace DestinyGarden.Domain
                 ["coverAge"] = (int[])e.CoverAge.Clone(), ["aphids"] = (int[])e.Aphids.Clone(), ["cycles"] = cycles
             };
             if (e.Succession != null) payload["succession"] = SuccessionSerializer.ToPayload(e.Succession);
+            if (e.Habitat != null) payload["habitat"] = HabitatSerializer.ToPayload(e.Habitat);
             return payload;
         }
 
@@ -41,6 +42,8 @@ namespace DestinyGarden.Domain
                 });
             if (d.TryGetValue("succession", out object succession) && succession is IDictionary<string, object> sd)
                 e.Succession = SuccessionSerializer.FromPayload(sd);
+            if (d.TryGetValue("habitat", out object habitat) && habitat is IDictionary<string, object> hd)
+                e.Habitat = HabitatSerializer.FromPayload(hd);
             return e;
         }
 

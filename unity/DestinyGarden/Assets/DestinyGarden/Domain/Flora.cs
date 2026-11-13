@@ -125,6 +125,7 @@ namespace DestinyGarden.Domain
                 h -= t.Softens * Weight(p) / 2;
             }
             if (s.Ecosystem != null) h -= Math.Min(100, s.Ecosystem.Litter[c] * 2);
+            if (s.Ecosystem?.Habitat != null) h -= Math.Min(100, s.Ecosystem.Habitat.Humus[c] * 2);
             return Math.Max(0, Math.Min(1000, h));
         }
 
@@ -178,6 +179,7 @@ namespace DestinyGarden.Domain
             {
                 var t = fit[i];
                 int w = 2;
+                if (s.Ecosystem?.Habitat != null) w += HabitatRules.Suitability(t, s, plant.CellId) / 200;
                 if (parentSpecies != null && t.Id == parentSpecies) w += 10;
                 if (carrier == "bird" && t.Berries) w += 6;
                 if (carrier == "fluff" && t.WindSeed) w += 8;
