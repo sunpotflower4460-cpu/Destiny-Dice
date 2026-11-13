@@ -17,6 +17,8 @@ namespace DestinyGarden.Presentation
         private float _yaw, _pitch, _dist;           // current
         private float _tYaw, _tPitch, _tDist;        // wanted
         private float _homeYaw, _homePitch, _homeDist;
+        private Vector3 _aim, _wantedAim;
+        private bool _houseFocus;
         private float _spin;                         // degrees per second left over from a flick
         private int _lock;
         private bool _mouseDrag, _touchDrag;
@@ -28,11 +30,13 @@ namespace DestinyGarden.Presentation
         public float HomeDist => _homeDist;
 
         public const float MinPitch = 16f, MaxPitch = 74f, MinDist = 12f, MaxDist = 46f;
+        private float Closest => _houseFocus ? 3.1f : MinDist;
+        private float Farthest => _houseFocus ? 10f : MaxDist;
 
         public void SyncFromCamera()
         {
             if (Cam == null) return;
-            Vector3 v = Cam.transform.position - Target;
+            Vector3 v = Cam.transform.position - _aim;
             float d = Mathf.Max(0.01f, v.magnitude);
             _dist = _tDist = d;
             _yaw = _tYaw = Mathf.Atan2(v.x, v.z) * Mathf.Rad2Deg;
@@ -41,6 +45,7 @@ namespace DestinyGarden.Presentation
 
         public void CaptureHome()
         {
+            _aim = _wantedAim = Target;
             SyncFromCamera();
             _homeYaw = _yaw; _homePitch = _pitch; _homeDist = _dist;
         }
@@ -55,13 +60,40 @@ namespace DestinyGarden.Presentation
 
         public void ResetView()
         {
-            _tYaw = _yaw + Mathf.DeltaAngle(_yaw, _homeYaw);
-            _tPitch = _homePitch; _tDist = _homeDist; _spin = 0f;
+            _houseFocus = false;
+            Aim(Target, _homeYaw, _homePitch, _homeDist);
+        }
+
+        internal void FocusOnHouse(Vector3 target, Vector3 direction, bool snap)
+        {
+            if (_lock > 0) return;
+            _houseFocus = true;
+            float yaw = Mathf.Atan2(direction.x, direction.z) * Mathf.Rad2Deg;
+            Aim(target, yaw, 23f, 6.1f * Mathf.Max(1f, 1.3f / Cam.aspect));
+            if (snap)
+            {
+                _aim = _wantedAim;
+                _yaw = _tYaw;
+                _pitch = _tPitch;
+                _dist = _tDist;
+                Apply();
+            }
+        }
+
+        private void Aim(Vector3 target, float yaw, float pitch, float distance)
+        {
+            _wantedAim = target;
+            _tYaw = _yaw + Mathf.DeltaAngle(_yaw, yaw);
+            _tPitch = pitch;
+            _tDist = distance;
+            _spin = 0f;
         }
 
         /// <summary>For QA captures: set the view directly (degrees, units).</summary>
         public void SetView(float yaw, float pitch, float dist)
         {
+            _houseFocus = false;
+            _aim = _wantedAim = Target;
             _yaw = _tYaw = yaw;
             _pitch = _tPitch = Mathf.Clamp(pitch, MinPitch, MaxPitch);
             _dist = _tDist = Mathf.Clamp(dist, MinDist, MaxDist);
@@ -102,7 +134,7 @@ namespace DestinyGarden.Presentation
                 if (active >= 2)
                 {
                     float d = Vector2.Distance(p0, p1);
-                    if (_lastPinch > 0f && d > 1f) _tDist = Mathf.Clamp(_tDist * _lastPinch / d, MinDist, MaxDist);
+                    if (_lastPinch > 0f && d > 1f) _tDist = Mathf.Clamp(_tDist * _lastPinch / d, Closest, Farthest);
                     _lastPinch = d; _touchDrag = false; handled = true;
                 }
                 else if (active == 1)
@@ -123,7 +155,7 @@ namespace DestinyGarden.Presentation
                 else if (!mouse.leftButton.isPressed) _mouseDrag = false;
                 float scroll = mouse.scroll.ReadValue().y;
                 if (Mathf.Abs(scroll) > 0.01f && !OverUi(-1))
-                    _tDist = Mathf.Clamp(_tDist * (1f - Mathf.Sign(scroll) * 0.07f), MinDist, MaxDist);
+                    _tDist = Mathf.Clamp(_tDist * (1f - Mathf.Sign(scroll) * 0.07f), Closest, Farthest);
             }
 
             if (!_mouseDrag && !_touchDrag && Mathf.Abs(_spin) > 0.05f)
@@ -137,10 +169,10 @@ namespace DestinyGarden.Presentation
         {
             float cp = Mathf.Cos(_pitch * Mathf.Deg2Rad), sp = Mathf.Sin(_pitch * Mathf.Deg2Rad);
             float cy = Mathf.Cos(_yaw * Mathf.Deg2Rad), sy = Mathf.Sin(_yaw * Mathf.Deg2Rad);
-            Vector3 pos = Target + _dist * new Vector3(sy * cp, sp, cy * cp);
+            Vector3 pos = _aim + _dist * new Vector3(sy * cp, sp, cy * cp);
             // Give the mouth of the bottle room at the end of the pullback.
             float lift = Mathf.SmoothStep(0f, 6.2f, Mathf.InverseLerp(30f, MaxDist, _dist));
-            Vector3 aim = Target + Vector3.up * lift;
+            Vector3 aim = _aim + Vector3.up * lift;
             Cam.transform.SetPositionAndRotation(pos, Quaternion.LookRotation(aim - pos, Vector3.up));
         }
 
@@ -148,6 +180,7 @@ namespace DestinyGarden.Presentation
         {
             if (_lock > 0 || Cam == null) return;
             float k = 1f - Mathf.Exp(-9f * Time.unscaledDeltaTime);
+            _aim = Vector3.Lerp(_aim, _wantedAim, k);
             _yaw = Mathf.Lerp(_yaw, _tYaw, k);
             _pitch = Mathf.Lerp(_pitch, _tPitch, k);
             _dist = Mathf.Lerp(_dist, _tDist, k);

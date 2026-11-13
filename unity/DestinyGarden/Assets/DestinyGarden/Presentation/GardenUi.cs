@@ -20,6 +20,7 @@ namespace DestinyGarden.Presentation
         public Action OnHideUi;
         public Action OnAddLuckySeven;
         public Action OnResetView;
+        public Action OnViewHouse;
 
         private Font _font;
         private Text _header;
@@ -27,6 +28,7 @@ namespace DestinyGarden.Presentation
         private Image _messageBacking;
         private Text _status;
         private Button _rollButton;
+        private Text _houseViewLabel;
         private readonly Button[] _faceChips = new Button[7];
         private string _luckyChipMode = "hidden"; // hidden | offer | face
         private Button _wishToggle;
@@ -257,6 +259,11 @@ namespace DestinyGarden.Presentation
                 "図鑑", 20, () => TogglePanel(_guidePanel));
             MakeChip(parent, new Vector2(1f, 1f), new Vector2(-96f, -466f), new Vector2(150f, 48f),
                 "視点を戻す", 18, () => OnResetView?.Invoke());
+            var houseView = MakeChip(parent, new Vector2(1f, 1f), new Vector2(-96f, -530f), new Vector2(150f, 56f),
+                "家を見る", 18, () => OnViewHouse?.Invoke());
+            SetLine(houseView, new Color(0.78f, 0.62f, 0.36f, 0.65f), 1f);
+            _houseViewLabel = houseView.GetComponentInChildren<Text>();
+            _houseViewLabel.supportRichText = true;
 
             BuildGoals(parent);
             BuildPanels(parent);
@@ -374,6 +381,11 @@ namespace DestinyGarden.Presentation
         }
 
         public void SetRollEnabled(bool enabled) => _rollButton.interactable = enabled;
+
+        internal void ShowHouse(string label)
+        {
+            _houseViewLabel.text = "家を見る\n<size=13><color=#f0cb91>" + label + "</color></size>";
+        }
 
         private bool _rollPulse = true;
         /// <summary>A gentle breathing of the roll button until the first roll (so a new visitor knows where to begin).</summary>

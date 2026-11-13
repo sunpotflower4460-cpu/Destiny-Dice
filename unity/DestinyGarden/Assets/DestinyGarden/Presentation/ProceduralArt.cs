@@ -101,6 +101,14 @@ namespace DestinyGarden.Presentation
             return c;
         });
 
+        internal static Texture2D PlasterTexture() => MakeTex("Lime Plaster", 128, (u, v) =>
+        {
+            float wash = Fbm(u * 4.1f, v * 4.1f, 361, 3);
+            float sand = Fbm(u * 44f, v * 44f, 362, 2);
+            var color = Color.Lerp(new Color(0.71f, 0.62f, 0.49f), new Color(0.92f, 0.85f, 0.72f), wash);
+            return color * (0.92f + sand * 0.13f);
+        });
+
         public static Texture2D GlowSprite() => MakeTex("Glow", 64, (u, v) =>
         {
             float d = Vector2.Distance(new Vector2(u, v), new Vector2(0.5f, 0.5f)) * 2f;

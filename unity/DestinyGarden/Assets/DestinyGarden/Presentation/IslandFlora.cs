@@ -66,6 +66,7 @@ namespace DestinyGarden.Presentation
 
             var positions = new System.Random(7123 + isl.Value % 100003);
             var forms = new System.Random(9337 + isl.Value % 100019);
+            var housePlot = GetComponent<GardenView>()?.HousePlot;
             var grassRoot = Color.Lerp(isl.Moss.linear, isl.Meadow.linear, 0.43f);
             var grassTip = Color.Lerp(isl.Meadow.linear, isl.MeadowLight.linear, 0.38f) * 1.14f;
             const float step = 0.255f;
@@ -74,6 +75,7 @@ namespace DestinyGarden.Presentation
                 {
                     float x = gx + (float)(positions.NextDouble() - 0.5) * step;
                     float z = gz + (float)(positions.NextDouble() - 0.5) * step;
+                    if (housePlot != null && housePlot.Overlaps(new Vector2(x, z), 0.04f)) continue;
                     float inland = IslandTerrain.DistanceInland(x, z, out float rockiness);
                     if (inland < Mathf.Lerp(1.10f, 0.60f, rockiness)) continue;
                     float h = IslandTerrain.Height(x, z);

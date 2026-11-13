@@ -113,6 +113,7 @@ namespace DestinyGarden.Presentation
                 UnityEngine.SceneManagement.SceneManager.LoadScene(UnityEngine.SceneManagement.SceneManager.GetActiveScene().buildIndex);
             };
             _ui.OnResetView = () => { if (_view != null && _view.Rig != null) _view.Rig.ResetView(); };
+            _ui.OnViewHouse = () => _view.LookAtHouse();
             _ui.OnExport = ExportNow;
             _ui.OnAddLuckySeven = () =>
             {
@@ -405,6 +406,9 @@ namespace DestinyGarden.Presentation
             var read = _journal.ReadAll();
             var history = HistoryProjector.Project(read.Entries, _coordinator.RunId);
             _ui.RefreshHistory(history);
+            var house = CottageGrowth.Project(_coordinator.State.WorldRevision, history);
+            _view.ShowHouse(house);
+            _ui.ShowHouse(house.Label);
             var discovered = new HashSet<string>();
             foreach (var r in history) foreach (var g in r.Germinated) discovered.Add(g);
             foreach (var p in _coordinator.State.Plants) if (p.Species != null) discovered.Add(p.Species);
