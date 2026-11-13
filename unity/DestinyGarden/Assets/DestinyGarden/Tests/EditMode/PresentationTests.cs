@@ -277,7 +277,30 @@ namespace DestinyGarden.Tests
                 Assert.That(s.SunIntensity, Is.InRange(0.5f, 3f));
                 Assert.That(s.Night, Is.InRange(0f, 1f));
             }
-            Assert.Greater(SkyClock.BodyPosition(SkyClock.PhaseFor(0), false).y, 4f);
+            Assert.Greater(morning.SunVisibility, 0.8f);
+        }
+
+        [Test]
+        public void SkyClock_UsesTheSavedWeatherForCloudsAndKeepsAContinuousNightHorizon()
+        {
+            var clear = SkyClock.Evaluate(0.38f, WeatherId.Clear);
+            var cloudy = SkyClock.Evaluate(0.38f, WeatherId.Cloudy);
+            var drizzle = SkyClock.Evaluate(0.38f, WeatherId.Drizzle);
+            Assert.Less(clear.CloudCover, cloudy.CloudCover);
+            Assert.Less(cloudy.CloudCover, drizzle.CloudCover);
+            Assert.Greater(clear.SunVisibility, drizzle.SunVisibility);
+            Assert.AreEqual(clear.Night, drizzle.Night);
+
+            var dusk = SkyClock.Evaluate(0.75f);
+            var night = SkyClock.Evaluate(0.88f);
+            Assert.Greater(dusk.Twilight, clear.Twilight);
+            Assert.Greater(night.MoonVisibility, dusk.MoonVisibility);
+            Assert.That(night.MoonDirection.magnitude, Is.EqualTo(1f).Within(0.0001f));
+            Assert.Greater(night.Horizon.grayscale, night.Zenith.grayscale);
+            var midnight = SkyClock.Evaluate(0f);
+            var before = SkyClock.Evaluate(0.9999f);
+            Assert.That(Mathf.Abs(midnight.Horizon.grayscale - before.Horizon.grayscale), Is.LessThan(0.001f));
+            Assert.That(Vector3.Distance(midnight.MoonDirection, before.MoonDirection), Is.LessThan(0.01f));
         }
 
         [Test]

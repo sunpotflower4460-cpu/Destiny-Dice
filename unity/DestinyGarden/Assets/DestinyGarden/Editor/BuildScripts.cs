@@ -37,7 +37,7 @@ namespace DestinyGarden.EditorTools
             foreach (string shaderName in new[]
             {
                 "Universal Render Pipeline/Lit", "DestinyGarden/Foliage", "DestinyGarden/Glow",
-                "DestinyGarden/Glass", "DestinyGarden/Lagoon"
+                "DestinyGarden/Glass", "DestinyGarden/Lagoon", "DestinyGarden/Sky"
             })
             {
                 var shader = Shader.Find(shaderName);

@@ -29,7 +29,6 @@ namespace DestinyGarden.Presentation
         private readonly (string Id, PlantForms.Species Species, PlantStage Stage, int GrowthBand, bool Suited)[] _shownPlants =
             new (string, PlantForms.Species, PlantStage, int, bool)[GardenMapData.CellCount];
         private readonly List<KeyValuePair<Transform, float>> _swaying = new List<KeyValuePair<Transform, float>>();
-        private readonly List<Transform> _mistPlanes = new List<Transform>();
 
         private Material _soilMat;
         private Material _stoneMat;
@@ -114,7 +113,7 @@ namespace DestinyGarden.Presentation
         private SkyState _sky = SkyClock.Evaluate(SkyClock.PhaseFor(0f));
         private float _clockRolls, _clockTarget;
         private WeatherId _weatherId = WeatherId.Clear;
-        private Material _skyMat;
+        private Light _gardenLight;
         private Bloom _bloom;
         private DepthOfField _dof;
         private bool _rainbowFocus;
@@ -122,7 +121,6 @@ namespace DestinyGarden.Presentation
         private Light _cottageLamp;
         public SkyState Sky => _sky;
         public void SnapClock() { _clockRolls = _clockTarget; ApplySky(); }
-        public float Phase => SkyClock.PhaseFor(_clockRolls);
 
         /// <summary>The island's hour follows the saved rolls; transitions glide, or snap on load.</summary>
         public void SetClock(float rolls, bool snap)
@@ -134,7 +132,7 @@ namespace DestinyGarden.Presentation
         private void ApplySky()
         {
             if (_sun == null) return;
-            _sky = SkyClock.Evaluate(SkyClock.PhaseFor(_clockRolls));
+            _sky = SkyClock.Evaluate(SkyClock.PhaseFor(_clockRolls), _weatherId);
             float grey = _weatherId == WeatherId.Drizzle ? 0.6f : _weatherId == WeatherId.Cloudy ? 0.25f : 0f;
             float wi = _weatherId == WeatherId.Clear ? 1f : _weatherId == WeatherId.Cloudy ? 0.8f : 0.7f;
             _sunBase = Color.Lerp(_sky.Sun, new Color(0.78f, 0.84f, 0.92f), grey);
@@ -143,13 +141,14 @@ namespace DestinyGarden.Presentation
             _fill.color = _sky.Fill;
             _fill.intensity = _sky.FillIntensity * (_weatherId == WeatherId.Clear ? 1f : 1.25f);
             RenderSettings.ambientLight = _sky.Ambient * (_weatherId == WeatherId.Drizzle ? 0.94f : 1f);
-            var haze = _sky.Haze * 0.62f;
+            var haze = Color.Lerp(_sky.Haze * 0.62f, _sky.Horizon.gamma, _sky.Moisture * 0.35f);
             RenderSettings.fogColor = haze;
+            RenderSettings.fogStartDistance = Mathf.Lerp(30f, 23f, _sky.Moisture);
+            RenderSettings.fogEndDistance = Mathf.Lerp(63f, 51f, _sky.Moisture);
             if (ViewCamera != null) ViewCamera.backgroundColor = haze;
-            if (_skyMat != null) _skyMat.SetColor("_BaseColor", haze);
-            if (_bloom != null) _bloom.intensity.value = 0.58f * _sky.Bloom;
-            if (_lightShaft != null) _lightShaft.SetActive(_weatherId == WeatherId.Clear && _sky.Night < 0.5f);
+            if (_bloom != null) _bloom.intensity.value = 0.46f * _sky.Bloom;
             if (_cottageLamp != null) _cottageLamp.intensity = 0.3f + 1.7f * _sky.Night;
+            if (_gardenLight != null) _gardenLight.intensity = Mathf.Lerp(0.19f, 0.46f, _sky.Night);
             ApplyBalance();
         }
 
@@ -187,7 +186,6 @@ namespace DestinyGarden.Presentation
             _sun.color = Color.Lerp(_sunBase, toward, Mathf.Abs(_balance) * 0.15f);
         }
         private GameObject _focusRing;
-        private GameObject _lightShaft;
         private ParticleSystem _rain;
         private ParticleSystem _burst;
         private MaterialPropertyBlock _block;
@@ -306,7 +304,7 @@ namespace DestinyGarden.Presentation
             bloom.scatter.value = 0.64f;
             bloom.tint.value = new Color(1.0f, 0.93f, 0.86f);
             var vignette = profile.Add<Vignette>(true);
-            vignette.intensity.value = 0.22f;
+            vignette.intensity.value = 0.15f;
             vignette.smoothness.value = 0.55f;
             var split = profile.Add<SplitToning>(true);
             split.shadows.value = new Color(0.42f, 0.53f, 0.58f);
@@ -323,7 +321,7 @@ namespace DestinyGarden.Presentation
             var colors = profile.Add<ColorAdjustments>(true);
             colors.saturation.value = 1f;
             colors.postExposure.value = 0.18f;
-            colors.contrast.value = 10f;
+            colors.contrast.value = 7f;
             volume.profile = profile;
 
             var sunObj = new GameObject("Sun");
@@ -350,10 +348,11 @@ namespace DestinyGarden.Presentation
             poolObj.transform.SetParent(transform);
             poolObj.transform.position = new Vector3(7.5f, 4.2f, 7.8f);
             var pool = poolObj.AddComponent<Light>();
+            _gardenLight = pool;
             pool.type = LightType.Point;
             pool.color = new Color(1f, 0.82f, 0.58f);
             pool.range = 11f;
-            pool.intensity = 1.65f;
+            pool.intensity = 0.19f;
             pool.shadows = LightShadows.None;
 
             IslandTerrain.ShadeCasters.Clear();
@@ -368,20 +367,6 @@ namespace DestinyGarden.Presentation
 
         private void BuildEnvironment(Shader shader, Shader unlit)
         {
-            // Gradient sky dome (inside-out sphere).
-            var sky = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-            sky.name = "SkyDome";
-            sky.transform.SetParent(transform);
-            sky.transform.position = new Vector3(7.5f, 0, 7.5f);
-            sky.transform.localScale = Vector3.one * 90f;
-            var skyMat = new Material(unlit);
-            _skyMat = skyMat;
-            skyMat.SetTexture("_BaseMap", ProceduralArt.SkyTint());
-            skyMat.SetInt("_Cull", (int)UnityEngine.Rendering.CullMode.Front);
-            sky.GetComponent<Renderer>().material = skyMat;
-            sky.GetComponent<Renderer>().shadowCastingMode = ShadowCastingMode.Off;
-            Destroy(sky.GetComponent<Collider>());
-
             // One continuous terrain for the garden and its shore.
             var islandObj = new GameObject("Island");
             islandObj.transform.SetParent(transform);
@@ -479,56 +464,6 @@ namespace DestinyGarden.Presentation
             BuildCoastalRocks();
             BuildTrees();
             BuildCottage(shader);
-
-            // Drifting mist sheets around the board.
-            var mistShader = Shader.Find("Sprites/Default") ?? unlit;
-            var mistMat = new Material(mistShader);
-            var mistTex = ProceduralArt.MistSprite();
-            mistMat.SetTexture("_MainTex", mistTex);
-            mistMat.SetTexture("_BaseMap", mistTex);
-            mistMat.color = new Color(0.90f, 0.94f, 1.0f, 0.14f);
-            mistMat.SetColor("_BaseColor", new Color(0.90f, 0.94f, 1.0f, 0.14f));
-            mistMat.SetFloat("_Surface", 1f);
-            mistMat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
-            mistMat.SetFloat("_ZWrite", 0f);
-            mistMat.renderQueue = 3100;
-            mistMat.SetInt("_Cull", (int)UnityEngine.Rendering.CullMode.Off);
-            for (int i = 0; i < 6; i++)
-            {
-                var plane = GameObject.CreatePrimitive(PrimitiveType.Plane);
-                plane.name = "Mist";
-                plane.transform.SetParent(transform);
-                float a = i / 6f * Mathf.PI * 2f + 0.5f;
-                plane.transform.position = new Vector3(7.5f + Mathf.Cos(a) * 15.5f, -0.55f + (i % 2) * 0.12f, 7.5f + Mathf.Sin(a) * 15.5f);
-                plane.transform.rotation = Quaternion.Euler(0, i * 61f, 0);
-                plane.transform.localScale = new Vector3(0.85f, 1f, 0.5f);
-                plane.GetComponent<Renderer>().material = mistMat;
-                plane.GetComponent<Renderer>().shadowCastingMode = ShadowCastingMode.Off;
-                Destroy(plane.GetComponent<Collider>());
-                _mistPlanes.Add(plane.transform);
-            }
-
-            // Warm light shaft from the upper left (clear-weather accent).
-            _lightShaft = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-            _lightShaft.name = "LightShaft";
-            _lightShaft.transform.SetParent(transform);
-            _lightShaft.transform.position = new Vector3(3.2f, 7.5f, 4.2f);
-            _lightShaft.transform.rotation = Quaternion.Euler(24f, 0, 34f);
-            _lightShaft.transform.localScale = new Vector3(4.6f, 8.5f, 4.6f);
-            var shaftMat = new Material(Shader.Find("Sprites/Default") ?? unlit);
-            var shaftTex = ProceduralArt.MistSprite();
-            shaftMat.SetTexture("_MainTex", shaftTex);
-            shaftMat.SetTexture("_BaseMap", shaftTex);
-            shaftMat.color = new Color(1.0f, 0.85f, 0.55f, 0.08f);
-            shaftMat.SetColor("_BaseColor", new Color(1.0f, 0.85f, 0.55f, 0.08f));
-            shaftMat.SetFloat("_Surface", 1f);
-            shaftMat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
-            shaftMat.SetFloat("_ZWrite", 0f);
-            shaftMat.renderQueue = 3050;
-            shaftMat.SetInt("_Cull", (int)UnityEngine.Rendering.CullMode.Off);
-            _lightShaft.GetComponent<Renderer>().material = shaftMat;
-            _lightShaft.GetComponent<Renderer>().shadowCastingMode = ShadowCastingMode.Off;
-            Destroy(_lightShaft.GetComponent<Collider>());
         }
 
         /// <summary>A few small trees and shrubs on the back and side hills (never in front of the garden).</summary>
@@ -1007,11 +942,6 @@ namespace DestinyGarden.Presentation
                 if (entry.Key == null) continue;
                 entry.Key.localRotation = Quaternion.Euler(
                     Mathf.Sin(t * 1.25f + entry.Value) * 2.6f, 0, Mathf.Cos(t * 1.05f + entry.Value) * 2.2f);
-            }
-            for (int i = 0; i < _mistPlanes.Count; i++)
-            {
-                var m = _mistPlanes[i];
-                m.position += new Vector3(Mathf.Sin(t * 0.07f + i * 1.7f), 0, Mathf.Cos(t * 0.05f + i)) * (0.12f * Time.deltaTime);
             }
             if (_fallMat != null) _fallMat.mainTextureOffset = new Vector2(0f, Time.time * 0.7f);
             if (_riverMat != null)

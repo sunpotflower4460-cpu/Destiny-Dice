@@ -74,6 +74,7 @@ namespace DestinyGarden.Presentation
             _view.Seed = islandSeed;
             _view.Build();
             _atmosphere = gameObject.AddComponent<SacredAtmosphere>();
+            _atmosphere.View = _view;
             _atmosphere.Build();
             _wonders = gameObject.AddComponent<GardenWonders>();
             _wonders.View = _view;
@@ -186,7 +187,6 @@ namespace DestinyGarden.Presentation
         private void Update()
         {
             if (_view == null) return;
-            if (_atmosphere != null) { _atmosphere.ReducedMotion = _view.ReducedMotion; _atmosphere.SetSky(_view.Sky, _view.Phase); }
             if (_audio != null) _audio.SetScene(_vitalityNow, _harmonyNow, _birdsNow, _view.Sky.Night);
             if (_quality.Feed(Time.unscaledDeltaTime)) _view.ApplyQuality(_quality.Level);
             if (_wonders != null) _wonders.ReducedMotion = _view.ReducedMotion;

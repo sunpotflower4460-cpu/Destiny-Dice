@@ -108,6 +108,15 @@ namespace DestinyGarden.Presentation
             return new Color(1f, 1f, 1f, a * a);
         }, false);
 
+        internal static Texture2D LanternReflection() => MakeTex("Lantern reflection", 64, (u, v) =>
+        {
+            float along = Mathf.Sin(v * Mathf.PI);
+            float width = 0.13f + along * 0.22f;
+            float across = 1f - Mathf.Clamp01(Mathf.Abs(u - 0.5f) / width);
+            float ripples = 0.58f + 0.42f * Mathf.Sin(v * 43f + Mathf.Sin(v * 17f) * 0.42f);
+            return new Color(1f, 1f, 1f, along * along * across * across * ripples);
+        }, false);
+
         public static Texture2D BlossomPetalSprite() => MakeTex("Blossom Petal", 64, (u, v) =>
         {
             float x = (u - 0.5f) * 2f + 0.20f * (v - 0.5f);
@@ -271,15 +280,40 @@ namespace DestinyGarden.Presentation
             return mesh;
         }
 
-        /// <summary>White-to-grey vertical gradient (horizon bright, zenith darker); tinted by the sky colour.</summary>
-        public static Texture2D SkyTint() => MakeTex("SkyTint", 64, (u, v) =>
+        /// <summary>A tileable linear noise texture for the distant cloud layer.</summary>
+        public static Texture2D CloudNoise()
         {
-            float k = Mathf.Lerp(1f, 0.45f, Mathf.SmoothStep(0.5f, 1f, v));
-            return new Color(k, k, k, 1f);
-        }, false);
+            const int size = 128;
+            var tex = new Texture2D(size, size, TextureFormat.RGBA32, true, true)
+            {
+                name = "Cloud noise",
+                wrapMode = TextureWrapMode.Repeat,
+                filterMode = FilterMode.Trilinear
+            };
+            var pixels = new Color32[size * size];
+            for (int y = 0; y < size; y++)
+                for (int x = 0; x < size; x++)
+                {
+                    float u = x / (float)size, v = y / (float)size;
+                    float noise = PeriodicNoise(u, v, 5) * 0.54f + PeriodicNoise(u, v, 10) * 0.26f
+                        + PeriodicNoise(u, v, 20) * 0.14f + PeriodicNoise(u, v, 40) * 0.06f;
+                    byte value = (byte)Mathf.RoundToInt(255f * noise);
+                    pixels[y * size + x] = new Color32(value, value, value, 255);
+                }
+            tex.SetPixels32(pixels);
+            tex.Apply(true, true);
+            return tex;
+        }
 
-        public static Texture2D SkyGradient() => MakeTex("Sky", 64, (u, v) =>
-            Color.Lerp(new Color(0.05f, 0.14f, 0.18f), new Color(0.01f, 0.03f, 0.05f), v), false);
+        private static float PeriodicNoise(float u, float v, int period)
+        {
+            float x = u * period, y = v * period;
+            int i = Mathf.FloorToInt(x), j = Mathf.FloorToInt(y);
+            int right = (i + 1) % period, top = (j + 1) % period;
+            float a = Mathf.SmoothStep(0f, 1f, x - i), b = Mathf.SmoothStep(0f, 1f, y - j);
+            return Mathf.Lerp(Mathf.Lerp(Hash(i, j, period), Hash(right, j, period), a),
+                Mathf.Lerp(Hash(i, top, period), Hash(right, top, period), a), b);
+        }
 
         public static Texture2D RoundedPanelSprite()
         {

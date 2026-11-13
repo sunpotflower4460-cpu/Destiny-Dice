@@ -5,8 +5,7 @@ using UnityEngine.Rendering;
 namespace DestinyGarden.Presentation
 {
     /// <summary>
-    /// Presentation-only surroundings of the sacred garden: a twilight sea with a shallow
-    /// shelf and coastal surf, a ring of seven lights, and spirit motes above the garden.
+    /// Sky and sea lighting, the bottle, and the seven lights around the island.
     /// </summary>
     public sealed class SacredAtmosphere : MonoBehaviour
     {
@@ -15,8 +14,7 @@ namespace DestinyGarden.Presentation
         private Material _seaMat;
         private Transform _ring;
         private readonly List<Transform> _orbs = new List<Transform>();
-        private readonly List<Material> _pillarMats = new List<Material>();
-        public bool ReducedMotion;
+        public GardenView View;
         private LineRenderer _star;
         private int _starPoints;
         private float _starAlpha, _starTarget;
@@ -24,76 +22,95 @@ namespace DestinyGarden.Presentation
         private Material _bottleMat;
         private Material _orbMat;
         private ParticleSystem _motes;
-        private Material _starsMat, _sunMat, _moonMat;
-        private Transform _sun, _moon;
-        private float _night;
-        private Vector3 _orbBase = new Vector3(3.4f, 2.8f, 1.6f);
+        private Material _starsMat, _skyMat, _haloMat, _wakeMat, _ringMat, _harmonyMat, _motesMat;
+        private Texture2D _cloudNoise, _starlight, _coastMap, _wakeTexture;
+        private Mesh _starMesh, _seaMesh, _bottleMesh;
+        private float _motionTime;
+        private static readonly Color Warmth = new Color(0.48f, 0.19f, 0.092f);
+        private static readonly int HorizonId = Shader.PropertyToID("_DGSkyHorizon");
+        private static readonly int ZenithId = Shader.PropertyToID("_DGSkyZenith");
+        private static readonly int WarmthId = Shader.PropertyToID("_DGSkyWarmth");
+        private static readonly int SunId = Shader.PropertyToID("_DGSkySun");
+        private static readonly int MoonId = Shader.PropertyToID("_DGSkyMoon");
+        private static readonly int WeatherId = Shader.PropertyToID("_DGSkyWeather");
+        private static readonly int WaterTintId = Shader.PropertyToID("_WaterTint");
 
-        /// <summary>The sea, the lights and the sky follow the hour (SkyClock).</summary>
-        public void SetSky(SkyState sky, float phase)
+        /// <summary>The sea, the lights and the sky follow the saved hour and weather.</summary>
+        private void SetSky(SkyState sky, bool reducedMotion)
         {
-            _night = sky.Night;
-            if (_seaMat != null)
-            {
-                _seaMat.SetVector("_WaterTint", sky.SeaTint);
-                _seaMat.SetVector("_SkyTint", sky.Haze);
-            }
-            if (_orbMat != null) _orbMat.SetColor("_EmissionColor", (Vector4)_orbBase * (0.85f + 0.9f * sky.Night));
-            if (_motes != null) { var e = _motes.emission; e.rateOverTime = ReducedMotion ? 0f : 2f + 6f * sky.Night; }
-            if (_starsMat != null) _starsMat.color = new Color(1f, 1f, 1f, Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.35f, 0.9f, sky.Night)) * 0.9f);
-            PlaceBody(_sun, _sunMat, SkyClock.BodyPosition(phase, false), sky.Sun, 1f - sky.Night);
-            PlaceBody(_moon, _moonMat, SkyClock.BodyPosition(phase, true), new Color(0.86f, 0.92f, 1f), sky.Night);
+            _seaMat.SetVector(WaterTintId, sky.SeaTint);
+            Shader.SetGlobalVector(HorizonId, sky.Horizon);
+            Shader.SetGlobalVector(ZenithId, sky.Zenith);
+            Shader.SetGlobalVector(WarmthId, new Vector4(Warmth.r, Warmth.g, Warmth.b, sky.Twilight));
+            Shader.SetGlobalVector(SunId, new Vector4(sky.SunDirection.x, sky.SunDirection.y, sky.SunDirection.z, sky.SunVisibility));
+            Shader.SetGlobalVector(MoonId, new Vector4(sky.MoonDirection.x, sky.MoonDirection.y, sky.MoonDirection.z, sky.MoonVisibility));
+
+            _orbMat.SetColor("_EmissionColor", new Color(1.85f, 1.22f, 0.60f) * Mathf.Lerp(0.72f, 1.32f, sky.Night));
+            _haloMat.color = new Color(1f, 0.76f, 0.38f, Mathf.Lerp(0.24f, 0.54f, sky.Night));
+            _wakeMat.color = new Color(0.93f, 0.71f, 0.42f, Mathf.Lerp(0.10f, 0.31f, sky.Night));
+            _ringMat.color = new Color(0.85f, 0.67f, 0.35f, Mathf.Lerp(0.21f, 0.32f, sky.Night));
+            var emission = _motes.emission;
+            emission.rateOverTime = reducedMotion ? 0f : Mathf.Lerp(1.4f, 4.5f, sky.Night);
+            float dark = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.49f, 0.96f, sky.Night));
+            _starsMat.color = new Color(1f, 1f, 1f, dark * (1f - 0.46f * sky.Moisture));
         }
 
-        private static void PlaceBody(Transform t, Material m, Vector3 pos, Color color, float strength)
+        private void BuildSky()
         {
-            if (t == null) return;
-            t.position = pos;
-            float up = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(3.0f, 7f, pos.y));
-            m.color = new Color(color.r, color.g, color.b, 0.85f * up * Mathf.Clamp01(strength * 1.4f));
-        }
+            var dome = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            dome.name = "Sky dome";
+            dome.transform.SetParent(transform, false);
+            dome.transform.position = Center;
+            dome.transform.localScale = Vector3.one * 190f;
+            Destroy(dome.GetComponent<Collider>());
+            _cloudNoise = ProceduralArt.CloudNoise();
+            _skyMat = new Material(Shader.Find("DestinyGarden/Sky"));
+            _skyMat.SetTexture("_CloudNoise", _cloudNoise);
+            var renderer = dome.GetComponent<MeshRenderer>();
+            renderer.sharedMaterial = _skyMat;
+            renderer.shadowCastingMode = ShadowCastingMode.Off;
+            renderer.receiveShadows = false;
 
-        /// <summary>Stars, a sun and a moon in the sky behind the island (seen when the camera draws back).</summary>
-        private void BuildCelestial()
-        {
-            var glow = ProceduralArt.GlowSprite();
-            var starsObj = new GameObject("Stars");
-            starsObj.transform.SetParent(transform, false);
-            var ps = starsObj.AddComponent<ParticleSystem>();
-            var main = ps.main;
-            main.playOnAwake = false; main.loop = false; main.maxParticles = 220;
-            main.simulationSpace = ParticleSystemSimulationSpace.World;
-            main.startSpeed = 0f; main.startLifetime = 1e7f;
-            var em = ps.emission; em.enabled = false;
+            // One sparse, static star field extends around the full orbit of the camera.
+            const int count = 248;
+            var vertices = new Vector3[count * 4];
+            var colors = new Color[count * 4];
+            var uv = new Vector2[count * 4];
+            var triangles = new int[count * 6];
             var rng = new System.Random(2026);
-            for (int i = 0; i < 200; i++)
+            for (int i = 0; i < count; i++)
             {
-                float az = (float)rng.NextDouble() * Mathf.PI, el = 0.18f + (float)rng.NextDouble() * 1.1f;
-                var dir = new Vector3(Mathf.Cos(az) * Mathf.Cos(el), Mathf.Sin(el), Mathf.Sin(az) * Mathf.Cos(el));
-                ps.Emit(new ParticleSystem.EmitParams
-                {
-                    position = Center + dir * 38f, velocity = Vector3.zero, startLifetime = 1e7f,
-                    startSize = 0.5f + (float)rng.NextDouble() * 0.9f,
-                    startColor = new Color(1f, 0.95f, 0.9f, 0.35f + (float)rng.NextDouble() * 0.65f)
-                }, 1);
+                float height = (float)rng.NextDouble();
+                float y = Mathf.Lerp(0.025f, 0.97f, height * height);
+                float azimuth = (i * 2.399963f + (float)rng.NextDouble() * 0.16f) % (Mathf.PI * 2f);
+                float horizontal = Mathf.Sqrt(1f - y * y);
+                var normal = new Vector3(Mathf.Cos(azimuth) * horizontal, y, Mathf.Sin(azimuth) * horizontal);
+                var point = normal * 72f;
+                float size = i % 16 == 0 ? 0.24f : Mathf.Lerp(0.092f, 0.18f, (float)rng.NextDouble());
+                var right = Vector3.Cross(Vector3.up, normal).normalized * size;
+                var up = Vector3.Cross(normal, right);
+                var color = Color.Lerp(new Color(0.63f, 0.78f, 1f), new Color(1f, 0.88f, 0.72f), (float)rng.NextDouble());
+                color.a = Mathf.Lerp(0.26f, 0.74f, (float)rng.NextDouble()) * Mathf.SmoothStep(0.35f, 1f, y * 5.3f);
+                int v = i * 4, t = i * 6;
+                vertices[v] = point - right - up; vertices[v + 1] = point + right - up;
+                vertices[v + 2] = point + right + up; vertices[v + 3] = point - right + up;
+                colors[v] = colors[v + 1] = colors[v + 2] = colors[v + 3] = color;
+                uv[v] = Vector2.zero; uv[v + 1] = Vector2.right; uv[v + 2] = Vector2.one; uv[v + 3] = Vector2.up;
+                triangles[t] = v; triangles[t + 1] = v + 1; triangles[t + 2] = v + 2;
+                triangles[t + 3] = v; triangles[t + 4] = v + 2; triangles[t + 5] = v + 3;
             }
-            _starsMat = IslandHarmony.GlowMaterial(glow, new Color(1f, 1f, 1f, 0f), 2980);
-            starsObj.GetComponent<ParticleSystemRenderer>().material = _starsMat;
-
-            Transform Disc(string name, float size, out Material mat, int queue)
-            {
-                var q = GameObject.CreatePrimitive(PrimitiveType.Quad);
-                Destroy(q.GetComponent<Collider>());
-                q.name = name;
-                q.transform.SetParent(transform, false);
-                q.transform.localScale = Vector3.one * size;
-                mat = IslandHarmony.GlowMaterial(glow, new Color(1f, 1f, 1f, 0f), queue);
-                q.GetComponent<MeshRenderer>().material = mat;
-                q.AddComponent<Billboard>();
-                return q.transform;
-            }
-            _sun = Disc("Sun", 11f, out _sunMat, 2985);
-            _moon = Disc("Moon", 5f, out _moonMat, 2986);
+            _starMesh = new Mesh { name = "Distant stars", vertices = vertices, colors = colors, uv = uv, triangles = triangles };
+            var stars = new GameObject("Distant stars");
+            stars.transform.SetParent(transform, false);
+            stars.transform.position = Center;
+            stars.AddComponent<MeshFilter>().sharedMesh = _starMesh;
+            _starlight = ProceduralArt.GlowSprite();
+            _starsMat = IslandHarmony.GlowMaterial(_starlight, new Color(1f, 1f, 1f, 0f), 2980);
+            _starsMat.SetFloat("_Intensity", 1.65f);
+            var starRenderer = stars.AddComponent<MeshRenderer>();
+            starRenderer.sharedMaterial = _starsMat;
+            starRenderer.shadowCastingMode = ShadowCastingMode.Off;
+            starRenderer.receiveShadows = false;
         }
 
         public void Build()
@@ -102,17 +119,19 @@ namespace DestinyGarden.Presentation
             var sprite = Shader.Find("Sprites/Default");
 
             _seaMat = new Material(Shader.Find("DestinyGarden/Lagoon"));
-            _seaMat.SetTexture("_CoastMap", IslandTerrain.BakeCoastMap());
+            _coastMap = IslandTerrain.BakeCoastMap();
+            _seaMat.SetTexture("_CoastMap", _coastMap);
             _seaMat.SetVector("_CoastParams", new Vector4(Center.x, Center.z,
                 1f / IslandTerrain.CoastMapWidth, IslandTerrain.CoastDistanceRange));
-            var sea = MakeDisc("Sea", 45.5f, SeaLevel, _seaMat);
+            var sea = MakeDisc("Sea", 85f, SeaLevel, _seaMat);
             sea.GetComponent<MeshRenderer>().receiveShadows = true;
 
-            BuildSevenLights(lit, sprite);
+            BuildSky();
+            BuildSevenLights(lit);
             BuildMotes(sprite);
             BuildStar();
             BuildBottle();
-            BuildCelestial();
+            SetSky(View.Sky, View.ReducedMotion);
         }
 
         private GameObject MakeDisc(string name, float radius, float y, Material mat)
@@ -120,24 +139,16 @@ namespace DestinyGarden.Presentation
             var obj = new GameObject(name);
             obj.transform.SetParent(transform);
             obj.transform.position = Center + new Vector3(0f, y, 0f);
-            obj.AddComponent<MeshFilter>().sharedMesh = ProceduralArt.DiscMesh(radius, 96);
+            _seaMesh = ProceduralArt.DiscMesh(radius, 96);
+            obj.AddComponent<MeshFilter>().sharedMesh = _seaMesh;
             var r = obj.AddComponent<MeshRenderer>();
-            r.material = mat;
+            r.sharedMaterial = mat;
             r.shadowCastingMode = ShadowCastingMode.Off;
             return obj;
         }
 
-        private static Material Transparent(Shader shader, Texture2D tex, Color color, int queue)
-        {
-            var m = new Material(shader);
-            m.SetTexture("_MainTex", tex);
-            m.color = color;
-            m.renderQueue = queue;
-            return m;
-        }
-
         /// <summary>A golden circle on the sea with seven floating lights: the garden's lucky number.</summary>
-        private void BuildSevenLights(Shader lit, Shader sprite)
+        private void BuildSevenLights(Shader lit)
         {
             var ringObj = new GameObject("SevenLights");
             ringObj.transform.SetParent(transform);
@@ -145,10 +156,11 @@ namespace DestinyGarden.Presentation
             _ring = ringObj.transform;
 
             var line = ringObj.AddComponent<LineRenderer>();
-            line.material = IslandHarmony.GlowMaterial(null, new Color(0.86f, 0.66f, 0.31f, 0.35f), 2999);
+            _ringMat = IslandHarmony.GlowMaterial(null, Color.white, 2999);
+            line.sharedMaterial = _ringMat;
             line.useWorldSpace = false;
             line.loop = true;
-            line.widthMultiplier = 0.038f;
+            line.widthMultiplier = 0.028f;
             line.shadowCastingMode = ShadowCastingMode.Off;
             const int segments = 120;
             line.positionCount = segments;
@@ -158,11 +170,11 @@ namespace DestinyGarden.Presentation
                 line.SetPosition(i, new Vector3(Mathf.Cos(a) * RingRadius, 0f, Mathf.Sin(a) * RingRadius));
             }
 
-            var orbMat = new Material(lit) { color = new Color(1f, 0.95f, 0.85f) };
-            orbMat.EnableKeyword("_EMISSION");
-            orbMat.SetColor("_EmissionColor", new Color(3.4f, 2.8f, 1.6f));
-            _orbMat = orbMat;
-            var glowTex = ProceduralArt.GlowSprite();
+            _orbMat = new Material(lit) { color = new Color(1f, 0.95f, 0.85f) };
+            _orbMat.EnableKeyword("_EMISSION");
+            _haloMat = IslandHarmony.GlowMaterial(_starlight, Color.white, 3010);
+            _wakeTexture = ProceduralArt.LanternReflection();
+            _wakeMat = IslandHarmony.GlowMaterial(_wakeTexture, Color.white, 2997);
             for (int i = 0; i < 7; i++)
             {
                 float a = i / 7f * Mathf.PI * 2f + 0.2f;
@@ -170,32 +182,32 @@ namespace DestinyGarden.Presentation
                 orb.name = "Light" + (i + 1);
                 orb.transform.SetParent(_ring, false);
                 orb.transform.localPosition = new Vector3(Mathf.Cos(a) * RingRadius, 0.9f, Mathf.Sin(a) * RingRadius);
-                orb.transform.localScale = Vector3.one * 0.32f;
-                orb.GetComponent<MeshRenderer>().material = orbMat;
+                orb.transform.localScale = Vector3.one * 0.22f;
+                orb.GetComponent<MeshRenderer>().sharedMaterial = _orbMat;
                 orb.GetComponent<MeshRenderer>().shadowCastingMode = ShadowCastingMode.Off;
                 Destroy(orb.GetComponent<Collider>());
                 _orbs.Add(orb.transform);
 
-                // Soft halo and a faint pillar of light down to the water.
                 var halo = GameObject.CreatePrimitive(PrimitiveType.Quad);
                 halo.name = "Halo";
                 halo.transform.SetParent(orb.transform, false);
-                halo.transform.localScale = Vector3.one * 7f;
+                halo.transform.localScale = Vector3.one * 8.1f;
                 Destroy(halo.GetComponent<Collider>());
-                halo.GetComponent<MeshRenderer>().material =
-                    Transparent(sprite, glowTex, new Color(1f, 0.84f, 0.52f, 0.55f), 3010);
+                var haloRenderer = halo.GetComponent<MeshRenderer>();
+                haloRenderer.sharedMaterial = _haloMat;
+                haloRenderer.shadowCastingMode = ShadowCastingMode.Off;
                 halo.AddComponent<Billboard>();
 
-                var pillar = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-                pillar.name = "Pillar";
-                pillar.transform.SetParent(_ring, false);
-                pillar.transform.localPosition = new Vector3(Mathf.Cos(a) * RingRadius, 1.6f, Mathf.Sin(a) * RingRadius);
-                pillar.transform.localScale = new Vector3(0.55f, 1.6f, 0.55f);
-                Destroy(pillar.GetComponent<Collider>());
-                var pm = Transparent(sprite, ProceduralArt.MistSprite(), new Color(1f, 0.86f, 0.55f, 0.16f), 3005);
-                _pillarMats.Add(pm);
-                pillar.GetComponent<MeshRenderer>().material = pm;
-                pillar.GetComponent<MeshRenderer>().shadowCastingMode = ShadowCastingMode.Off;
+                var reflection = GameObject.CreatePrimitive(PrimitiveType.Quad);
+                reflection.name = "Lantern reflection";
+                reflection.transform.SetParent(_ring, false);
+                reflection.transform.localPosition = new Vector3(Mathf.Cos(a) * RingRadius, -0.046f, Mathf.Sin(a) * RingRadius);
+                reflection.transform.localRotation = Quaternion.Euler(90f, 0f, -a * Mathf.Rad2Deg);
+                reflection.transform.localScale = new Vector3(0.78f, 1.88f, 1f);
+                Destroy(reflection.GetComponent<Collider>());
+                var reflected = reflection.GetComponent<MeshRenderer>();
+                reflected.sharedMaterial = _wakeMat;
+                reflected.shadowCastingMode = ShadowCastingMode.Off;
             }
         }
 
@@ -226,10 +238,10 @@ namespace DestinyGarden.Presentation
             g.SetKeys(new[] { new GradientColorKey(Color.white, 0f), new GradientColorKey(Color.white, 1f) },
                 new[] { new GradientAlphaKey(0f, 0f), new GradientAlphaKey(1f, 0.25f), new GradientAlphaKey(0f, 1f) });
             fade.color = g;
-            var mat = new Material(sprite);
-            mat.SetTexture("_MainTex", ProceduralArt.GlowSprite());
-            mat.renderQueue = 3200;
-            obj.GetComponent<ParticleSystemRenderer>().material = mat;
+            _motesMat = new Material(sprite);
+            _motesMat.SetTexture("_MainTex", _starlight);
+            _motesMat.renderQueue = 3200;
+            obj.GetComponent<ParticleSystemRenderer>().sharedMaterial = _motesMat;
             _motes = ps;
             ps.Play();
         }
@@ -241,7 +253,8 @@ namespace DestinyGarden.Presentation
             obj.transform.SetParent(_ring, false);
             obj.transform.localPosition = new Vector3(0f, -0.02f, 0f);
             _star = obj.AddComponent<LineRenderer>();
-            _star.material = IslandHarmony.GlowMaterial(null, Color.white, 3001);
+            _harmonyMat = IslandHarmony.GlowMaterial(null, Color.white, 3001);
+            _star.sharedMaterial = _harmonyMat;
             _star.useWorldSpace = false;
             _star.loop = true;
             _star.widthMultiplier = 0.035f;
@@ -298,6 +311,7 @@ namespace DestinyGarden.Presentation
                     tris.Add(a); tris.Add(c2); tris.Add(b); tris.Add(b); tris.Add(c2); tris.Add(d);
                 }
             var mesh = new Mesh { name = "Bottle" };
+            _bottleMesh = mesh;
             mesh.SetVertices(verts); mesh.SetNormals(norms); mesh.SetUVs(0, uvs); mesh.SetTriangles(tris, 0);
             mesh.RecalculateBounds();
             var obj = new GameObject("Bottle");
@@ -306,15 +320,21 @@ namespace DestinyGarden.Presentation
             obj.AddComponent<MeshFilter>().sharedMesh = mesh;
             var r = obj.AddComponent<MeshRenderer>();
             _bottleMat = new Material(glass);
-            r.material = _bottleMat;
+            r.sharedMaterial = _bottleMat;
             r.shadowCastingMode = ShadowCastingMode.Off;
             r.receiveShadows = false;
         }
 
-        private void Update()
+        private void LateUpdate()
         {
-            float t = Time.time;
-            var camera = Camera.main;
+            if (View == null || _seaMat == null) return;
+            var sky = View.Sky;
+            bool reducedMotion = View.ReducedMotion;
+            SetSky(sky, reducedMotion);
+            if (!reducedMotion) _motionTime += Time.deltaTime;
+            float t = _motionTime;
+            Shader.SetGlobalVector(WeatherId, new Vector4(sky.CloudCover, sky.Night, t, 0f));
+            var camera = View.ViewCamera;
             if (_bottleMat != null && camera != null)
             {
                 float distance = Vector3.Distance(camera.transform.position, Center);
@@ -323,18 +343,17 @@ namespace DestinyGarden.Presentation
                 float outside = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(18f, 24f, distance));
                 float glass = Mathf.Max(wideShot, lowAngle * outside);
                 float overhead = 1f - 0.85f * Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.60f, 0.90f, -camera.transform.forward.y));
-                _bottleMat.SetFloat("_RimStrength", Mathf.Lerp(0.042f, 0.27f, glass) * overhead);
-                _bottleMat.SetFloat("_SpecStrength", Mathf.Lerp(0.05f, 0.34f, glass) * overhead);
+                _bottleMat.SetFloat("_RimStrength", Mathf.Lerp(0.036f, 0.21f, glass) * overhead);
+                _bottleMat.SetFloat("_SpecStrength", Mathf.Lerp(0.04f, 0.27f, glass) * overhead);
             }
             if (_star != null)
             {
                 _starAlpha = Mathf.MoveTowards(_starAlpha, _starTarget, Time.deltaTime * 0.4f);
-                float breathe = 0.75f + 0.25f * Mathf.Sin(t * 0.8f);
+                float breathe = 0.86f + 0.14f * Mathf.Sin(t * 0.8f);
                 var sc = new Color(1f, 0.86f, 0.55f, 0.20f * _starAlpha * breathe);
                 _star.startColor = sc; _star.endColor = sc;
             }
-            if (_seaMat != null) _seaMat.SetFloat("_WaterTime", ReducedMotion ? 0f : Time.timeSinceLevelLoad);
-            if (_ring != null && !ReducedMotion)
+            if (!reducedMotion)
             {
                 _ring.rotation = Quaternion.Euler(0f, t * 2.2f, 0f);
                 for (int i = 0; i < _orbs.Count; i++)
@@ -344,6 +363,27 @@ namespace DestinyGarden.Presentation
                     _orbs[i].localPosition = p;
                 }
             }
+        }
+
+        private void OnDestroy()
+        {
+            Destroy(_skyMat);
+            Destroy(_cloudNoise);
+            Destroy(_seaMat);
+            Destroy(_coastMap);
+            Destroy(_seaMesh);
+            Destroy(_starMesh);
+            Destroy(_starsMat);
+            Destroy(_starlight);
+            Destroy(_bottleMat);
+            Destroy(_bottleMesh);
+            Destroy(_orbMat);
+            Destroy(_haloMat);
+            Destroy(_ringMat);
+            Destroy(_harmonyMat);
+            Destroy(_motesMat);
+            Destroy(_wakeMat);
+            Destroy(_wakeTexture);
         }
     }
 
