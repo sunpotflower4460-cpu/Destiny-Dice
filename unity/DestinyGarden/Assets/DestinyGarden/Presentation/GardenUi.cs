@@ -361,8 +361,8 @@ namespace DestinyGarden.Presentation
             _memoryButton = MakeChip(_observationPanel.transform, new Vector2(0.5f, 1f), new Vector2(290f, -88f),
                 new Vector2(300f, 34f), "この株の歩み", 16, () =>
                 { if (_memoryView != null) { _memoryView = null; RenderObservation(); } else OpenMemory(_selectedMoment?.MemoryKey); });
-            _observationText = MakeScrollableText(_observationPanel.transform, new Vector2(940f, 360f), 18);
-            _observationText.transform.parent.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, 12f);
+            _observationText = MakeScrollableText(_observationPanel.transform, new Vector2(940f, 338f), 18);
+            _observationText.transform.parent.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, 1f);
             _observationModeButton = MakeChip(_observationPanel.transform, new Vector2(0.5f, 0f), new Vector2(-185f, 84f),
                 new Vector2(350f, 40f), "見通し・しくみを読む", 17, () =>
                 { _observationDetails = !_observationDetails; RenderObservation(); RenderHistory(); });
