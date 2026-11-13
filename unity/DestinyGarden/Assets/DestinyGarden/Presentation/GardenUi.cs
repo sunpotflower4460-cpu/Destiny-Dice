@@ -24,6 +24,7 @@ namespace DestinyGarden.Presentation
         private Font _font;
         private Text _header;
         private Text _messageCard;
+        private Image _messageBacking;
         private Text _status;
         private Button _rollButton;
         private readonly Button[] _faceChips = new Button[7];
@@ -63,8 +64,8 @@ namespace DestinyGarden.Presentation
         public GardenView View;
 
         // Glass palette: translucent deep water, pale gold for what is chosen.
-        private static readonly Color PanelColor = new Color(0.012f, 0.035f, 0.055f, 0.66f);
-        private static readonly Color ChipColor = new Color(0.02f, 0.05f, 0.075f, 0.46f);
+        private static readonly Color PanelColor = new Color(0.025f, 0.060f, 0.078f, 0.88f);
+        private static readonly Color ChipColor = new Color(0.040f, 0.087f, 0.105f, 0.82f);
         private static readonly Color ChipActive = new Color(0.86f, 0.70f, 0.40f, 0.92f);
         private static readonly Color GoldText = new Color(0.07f, 0.045f, 0.01f);
         private static readonly Color Hairline = new Color(1f, 0.93f, 0.78f, 0.16f);
@@ -78,10 +79,10 @@ namespace DestinyGarden.Presentation
         {
             switch (element)
             {
-                case "water": return new Color(0.05f, 0.16f, 0.29f, 0.72f);
-                case "wind": return new Color(0.05f, 0.19f, 0.16f, 0.72f);
-                case "light": return new Color(0.26f, 0.21f, 0.07f, 0.72f);
-                case "seed": return new Color(0.21f, 0.13f, 0.06f, 0.72f);
+                case "water": return new Color(0.045f, 0.14f, 0.24f, 0.90f);
+                case "wind": return new Color(0.045f, 0.15f, 0.13f, 0.90f);
+                case "light": return new Color(0.20f, 0.15f, 0.055f, 0.90f);
+                case "seed": return new Color(0.17f, 0.105f, 0.05f, 0.90f);
                 default: return ChipColor;
             }
         }
@@ -155,12 +156,13 @@ namespace DestinyGarden.Presentation
                 es.AddComponent<UnityEngine.InputSystem.UI.InputSystemUIInputModule>();
             }
 
-            _header = MakeText(canvasObj.transform, new Vector2(0f, 1f), new Vector2(36f, -42f),
-                new Vector2(640f, 44f), 25, TextAnchor.UpperLeft);
-            AddBacking(_header, new Vector2(10f, 5f));
+            _header = MakeText(canvasObj.transform, new Vector2(0f, 1f), new Vector2(36f, -40f),
+                new Vector2(535f, 30f), 22, TextAnchor.MiddleLeft);
+            AddBacking(_header, new Vector2(12f, 8f));
             _messageCard = MakeText(canvasObj.transform, new Vector2(0.5f, 1f), new Vector2(0f, -104f),
                 new Vector2(940f, 76f), 27, TextAnchor.MiddleCenter);
-            AddBacking(_messageCard, new Vector2(18f, 6f));
+            _messageBacking = AddBacking(_messageCard, new Vector2(18f, 6f));
+            ShowMessage(null, null);
             _status = MakeText(canvasObj.transform, new Vector2(0.5f, 0f), new Vector2(0f, 214f),
                 new Vector2(720f, 30f), 18, TextAnchor.MiddleCenter);
             AddBacking(_status, new Vector2(12f, 4f));
@@ -186,9 +188,11 @@ namespace DestinyGarden.Presentation
             _rollButton = MakeChip(canvasObj.transform, new Vector2(0.5f, 0f),
                 new Vector2(0f, 36f), new Vector2(300f, 72f), "サイコロを振る", 26,
                 () => OnRoll?.Invoke());
-            _rollButton.GetComponent<Image>().color = new Color(0.035f, 0.06f, 0.08f, 0.62f);
-            _rollButton.GetComponentInChildren<Text>().color = new Color(1f, 0.89f, 0.64f);
-            SetLine(_rollButton, GoldLine, 2f);
+            _rollButton.GetComponent<Image>().color = new Color(0.88f, 0.72f, 0.45f, 0.98f);
+            var rollLabel = _rollButton.GetComponentInChildren<Text>();
+            rollLabel.color = GoldText;
+            rollLabel.GetComponent<Shadow>().enabled = false;
+            SetLine(_rollButton, GoldLine, 1f);
 
             // Wishes and destination live in a drawer, out of sight until wanted.
             _wishToggle = MakeChip(canvasObj.transform, new Vector2(0.5f, 0f), new Vector2(-268f, 50f),
@@ -198,7 +202,7 @@ namespace DestinyGarden.Presentation
             var drawerImg = _drawer.AddComponent<Image>();
             drawerImg.sprite = Rounded;
             drawerImg.type = Image.Type.Sliced;
-            drawerImg.color = new Color(PanelColor.r, PanelColor.g, PanelColor.b, 0.66f);
+            drawerImg.color = PanelColor;
             var drawerRect = _drawer.GetComponent<RectTransform>();
             drawerRect.anchorMin = drawerRect.anchorMax = new Vector2(0f, 0f);
             drawerRect.pivot = new Vector2(0f, 0f);
@@ -252,7 +256,7 @@ namespace DestinyGarden.Presentation
             BuildTitleCard(canvasObj.transform);
         }
 
-        private void AddBacking(Text text, Vector2 pad)
+        private Image AddBacking(Text text, Vector2 pad)
         {
             var bg = new GameObject("Backing");
             var parent = text.transform.parent;
@@ -262,14 +266,15 @@ namespace DestinyGarden.Presentation
             var img = bg.AddComponent<Image>();
             img.sprite = Rounded;
             img.type = Image.Type.Sliced;
-            img.color = new Color(PanelColor.r, PanelColor.g, PanelColor.b, 0.34f);
+            img.color = new Color(PanelColor.r, PanelColor.g, PanelColor.b, 0.68f);
+            img.raycastTarget = false;
             var src = text.GetComponent<RectTransform>();
             var rect = bg.GetComponent<RectTransform>();
             rect.anchorMin = src.anchorMin; rect.anchorMax = src.anchorMax;
             rect.pivot = src.pivot;
-            rect.anchoredPosition = src.anchoredPosition + new Vector2(
-                (0.5f - src.pivot.x) * pad.x, (0.5f - src.pivot.y) * pad.y);
+            rect.anchoredPosition = src.anchoredPosition + Vector2.Scale(src.pivot * 2f - Vector2.one, pad);
             rect.sizeDelta = src.sizeDelta + pad * 2f;
+            return img;
         }
 
         /// <summary>Hides all UI except a small restore chip (photo moment).</summary>
@@ -628,7 +633,10 @@ namespace DestinyGarden.Presentation
 
         public void ShowMessage(SelectedMessage message, RollOutcome outcome)
         {
-            if (message == null) { _messageCard.text = ""; return; }
+            bool hasMessage = message != null;
+            _messageCard.gameObject.SetActive(hasMessage);
+            _messageBacking.gameObject.SetActive(hasMessage);
+            if (!hasMessage) return;
             string card = "";
             if (message.CardId != null)
             {

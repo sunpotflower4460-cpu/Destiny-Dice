@@ -12,7 +12,7 @@ namespace DestinyGarden.Presentation
     public sealed class CameraRig : MonoBehaviour
     {
         public Camera Cam;
-        public Vector3 Target = new Vector3(7.5f, 0.2f, 8.4f);
+        public Vector3 Target = new Vector3(7.5f, -0.65f, 7.5f);
 
         private float _yaw, _pitch, _dist;           // current
         private float _tYaw, _tPitch, _tDist;        // wanted

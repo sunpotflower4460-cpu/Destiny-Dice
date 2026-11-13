@@ -137,8 +137,8 @@ namespace DestinyGarden.Presentation
             var homePos = cam.transform.position;
             var homeRot = cam.transform.rotation;
             _homePos = homePos; _homeRot = homeRot;
-            var farPos = new Vector3(7.5f, 13.6f, -13.5f);
-            var farRot = Quaternion.LookRotation(new Vector3(7.5f, 5.6f, 9.0f) - farPos, Vector3.up);
+            var farPos = new Vector3(4f, 15f, -27f);
+            var farRot = Quaternion.LookRotation(new Vector3(7.5f, 5.6f, 7.5f) - farPos, Vector3.up);
             rig.Lock();
             cam.transform.SetPositionAndRotation(farPos, farRot);
             if (s_skipTitle)
@@ -297,16 +297,19 @@ namespace DestinyGarden.Presentation
             var kinds = new List<string>();
             foreach (var v in presence) kinds.Add(v.Kind);
             _ui.ShowResidents(kinds);
-            _birdsNow = kinds.Contains("bird");
+            _birdsNow = kinds.Contains(Ecology.Bird);
             UpdateHarmony(history, kinds.Count);
-            bool active = presence.Exists(v => v.Kind == Ecology.Butterfly);
+            var butterfly = presence.Find(v => v.Kind == Ecology.Butterfly);
             var tops = new List<Vector3>();
-            foreach (var plant in _coordinator.State.Plants)
-                if (plant.Stage == PlantStage.Flower)
-                    tops.Add(_view.CellTop(plant.CellId) + Vector3.up * (0.80f + plant.Growth / 2500f * 0.44f));
-            _wonders.SetButterflies(active, tops);
-            if (active && !_butterfliesShown && !_busy) _ui.ShowStatus("どこからか、蝶が。");
-            _butterfliesShown = active;
+            if (butterfly != null)
+                foreach (int cell in butterfly.Cells)
+                {
+                    var plant = _coordinator.State.PlantAt(cell);
+                    if (plant != null) tops.Add(_view.PlantTip(plant));
+                }
+            _wonders.SetButterflies(butterfly != null, tops);
+            if (butterfly != null && !_butterfliesShown && !_busy) _ui.ShowStatus("どこからか、蝶が。");
+            _butterfliesShown = butterfly != null;
         }
 
         private IEnumerator CaptureRoutine(string path, int autoRolls, bool wonders)
@@ -451,7 +454,12 @@ namespace DestinyGarden.Presentation
                 // (or, if all were in flower, to the plants the blessing reached).
                 var cells = spirit.Cells.Count > 0 ? spirit.Cells : PrayerSpirits.ReachedPlantCells(outcome.Simulation);
                 var tops = new List<Vector3>();
-                foreach (int cell in cells) tops.Add(_view.CellTop(cell) + Vector3.up * 0.75f);
+                foreach (int cell in cells)
+                {
+                    var plant = _coordinator.State.PlantAt(cell);
+                    var tip = plant != null ? _view.PlantTip(plant) : _view.CellTop(cell);
+                    tops.Add(tip + Vector3.up * 0.09f);
+                }
                 StartCoroutine(_wonders.PlayPrayerSpirits(tops));
             }
             _coordinator.Prepare();

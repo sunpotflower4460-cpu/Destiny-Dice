@@ -61,7 +61,7 @@ Shader "DestinyGarden/Glass"
                 float spec = pow(saturate(dot(r, mainLight.direction)), 48.0) * _SpecStrength;
                 // Two soft vertical bands of reflected sky along the bottle.
                 float band = smoothstep(0.035, 0.0, abs(frac(i.uv.x * 2.0 + 0.13) - 0.5) - 0.44);
-                float a = _BaseAlpha + rim * _RimStrength + spec + band * 0.035;
+                float a = _BaseAlpha + rim * _RimStrength + spec + band * min(0.035, _RimStrength * 0.2);
                 half3 col = lerp(_Tint.rgb, half3(1, 1, 1), saturate(spec + band * 0.5));
                 return half4(col, saturate(a));
             }
