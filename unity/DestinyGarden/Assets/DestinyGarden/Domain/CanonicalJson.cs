@@ -133,6 +133,7 @@ namespace DestinyGarden.Domain
                 };
                 // Written only when known, so states saved before ecology.v3 keep their exact hashes.
                 if (p.Species != null) plant["species"] = p.Species;
+                if (p.BloomRolls > 0) plant["bloomRolls"] = p.BloomRolls; // lifecycle.v1, same rule
                 plants.Add(plant);
             }
             return new Dictionary<string, object>
@@ -163,7 +164,8 @@ namespace DestinyGarden.Domain
                     Stage = (PlantStage)ToInt(d["stage"]),
                     OriginKind = d.TryGetValue("originKind", out object ok) ? (string)ok : "initialMap",
                     SeedSourceRoundId = d.TryGetValue("seedSourceRoundId", out object sr) ? sr as string : null,
-                    Species = d.TryGetValue("species", out object sp) ? sp as string : null
+                    Species = d.TryGetValue("species", out object sp) ? sp as string : null,
+                    BloomRolls = d.TryGetValue("bloomRolls", out object br) ? ToInt(br) : 0
                 });
             }
             return s;

@@ -370,6 +370,20 @@ namespace DestinyGarden.Presentation
                 float h = plant != null ? 0.12f + 0.75f * plant.Growth / 2500f : 0.15f;
                 tops.Add(View.CellTop(e.CellId) + Vector3.up * h);
             }
+            // Flowers that returned to the soil this roll (lifecycle.v1): a soft rise of light where they stood.
+            if (_glints != null && View != null)
+                foreach (var e in outcome.Ecology.Events)
+                {
+                    if (e.Kind != Lifecycle.ReturnedEvent) continue;
+                    var at = View.CellTop(e.CellId);
+                    for (int i = 0; i < 18; i++)
+                        _glints.Emit(new ParticleSystem.EmitParams
+                        {
+                            position = at + new Vector3(UnityEngine.Random.Range(-0.25f, 0.25f), UnityEngine.Random.Range(0f, 0.5f), UnityEngine.Random.Range(-0.25f, 0.25f)),
+                            velocity = ReducedMotion ? Vector3.zero : Vector3.up * UnityEngine.Random.Range(0.15f, 0.45f),
+                            startColor = new Color(1f, 0.86f, 0.62f, 0.75f), startLifetime = UnityEngine.Random.Range(1.4f, 2.4f)
+                        }, 1);
+                }
             yield return PlayRevealCore(star.Points, outcome.FaceId, previousFaceId, tops);
         }
 

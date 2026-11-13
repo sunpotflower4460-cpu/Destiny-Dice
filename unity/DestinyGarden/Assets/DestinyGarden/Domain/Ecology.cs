@@ -419,6 +419,20 @@ namespace DestinyGarden.Domain
                     Nourish(DestinyGarden.Domain.PrayerStar.GiftKind, c, r.PrayerStar.GiftGrowth);
             }
 
+            // 19. The cycle (lifecycle.v1): flowers past their span return to the soil and feed their neighbours.
+            if (ctx.FaceId > 0)
+            {
+                foreach (var gone in Lifecycle.Advance(s))
+                {
+                    r.Effects.Add(new EcologyEffect { Kind = Lifecycle.ReturnKind, CellId = gone.CellId, Species = gone.Species });
+                    r.Events.Add(new GardenEvent { Kind = Lifecycle.ReturnedEvent, PlantId = gone.PlantId, CellId = gone.CellId, Tick = 40 });
+                    var near = new List<int>();
+                    foreach (var p in s.Plants) if (Dist(p.CellId, gone.CellId) == 1 && p.Stage != PlantStage.Flower) near.Add(p.CellId);
+                    near.Sort();
+                    foreach (int c in near) Nourish(Lifecycle.HumusKind, c, Lifecycle.HumusGrowth);
+                }
+            }
+
             r.Events.AddRange(stageEvents.Events);
             return r;
         }

@@ -33,14 +33,14 @@ namespace DestinyGarden.Domain
     /// - 7 七芒星 (lucky number): the Lucky Seven face was rolled, or this face and the previous face
     ///   add up to seven (opposite faces of a die).
     /// - 8 八芒星 (the rainbow eight, abundance): a lucky number that also joins yin and yang (or answers
-    ///   the wish) while the island's harmony is at least seven.
+    ///   the wish) while the island is in full harmony (eight).
     /// </summary>
     public static class PrayerStar
     {
         public const string RulesVersion = "prayer-star.v2";
         public const string GiftKind = "star";          // EcologyEffect.Kind for the star's gift
         public const int LuckySum = 7;
-        public const int OctagramHarmony = 7;
+        public const int OctagramHarmony = 8;   // prayer-star.v2: full harmony (v1: 7)
 
         public static int GiftGrowthFor(int points) =>
             points >= 8 ? 88 : points == 7 ? 77 : points == 6 ? 16 : points == 5 ? 5 : 0;
@@ -129,14 +129,12 @@ namespace DestinyGarden.Domain
         }
 
         /// <summary>
-        /// rainbow.v3: the rainbow eight rises when the prayer star becomes eight-pointed, or as before
-        /// (rainbow.v2) when the Lucky Seven was rolled and the garden answered in the same roll.
+        /// rainbow.v3: the rainbow eight rises exactly when the prayer star becomes eight-pointed. (rainbow.v2,
+        /// the Lucky Seven rolled while the garden answered, fired once in fifteen rolls in long play once the
+        /// garden kept budding; the Lucky Seven now always makes the lucky number, and the eight from there.)
         /// </summary>
-        public static bool IsRainbow(bool luckySevenRolled, SimulationResult sim, EcologyResult eco)
-        {
-            if (eco != null && eco.PrayerStar != null && eco.PrayerStar.Points >= 8) return true;
-            return LuckySeven.IsRainbow(luckySevenRolled, sim, eco);
-        }
+        public static bool IsRainbow(bool luckySevenRolled, SimulationResult sim, EcologyResult eco) =>
+            eco != null && eco.PrayerStar != null && eco.PrayerStar.Points >= 8;
 
         public static Dictionary<string, object> ToPayload(PrayerStarReading r) => new Dictionary<string, object>
         {

@@ -43,10 +43,10 @@ namespace DestinyGarden.Tests
             Assert.AreEqual(7, seven.Points);
             Assert.IsTrue(seven.LuckyNumber);
             Assert.AreEqual(7, seven.FaceSum);
-            // Lucky number + yin/yang joined + harmony >= 7: the eight.
-            Assert.AreEqual(8, PrayerStar.Read(6, 1, "wind_breeze", "water_drop", false, 7).Points);
+            // Lucky number + yin/yang joined + full harmony (8): the eight.
+            Assert.AreEqual(8, PrayerStar.Read(6, 1, "wind_breeze", "water_drop", false, 8).Points);
             Assert.AreEqual(8, PrayerStar.Read(6, 1, "water_drop", "seed_single", true, 8).Points, "a wish also joins");
-            Assert.AreEqual(7, PrayerStar.Read(6, 1, "wind_breeze", "water_drop", false, 6).Points, "harmony below seven stays seven");
+            Assert.AreEqual(7, PrayerStar.Read(6, 1, "wind_breeze", "water_drop", false, 7).Points, "harmony below eight stays seven");
             Assert.AreEqual(7, PrayerStar.Read(6, 1, "water_drop", "seed_single", false, 8).Points, "the eight needs yin and yang joined");
             // The Lucky Seven face is always a lucky number; 7 + anything is never the opposite-face sum.
             Assert.IsTrue(PrayerStar.IsLuckyNumber(7, 0));
@@ -139,8 +139,8 @@ namespace DestinyGarden.Tests
                     Assert.LessOrEqual(g.Amount, star.GiftGrowth);
                 }
                 Assert.AreEqual(o.Simulation.PostState.TotalWater(), o.Ecology.PostState.TotalWater(), "the star never moves water");
-                Assert.AreEqual(star.Points >= 8 || LuckySeven.IsRainbow(o.LuckySeven, o.Simulation, o.Ecology),
-                    PrayerStar.IsRainbow(o.LuckySeven, o.Simulation, o.Ecology));
+                Assert.AreEqual(star.Points >= 8, PrayerStar.IsRainbow(o.LuckySeven, o.Simulation, o.Ecology),
+                    "the rainbow eight comes exactly with the eight-pointed star");
             }
             Assert.IsTrue(points.Contains(5) && points.Contains(6) && points.Contains(7),
                 "160 rolls should show the five-, six- and seven-pointed stars: " + string.Join(",", points));

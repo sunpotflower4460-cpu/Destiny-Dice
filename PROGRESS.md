@@ -2228,3 +2228,30 @@ Git diff whitespace check: pass
 ### 触ったファイル
 
 - Domain/Flora.cs、Tests/EditMode/FloraTests.cs・GardenPathsTests.cs・SoilDiagnosisTests.cs（新規）、docs/unity-garden/ECOLOGY.md §7.3a、PROGRESS.md。
+
+## Jam めぐり — 実って土に還る庭（lifecycle.v1）・虹は八芒星と一緒に（2026-11-13）
+
+### 完了したこと
+
+- 本人の判断「より仕組みとしてうまくいっている方で」: 水の量（自然シミュレーション）は変えず、長く遊ぶと庭が止まる問題を直した。
+- 調査（`LongPlayTests`、6庭×200投）: 60投で全セルが埋まり、その後は芽吹き 0、サイコロから種の面が消え、200投で全株が花になって止まっていた。
+- めぐり（Domain/Lifecycle.cs、ECOLOGY.md §9）: 花は咲いている投数を数え、種ごとの寿命（タンポポ 12、一年草 20、ほか 30）で土に還ってセルを空ける。
+  一投で1株まで。となりの株に +40。`PlantState.BloomRolls` は 0 のとき保存しない（以前の状態のハッシュは不変）。土に還った場所に光の粒。
+- 虹の八は八芒星のときだけにした（rainbow.v3）。八芒星の調和の条件を 7 → 8 に上げた（めぐりで調和が上がったため）。
+
+### 完了基準の結果（コマンド出力の要約）
+
+- Unity EditMode: `total="61" passed="61" failed="0"`（めぐりの決まり・保存・長期プレイの3件を追加）。隔離プレビューの macOS ビルド `Succeeded`。
+- 長期プレイ（6庭×200投、前 → 後）: 100投以降の芽吹き 0 → 約0.6/投、種の面 0 → 0.2〜0.4/投、200投の花 55（全株）→ 約21、種の数 12.5 で固定 → 11〜13 で入れ替わる。
+- 星（120投×6）: 五 26.3%、六 53.2%、七 17.4%、八 3.2%。虹の八 約31投に1回。調和の平均 5.7。
+- 隔離プレビューで80投後の庭を撮影: 芽・葉・蕾・花が混ざり、サイコロに種の面が戻っていることを確認。例外 0。本来の庭の台帳の SHA-256 は d605e4eb… のまま。
+
+### 要確定・申し送り
+
+- 寿命・1投1株・+40 は初期値。花が少なく感じれば寿命を延ばす（そのぶん入れ替わりは遅くなる）。
+- サイコロのまわりの七への灯（大きくした後）はまだ撮影で確認できていない（撮影用の視点が島の中心向きのため）。
+
+### 触ったファイル
+
+- Domain: Lifecycle.cs（新規）、GardenTypes.cs（BloomRolls）、CanonicalJson.cs（保存）、Ecology.cs、PrayerStar.cs。Presentation: PrayerStarSigil.cs。
+- Tests: LifecycleTests.cs・LongPlayTests.cs（新規）、EcologyTests.cs、PrayerStarTests.cs、LuckySevenTests.cs（計測の虹を現行の決まりに）。docs/unity-garden/ECOLOGY.md §8・§9、PROGRESS.md。

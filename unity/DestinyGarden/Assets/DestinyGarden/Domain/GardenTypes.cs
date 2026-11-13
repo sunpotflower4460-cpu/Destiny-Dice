@@ -30,12 +30,14 @@ namespace DestinyGarden.Domain
         public string OriginKind = "initialMap"; // initialMap | seedInput
         public string SeedSourceRoundId;         // set only for seedInput plants
         public string Species;                   // ecology.v3 (Flora); null until the first ecology step sees it
+        public int BloomRolls;                   // lifecycle.v1: rolls spent in flower (saved only when > 0)
 
         public PlantState Clone() => new PlantState
         {
             PlantId = PlantId, CellId = CellId, Growth = Growth,
             GrowthRemainder = GrowthRemainder, Stage = Stage,
-            OriginKind = OriginKind, SeedSourceRoundId = SeedSourceRoundId, Species = Species
+            OriginKind = OriginKind, SeedSourceRoundId = SeedSourceRoundId, Species = Species,
+            BloomRolls = BloomRolls
         };
     }
 
