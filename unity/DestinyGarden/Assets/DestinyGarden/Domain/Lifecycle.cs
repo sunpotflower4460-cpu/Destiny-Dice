@@ -7,12 +7,14 @@ namespace DestinyGarden.Domain
     /// The cycle of the garden (lifecycle.v1, docs/unity-garden/ECOLOGY.md §9). A flower counts the rolls it
     /// has been in bloom; when it reaches its species' span it bears its seed and returns to the soil, which
     /// frees its place and feeds the plants beside it. At most one returns in a roll, the longest past their
-    /// span first. No chance is involved; water is never moved. Without it a garden fills up after about sixty
+    /// span first. A flower that bees or butterflies visited while in bloom (lifecycle.v2) lets its seed fall on open
+    /// ground nearby as it returns; an unvisited one leaves only its nourishment. Water is never moved. Without it a garden fills up after about sixty
     /// rolls and the dice can no longer change it.
     /// </summary>
     public static class Lifecycle
     {
-        public const string RulesVersion = "lifecycle.v1";
+        public const string RulesVersion = "lifecycle.v2";
+        public const string FruitKind = "fruit";     // EcologyEffect.Kind: the seed a pollinated flower lets fall
         public const string ReturnKind = "return";   // EcologyEffect.Kind: a flower returned to the soil
         public const string HumusKind = "humus";     // EcologyEffect.Kind: a neighbour fed by it
         public const string ReturnedEvent = "Returned";

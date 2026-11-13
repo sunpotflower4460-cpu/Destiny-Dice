@@ -33,14 +33,14 @@ namespace DestinyGarden.Domain
     /// - 7 七芒星 (lucky number): the Lucky Seven face was rolled, or this face and the previous face
     ///   add up to seven (opposite faces of a die).
     /// - 8 八芒星 (the rainbow eight, abundance): a lucky number that also joins yin and yang (or answers
-    ///   the wish) while the island is in full harmony (eight).
+    ///   the wish) while the island's harmony is at least seven.
     /// </summary>
     public static class PrayerStar
     {
         public const string RulesVersion = "prayer-star.v2";
         public const string GiftKind = "star";          // EcologyEffect.Kind for the star's gift
         public const int LuckySum = 7;
-        public const int OctagramHarmony = 8;   // prayer-star.v2: full harmony (v1: 7)
+        public const int OctagramHarmony = 7;
 
         public static int GiftGrowthFor(int points) =>
             points >= 8 ? 88 : points == 7 ? 77 : points == 6 ? 16 : points == 5 ? 5 : 0;

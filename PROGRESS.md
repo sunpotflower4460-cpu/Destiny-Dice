@@ -2255,3 +2255,31 @@ Git diff whitespace check: pass
 
 - Domain: Lifecycle.cs（新規）、GardenTypes.cs（BloomRolls）、CanonicalJson.cs（保存）、Ecology.cs、PrayerStar.cs。Presentation: PrayerStarSigil.cs。
 - Tests: LifecycleTests.cs・LongPlayTests.cs（新規）、EcologyTests.cs、PrayerStarTests.cs、LuckySevenTests.cs（計測の虹を現行の決まりに）。docs/unity-garden/ECOLOGY.md §8・§9、PROGRESS.md。
+
+## Jam 因果の強化 — 受粉と実り（lifecycle.v2）・一投ごとの因果の一行（2026-11-13）
+
+### 完了したこと
+
+- 本人の方向付け「因果関係をより強化」。それまで蜂と蝶の訪れは次の代に関係していなかったため、つないだ（ECOLOGY.md §9.4）:
+  - 受粉: 蜂・蝶が訪れた花に印（`PlantState.Pollinated`、true のときだけ保存）。同じくらい好まれる花は投ごとに順番が回る。
+  - 実り: 受粉した花が土に還るとき、その場所に種を残す（親の種 +10、祈りの傾き、混み合い）。訪れのない花の跡は空き、サイコロや生き物の種の場所になる。
+  - 蝶は恵みが4種そろったときだけ来るので、出目のそろい方がどの花の系統が続くかを決める。
+- 一投ごとに因果を一行で表示（PrayerStarSigil）: 星の恵みがどの株へ（出た恵みしだい）、花が土に還った・実りを落とした。記録された effects だけから作る。文字に縁取りを付けた。
+- 八芒星の調和の条件は 7 に戻した（8 では八芒星 1.5%・虹 約65投に1回と少なすぎた）。
+
+### 完了基準の結果（コマンド出力の要約）
+
+- Unity EditMode: `total="64" passed="64" failed="0"`（受粉の保存、受粉した花だけがその場所に実りを残す、因果の一行の3件を追加。既存の種の置き場所のテストは「実りは親の跡」に合わせた）。
+- 実り: 土に還った花 110 のうち 66 が実りを残し、25 が親と同じ種（200投）。長期プレイで実り 0.3〜0.5/投、受粉した花 5〜6 輪、種の数 12 前後。
+- 星（120投×6）: 五 25.1%、六 56.5%、七 13.2%、八 5.1%。虹の八 約19投に1回。120投後 株 53・花 20.5。
+- 隔離プレビューで因果の一行の表示位置を確認（撮影用のカメラ描画ではぼけの効果が文字にもかかるため、読みやすさは通常のプレイでの確認が要る）。本来の庭の台帳の SHA-256 は d605e4eb… のまま。
+
+### 要確定・申し送り
+
+- 因果の一行の読みやすさ（縁取り後）は実機で未確認。
+- 実りは親の跡だけに残す決まりにした（近くの空き地に落とすと、サイコロの種の場所を奪い、種の面と調和が下がったため）。
+
+### 触ったファイル
+
+- Domain: GardenTypes.cs・CanonicalJson.cs（Pollinated）、Ecology.cs（受粉・実り・訪れの順番）、Lifecycle.cs、PrayerStar.cs。Presentation: PrayerStarSigil.cs。
+- Tests: LifecycleTests.cs、EcologyTests.cs、PrayerStarTests.cs、SacredTonesTests.cs、LongPlayTests.cs。docs/unity-garden/ECOLOGY.md §9.4・§9.5、PROGRESS.md。

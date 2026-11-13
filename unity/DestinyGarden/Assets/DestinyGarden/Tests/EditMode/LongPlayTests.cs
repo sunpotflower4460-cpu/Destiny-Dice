@@ -29,6 +29,7 @@ namespace DestinyGarden.Tests
             var plants = new double[blocks]; var flowers = new double[blocks]; var empty = new double[blocks];
             var seedFaces = new double[blocks]; var germ = new double[blocks]; var growth = new double[blocks];
             var withered = new double[blocks]; var speciesSeen = new double[blocks];
+            var fruit = new double[blocks]; var exhausted = new double[blocks]; var pollinatedFlowers = new double[blocks];
             int plantable = Enumerable.Range(0, GardenMapData.CellCount).Count(c => GardenMapData.Plantable[c] == 1);
             for (int run = 0; run < runs; run++)
             {
@@ -48,12 +49,15 @@ namespace DestinyGarden.Tests
                     germ[b] += o.Ecology.Effects.Count(e => e.Kind == Ecology.Germinate);
                     growth[b] += s.Plants.Sum(p => (long)p.Growth) - before.Plants.Sum(p => (long)p.Growth);
                     withered[b] += before.Plants.Count(p => s.Plants.All(q => q.PlantId != p.PlantId));
+                    fruit[b] += o.Ecology.Effects.Count(e => e.Kind == Lifecycle.FruitKind);
+                    if (o.Ecology.Exhausted) exhausted[b]++;
                     if (i % block == block - 1)
                     {
                         plants[b] += s.Plants.Count;
                         flowers[b] += s.Plants.Count(p => p.Stage == PlantStage.Flower);
                         empty[b] += plantable - s.Plants.Count;
                         speciesSeen[b] += s.Plants.Where(p => p.Species != null).Select(p => p.Species).Distinct().Count();
+                        pollinatedFlowers[b] += s.Plants.Count(p => p.Stage == PlantStage.Flower && p.Pollinated);
                     }
                 }
             }
@@ -61,7 +65,8 @@ namespace DestinyGarden.Tests
             for (int b = 0; b < blocks; b++)
                 lines.Add($"rolls {(b + 1) * block}: plants {plants[b] / runs:0.0}, flowers {flowers[b] / runs:0.0}, empty {empty[b] / runs:0.0}, " +
                           $"species {speciesSeen[b] / runs:0.0}, seed faces/roll {seedFaces[b] / (runs * block):0.00}, " +
-                          $"germinations/roll {germ[b] / (runs * block):0.00}, growth/roll {growth[b] / (runs * block):0}, withered/roll {withered[b] / (runs * block):0.00}");
+                          $"germinations/roll {germ[b] / (runs * block):0.00}, growth/roll {growth[b] / (runs * block):0}, withered/roll {withered[b] / (runs * block):0.00}, " +
+                          $"fruit/roll {fruit[b] / (runs * block):0.00}, pollinated flowers {pollinatedFlowers[b] / runs:0.0}, ecology bytes exhausted {100.0 * exhausted[b] / (runs * block):0}%");
             string report = string.Join(" | ", lines);
             TestContext.WriteLine(report);
             UnityEngine.Debug.Log("DG-LONG " + report);

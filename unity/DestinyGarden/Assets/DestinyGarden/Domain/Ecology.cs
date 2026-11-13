@@ -84,7 +84,8 @@ namespace DestinyGarden.Domain
         private static bool IsEmptyPlantable(WorldState s, int c) =>
             GardenMapData.Plantable[c] == 1 && s.PlantAt(c) == null;
 
-        /// <summary>Flowers with affinity >= 1 for a visitor, most loved first (then cell order).
+        /// <summary>Flowers with affinity >= 1 for a visitor, most loved first. Equally loved flowers take turns
+        /// from roll to roll (lifecycle.v2: the order turns with the world revision), so every flower can be visited.
         /// Plants without a species yet count as liked (1).</summary>
         private static List<int> Favoured(WorldState s, List<int> flowers, Func<SpeciesTraits, int> affinity)
         {
@@ -95,7 +96,10 @@ namespace DestinyGarden.Domain
                 int a = t == null ? 1 : affinity(t);
                 if (a >= 1) scored.Add(new KeyValuePair<int, int>(c, a));
             }
-            scored.Sort((a, b) => a.Value != b.Value ? b.Value.CompareTo(a.Value) : a.Key.CompareTo(b.Key));
+            int turn = s.WorldRevision * 7;
+            int Turn(int c) => (c * 37 + turn) & 255;
+            scored.Sort((a, b) => a.Value != b.Value ? b.Value.CompareTo(a.Value)
+                : Turn(a.Key) != Turn(b.Key) ? Turn(a.Key).CompareTo(Turn(b.Key)) : a.Key.CompareTo(b.Key));
             var list = new List<int>();
             foreach (var kv in scored) list.Add(kv.Key);
             return list;
@@ -262,6 +266,14 @@ namespace DestinyGarden.Domain
                 r.Visits.Add(butterfly);
                 if (Chance(2)) PlantSeed(Butterfly, EmptyWithin(butterfly.Cells, 2, 4), butterfly.Cells);
             }
+            // 2b. Pollination (lifecycle.v2): flowers the bees and butterflies visited will bear seed when they return.
+            foreach (var v in new[] { bee, butterfly })
+                if (v != null)
+                    foreach (int c in v.Cells)
+                    {
+                        var fl = s.PlantAt(c);
+                        if (fl != null && fl.Stage == PlantStage.Flower) fl.Pollinated = true;
+                    }
             // 3. Spirits of an answered prayer: +120 to up to three reached plants (not flowers).
             if (ctx.PrayerAnswered && ctx.Sim != null)
             {
@@ -426,6 +438,26 @@ namespace DestinyGarden.Domain
                 {
                     r.Effects.Add(new EcologyEffect { Kind = Lifecycle.ReturnKind, CellId = gone.CellId, Species = gone.Species });
                     r.Events.Add(new GardenEvent { Kind = Lifecycle.ReturnedEvent, PlantId = gone.PlantId, CellId = gone.CellId, Tick = 40 });
+                    // lifecycle.v2: a pollinated flower's seed takes root where it stood (its line goes on), most
+                    // likely its own kind, leaning with the recent blessings, thinned by crowding. An unvisited flower
+                    // leaves its place open for new seeds (the die's, the creatures').
+                    if (gone.Pollinated && IsEmptyPlantable(s, gone.CellId))
+                    {
+                        {
+                            int cell = gone.CellId;
+                            var seedling = new PlantState
+                            {
+                                PlantId = newPlantId != null ? newPlantId(idCounter++) : "fruit-" + cell,
+                                CellId = cell, Growth = 0, GrowthRemainder = 0, Stage = PlantStage.Seed,
+                                OriginKind = "ecology", SeedSourceRoundId = ctx.RoundId
+                            };
+                            s.Plants.Add(seedling);
+                            seedling.Species = Flora.ChooseSpecies(s, seedling, Lifecycle.FruitKind, gone.Species, n => Pick(n), ctx.RecentRecipeIds);
+                            r.Effects.Add(new EcologyEffect { Kind = Lifecycle.FruitKind, CellId = cell, Seed = true, Species = seedling.Species });
+                            r.Effects.Add(new EcologyEffect { Kind = Germinate, CellId = cell, Species = seedling.Species });
+                            r.Events.Add(new GardenEvent { Kind = "SeedCarried", PlantId = seedling.PlantId, CellId = cell, Tick = 40 });
+                        }
+                    }
                     var near = new List<int>();
                     foreach (var p in s.Plants) if (Dist(p.CellId, gone.CellId) == 1 && p.Stage != PlantStage.Flower) near.Add(p.CellId);
                     near.Sort();

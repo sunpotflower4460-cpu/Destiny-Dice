@@ -53,11 +53,14 @@ namespace DestinyGarden.Tests
                 var after = o.Ecology.PostState;
                 Assert.AreEqual(before.TotalWater(), after.TotalWater(), "ecology never moves water");
                 var seeds = o.Ecology.Effects.Where(e => e.Seed).ToList();
-                Assert.LessOrEqual(seeds.Count, Ecology.MaxSeedsPerRoll);
+                Assert.LessOrEqual(seeds.Count(e => e.Kind != Lifecycle.FruitKind), Ecology.MaxSeedsPerRoll);
+                Assert.LessOrEqual(seeds.Count(e => e.Kind == Lifecycle.FruitKind), Lifecycle.MaxReturnsPerRoll);
                 foreach (var e in seeds)
                 {
                     Assert.AreEqual(1, GardenMapData.Plantable[e.CellId], "seed on a plantable cell");
-                    Assert.IsNull(before.PlantAt(e.CellId), "seed only on an empty cell");
+                    if (e.Kind == Lifecycle.FruitKind)
+                        Assert.IsTrue(o.Ecology.Effects.Exists(x => x.Kind == Lifecycle.ReturnKind && x.CellId == e.CellId), "fruit only where its parent returned");
+                    else Assert.IsNull(before.PlantAt(e.CellId), "seed only on an empty cell");
                     Assert.AreEqual("ecology", after.PlantAt(e.CellId).OriginKind);
                 }
                 if (seeds.Count > 0) seededRolls++;

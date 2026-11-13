@@ -31,13 +31,14 @@ namespace DestinyGarden.Domain
         public string SeedSourceRoundId;         // set only for seedInput plants
         public string Species;                   // ecology.v3 (Flora); null until the first ecology step sees it
         public int BloomRolls;                   // lifecycle.v1: rolls spent in flower (saved only when > 0)
+        public bool Pollinated;                  // lifecycle.v2: a bee or butterfly visited it in flower (saved only when true)
 
         public PlantState Clone() => new PlantState
         {
             PlantId = PlantId, CellId = CellId, Growth = Growth,
             GrowthRemainder = GrowthRemainder, Stage = Stage,
             OriginKind = OriginKind, SeedSourceRoundId = SeedSourceRoundId, Species = Species,
-            BloomRolls = BloomRolls
+            BloomRolls = BloomRolls, Pollinated = Pollinated
         };
     }
 

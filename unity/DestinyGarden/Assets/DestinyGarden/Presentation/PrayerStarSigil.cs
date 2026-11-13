@@ -80,6 +80,9 @@ namespace DestinyGarden.Presentation
 
         private CanvasGroup _labelGroup;
         private Text _labelTitle, _labelSub;
+        private CanvasGroup _causeGroup;
+        private Text _causeText;
+        private Coroutine _causeRoutine;
         private Coroutine _labelRoutine;
 
         /// <summary>The face of the last resolved roll (0 before any roll).</summary>
@@ -384,7 +387,14 @@ namespace DestinyGarden.Presentation
                             startColor = new Color(1f, 0.86f, 0.62f, 0.75f), startLifetime = UnityEngine.Random.Range(1.4f, 2.4f)
                         }, 1);
                 }
+            StartCoroutine(ShowCauseLater(CauseLine(outcome.Ecology)));
             yield return PlayRevealCore(star.Points, outcome.FaceId, previousFaceId, tops);
+        }
+
+        private IEnumerator ShowCauseLater(string line)
+        {
+            yield return new WaitForSeconds(1.6f); // after the star settles
+            ShowCause(line);
         }
 
         private IEnumerator PlayRevealCore(int points, int faceId, int previousFaceId, List<Vector3> tops)
@@ -457,6 +467,7 @@ namespace DestinyGarden.Presentation
             }
             yield return new WaitForSeconds(0.6f);
             StartCoroutine(QaRollThenReveal(points, face, prev, tops));
+            StartCoroutine(ShowCauseLater("星の恵み 7株　水の恵み → 乾いた土の株へ　・　蜂や蝶の訪れた花が土に還り、実りを落とした"));
             var rt = new RenderTexture(960, 540, 24);
             var tex = new Texture2D(960, 540, TextureFormat.RGB24, false);
             for (int f = 0; f < 30; f++)
@@ -575,6 +586,72 @@ namespace DestinyGarden.Presentation
             _labelGroup.interactable = false;
             _labelTitle = LabelText(canvasObj.transform, new Vector2(0f, 120f), 44);
             _labelSub = LabelText(canvasObj.transform, new Vector2(0f, 72f), 19);
+
+            // A quiet line of cause and effect for every roll, under the lucky label's place.
+            var causeObj = new GameObject("SigilCause");
+            causeObj.transform.SetParent(canvasObj.transform, false);
+            var causeRect = causeObj.AddComponent<RectTransform>();
+            causeRect.anchorMin = Vector2.zero; causeRect.anchorMax = Vector2.one;
+            causeRect.offsetMin = Vector2.zero; causeRect.offsetMax = Vector2.zero;
+            _causeGroup = causeObj.AddComponent<CanvasGroup>();
+            _causeGroup.alpha = 0f;
+            _causeGroup.blocksRaycasts = false;
+            _causeText = LabelText(causeObj.transform, new Vector2(0f, 34f), 17);
+            _causeText.color = new Color(0.95f, 0.93f, 0.84f, 0.92f);
+        }
+
+        /// <summary>
+        /// One line of what this roll set going, from the saved effects only: where the star's gift went
+        /// (by the rolled blessing) and the cycle of the garden (a flower returned; a pollinated one let its seed fall).
+        /// </summary>
+        public static string CauseLine(EcologyResult eco)
+        {
+            if (eco == null || eco.PrayerStar == null) return null;
+            int gifts = 0, fruit = 0, returned = 0, plain = 0;
+            foreach (var e in eco.Effects)
+            {
+                if (e.Kind == PrayerStar.GiftKind && e.Amount > 0) gifts++;
+                if (e.Kind == Lifecycle.FruitKind) fruit++;
+                if (e.Kind == Lifecycle.ReturnKind) returned++;
+            }
+            plain = returned - fruit;
+            var parts = new List<string>();
+            if (gifts > 0)
+            {
+                string where = !eco.PrayerStar.HasElement ? "若い芽へ"
+                    : eco.PrayerStar.Element == ElementId.Water ? "水の恵み → 乾いた土の株へ"
+                    : eco.PrayerStar.Element == ElementId.Light ? "光の恵み → 日向を好む株へ"
+                    : eco.PrayerStar.Element == ElementId.Wind ? "風の恵み → 蜂や蝶に好かれる株へ"
+                    : "種の恵み → いちばん若い芽へ";
+                parts.Add($"星の恵み {gifts}株　{where}");
+            }
+            if (fruit > 0) parts.Add("蜂や蝶の訪れた花が土に還り、実りを落とした");
+            else if (plain > 0) parts.Add("花がひとつ土に還り、となりを養った");
+            return parts.Count > 0 ? string.Join("　・　", parts) : null;
+        }
+
+        private void ShowCause(string line)
+        {
+            if (_causeGroup == null || string.IsNullOrEmpty(line)) return;
+            var font = Font;
+            if (font == null)
+            {
+                var ui = FindFirstObjectByType<GardenUi>();
+                if (ui != null) font = ui.UiFont;
+            }
+            if (font != null) _causeText.font = font;
+            _causeText.text = line;
+            if (_causeRoutine != null) StopCoroutine(_causeRoutine);
+            _causeRoutine = StartCoroutine(FadeCause());
+        }
+
+        private IEnumerator FadeCause()
+        {
+            for (float t = 0f; t < 0.8f; t += Time.deltaTime) { _causeGroup.alpha = t / 0.8f; yield return null; }
+            _causeGroup.alpha = 1f;
+            yield return new WaitForSeconds(4.0f);
+            for (float t = 0f; t < 1.4f; t += Time.deltaTime) { _causeGroup.alpha = 1f - t / 1.4f; yield return null; }
+            _causeGroup.alpha = 0f;
         }
 
         private Text LabelText(Transform parent, Vector2 pos, int size)
@@ -587,9 +664,13 @@ namespace DestinyGarden.Presentation
             t.raycastTarget = false;
             t.horizontalOverflow = HorizontalWrapMode.Overflow;
             t.verticalOverflow = VerticalWrapMode.Overflow;
+            // A dark outline and a soft shadow keep the light text readable over bright grass and sea.
+            var outline = obj.AddComponent<Outline>();
+            outline.effectColor = new Color(0.02f, 0.05f, 0.06f, 0.75f);
+            outline.effectDistance = new Vector2(1.3f, -1.3f);
             var shadow = obj.AddComponent<Shadow>();
-            shadow.effectColor = new Color(0.02f, 0.04f, 0.06f, 0.65f);
-            shadow.effectDistance = new Vector2(1.5f, -1.5f);
+            shadow.effectColor = new Color(0.02f, 0.04f, 0.06f, 0.55f);
+            shadow.effectDistance = new Vector2(2f, -2f);
             var rect = obj.GetComponent<RectTransform>();
             rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 0.5f);
             rect.anchoredPosition = pos;
