@@ -9,24 +9,47 @@ namespace DestinyGarden.Presentation
         private static readonly Vector2 Upper = new Vector2(2.30f, 0.92f);
         private static readonly float[] Radii = { 0f, 0.64f, -0.48f, 1.15f };
         private readonly Vector2 _outward, _right;
+        private readonly Vector2[] _path;
+        private readonly Vector2 _pathMin, _pathMax;
 
         internal Vector2 Center { get; }
         internal Vector3 Forward => new Vector3(_outward.x, 0f, _outward.y);
         internal float Floor { get; private set; }
+        internal const float DoorX = -0.23f;
 
         private CottagePlot(Vector2 center, Vector2 outward)
         {
             Center = center;
             _outward = outward;
             _right = new Vector2(_outward.y, -_outward.x);
+            _path = new[] { World(DoorX, -0.68f), World(DoorX, -1.57f), World(DoorX - 0.19f, -2.32f), World(DoorX - 0.34f, -2.83f) };
+            _pathMin = Vector2.Min(_path[0], _path[3]) - Vector2.one * 0.71f;
+            _pathMax = Vector2.Max(_path[0], _path[3]) + Vector2.one * 0.71f;
         }
 
-        private Vector2 At(float x, float z) => Center + _right * x + _outward * z;
+        internal Vector2 World(float x, float z) => Center + _right * x + _outward * z;
+
+        internal float PathX(float z) => DoorX - 0.34f * Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(-1.57f, -2.83f, z));
 
         internal float Ground(float x, float z)
         {
-            Vector2 point = At(x, z);
+            Vector2 point = World(x, z);
             return IslandTerrain.Height(point.x, point.y);
+        }
+
+        internal float PathDistance(Vector2 world)
+        {
+            if (world.x < _pathMin.x || world.x > _pathMax.x || world.y < _pathMin.y || world.y > _pathMax.y)
+                return float.PositiveInfinity;
+            return IslandSeed.DistanceToPath(_path, world);
+        }
+
+        internal bool AllowsDressing(float x, float z)
+        {
+            Vector2 point = World(x, z);
+            return IslandTerrain.DistanceInland(point.x, point.y, out _) > 0.50f
+                && IslandTerrain.DistanceToRiver(point.x, point.y) > 0.81f
+                && IslandTerrain.DistanceToBed(point.x, point.y) > 0.58f;
         }
 
         internal bool Overlaps(Vector2 world, float clearance)
@@ -59,7 +82,7 @@ namespace DestinyGarden.Presentation
                         for (int col = 0; col < 5; col++)
                         {
                             float x = Mathf.Lerp(Lower.x, Upper.x, col / 4f);
-                            Vector2 p = plot.At(x, z);
+                            Vector2 p = plot.World(x, z);
                             float coast = IslandTerrain.DistanceInland(p.x, p.y, out _);
                             float river = IslandTerrain.DistanceToRiver(p.x, p.y);
                             float bed = IslandTerrain.DistanceToBed(p.x, p.y);

@@ -15,17 +15,19 @@ namespace DestinyGarden.Presentation
         private readonly List<Mesh> _meshes = new List<Mesh>();
         private readonly List<Material> _materials = new List<Material>();
         private readonly List<Texture2D> _textures = new List<Texture2D>();
-        private Mesh _box, _stone, _gable;
+        private Mesh _box, _stone, _gable, _pot, _basin, _disc;
         private Material _plaster, _stonework, _wood, _trim, _door, _roof, _roofShade, _glow;
-        private Material _glass, _soil, _herbs, _cloth, _water;
+        private Material _glass, _soil, _herbs, _cloth, _water, _clay, _slate, _copper, _brass, _fabric, _basinStone;
+        private Material _shadeLinen, _pathStone;
         private Shader _shader;
-        private Light _lamp, _daylight;
+        private Light _lamp, _daylight, _greenhouseLamp;
         private Transform _porch, _wing, _finish;
-        private Transform _chime, _doorstep;
+        private Transform _chime, _doorstep, _windTail;
         private CottageStage _stage;
         private ElementId _extension;
         private bool _hasProgress;
         private float _weatherMotion;
+        private float _roofWetness = -1f;
 
         internal CottagePlot Plot { get; private set; }
         internal string Label { get; private set; } = "小さな家";
@@ -42,17 +44,26 @@ namespace DestinyGarden.Presentation
             _stone = stone;
             _gable = CottageModel.CreateGable();
             _meshes.Add(_gable);
+            _pot = CottagePottery.Pot();
+            _basin = CottagePottery.Basin();
+            _disc = ProceduralArt.DiscMesh(0.5f, 24);
+            _meshes.Add(_pot);
+            _meshes.Add(_basin);
+            _meshes.Add(_disc);
 
             var woodGrain = ProceduralArt.WoodTexture();
             var stoneGrain = ProceduralArt.StoneTexture();
             var plasterGrain = ProceduralArt.PlasterTexture();
             var waterTexture = ProceduralArt.RiverTexture();
+            var tileTexture = ProceduralArt.CottageShingleTexture();
             _textures.Add(woodGrain);
             _textures.Add(stoneGrain);
             _textures.Add(plasterGrain);
             _textures.Add(waterTexture);
+            _textures.Add(tileTexture);
             _plaster = Lit("Lime plaster", new Color(1f, 0.97f, 0.90f), 0.19f, plasterGrain);
             _stonework = Lit("Foundation stone", new Color(0.78f, 0.80f, 0.79f), 0.15f, stoneGrain);
+            _pathStone = Lit("Worn grey stepping stone", new Color(0.61f, 0.62f, 0.56f), 0.19f, plasterGrain);
             _wood = Lit("Cedar boards", new Color(1.20f, 1.05f, 0.88f), 0.23f, woodGrain);
             _trim = Lit("Warm oak", new Color(0.40f, 0.247f, 0.145f), 0.27f);
             _door = Lit("Painted door", new Color(0.19f, 0.39f, 0.37f), 0.29f);
@@ -62,14 +73,22 @@ namespace DestinyGarden.Presentation
                 new Color(0.24f, 0.38f, 0.40f),
                 new Color(0.41f, 0.33f, 0.24f)
             }[(seed & int.MaxValue) % 3];
-            _roof = Lit("Roof tiles", tile, 0.25f);
-            _roofShade = Lit("Weathered roof tiles", tile * 0.82f, 0.20f);
+            _roof = Lit("Roof tiles", tile, 0.25f, tileTexture);
+            _roofShade = Lit("Weathered roof tiles", tile * 0.77f, 0.20f, tileTexture);
+            _slate = Lit("Terrace slate", new Color(0.26f, 0.42f, 0.46f), 0.28f, tileTexture);
+            _copper = Lit("Patinated copper", new Color(0.40f, 0.53f, 0.44f), 0.42f);
+            _brass = Lit("Aged brass", new Color(0.58f, 0.36f, 0.17f), 0.42f);
+            _brass.SetFloat("_Metallic", 0.28f);
+            _clay = Lit("Terracotta", new Color(0.67f, 0.33f, 0.22f), 0.31f, tileTexture);
+            _basinStone = Lit("Basin limestone", new Color(0.78f, 0.75f, 0.66f), 0.37f, plasterGrain);
             _glow = Lit("Window glass", new Color(0.96f, 0.77f, 0.47f), 0.42f);
             _glow.EnableKeyword("_EMISSION");
 
             _soil = Lit("Planter soil", new Color(0.25f, 0.16f, 0.09f), 0.10f);
-            _cloth = Lit("Porch linen", new Color(0.79f, 0.65f, 0.40f), 0.16f);
-            _water = Lit("Rainwater", new Color(0.46f, 0.71f, 0.74f), 0.92f, waterTexture);
+            _cloth = Lit("Warm linen", new Color(0.79f, 0.64f, 0.39f), 0.17f);
+            _shadeLinen = Lit("Rust linen", new Color(0.53f, 0.24f, 0.20f), 0.21f, tileTexture);
+            _fabric = Lit("Woven cushion", new Color(0.47f, 0.23f, 0.18f), 0.18f, tileTexture);
+            _water = Lit("Rainwater", new Color(0.64f, 0.85f, 0.81f), 0.86f, waterTexture);
             var foliage = Shader.Find("DestinyGarden/Foliage");
             _herbs = new Material(foliage) { name = "House flowers" };
             _herbs.SetFloat("_WindStrength", 0f);
@@ -92,7 +111,7 @@ namespace DestinyGarden.Presentation
             AddPath().Build(plotDetails, _meshes);
             _doorstep = NewPart("Stone doorstep");
             var step = Model();
-            Stairs(step, -0.23f, -0.65f, 0.49f, 0f, 0.35f, _stonework);
+            Stairs(step, CottagePlot.DoorX, -0.65f, 0.49f, 0f, 0.35f, _stonework);
             step.Build(_doorstep, _meshes);
 
             _lamp = new GameObject("Porch lantern").AddComponent<Light>();
@@ -150,9 +169,9 @@ namespace DestinyGarden.Presentation
             _revealTime = 0f;
         }
 
-        internal void UpdateAppearance(float night, bool reducedMotion, float deltaTime)
+        internal void UpdateAppearance(SkyState sky, bool reducedMotion, float deltaTime)
         {
-            SetLight(night);
+            SetLight(sky.Night);
             if (_revealing.Count > 0)
             {
                 _revealTime = reducedMotion ? 1f : _revealTime + deltaTime / 1.05f;
@@ -162,7 +181,22 @@ namespace DestinyGarden.Presentation
             }
             if (!reducedMotion) _weatherMotion += deltaTime;
             if (_chime != null)
-                _chime.localRotation = Quaternion.Euler(0f, 0f, Mathf.Sin(_weatherMotion * 2.3f) * 9f);
+                _chime.localRotation = Quaternion.Euler(Mathf.Sin(_weatherMotion * 1.7f) * 4f, 0f,
+                    Mathf.Sin(_weatherMotion * 2.3f) * 11f);
+            if (_windTail != null)
+                _windTail.localRotation = Quaternion.Euler(0f, Mathf.Sin(_weatherMotion * 0.78f) * 13f, 0f);
+            if (_extension == ElementId.Water && _wing != null)
+            {
+                var drift = new Vector2(_weatherMotion * 0.018f, _weatherMotion * -0.023f);
+                _water.SetTextureOffset("_BaseMap", drift);
+            }
+            if (!Mathf.Approximately(_roofWetness, sky.Moisture))
+            {
+                _roofWetness = sky.Moisture;
+                _roof.SetFloat("_Smoothness", Mathf.Lerp(0.25f, 0.47f, _roofWetness));
+                _roofShade.SetFloat("_Smoothness", Mathf.Lerp(0.20f, 0.41f, _roofWetness));
+                _slate.SetFloat("_Smoothness", Mathf.Lerp(0.28f, 0.46f, _roofWetness));
+            }
         }
 
         private void SetLight(float night)
@@ -170,6 +204,7 @@ namespace DestinyGarden.Presentation
             _lamp.intensity = Mathf.Lerp(0.22f, 1.65f, night);
             _daylight.intensity = Mathf.Lerp(1.45f, 0.03f, night);
             _glow.SetColor("_EmissionColor", new Color(2.2f, 1.30f, 0.48f) * Mathf.Lerp(0.18f, 0.92f, night));
+            if (_greenhouseLamp != null) _greenhouseLamp.intensity = Mathf.Lerp(0.03f, 0.68f, night);
         }
 
         private Material Lit(string name, Color color, float smoothness, Texture2D map = null)
@@ -203,17 +238,32 @@ namespace DestinyGarden.Presentation
                 for (int end = -1; end <= 1; end += 2)
                     model.Box(_trim, new Vector3(side * 0.706f, 0.43f, end * 0.593f), new Vector3(0.085f, 0.92f, 0.085f));
 
-            var door = new Vector3(-0.23f, 0.32f, front - 0.028f);
+            var door = new Vector3(CottagePlot.DoorX, 0.32f, front - 0.028f);
             model.Box(_trim, door, new Vector3(0.44f, 0.70f, 0.085f));
-            model.Box(_door, door - Vector3.forward * 0.047f, new Vector3(0.32f, 0.60f, 0.044f));
-            model.Box(_wood, door + new Vector3(0.10f, -0.015f, -0.081f), new Vector3(0.038f, 0.037f, 0.025f));
-            Window(model, new Vector3(0.32f, 0.52f, front), 0.41f, 0.32f);
+            for (int i = 0; i < 4; i++)
+                model.Box(_door, door + new Vector3((i - 1.5f) * 0.081f, 0f, -0.047f),
+                    new Vector3(0.079f, 0.60f, 0.042f));
+            for (int sign = -1; sign <= 1; sign += 2)
+                model.Box(_wood, door + new Vector3(0f, sign * 0.187f, -0.069f), new Vector3(0.325f, 0.040f, 0.026f));
+            model.Box(_brass, door + new Vector3(0.10f, -0.015f, -0.081f), new Vector3(0.045f, 0.035f, 0.032f));
+            var frontWindow = new Vector3(0.32f, 0.52f, front);
+            Window(model, frontWindow, 0.41f, 0.32f);
+            Shutters(model, frontWindow, 0.41f, 0.32f);
             Window(model, new Vector3(-CabinWidth * 0.5f, 0.53f, -0.09f), 0.42f, 0.30f, 90f);
             Window(model, new Vector3(0.19f, 0.52f, -front), 0.38f, 0.30f, 180f);
             model.Box(_trim, new Vector3(0f, 1.14f, front - 0.018f), new Vector3(0.20f, 0.15f, 0.065f));
             model.Box(_glow, new Vector3(0f, 1.14f, front - 0.057f), new Vector3(0.13f, 0.085f, 0.019f));
+            model.Box(_wood, new Vector3(0f, Eave + 0.012f, front - 0.016f), new Vector3(CabinWidth - 0.07f, 0.055f, 0.052f));
+            for (int side = -1; side <= 1; side += 2)
+                model.Post(_trim, new Vector3(side * 0.65f, Eave + 0.04f, front - 0.016f),
+                    new Vector3(0f, Ridge - 0.02f, front - 0.016f), 0.039f);
 
             model.Box(_stonework, new Vector3(-0.47f, 1.37f, 0.29f), new Vector3(0.23f, 0.61f, 0.24f));
+            for (int i = 0; i < 3; i++)
+            {
+                float y = 1.37f + i * 0.096f;
+                model.Box(_stonework, new Vector3(-0.47f, y, 0.29f), new Vector3(0.244f, 0.023f, 0.255f));
+            }
             model.Box(_roofShade, new Vector3(-0.47f, 1.69f, 0.29f), new Vector3(0.30f, 0.09f, 0.31f));
             return model;
         }
@@ -221,15 +271,18 @@ namespace DestinyGarden.Presentation
         private CottageModel AddPath()
         {
             var model = Model();
-            for (int i = 0; i < 5; i++)
+            for (int i = 0; i < 7; i++)
             {
-                float x = -0.23f + Mathf.Sin(i * 1.8f) * 0.077f;
-                float z = -1.12f - i * 0.29f;
+                float z = -1.12f - i * 0.246f;
+                float x = Plot.PathX(z) + Mathf.Sin(i * 1.8f) * 0.047f;
+                if (!Plot.AllowsDressing(x, z)) continue;
                 float y = Plot.Ground(x, z) - Plot.Floor;
-                model.Stone(_stonework, new Vector3(x, y + 0.012f, z), new Vector3(0.43f, 0.095f, 0.30f), 29f * i);
+                float width = 0.36f + 0.045f * Mathf.Cos(i * 1.43f);
+                model.Stone(i % 3 == 2 ? _pathStone : _stonework, new Vector3(x, y + 0.022f, z),
+                    new Vector3(width, 0.115f, 0.28f), i * 41f);
             }
-            model.Box(_trim, new Vector3(0.35f, 0.78f, -0.69f), new Vector3(0.12f, 0.19f, 0.12f));
-            model.Box(_glow, new Vector3(0.35f, 0.77f, -0.716f), new Vector3(0.082f, 0.105f, 0.087f));
+            Lantern(model, new Vector3(0.33f, 0.74f, -0.746f), 1f);
+            AddDoorstepGarden(model);
             return model;
         }
 
@@ -243,10 +296,11 @@ namespace DestinyGarden.Presentation
                 model.Box(_trim, new Vector3(x, 0.36f, -1.26f), new Vector3(0.078f, 0.83f, 0.078f));
                 model.Post(_wood, new Vector3(x, 0.67f, -1.27f), new Vector3(x * 0.77f, 0.83f, -1.27f), 0.052f);
             }
-            model.Box(_roofShade, new Vector3(0f, 0.88f, -1.01f), new Vector3(1.87f, 0.069f, 0.78f), -13f);
-            model.Box(_trim, new Vector3(0f, 0.80f, -1.40f), new Vector3(1.87f, 0.078f, 0.076f));
+            LeanToRoof(model, new Vector3(0f, 0.88f, -1.01f), 1.87f, 0.78f, -13f, _roof, _roofShade);
             Bench(model, 0.40f, -0.84f, -0.015f);
-            Stairs(model, -0.23f, -1.30f, 0.55f, -0.024f, 0.62f, _wood);
+            model.Box(_fabric, new Vector3(0.40f, 0.22f, -0.86f), new Vector3(0.42f, 0.055f, 0.18f));
+            model.Box(_cloth, new Vector3(0.53f, 0.25f, -0.86f), new Vector3(0.036f, 0.013f, 0.175f));
+            Stairs(model, CottagePlot.DoorX, -1.30f, 0.55f, -0.024f, 0.62f, _wood);
             return model;
         }
 
@@ -280,18 +334,20 @@ namespace DestinyGarden.Presentation
             model.Box(_wood, new Vector3(2.09f, 0.45f, z), new Vector3(0.08f, 0.06f, 1.80f));
             model.Box(_wood, new Vector3(2.09f, 0.17f, z), new Vector3(0.052f, 0.048f, 1.80f));
             for (int i = 0; i < 3; i++)
+                model.Post(_trim, new Vector3(2.09f, 0.17f, -1.04f + i * 0.57f),
+                    new Vector3(2.09f, 0.43f, -0.56f + i * 0.57f), 0.034f);
+            for (int i = 0; i < 3; i++)
                 model.Box(_trim, new Vector3(0.77f + i * 0.66f, 0.43f, 0.65f), new Vector3(0.068f, 0.95f, 0.070f));
-            model.Box(_roofShade, new Vector3(x, 0.92f, 0.24f), new Vector3(1.58f, 0.076f, 0.90f), -10f);
-            model.Box(_trim, new Vector3(x, 0.86f, -0.18f), new Vector3(1.58f, 0.082f, 0.081f));
+            LeanToRoof(model, new Vector3(x, 0.92f, 0.24f), 1.58f, 0.90f, -10f, _slate, _roofShade);
             Bench(model, x + 0.09f, 0.47f, -0.015f);
-            const float basinX = 1.38f, basinZ = -0.81f;
-            model.Box(_stonework, new Vector3(basinX, 0.053f, basinZ), new Vector3(0.52f, 0.21f, 0.45f));
-            model.Box(_water, new Vector3(basinX, 0.158f, basinZ), new Vector3(0.43f, 0.013f, 0.36f));
-            for (int side = -1; side <= 1; side += 2)
-            {
-                model.Box(_stonework, new Vector3(basinX + side * 0.235f, 0.171f, basinZ), new Vector3(0.057f, 0.061f, 0.45f));
-                model.Box(_stonework, new Vector3(basinX, 0.171f, basinZ + side * 0.196f), new Vector3(0.48f, 0.061f, 0.057f));
-            }
+            var basin = new Vector3(1.61f, -0.020f, -0.73f);
+            model.PlaceMesh(_basinStone, _basin, basin, new Vector3(0.62f, 0.34f, 0.56f));
+            model.PlaceMesh(_water, _disc, basin + Vector3.up * 0.278f, new Vector3(0.452f, 1f, 0.406f));
+            model.Post(_copper, basin + new Vector3(0.22f, 0.17f, 0.09f),
+                basin + new Vector3(0.22f, 0.48f, 0.09f), 0.050f);
+            model.Post(_copper, basin + new Vector3(0.22f, 0.48f, 0.09f),
+                basin + new Vector3(0.058f, 0.47f, 0.09f), 0.047f);
+            model.Box(_brass, basin + new Vector3(0.22f, 0.519f, 0.09f), new Vector3(0.099f, 0.019f, 0.032f));
         }
 
         private void WindLoft(CottageModel model)
@@ -308,6 +364,12 @@ namespace DestinyGarden.Presentation
             for (int side = -1; side <= 1; side += 2)
                 model.Box(_trim, new Vector3(x + side * 0.40f, 1.29f, -0.64f), new Vector3(0.055f, 0.28f, 0.056f));
             model.Box(_trim, new Vector3(x, 1.43f, -0.64f), new Vector3(0.88f, 0.056f, 0.062f));
+            for (int i = 1; i <= 4; i++)
+            {
+                float railX = x - 0.40f + i * 0.16f;
+                model.Box(_wood, new Vector3(railX, 1.30f, -0.64f), new Vector3(0.031f, 0.23f, 0.038f));
+            }
+            model.Box(_brass, new Vector3(x + 0.20f, 2.08f, 0.17f), new Vector3(0.045f, 0.35f, 0.045f));
         }
 
         private void Greenhouse(CottageModel model)
@@ -337,8 +399,21 @@ namespace DestinyGarden.Presentation
             model.Box(_glass, new Vector3(x, 0.55f, depth * 0.5f), new Vector3(width - 0.055f, 0.82f, 0.016f));
             model.Box(_door, new Vector3(x, 0.55f, -depth * 0.5f - 0.019f), new Vector3(0.060f, 0.88f, 0.056f));
             model.Box(_door, new Vector3(x, 0.98f, -depth * 0.5f), new Vector3(width, 0.069f, 0.058f));
-            Planter(model, new Vector3(1.58f, 0.24f, 0.10f), 0.82f, true);
-            Planter(model, new Vector3(1.51f, 0.28f, -0.35f), 0.72f, false);
+            Worktable(model, new Vector3(1.45f, 0.19f, 0.23f), 1.02f, 0.35f);
+            PottedPlant(model, new Vector3(1.10f, 0.59f, 0.23f), 0.19f, PlantForms.Species.Bellflower, true);
+            PottedPlant(model, new Vector3(1.45f, 0.59f, 0.26f), 0.17f, PlantForms.Species.Strawberry, true);
+            PottedPlant(model, new Vector3(1.78f, 0.59f, 0.24f), 0.18f, PlantForms.Species.Foxglove, false);
+            model.Box(_wood, new Vector3(1.46f, 0.31f, -0.39f), new Vector3(0.88f, 0.08f, 0.34f));
+            PottedPlant(model, new Vector3(1.19f, 0.35f, -0.38f), 0.17f, PlantForms.Species.Daisy, false);
+            PottedPlant(model, new Vector3(1.56f, 0.35f, -0.39f), 0.21f, PlantForms.Species.ForgetMeNot, true);
+            Lantern(model, new Vector3(1.48f, 0.89f, 0.28f), 0.63f);
+            _greenhouseLamp = new GameObject("Warm greenhouse light").AddComponent<Light>();
+            _greenhouseLamp.transform.SetParent(_wing, false);
+            _greenhouseLamp.transform.localPosition = new Vector3(1.45f, 0.91f, 0.20f);
+            _greenhouseLamp.type = LightType.Point;
+            _greenhouseLamp.color = new Color(1f, 0.74f, 0.42f);
+            _greenhouseLamp.range = 1.72f;
+            _greenhouseLamp.intensity = 0f;
         }
 
         private void RoofPane(CottageModel model, Vector3 center, float span, float depth, float roll)
@@ -361,30 +436,28 @@ namespace DestinyGarden.Presentation
             Foundation(model, x, z, width, depth, 0f);
             model.Box(_wood, new Vector3(x, 0.40f, z + 0.30f), new Vector3(width, 0.80f, 0.48f));
             model.Box(_plaster, new Vector3(x + 0.64f, 0.40f, z), new Vector3(0.12f, 0.80f, depth));
-            model.Box(_roofShade, new Vector3(x, 0.98f, z), new Vector3(width + 0.23f, 0.092f, depth + 0.36f), -14f);
+            LeanToRoof(model, new Vector3(x, 1.01f, z + 0.21f), width + 0.23f, 0.99f, -11f, _roof, _roofShade);
             model.Box(_trim, new Vector3(x + 0.60f, 0.39f, -0.65f), new Vector3(0.08f, 0.85f, 0.08f));
             model.Box(_trim, new Vector3(x - 0.58f, 0.39f, -0.65f), new Vector3(0.08f, 0.85f, 0.08f));
             Deck(model, x, -0.53f, width, 0.99f, -0.04f);
-            model.Box(_trim, new Vector3(x, 0.32f, 0.03f), new Vector3(1.05f, 0.09f, 0.40f));
-            model.Box(_wood, new Vector3(x, 0.53f, 0.23f), new Vector3(0.98f, 0.07f, 0.26f));
-            for (int side = -1; side <= 1; side += 2)
-                model.Box(_trim, new Vector3(x + side * 0.41f, 0.16f, 0.02f), new Vector3(0.063f, 0.33f, 0.25f));
-            Planter(model, new Vector3(x, 0.40f, 0.02f), 0.94f, true);
-            Planter(model, new Vector3(x + 0.51f, 0.02f, -0.82f), 0.40f, true);
-            model.Box(_cloth, new Vector3(x, 0.74f, -0.69f), new Vector3(1.19f, 0.13f, 0.045f));
-            for (int i = 0; i < 3; i++)
-                model.Box(_door, new Vector3(x - 0.40f + i * 0.40f, 0.74f, -0.716f), new Vector3(0.10f, 0.13f, 0.021f));
+            Worktable(model, new Vector3(x, -0.005f, 0.02f), 1.04f, 0.37f);
+            PottedPlant(model, new Vector3(x - 0.27f, 0.395f, -0.02f), 0.19f, PlantForms.Species.Daisy, true);
+            PottedPlant(model, new Vector3(x + 0.27f, 0.395f, 0.04f), 0.23f, PlantForms.Species.Poppy, true);
+            PottedPlant(model, new Vector3(x + 0.44f, 0.00f, -0.82f), 0.27f, PlantForms.Species.Lavender, true);
+            model.Box(_clay, new Vector3(x, 0.42f, -0.05f), new Vector3(0.18f, 0.052f, 0.13f));
+            model.Box(_soil, new Vector3(x, 0.451f, -0.05f), new Vector3(0.15f, 0.023f, 0.10f));
+            WorkshopAwning(model, x);
         }
 
         private CottageModel AddFinish(ElementId element, Transform part)
         {
             var model = Model();
-            Planter(model, new Vector3(0.68f, 0.0f, -1.63f), 0.42f, true);
+            GroundPot(model, 0.63f, -1.67f, 0.30f, PlantForms.Species.Daisy);
             switch (element)
             {
                 case ElementId.Water:
-                    Planter(model, new Vector3(1.99f, 0.03f, 0.39f), 0.37f, false);
-                    model.Box(_glow, new Vector3(0.89f, 0.74f, -0.06f), new Vector3(0.084f, 0.13f, 0.082f));
+                    PottedPlant(model, new Vector3(1.91f, 0.0f, 0.30f), 0.27f, PlantForms.Species.Iris, true);
+                    Lantern(model, new Vector3(0.89f, 0.74f, -0.06f), 0.73f);
                     break;
                 case ElementId.Wind:
                     _chime = new GameObject("Wind chimes").transform;
@@ -395,17 +468,26 @@ namespace DestinyGarden.Presentation
                     {
                         float x = (i - 1) * 0.086f;
                         chime.Box(_trim, new Vector3(x, -0.081f, 0f), new Vector3(0.015f, 0.16f, 0.014f));
-                        chime.Box(_cloth, new Vector3(x, -0.165f - i * 0.02f, 0f), new Vector3(0.031f, 0.13f + i * 0.04f, 0.031f));
+                        chime.Box(_brass, new Vector3(x, -0.165f - i * 0.02f, 0f), new Vector3(0.031f, 0.13f + i * 0.04f, 0.031f));
                     }
                     chime.Build(_chime, _meshes);
+                    _windTail = new GameObject("Copper weather vane").transform;
+                    _windTail.SetParent(part, false);
+                    _windTail.localPosition = new Vector3(1.45f, 2.27f, 0.17f);
+                    var vane = Model();
+                    vane.Box(_copper, Vector3.zero, new Vector3(0.43f, 0.026f, 0.026f));
+                    vane.Box(_copper, new Vector3(-0.16f, 0.035f, 0f), new Vector3(0.115f, 0.092f, 0.025f));
+                    vane.PlaceMesh(_brass, _gable, new Vector3(0.19f, -0.022f, 0f), new Vector3(0.081f, 0.089f, 0.025f),
+                        Quaternion.Euler(0f, 0f, -90f));
+                    vane.Build(_windTail, _meshes);
                     break;
                 case ElementId.Seed:
-                    Planter(model, new Vector3(1.34f, 0.57f, 0.25f), 0.69f, true);
-                    Planter(model, new Vector3(1.46f, Plot.Ground(1.46f, -1.50f) - Plot.Floor + 0.022f, -1.50f), 0.51f, true);
+                    GroundPot(model, 1.45f, -1.48f, 0.34f, PlantForms.Species.Cosmos);
+                    GroundPot(model, 1.78f, -1.66f, 0.24f, PlantForms.Species.ForgetMeNot);
                     break;
                 default:
-                    Planter(model, new Vector3(1.58f, 0.04f, -0.95f), 0.73f, true);
-                    model.Box(_glow, new Vector3(1.46f, 0.86f, -0.49f), new Vector3(0.073f, 0.13f, 0.073f));
+                    GroundPot(model, 1.36f, -0.99f, 0.30f, PlantForms.Species.Lavender);
+                    GroundPot(model, 1.70f, -0.93f, 0.27f, PlantForms.Species.WildRose);
                     break;
             }
             return model;
@@ -493,6 +575,51 @@ namespace DestinyGarden.Presentation
                 model.Box(material, center + rotation * offset, scale, yaw: yaw);
         }
 
+        private void Shutters(CottageModel model, Vector3 center, float width, float height)
+        {
+            for (int side = -1; side <= 1; side += 2)
+            {
+                var shutter = center + new Vector3(side * (width * 0.5f + 0.056f), 0.017f, -0.035f);
+                model.Box(_door, shutter, new Vector3(0.104f, height + 0.022f, 0.043f), yaw: side * -17f);
+                for (int louver = 0; louver < 4; louver++)
+                    model.Box(_copper, shutter + new Vector3(0f, (louver - 1.5f) * 0.052f, -0.024f),
+                        new Vector3(0.083f, 0.014f, 0.024f), yaw: side * -17f);
+            }
+        }
+
+        private void Lantern(CottageModel model, Vector3 center, float size)
+        {
+            model.Box(_glow, center, new Vector3(0.094f, 0.130f, 0.095f) * size);
+            for (int sign = -1; sign <= 1; sign += 2)
+            {
+                model.Box(_brass, center + Vector3.up * (sign * 0.068f * size),
+                    new Vector3(0.117f, 0.025f, 0.116f) * size);
+                for (int side = -1; side <= 1; side += 2)
+                    model.Box(_brass, center + new Vector3(sign * 0.049f, 0f, side * 0.049f) * size,
+                        new Vector3(0.012f, 0.144f, 0.012f) * size);
+            }
+            model.Box(_trim, center + new Vector3(0f, 0.091f, 0.052f) * size,
+                new Vector3(0.025f, 0.024f, 0.112f) * size);
+        }
+
+        private void LeanToRoof(CottageModel model, Vector3 center, float width, float depth, float pitch,
+            Material tile, Material dark)
+        {
+            var rotation = Quaternion.Euler(pitch, 0f, 0f);
+            model.Board(dark, center, new Vector3(width, 0.063f, depth), rotation);
+            const int columns = 8, rows = 3;
+            for (int row = 0; row < rows; row++)
+                for (int col = 0; col < columns; col++)
+                {
+                    var offset = new Vector3((col + 0.5f - columns * 0.5f) * width / columns, 0.039f,
+                        (row + 0.5f - rows * 0.5f) * depth / rows);
+                    model.Board((row * 3 + col) % 7 == 1 ? dark : tile, center + rotation * offset,
+                        new Vector3(width / columns * 0.95f, 0.038f, depth / rows * 1.06f), rotation);
+                }
+            model.Board(_trim, center + rotation * new Vector3(0f, -0.006f, -depth * 0.50f),
+                new Vector3(width + 0.038f, 0.077f, 0.048f), rotation);
+        }
+
         private void Bench(CottageModel model, float x, float z, float floor)
         {
             model.Box(_wood, new Vector3(x, floor + 0.20f, z), new Vector3(0.51f, 0.062f, 0.25f));
@@ -501,28 +628,83 @@ namespace DestinyGarden.Presentation
                 model.Box(_trim, new Vector3(x + side * 0.19f, floor + 0.12f, z), new Vector3(0.056f, 0.25f, 0.18f));
         }
 
-        private void Planter(CottageModel model, Vector3 at, float width, bool flower)
+        private void AddDoorstepGarden(CottageModel model)
         {
-            at.y = Mathf.Max(at.y, Plot.Ground(at.x, at.z) - Plot.Floor + 0.012f);
-            model.Box(_roofShade, at + Vector3.up * 0.10f, new Vector3(width, 0.20f, 0.25f));
-            model.Box(_soil, at + Vector3.up * 0.197f, new Vector3(width * 0.9f, 0.031f, 0.21f));
+            GroundPot(model, -0.91f, -0.68f, 0.29f, PlantForms.Species.Bellflower);
+            GroundPot(model, -0.94f, -0.98f, 0.20f, PlantForms.Species.ForgetMeNot);
+
             var plants = new FoliageMesh();
             plants.Root = new Vector4(0f, 0f, 0f, -1f);
-            for (int i = 0; i < 3; i++)
+            for (int i = 0; i < 6; i++)
             {
-                var species = i == 1 ? PlantForms.Species.ForgetMeNot : PlantForms.Species.Daisy;
-                var ornamental = new PlantState
-                {
-                    PlantId = "cottage-" + i,
-                    Stage = flower ? PlantStage.Flower : PlantStage.Leaf,
-                    Growth = 2200
-                };
-                Vector3 root = new Vector3((i - 1) * width * 0.30f / 0.48f, 0f, i % 2 * 0.055f);
-                PlantForms.Build(plants, ornamental, root, species);
+                float z = -1.37f - i * 0.217f;
+                float x = Plot.PathX(z) - 0.43f - Mathf.Sin(i * 1.26f) * 0.13f;
+                if (!Plot.AllowsDressing(x, z)) continue;
+                float y = Plot.Ground(x, z) - Plot.Floor;
+                model.Stone(_stonework, new Vector3(x, y + 0.005f, z),
+                    new Vector3(0.14f + (i % 2) * 0.07f, 0.085f, 0.18f), i * 49f);
+                Vector3 root = new Vector3(x - 0.086f, y, z + 0.027f) / 0.46f;
+                PlantForms.Build(plants, Ornament("path-" + i, true), root,
+                    i % 3 == 1 ? PlantForms.Species.ForgetMeNot : PlantForms.Species.Daisy);
             }
-            var mesh = plants.ToMesh("Potted plants");
+            if (plants.V.Count > 0) AddPlants(model, plants, Vector3.zero, 0.46f);
+        }
+
+        private void GroundPot(CottageModel model, float x, float z, float width, PlantForms.Species species)
+        {
+            if (Plot.AllowsDressing(x, z))
+                PottedPlant(model, new Vector3(x, Plot.Ground(x, z) - Plot.Floor + 0.006f, z), width, species, true);
+        }
+
+        private void PottedPlant(CottageModel model, Vector3 at, float width, PlantForms.Species species, bool flower)
+        {
+            float height = width * 0.69f;
+            model.PlaceMesh(_clay, _pot, at, new Vector3(width, height, width));
+            model.PlaceMesh(_soil, _disc, at + Vector3.up * (height * 0.93f), new Vector3(width * 0.83f, 1f, width * 0.83f));
+            var plants = new FoliageMesh { Root = new Vector4(0f, 0f, 0f, -1f) };
+            PlantForms.Build(plants, Ornament(species.ToString(), flower), Vector3.zero, species);
+            AddPlants(model, plants, at + Vector3.up * (height * 0.91f), Mathf.Min(0.55f, width * 1.76f));
+        }
+
+        private static PlantState Ornament(string id, bool flower) => new PlantState
+        {
+            PlantId = "cottage-" + id,
+            Stage = flower ? PlantStage.Flower : PlantStage.Leaf,
+            Growth = 2200
+        };
+
+        private void AddPlants(CottageModel model, FoliageMesh plants, Vector3 at, float scale)
+        {
+            var mesh = plants.ToMesh("House plants");
             _meshes.Add(mesh);
-            model.Plants(_herbs, mesh, at + Vector3.up * 0.212f, 0.48f);
+            model.Plants(_herbs, mesh, at, scale);
+        }
+
+        private void Worktable(CottageModel model, Vector3 at, float width, float depth)
+        {
+            model.Box(_wood, at + Vector3.up * 0.36f, new Vector3(width, 0.072f, depth));
+            model.Box(_trim, at + Vector3.up * 0.16f, new Vector3(width * 0.92f, 0.044f, depth * 0.83f));
+            for (int side = -1; side <= 1; side += 2)
+                for (int end = -1; end <= 1; end += 2)
+                    model.Box(_trim, at + new Vector3(side * width * 0.41f, 0.17f, end * depth * 0.37f),
+                        new Vector3(0.046f, 0.34f, 0.048f));
+        }
+
+        private void WorkshopAwning(CottageModel model, float x)
+        {
+            const int stripes = 9;
+            const float width = 1.50f, run = 0.61f;
+            for (int i = 0; i < stripes; i++)
+            {
+                float xx = x + (i + 0.5f - stripes * 0.5f) * width / stripes;
+                Material cloth = i % 2 == 0 ? _shadeLinen : _cloth;
+                model.Box(cloth, new Vector3(xx, 0.908f, -0.55f), new Vector3(width / stripes + 0.006f, 0.027f, run), -13f);
+                model.Box(cloth, new Vector3(xx, 0.793f, -0.85f), new Vector3(width / stripes + 0.004f, 0.125f, 0.030f));
+            }
+            model.Box(_trim, new Vector3(x, 0.834f, -0.85f), new Vector3(width + 0.06f, 0.038f, 0.037f));
+            for (int side = -1; side <= 1; side += 2)
+                model.Post(_wood, new Vector3(x + side * 0.69f, 0.66f, -0.53f),
+                    new Vector3(x + side * 0.69f, 0.837f, -0.85f), 0.032f);
         }
 
         private void OnDestroy()

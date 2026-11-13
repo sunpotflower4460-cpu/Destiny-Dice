@@ -109,6 +109,15 @@ namespace DestinyGarden.Presentation
             return color * (0.92f + sand * 0.13f);
         });
 
+        internal static Texture2D CottageShingleTexture() => MakeTex("Unglazed roof tile", 128, (u, v) =>
+        {
+            float cloud = Fbm(u * 5.4f, v * 6.2f, 460, 3);
+            float grit = Fbm(u * 36f, v * 31f, 461, 2);
+            float edge = SoftStep(0.025f, 0.18f, Mathf.Min(u, 1f - u));
+            float clay = 0.73f + 0.17f * cloud + 0.08f * grit + 0.07f * edge;
+            return new Color(clay, clay, clay);
+        });
+
         public static Texture2D GlowSprite() => MakeTex("Glow", 64, (u, v) =>
         {
             float d = Vector2.Distance(new Vector2(u, v), new Vector2(0.5f, 0.5f)) * 2f;

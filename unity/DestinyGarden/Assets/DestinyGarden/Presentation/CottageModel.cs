@@ -31,6 +31,9 @@ namespace DestinyGarden.Presentation
         internal void Gable(Material material, Vector3 center, Vector3 size) =>
             Add(_gable, material, center, size, Quaternion.identity);
 
+        internal void PlaceMesh(Material material, Mesh mesh, Vector3 at, Vector3 size, Quaternion? rotation = null) =>
+            Add(mesh, material, at, size, rotation ?? Quaternion.identity);
+
         internal void Plants(Material material, Mesh mesh, Vector3 at, float size) =>
             Add(mesh, material, at, Vector3.one * size, Quaternion.identity);
 

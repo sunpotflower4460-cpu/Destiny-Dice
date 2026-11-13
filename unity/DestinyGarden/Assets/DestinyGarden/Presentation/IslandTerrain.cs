@@ -443,7 +443,9 @@ namespace DestinyGarden.Presentation
         }
 
         /// <summary>Top-down colour of the island (bare at first; see PaintBeds for the living state).</summary>
-        public static Texture2D BakeColor()
+        public static Texture2D BakeColor() => BakeColor(null);
+
+        internal static Texture2D BakeColor(CottagePlot cottage)
         {
             const int size = 512;
             const int heightSteps = 128;
@@ -542,6 +544,17 @@ namespace DestinyGarden.Presentation
                         rock = Color.Lerp(rock, moss * 0.94f, ledgeMoss * 0.79f);
                         float exposed = Ramp(0.15f, 0.76f, rockiness + (n1 - 0.5f) * 0.45f + Ramp(0.55f, 1.75f, slope) * 0.17f);
                         _shoreColor[pi] = Color.Lerp(sand, rock, exposed);
+                    }
+                    // Blend the worn approach into both soil colours so the path survives greening.
+                    float pathDistance = cottage != null ? cottage.PathDistance(new Vector2(x, z)) : float.PositiveInfinity;
+                    if (pathDistance < 0.70f && r > 0.68f && inland > 0.35f)
+                    {
+                        float width = 0.39f + (grain - 0.5f) * 0.17f + (n2 - 0.5f) * 0.13f;
+                        float worn = (1f - Ramp(width * 0.43f, width + 0.13f, pathDistance))
+                            * (1f - _earthMask[pi] * 0.80f) * Ramp(0.35f, 0.92f, inland);
+                        var gravel = Color.Lerp(new Color(0.49f, 0.43f, 0.33f), new Color(0.65f, 0.57f, 0.43f), grain);
+                        _bare[pi] = Color.Lerp(_bare[pi], gravel, worn * 0.88f);
+                        _meadow[pi] = Color.Lerp(_meadow[pi], gravel, worn * 0.91f);
                     }
                     var bareCol = Color.Lerp(_bare[pi], _shoreColor[pi], _shoreF[pi]) * _shade[pi];
                     _bakePixels[pi] = new Color(bareCol.r, bareCol.g, bareCol.b, 1f);

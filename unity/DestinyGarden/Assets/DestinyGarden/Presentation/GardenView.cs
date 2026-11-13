@@ -377,7 +377,7 @@ namespace DestinyGarden.Presentation
             islandObj.transform.SetParent(transform);
             islandObj.AddComponent<MeshFilter>().sharedMesh = IslandTerrain.BuildMesh();
             var islandRenderer = islandObj.AddComponent<MeshRenderer>();
-            var islandMat = Lit(shader, IslandTerrain.BakeColor(), 0.12f);
+            var islandMat = Lit(shader, IslandTerrain.BakeColor(HousePlot), 0.12f);
             islandRenderer.material = islandMat;
             islandRenderer.receiveShadows = true;
             islandRenderer.shadowCastingMode = ShadowCastingMode.On;
@@ -896,7 +896,7 @@ namespace DestinyGarden.Presentation
                 _dof.gaussianEnd.value = _dof.gaussianStart.value + 20f;
             }
             UpdateGrowers();
-            if (_cottage != null) _cottage.UpdateAppearance(_sky.Night, ReducedMotion, Time.deltaTime);
+            if (_cottage != null) _cottage.UpdateAppearance(_sky, ReducedMotion, Time.deltaTime);
             foreach (var petals in _fallingPetals)
             {
                 if (!petals.gameObject.activeInHierarchy) continue;

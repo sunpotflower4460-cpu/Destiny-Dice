@@ -75,7 +75,8 @@ namespace DestinyGarden.Presentation
                 {
                     float x = gx + (float)(positions.NextDouble() - 0.5) * step;
                     float z = gz + (float)(positions.NextDouble() - 0.5) * step;
-                    if (housePlot != null && housePlot.Overlaps(new Vector2(x, z), 0.04f)) continue;
+                    var at = new Vector2(x, z);
+                    if (housePlot != null && (housePlot.Overlaps(at, 0.04f) || housePlot.PathDistance(at) < 0.27f)) continue;
                     float inland = IslandTerrain.DistanceInland(x, z, out float rockiness);
                     if (inland < Mathf.Lerp(1.10f, 0.60f, rockiness)) continue;
                     float h = IslandTerrain.Height(x, z);
