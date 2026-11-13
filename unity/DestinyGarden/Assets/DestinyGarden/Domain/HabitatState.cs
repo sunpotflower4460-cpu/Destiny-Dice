@@ -6,6 +6,7 @@ namespace DestinyGarden.Domain
     /// <summary>Optional v7 memory of soil development, habitat continuity and living root reserves.</summary>
     public sealed class HabitatState
     {
+        public bool LinkedCare; // opt-in ecology.v8; omitted from saved v7 gardens
         public int[] Humus = new int[GardenMapData.CellCount];
         public int[] LastHabitat = new int[GardenMapData.CellCount];
         public int[] StableAge = new int[GardenMapData.CellCount];
@@ -13,7 +14,7 @@ namespace DestinyGarden.Domain
         public HabitatState() { for (int c = 0; c < LastHabitat.Length; c++) LastHabitat[c] = -1; }
         public HabitatState Clone()
         {
-            var h = new HabitatState { Humus = (int[])Humus.Clone(), LastHabitat = (int[])LastHabitat.Clone(), StableAge = (int[])StableAge.Clone() };
+            var h = new HabitatState { LinkedCare = LinkedCare, Humus = (int[])Humus.Clone(), LastHabitat = (int[])LastHabitat.Clone(), StableAge = (int[])StableAge.Clone() };
             foreach (var pair in RootReserves) h.RootReserves.Add(pair.Key, pair.Value);
             return h;
         }

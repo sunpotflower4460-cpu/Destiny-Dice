@@ -82,6 +82,8 @@ namespace DestinyGarden.Domain
                     : e.Actor == Ecology.Fluff ? $"風に乗った{plant}の種が、東の土へ。" : $"{plant}の実った種が、そばの土にこぼれた。";
                 case "humus-formed": return $"{actor}がほどいた落ち葉の一部が、長く土を支える腐植になった。";
                 case "humus-mineralised": return "土に残った腐植から、少しずつ養分が戻った。";
+                case "care-nectar": return $"届いた光を受け、{plant}が養分を花蜜に使った。";
+                case "care-algae": return "届いた光を受け、水辺の藻が少し多く育った。";
                 case "clonal-rooted": return $"{plant}の" + (e.Actor == "rhizome" ? "地下茎" : "つる") +
                     (e.FromHabitat != null && e.ToHabitat != null && e.FromHabitat != e.ToHabitat
                         ? $"が、{e.FromHabitat}から{e.ToHabitat}の境目を越えて根づいた。" : "が伸び、そばに新しい株が根づいた。");

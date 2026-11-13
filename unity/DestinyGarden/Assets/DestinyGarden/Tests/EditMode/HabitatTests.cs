@@ -22,6 +22,7 @@ namespace DestinyGarden.Tests
         private static WorldState Soil(int humus = 0)
         {
             var s = WorldState.CreateInitial(); s.Plants.Clear(); s.WorldRevision = 1; s.Ecosystem = EcosystemState.CreateCurrent();
+            s.Ecosystem.Habitat.LinkedCare = false;
             for (int c = 0; c < 256; c++) { s.SoilWater[c] = GardenMapData.SoilCapacity[c] * 600 / 1000; s.Ecosystem.Habitat.Humus[c] = humus; }
             return s;
         }
@@ -237,7 +238,11 @@ namespace DestinyGarden.Tests
                 List<string> Play(bool restore)
                 {
                     var m = new Memory(); var ids = new SequentialIds(); var entropy = new FixedEntropy("habitat-" + garden);
-                    var coord = new GardenCoordinator(m, entropy, ids); coord.CreateRun();
+                    var coord = new GardenCoordinator(m, entropy, ids);
+                    var initial = WorldState.CreateInitial(); initial.Ecosystem = EcosystemState.CreateCurrent(); initial.Ecosystem.Habitat.LinkedCare = false;
+                    m.Append("RunStarted", ids.NewId("run"), null, new Dictionary<string, object>
+                    { ["initialState"] = WorldStateSerializer.ToPayload(initial), ["ecologyPolicyVersion"] = HabitatRules.RulesVersion });
+                    coord.Restore(new JournalReadResult { ChainValid = true, Entries = m.Entries });
                     Assert.AreEqual(HabitatRules.RulesVersion, m.Entries[0].Payload["ecologyPolicyVersion"]);
                     var hashes = new List<string>(); int clones = 0, changes = 0, humified = 0;
                     for (int i = 0; i < 384; i++)

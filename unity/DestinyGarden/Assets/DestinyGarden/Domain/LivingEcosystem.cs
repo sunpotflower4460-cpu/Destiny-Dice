@@ -39,7 +39,7 @@ namespace DestinyGarden.Domain
         }
 
         /// <summary>No chance or mutation. A puddle must persist before aquatic visitors arrive.</summary>
-        public static List<EcologyVisit> Presence(WorldState s, WeatherDefinition weather, string currentRecipeId)
+        public static List<EcologyVisit> Presence(WorldState s, WeatherDefinition weather, string currentRecipeId, ResolvedRecipe dice = null)
         {
             var e = s.Ecosystem;
             var visits = new List<EcologyVisit>();
@@ -123,8 +123,16 @@ namespace DestinyGarden.Domain
                 Add(Ecology.Firefly, moss, 4); // wet refuges, not a source of plant nutrition
             if (fruit.Count > 0) Add(Ecology.Bird, fruit, 3);
             else if (cover.Count >= 3 && aphids.Count >= 3) Add(Ecology.Bird, aphids, 3);
-            bool windy = currentRecipeId != null && RecipeCatalog.ElementOf(currentRecipeId) == ElementId.Wind;
-            if (windy || (weather != null && weather.BaseWindQ >= 300)) Add(Ecology.Fluff, windSeeds, 3);
+            if (CareRules.Enabled(s))
+            {
+                windSeeds.RemoveAll(c => CareRules.WindPower(dice, weather, c) < 100);
+                Add(Ecology.Fluff, windSeeds, 3);
+            }
+            else
+            {
+                bool windy = currentRecipeId != null && RecipeCatalog.ElementOf(currentRecipeId) == ElementId.Wind;
+                if (windy || (weather != null && weather.BaseWindQ >= 300)) Add(Ecology.Fluff, windSeeds, 3);
+            }
             if (rain) Add(Ecology.Dew, cover, 6);
             CommunityRules.AddYoungPresence(s, visits);
             return visits;
@@ -135,6 +143,7 @@ namespace DestinyGarden.Domain
             var s = afterSim.Clone();
             var e = s.Ecosystem;
             var r = new EcologyResult { PostState = s };
+            ctx.Care = CareRules.Enabled(s) ? CareMeasure.Measure(ctx) : null;
             var buf = new EntropyBuffer(bytes ?? new byte[0]);
             var stages = new SimulationResult();
             int planted = 0;
@@ -175,6 +184,7 @@ namespace DestinyGarden.Domain
             {
                 SuccessionRules.AgeSeedBank(s, r);
                 SuccessionRules.RefreshNectar(s, ctx.Weather);
+                CareRules.LightNectar(s, ctx, r);
             }
 
             // Habitats retain a short memory of wetness and cover. One wet roll cannot conjure a wetland.
@@ -193,7 +203,7 @@ namespace DestinyGarden.Domain
                 e.Aphids[c] = Math.Max(0, Math.Min(12, e.Aphids[c] + (host ? 1 : -2)));
             }
             if (e.Succession?.Community != null) CommunityRules.BeforeActivity(s, ctx, r);
-            r.Visits = Presence(s, ctx.Weather, ctx.CurrentRecipeId);
+            r.Visits = Presence(s, ctx.Weather, ctx.CurrentRecipeId, ctx.Dice);
             EcologyVisit Visit(string kind) => r.Visits.Find(v => v.Kind == kind);
 
             // Pollinators fertilise flowers; pollen does not turn into a different species in bare soil.
@@ -372,6 +382,7 @@ namespace DestinyGarden.Domain
                     var life = e.Cycles[p.PlantId];
                     if (life.Seeds <= 0 || !Living(s, p)) continue;
                     if (route == Ecology.Bird ? !t.Berries : route == Ecology.Fluff ? !t.WindSeed : t.Berries || t.WindSeed) continue;
+                    if (CareRules.Enabled(s) && route == Ecology.Fluff && !Visit(route).Cells.Contains(p.CellId)) continue;
                     parents.Add(p);
                 }
                 if (parents.Count == 0 || planted >= Ecology.MaxSeedsPerRoll) continue;
@@ -386,7 +397,8 @@ namespace DestinyGarden.Domain
                     if (e.Succession != null ? !SuccessionRules.HasSpace(s, c)
                         : s.PlantAt(c) != null || afterSim.PlantAt(c) != null || !Flora.Fits(Flora.Get(parent.Species), s, c)) continue;
                     bool within = route == Ecology.Bird ? d >= 2 && d <= 8
-                        : route == Ecology.Fluff ? c % 16 - parent.CellId % 16 >= 2 && c % 16 - parent.CellId % 16 <= 5 && Math.Abs(c / 16 - parent.CellId / 16) <= 1
+                        : route == Ecology.Fluff ? c % 16 - parent.CellId % 16 >= 2 &&
+                            c % 16 - parent.CellId % 16 <= (CareRules.Enabled(s) ? CareRules.WindDistance(ctx.Dice, ctx.Weather, parent.CellId) : 5) && Math.Abs(c / 16 - parent.CellId / 16) <= 1
                         : d >= 1 && d <= 2;
                     if (within) targets.Add(c);
                 }
@@ -448,13 +460,13 @@ namespace DestinyGarden.Domain
             if (ctx.PrayerAnswered && ctx.Sim != null)
             {
                 var reached = new List<int>();
-                foreach (int c in PrayerSpirits.ReachedPlantCells(ctx.Sim))
+                foreach (int c in CareRules.Enabled(s) ? CareRules.ReachedPlants(s, ctx.Care) : PrayerSpirits.ReachedPlantCells(ctx.Sim))
                 {
                     var p = s.PlantAt(c);
                     if (p == null || p.Stage == PlantStage.Flower || reached.Count >= 3) continue;
                     reached.Add(c); Feed(Ecology.Spirit, p, 120);
                 }
-                r.Visits.Add(new EcologyVisit { Kind = Ecology.Spirit, Cells = reached });
+                if (reached.Count > 0 || !CareRules.Enabled(s)) r.Visits.Add(new EcologyVisit { Kind = Ecology.Spirit, Cells = reached });
             }
             if (ctx.Sim != null && ctx.Sim.Discharged > 0) r.Visits.Add(new EcologyVisit { Kind = Ecology.Fish });
             if (ctx.CurrentRecipeId != null && RecipeCatalog.ElementOf(ctx.CurrentRecipeId) == ElementId.Wind && Flora.BloomingSpecies(s) > 0)
@@ -466,6 +478,7 @@ namespace DestinyGarden.Domain
                 if (e.Succession.Community != null) CommunityRules.AfterActivity(s, r);
             }
             if (e.Habitat != null) HabitatRules.End(s, r, newPlantId);
+            if (CareRules.Enabled(s)) r.Care = CareReport.Build(ctx, r);
             int residents = 0;
             foreach (var visit in r.Visits)
                 if (visit.Kind != Ecology.Spirit && visit.Kind != Ecology.Fish && visit.Kind != Ecology.Petals) residents++;

@@ -26,6 +26,7 @@ namespace DestinyGarden.Domain
         public List<EcologyEffect> Effects = new List<EcologyEffect>();
         public List<GardenEvent> Events = new List<GardenEvent>();
         public List<EcologicalLink> Relations = new List<EcologicalLink>(); // ecology.v4: observed causes
+        public CareReport Care; // v8: measured local dice effects; absent from earlier records
         public bool Exhausted;
         public HarmonyReading Harmony;                              // ecology.v2
         public List<List<int>> Networks = new List<List<int>>();    // mycorrhizal networks (cells), ecology.v2
@@ -42,6 +43,8 @@ namespace DestinyGarden.Domain
         public bool PrayerAnswered;
         public SimulationResult Sim;            // this roll's natural simulation
         public WeatherDefinition Weather;
+        public ResolvedRecipe Dice;
+        public CareMeasure Care;
     }
 
     /// <summary>
@@ -463,7 +466,7 @@ namespace DestinyGarden.Domain
             }
             var payload = new Dictionary<string, object>
             {
-                ["rulesVersion"] = living && r.PostState.Ecosystem.Habitat != null ? HabitatRules.RulesVersion : living ? (r.PostState.Ecosystem.Succession != null ?
+                ["rulesVersion"] = CareRules.Enabled(r.PostState) ? CareRules.RulesVersion : living && r.PostState.Ecosystem.Habitat != null ? HabitatRules.RulesVersion : living ? (r.PostState.Ecosystem.Succession != null ?
                     (r.PostState.Ecosystem.Succession.Community != null ? CommunityRules.RulesVersion : SuccessionRules.RulesVersion) : LivingEcosystem.RulesVersion) : RulesVersion,
                 ["harmony"] = r.Harmony != null ? (long)r.Harmony.Value : 0L,
                 ["star"] = r.Harmony != null ? (long)r.Harmony.Star : 0L,
@@ -473,6 +476,7 @@ namespace DestinyGarden.Domain
                 ["effects"] = effects,
                 ["exhausted"] = r.Exhausted
             };
+            if (r.Care != null) payload["care"] = r.Care.ToPayload();
             if (living)
             {
                 var relations = new List<object>();

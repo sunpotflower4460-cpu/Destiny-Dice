@@ -55,6 +55,9 @@ namespace DestinyGarden.Presentation
         private readonly Dictionary<string, Button> _siteChips = new Dictionary<string, Button>();
         private GameObject _observationPanel;
         private Text _observationText;
+        private Button _careTargetButton;
+        private Text _careSelection;
+        private string _carePlan;
         private WorldState _observationState;
         private string _observationHabitat;
         private readonly Dictionary<string, Button> _observationChips = new Dictionary<string, Button>();
@@ -167,7 +170,7 @@ namespace DestinyGarden.Presentation
                 new Vector2(940f, 76f), 27, TextAnchor.MiddleCenter);
             AddBacking(_messageCard, new Vector2(18f, 6f));
             _status = MakeText(canvasObj.transform, new Vector2(0.5f, 0f), new Vector2(0f, 214f),
-                new Vector2(720f, 30f), 18, TextAnchor.MiddleCenter);
+                new Vector2(900f, 48f), 17, TextAnchor.MiddleCenter);
             AddBacking(_status, new Vector2(12f, 4f));
 
             // Published faces: a slim centred row (tap = wish for that face). Laid out in ShowFaces.
@@ -208,7 +211,7 @@ namespace DestinyGarden.Presentation
             drawerRect.anchorMin = drawerRect.anchorMax = new Vector2(0f, 0f);
             drawerRect.pivot = new Vector2(0f, 0f);
             drawerRect.anchoredPosition = new Vector2(20f, 236f);
-            drawerRect.sizeDelta = new Vector2(660f, 208f);
+            drawerRect.sizeDelta = new Vector2(660f, 244f);
             var drawer = _drawer.transform;
 
             string[] intentKeys = { "none", "water", "wind", "light", "seed" };
@@ -232,6 +235,7 @@ namespace DestinyGarden.Presentation
                     () => OnSiteSelected?.Invoke(key == "auto" ? "auto" : "fixed", key == "auto" ? null : key));
             }
             MakeLabel(drawer, new Vector2(16f, 66f), "次からの届け先", 16);
+            _careSelection = MakeText(drawer, Vector2.zero, new Vector2(16f, 208f), new Vector2(620f, 28f), 16, TextAnchor.MiddleLeft);
             _drawer.SetActive(false);
 
             // Right-side menu.
@@ -319,8 +323,11 @@ namespace DestinyGarden.Presentation
                     new Vector2(-375f + 150f * i, -36f), new Vector2(140f, 40f), label, 17, () =>
                     { _observationHabitat = label == "全体" ? null : label; RenderObservation(); });
             }
-            _observationText = MakeScrollableText(_observationPanel.transform, new Vector2(940f, 492f), 18);
+            _observationText = MakeScrollableText(_observationPanel.transform, new Vector2(940f, 426f), 18);
             _observationText.transform.parent.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -24f);
+            _careTargetButton = MakeChip(_observationPanel.transform, new Vector2(0.5f, 0f), new Vector2(0f, 34f),
+                new Vector2(560f, 42f), "この環境を次の届け先にする", 18, () =>
+                { if (_observationHabitat != null) OnSiteSelected?.Invoke("habitat", _observationHabitat); });
             _observationPanel.SetActive(false);
 
             _settingsPanel = MakePanel(canvas, new Vector2(520f, 340f));
@@ -577,10 +584,20 @@ namespace DestinyGarden.Presentation
             _observationState = state;
             RenderObservation();
         }
+        public void ShowCarePlan(WorldState state, PreparedFaces faces, WeatherDefinition weather)
+        {
+            _carePlan = CareTargets.PreparedPlan(state, faces, weather);
+            if (faces?.TargetNote != null) _facesLabel.text = faces.TargetNote + "（願いは出目を変えない）";
+            RenderObservation();
+        }
         private void RenderObservation()
         {
             if (_observationText == null || _observationState == null) return;
-            SetScrollableText(_observationText, EcologyInspection.Describe(_observationState, _observationHabitat));
+            SetScrollableText(_observationText, (_carePlan ?? "") + "\n" + EcologyInspection.Describe(_observationState, _observationHabitat) +
+                CareTargets.Guidance(_observationState, _observationHabitat));
+            _careTargetButton.gameObject.SetActive(CareRules.Enabled(_observationState));
+            _careTargetButton.interactable = _observationHabitat != null;
+            _careTargetButton.GetComponentInChildren<Text>().text = _observationHabitat == null ? "上で居場所を選ぶと、次の届け先にできる" : _observationHabitat + "を次の届け先にする";
             foreach (var pair in _observationChips)
             {
                 bool active = pair.Key == (_observationHabitat ?? "全体");
@@ -703,6 +720,7 @@ namespace DestinyGarden.Presentation
 
         public void ShowSiteSelection(string mode, string siteId)
         {
+            if (_careSelection != null) _careSelection.text = "次の準備から：" + (mode == "auto" ? "おまかせ" : CareTargets.Name(mode == "habitat" ? "habitat:" + Array.IndexOf(HabitatRules.Labels, siteId) : siteId));
             foreach (var kv in _siteChips)
             {
                 bool active = (mode == "auto" && kv.Key == "auto") || (mode == "fixed" && kv.Key == siteId);
@@ -748,6 +766,7 @@ namespace DestinyGarden.Presentation
                                   (r.SeedBankSprouts > 0 ? $" 眠った種が芽吹いた ×{r.SeedBankSprouts}" : r.EcologySeeds > 0 ? $" 種がこぼれた ×{r.EcologySeeds}" : "") +
                                   (r.Harmony >= 0 ? $"　☯{r.Harmony}" : ""));
                 string relationship = EcologyObservations.Highlight(r.Relations);
+                if (r.Care != null) sb.Append(r.Care.Describe());
                 if (relationship != null) sb.AppendLine("　<color=#a8e6c8>" + relationship + "</color>");
                 if (!string.IsNullOrEmpty(r.MessageText)) sb.AppendLine("　" + r.MessageText);
             }
@@ -808,8 +827,7 @@ namespace DestinyGarden.Presentation
         private static string WeatherLabel(string id) =>
             id == "Cloudy" ? "薄曇り" : id == "Drizzle" ? "小雨" : "晴れ";
 
-        private static string SiteLabel(string id) =>
-            id == "shade" ? "岩陰" : id == "meadow" ? "ひらけた土" : "入口";
+        private static string SiteLabel(string id) => CareTargets.Name(id);
 
         private static string RecipeLabel(string id) => id == null ? "" : RecipeCatalog.LabelJa(id);
 

@@ -32,6 +32,7 @@ namespace DestinyGarden.Application
         public int Harmony = -1;  // 0..8 (ecology.v2); -1 for older records
         public int Star;          // 0, 5, 7 or 8
         public List<EcologicalLink> Relations = new List<EcologicalLink>(); // ecology.v4; absent in old records
+        public CareReport Care;
         public List<string> Germinated = new List<string>(); // species that took root this roll (ecology.v3)
     }
 
@@ -104,6 +105,7 @@ namespace DestinyGarden.Application
                             Totals((Dictionary<string, object>)e.Payload["postState"], s);
                             if (e.Payload.TryGetValue("ecology", out object eco) && eco is IDictionary<string, object> ecod)
                             {
+                                if (ecod.TryGetValue("care", out object cr) && cr is IDictionary<string, object> care) s.Care = CareReport.FromPayload(care);
                                 if (ecod.TryGetValue("harmony", out object hv)) s.Harmony = WorldStateSerializer.ToInt(hv);
                                 if (ecod.TryGetValue("star", out object sv)) s.Star = WorldStateSerializer.ToInt(sv);
                                 if (ecod.TryGetValue("relations", out object rl) && rl is IEnumerable links)

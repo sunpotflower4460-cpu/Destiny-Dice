@@ -84,8 +84,11 @@ namespace DestinyGarden.Domain
                 if (!Pond(s, c)) continue;
                 if (e.Nutrients[c] > 0 && m.Algae[c] < AlgaeCap)
                 {
-                    int grown = Math.Min(ctx.Weather == null || ctx.Weather.Id == WeatherId.Clear ? 2 : 1, AlgaeCap - m.Algae[c]);
+                    int normal = ctx.Weather == null || ctx.Weather.Id == WeatherId.Clear ? 2 : 1;
+                    int light = CareRules.Enabled(s) && CareRules.ExtraField(ctx.Dice, ctx.Weather, c, ElementId.Light) >= 100 ? 1 : 0;
+                    int grown = Math.Min(normal + light, AlgaeCap - m.Algae[c]);
                     e.Nutrients[c]--; m.Algae[c] += grown; Link(r, "algae-grew", Algae, c, c, grown);
+                    if (grown > normal) Link(r, "care-algae", ctx.CurrentRecipeId, ctx.Dice.AnchorCellId, c, grown - normal);
                 }
                 if (m.AquaticPrey[c] < PreyCap && (e.Litter[c] > 0 || m.Algae[c] > 0))
                 {

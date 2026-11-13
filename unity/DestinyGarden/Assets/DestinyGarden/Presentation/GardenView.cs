@@ -177,6 +177,26 @@ namespace DestinyGarden.Presentation
             _sun.color = Color.Lerp(_sunBase, toward, Mathf.Abs(_balance) * 0.15f);
         }
         private GameObject _focusRing;
+        private GameObject _careRing;
+
+        public void ShowCareTarget(int cell)
+        {
+            if (_careRing == null && cell >= 0 && _focusRing != null)
+            {
+                _careRing = new GameObject("PreparedCareTarget");
+                _careRing.transform.SetParent(transform);
+                var line = _careRing.AddComponent<LineRenderer>();
+                line.sharedMaterial = _focusRing.GetComponent<LineRenderer>().sharedMaterial;
+                line.useWorldSpace = false; line.loop = true; line.widthMultiplier = 0.025f;
+                line.startColor = line.endColor = new Color(0.60f, 0.95f, 0.90f, 0.8f);
+                line.positionCount = 4;
+                line.SetPositions(new[] { new Vector3(-0.65f, 0f, -0.65f), new Vector3(0.65f, 0f, -0.65f),
+                    new Vector3(0.65f, 0f, 0.65f), new Vector3(-0.65f, 0f, 0.65f) });
+            }
+            if (_careRing == null) return;
+            _careRing.SetActive(cell >= 0);
+            if (cell >= 0) _careRing.transform.position = CellTop(cell) + Vector3.up * 0.06f;
+        }
         private GameObject _lightShaft;
         private ParticleSystem _rain;
         private ParticleSystem _pollen;

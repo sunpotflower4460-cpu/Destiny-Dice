@@ -100,7 +100,7 @@ namespace DestinyGarden.Presentation
             {
                 _coordinator.SetCareFocus(mode, siteId);
                 _ui.ShowSiteSelection(mode, siteId);
-                _ui.ShowStatus("届け先は、次の一投から適用されます。");
+                _ui.ShowStatus((mode == "habitat" ? siteId + "へ。" : "") + "届け先は、次の準備から適用されます。");
             };
             _ui.OnSwitchVisitor = () =>
             {
@@ -204,6 +204,9 @@ namespace DestinyGarden.Presentation
             int wished = 0;
             if (_intentKind == "face" && int.TryParse(_intentValue, out int wf)) wished = wf;
             _ui.ShowFaces(_coordinator.CurrentFaces != null ? _coordinator.CurrentFaces.Faces : null, rolledFaceId, wished);
+            bool activePlan = prepared || _coordinator.Phase == CoordinatorPhase.IntentCommitted;
+            _ui.ShowCarePlan(_coordinator.State, activePlan ? _coordinator.CurrentFaces : null, _coordinator.CurrentWeather);
+            _view.ShowCareTarget(CareRules.Enabled(_coordinator.State) && activePlan && _coordinator.CurrentFaces != null ? CareTargets.Anchor(_coordinator.CurrentFaces) : -1);
             bool sevenUp = prepared && _coordinator.LuckySevenAdded;
             _view.SetLuckyDice(sevenUp);
             _wonders.SetLuckyHalo(sevenUp || offered);
@@ -378,7 +381,7 @@ namespace DestinyGarden.Presentation
             _view.Show(_coordinator.State, _coordinator.CurrentWeather);
             string weather = _coordinator.CurrentWeather != null ? _coordinator.CurrentWeather.LabelJa : "";
             string site = _coordinator.CurrentFaces != null
-                ? Sites.ById(_coordinator.CurrentFaces.ResolvedSiteId).LabelJa : "";
+                ? CareTargets.Name(_coordinator.CurrentFaces.ResolvedSiteId) : "";
             _ui.ShowHeader(weather, site, _coordinator.State.WorldRevision);
             ShowPreparedFaces(rolledFaceId);
             var read = _journal.ReadAll();
@@ -465,11 +468,11 @@ namespace DestinyGarden.Presentation
             if (outcome.LuckySeven) _view.SetLuckyDice(true);
             string luckStatus = rainbow ? "空に、虹の八がかかった。"
                 : outcome.LuckySeven ? "七の目。恵みが重なって届いた。"
-                : EcologyLine(outcome);
+                : outcome.Ecology?.Care?.Summary() ?? EcologyLine(outcome);
             if (luckStatus != null) _ui.ShowStatus(luckStatus);
             else if (_coordinator.LuckySevenOffered) _ui.ShowStatus("七つめの面が、そっと現れている。");
             string weather = _coordinator.CurrentWeather.LabelJa;
-            string site = Sites.ById(_coordinator.CurrentFaces.ResolvedSiteId).LabelJa;
+            string site = CareTargets.Name(_coordinator.CurrentFaces.ResolvedSiteId);
             _ui.ShowHeader(weather, site, _coordinator.State.WorldRevision);
             _view.Show(_coordinator.State, _coordinator.CurrentWeather);
             _busy = false;

@@ -2270,3 +2270,73 @@ $ npx --yes pnpm@10 build
 - Presentation: IslandTerrain.cs、GardenLife.cs、GardenUi.cs
 - Tests: HabitatTests.cs（新規とmeta）、CommunityTests.cs（v6で固定）
 - docs/unity-garden/ECOLOGY.md・ECOSYSTEM_V7.md、tools/ecology-check/README.md、PROGRESS.md
+
+## Ecology v8: ダイスと各環境の働きかけをつなぐ（2026-11-13）
+### 完了したこと
+- 各環境・生態系をダイスなどのユーザーの働きかけに対応させる依頼に対し、同じ生態系深化のPR #30へ追加した。
+- 「庭を観察」で水辺・岩陰・草木の陰・乾いた草地・花の草地を次の届け先に選べるようにした。株の負担、眠る種、住人と餌不足、落ち葉と養分を見てその環境内の区画を決める。環境がまだない時は元の場所抽選へ明示的にフォールバックする。
+- 実際の中心を準備時に保存し、面を公開した後の届け先変更で動かさない。七の目も保存済みの中心を使う。復帰で確定済みの意図も引き継ぐようにし、以前の `LastIntentKind/Value` が初期値のままになる経路を修正した。
+- 追加の光・風を自然シミュレーションと同じ上限・距離減衰・地形遮蔽から求める。風の面だけで庭全体の綿毛の親を対象にせず、実効風が届く親と、その強さによる東への距離で散布する。
+- 追加の光が届いた適合する元気な花は、実在する養分1を蜜1へ使う。湿りの履歴・養分・藻の空きがある水辺では、追加の光が藻の生産へつながる。蜜はその後の訪花、藻は既存の水辺の食物網で実際に消費される。
+- 面の候補の必要度にも、範囲内の株の湿りの好み・水辺の住人・実り・蜜や藻の空き・眠る種を反映した。6面の構成と重みの下限は維持し、意図で出目を調整する経路は追加していない。願いが的中した時の既存の成長の贈り物も、今回の実際の到達範囲内の株に限定した。
+- 同じ開始状態・天候でダイスの寄与がなかった40tickも読み取り用に計算し、水量と既存株の自然成長の差を保存する。水が下流へ届く場合、強い風で乾いて生長が減る場合、天候だけでダイスの接触がない場合も区別する。
+- 結果と履歴に、開始時点の環境・届いた区画・水差・生長差・実際の播種や追加の蜜/藻/綿毛の種を表示する。後の庭から過去の環境を推測し直さない。
+- 観察に環境ごとの4系統の働き、今回の中心、各面が直接届く土の数と環境を追加し、庭へ中心の四角い輪郭を表示した。種まきは距離2〜3の周囲に届くため、中心と別の環境が播種先になる場合もその通り表示する。七の目の範囲も増幅済みの入力で表示する。
+- 新規庭だけ `ecology.v8 / habitat-focus.v8 / ecological-faces.v8`。`habitat.linkedCare` を保存し、旧v3〜v7の庭は従来の配面・生態を維持する。自然シミュレーションの式は変更していない。
+### 検証結果（実際の出力）
+- `.NET SDK 8.0.428` でUnity内の実際のDomain / Application / InfrastructureとEditModeテストを直接実行した。Unity依存のPresentationTests 5件を除き、既存101件＋新規36ケース。
+
+```text
+$ dotnet test tools/ecology-check/Ecology.Check.csproj --configuration Release --no-restore --nologo --logger 'console;verbosity=normal'
+Test Run Successful.
+Total tests: 137
+     Passed: 137
+ Total time: 1.1896 Minutes
+```
+
+- 5環境の届け先と全ての適格な入力を通し、種の実際の播種先、光と風の遮蔽と上限、蜜の消費、水辺の必要条件、下流の水への作用、乾燥時の生長減少、意図による出目不変、天候だけの接触0を確認した。
+- v8は192投×2庭×継続/24投ごとの準備・意図確定後のJSON復帰の768投。coordinatorが生成したメモリジャーナルのpayloadを正規JSONへ往復し、全投の状態ハッシュと一投の反応記録が一致した。ファイルに書いた768投の復帰試験とは区別する。実ファイルの検証は既存のジャーナルテストに含まれる。
+
+```text
+care garden 0, restore=False: plants=36, recipes=8, fallback=4, nectar=22, algae=4
+care garden 0, restore=True:  plants=36, recipes=8, fallback=4, nectar=22, algae=4
+care garden 1, restore=False: plants=29, recipes=8, fallback=16, nectar=9, algae=1
+care garden 1, restore=True:  plants=29, recipes=8, fallback=16, nectar=9, algae=1
+```
+
+- `recipes` は実際に出た入力の種類数、`fallback` は選んだ環境が不在だった準備数。`nectar/algae` は追加の光による実際の生成量。状態と一投の反応を通じ、水量・養分・腐植・土の種・住人の上限と、開始時点の環境への対応を確認した。
+- v7の1536投（子株3/4、環境変化218/261、最終腐植663/694）、v6/v5それぞれの1536投、v4の960投も従来通り通過。v3〜v6の既知ハッシュを維持し、v7改修前 `c84fa6f` で採取した初期/96投のハッシュも今回から固定した。
+
+```text
+v7 initial: fb35c4d8310fb9f7fd49b6f2db0bbf10bfff142a8cdd5f841d385e4e863e11fc
+v7 96 rolls (v7-golden): 4c849755daac0320dd5c2da45f9419a5fb2c8b182326b817572f60eed60b07e6
+C# 9 syntax: 69 files, 0 errors (syntax only; Unity type checking requires the editor).
+```
+
+- 前回同様、この環境のpnpm 11の依存ビルド許可規則を避け、pnpm 10で同じ既存スクリプトを実行した。
+
+```text
+$ npx --yes pnpm@10 typecheck
+> tsc -b --noEmit
+$ npx --yes pnpm@10 test
+ Test Files  41 passed (41)
+      Tests  183 passed (183)
+$ npx --yes pnpm@10 build
+> tsc -b && vite build
+✓ 102 modules transformed.
+✓ built in 298ms
+```
+
+- `jeep-sqlite` の既存の `crypto` browser externalization警告と、VSTestの `VSTEST_ARTIFACTS_DIRECTORY` 未設定の案内は残る。各コマンドは正常終了。
+- `git diff --check`: 成功。追加C#のUnityメタデータを作成し、GUIDの重複と欠落を確認した。既存実験の `src/`、凍結プロトコル、`Simulation`、台帳の書き込み経路は変更していない。外部乱数API、時刻依存、過去のジャーナルの編集経路は追加していない。
+### 未確認・申し送り
+- この環境にはUnityエディタ/実行可能なWebGLプレイヤーがなく、Unityの型解決・全EditMode・描画・入力・音・fpsは未検証。137件は実C#の.NET実行であり、Unity検証済みとは扱わない。
+- Unity 6000.3.23f1で各環境を選ぶ→現在の一投は維持→次の準備で中心が切り替わること、不在時の説明、中心の輪郭と区画、各面/七の目の範囲、実際の光と風の弱まり、水や生長の差、保存復帰を確認する。観察の長文、結果の2行表示、狭い画面とタッチ操作も確認対象。
+- 比較計算は自然計算部分の差であり、全ての分解・定着・芽吹きの因果がそのダイスに帰属すると扱わない。値はゲームの調整値。旧v3〜v7の復帰と新規庭だけの採用もUnity側で確認する。
+- 配布ビルド・提出画像・ストア公開は更新せず、PR #30はUnity確認前のドラフトで継続する。
+### 触ったファイル
+- Domain: CareRules.cs、CareTargets.cs、CareReport.cs（新規とmeta）、HabitatState.cs、HabitatSerializer.cs、EcosystemState.cs、FaceGenerator.cs、LuckySeven.cs、LivingEcosystem.cs、CommunityRules.cs、Ecology.cs、EcologyObservations.cs
+- Application: GardenCoordinator.cs、HistoryProjector.cs
+- Presentation: GardenBootstrap.cs、GardenUi.cs、GardenView.cs
+- Tests: CareTests.cs（新規とmeta）、HabitatTests.cs（v7で固定）
+- docs/unity-garden/ECOLOGY.md・ECOSYSTEM_V8.md、tools/ecology-check/README.md、PROGRESS.md

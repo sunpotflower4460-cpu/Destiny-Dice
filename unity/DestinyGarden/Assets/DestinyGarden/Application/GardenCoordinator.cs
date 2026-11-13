@@ -76,15 +76,15 @@ namespace DestinyGarden.Application
             _writer.Append("RunStarted", RunId, null, new Dictionary<string, object>
             {
                 ["gameId"] = "destiny-garden",
-                ["ecologyPolicyVersion"] = HabitatRules.RulesVersion,
+                ["ecologyPolicyVersion"] = CareRules.RulesVersion,
                 ["floraPolicyVersion"] = Flora.RulesVersion,
                 ["runLifecycleVersion"] = RuleVersions.RunLifecycle,
                 ["simulationProfile"] = RuleVersions.SimulationProfile,
                 ["mapVersion"] = RuleVersions.Map,
                 ["mapSha256"] = GardenMapData.SourceMapSha256,
                 ["weatherPolicyVersion"] = RuleVersions.WeatherPolicy,
-                ["targetPolicyVersion"] = RuleVersions.TargetPolicy,
-                ["mappingPolicyVersion"] = RuleVersions.MappingPolicy,
+                ["targetPolicyVersion"] = CareRules.TargetVersion,
+                ["mappingPolicyVersion"] = CareRules.MappingVersion,
                 ["entropySource"] = _entropy.SourceName,
                 ["defaultCareFocusMode"] = "auto",
                 ["initialState"] = WorldStateSerializer.ToPayload(State),
@@ -98,13 +98,19 @@ namespace DestinyGarden.Application
         public void SetCareFocus(string mode, string siteId)
         {
             if (RunId == null) throw new InvalidOperationException("No run.");
+            if (mode == "fixed") Sites.ById(siteId);
+            else if (mode == "habitat")
+            {
+                if (!CareRules.Enabled(State) || Array.IndexOf(HabitatRules.Labels, siteId) < 0) throw new ArgumentException("Habitat focus is unavailable.");
+            }
+            else if (mode != "auto" || siteId != null) throw new ArgumentException("Unknown care focus.");
             if (mode == PreferenceMode && siteId == PreferenceSiteId) return;
             PreferenceMode = mode; PreferenceSiteId = siteId;
             _writer.Append("CareFocusChanged", RunId, null, new Dictionary<string, object>
             {
                 ["mode"] = mode,
                 ["siteId"] = siteId,
-                ["targetPolicyVersion"] = RuleVersions.TargetPolicy
+                ["targetPolicyVersion"] = CareRules.Enabled(State) ? CareRules.TargetVersion : RuleVersions.TargetPolicy
             });
         }
 
@@ -165,7 +171,7 @@ namespace DestinyGarden.Application
 
             var faceList = new List<object>();
             foreach (string f in faces.Faces) faceList.Add(f);
-            _writer.Append("Prepared", RunId, roundId, new Dictionary<string, object>
+            var preparedPayload = new Dictionary<string, object>
             {
                 ["beforeRevision"] = State.WorldRevision,
                 ["beforeStateHash"] = beforeHash,
@@ -176,7 +182,13 @@ namespace DestinyGarden.Application
                 ["faces"] = faceList,
                 ["mappingBytesConsumed"] = faces.MappingBytesConsumed,
                 ["luckySevenOffered"] = LuckySevenOffered
-            });
+            };
+            if (CareRules.Enabled(State))
+            {
+                preparedPayload["anchorCellId"] = faces.AnchorCellId;
+                if (faces.TargetNote != null) preparedPayload["targetNote"] = faces.TargetNote;
+            }
+            _writer.Append("Prepared", RunId, roundId, preparedPayload);
             Phase = CoordinatorPhase.Prepared;
             return faces;
         }
@@ -188,7 +200,7 @@ namespace DestinyGarden.Application
         public string AddLuckySeven()
         {
             if (Phase != CoordinatorPhase.Prepared || !LuckySevenOffered || LuckySevenAdded) return null;
-            string recipeId = LuckySeven.PickRecipe(State, CurrentWeather, CurrentFaces.ResolvedSiteId);
+            string recipeId = LuckySeven.PickRecipe(State, CurrentWeather, CareTargets.Anchor(CurrentFaces));
             if (recipeId == null) return null;
             _writer.Append("LuckySevenAdded", RunId, CurrentRoundId, new Dictionary<string, object>
             {
@@ -274,7 +286,7 @@ namespace DestinyGarden.Application
                 ["luckySeven"] = luckyRolled
             });
 
-            int anchor = Sites.ById(CurrentFaces.ResolvedSiteId).CenterCellId;
+            int anchor = CareTargets.Anchor(CurrentFaces);
             var resolvedRecipe = luckyRolled
                 ? LuckySeven.ResolveAmplified(recipeId, anchor, State)
                 : RecipeResolver.Resolve(recipeId, anchor, State);
@@ -299,6 +311,7 @@ namespace DestinyGarden.Application
                 RecentRecipeIds = _rolledRecipes,
                 PrayerAnswered = matched,
                 Sim = sim,
+                Dice = resolvedRecipe,
                 Weather = CurrentWeather
             }, ecologyBytes, n => _ids.NewId("plant") + "-eco" + n);
 
@@ -394,6 +407,7 @@ namespace DestinyGarden.Application
                         State = WorldStateSerializer.FromPayload(
                             (Dictionary<string, object>)e.Payload["initialState"]);
                         PreferenceMode = "auto"; PreferenceSiteId = null;
+                        LastIntentKind = "none"; LastIntentValue = null;
                         _luckyEarned = false; LuckySevenOffered = false;
                         _rolledRecipes.Clear();
                         Phase = CoordinatorPhase.Ready;
@@ -418,6 +432,8 @@ namespace DestinyGarden.Application
                             {
                                 DrawnSiteId = (string)e.Payload["drawnSiteId"],
                                 ResolvedSiteId = (string)e.Payload["resolvedSiteId"],
+                                AnchorCellId = e.Payload.TryGetValue("anchorCellId", out object ac) ? WorldStateSerializer.ToInt(ac) : -1,
+                                TargetNote = e.Payload.TryGetValue("targetNote", out object tn) ? tn as string : null,
                                 Faces = faces.ToArray()
                             };
                             LuckySevenOffered = e.Payload.TryGetValue("luckySevenOffered", out object lo) && lo is bool lb && lb;
@@ -435,6 +451,7 @@ namespace DestinyGarden.Application
                     case "IntentCommitted":
                         _restoreIntentKind = e.Payload["kind"] as string;
                         _restoreIntentValue = e.Payload["value"] as string;
+                        LastIntentKind = _restoreIntentKind; LastIntentValue = _restoreIntentValue;
                         if (Phase == CoordinatorPhase.Prepared) Phase = CoordinatorPhase.IntentCommitted;
                         break;
                     case "OutcomeCommitted":

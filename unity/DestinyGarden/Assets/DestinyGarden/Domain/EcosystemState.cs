@@ -25,7 +25,7 @@ namespace DestinyGarden.Domain
 
         public static EcosystemState CreateCurrent()
         {
-            var e = CreateInitial(); e.Habitat = new HabitatState(); e.Succession = new SuccessionState { Community = new CommunityState() }; return e;
+            var e = CreateInitial(); e.Habitat = new HabitatState { LinkedCare = true }; e.Succession = new SuccessionState { Community = new CommunityState() }; return e;
         }
 
         public EcosystemState Clone()
