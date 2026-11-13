@@ -540,6 +540,23 @@ namespace DestinyGarden.Presentation
         }
 
         /// <summary>
+        /// lucky.v1: the lucky scale. One bright, soft note for each lantern as it lights, 0.14 s apart: do re mi fa
+        /// sol la si for a lucky number (seven), and the upper do as well for the eight.
+        /// </summary>
+        public static float[] LuckyScale(int points)
+        {
+            int n = points >= 8 ? 8 : 7;
+            var d = new double[(int)((0.14 * n + 2.6) * Rate)];
+            for (int k = 0; k < n; k++)
+            {
+                double f = SolfegeNote(k + 1, 1);
+                Glass(d, k * 0.14, f, 0.62 + 0.04 * k, 0.55, 0.006);
+                Glass(d, k * 0.14 + 0.02, f * 2, 0.10, 0.25, 0.006);   // a little sparkle an octave above
+            }
+            return Finish(Reverb(d, 0.55, 2.4), 0.42, 0.6);
+        }
+
+        /// <summary>
         /// The garden's cycle (lifecycle): "return" a flower goes back to the soil (sol -> do, falling a fifth),
         /// "fruit" it leaves its seed (sol -> do, then the upper do: the line goes on), "wither" a seedling ends
         /// (a low open fifth, do-sol). Soft attacks and a long tail, meant to sit under everything else.

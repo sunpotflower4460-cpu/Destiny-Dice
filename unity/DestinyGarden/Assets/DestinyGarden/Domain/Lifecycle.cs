@@ -13,7 +13,8 @@ namespace DestinyGarden.Domain
     /// </summary>
     public static class Lifecycle
     {
-        public const string RulesVersion = "lifecycle.v3";
+        public const string RulesVersion = "lifecycle.v4";
+        public const int SeedSetOneIn = 2;           // lifecycle.v4: a pollinated flower sets viable seed 1 time in 2
         public const string RootKind = "root";       // EcologyEffect.Kind: a suited plant the weather did not move puts down roots
         public const string WitherKind = "wither";   // EcologyEffect.Kind: a plant that no longer suits its place withered
         public const string WitheredEvent = "Withered";

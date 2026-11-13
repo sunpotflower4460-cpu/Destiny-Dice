@@ -79,7 +79,12 @@ namespace DestinyGarden.Presentation
         private Canvas _labelCanvas;
 
         private CanvasGroup _labelGroup;
-        private Text _labelTitle, _labelSub;
+        private Text _labelTitle, _labelSub, _labelNumeral, _labelCounter;
+        private RectTransform _labelRoot;
+        private Image _labelBacking;
+        private readonly List<float> _lanternFlare = new List<float>();
+        public const string Gold = "#FFD27A";      // the colour of the words ラッキーナンバー
+        private const float LuckyStep = 0.14f;      // one lantern (and one note) after another
         private CanvasGroup _causeGroup;
         private Canvas _causeCanvas;
         private readonly List<Vector3> _communityTops = new List<Vector3>();
@@ -402,11 +407,11 @@ namespace DestinyGarden.Presentation
                         }, 1);
                 }
             var lines = new List<string>();
-            foreach (var l in new[] { CauseLine(outcome.Ecology), HintLine(outcome.FaceId), SeasonLine(outcome) })
+            foreach (var l in new[] { CauseLine(outcome.Ecology), HintLine(outcome.FaceId, star.LuckyCount), SeasonLine(outcome) })
                 if (!string.IsNullOrEmpty(l)) lines.Add(l);
             StartCoroutine(ShowCauseLater(lines.Count > 0 ? string.Join("\n", lines) : null));
             StartCoroutine(CycleToneLater(CycleToneFor(outcome.Ecology)));
-            yield return PlayRevealCore(star.Points, outcome.FaceId, previousFaceId, tops, outcome.FaceCount);
+            yield return PlayRevealCore(star.Points, outcome.FaceId, previousFaceId, tops, outcome.FaceCount, star);
         }
 
         /// <summary>Which cycle tone this roll rings (one at most): seed set, else a return, else a withering.</summary>
@@ -436,23 +441,26 @@ namespace DestinyGarden.Presentation
             ShowCause(line);
         }
 
-        private IEnumerator PlayRevealCore(int points, int faceId, int previousFaceId, List<Vector3> tops, int faceCount = 6)
+        private IEnumerator PlayRevealCore(int points, int faceId, int previousFaceId, List<Vector3> tops, int faceCount = 6,
+            PrayerStarReading star = null)
         {
             _hintTarget = 0f; // the old hint fades while the die speaks
             if (Audio != null) Audio.PlayFaceNote(faceId);
             // The die's answer runs down to the star as a thread of light.
             yield return Thread(points, 0.55f);
             Change(points);
-            yield return new WaitForSeconds(0.55f);
+            if (star != null && star.LuckyNumber)
+            {
+                // lucky.v1: a lucky number lights the lanterns one after another, climbing do..si (and do).
+                StartCoroutine(LanternSequence(points));
+                if (Audio != null) Audio.PlayLuckyScale(points);
+                yield return new WaitForSeconds(LuckyStep * points + 0.15f);
+            }
+            else yield return new WaitForSeconds(0.55f);
             _flash = points >= 7 ? 1f : points == 6 ? 0.5f : 0.25f;
             if (Audio != null) Audio.PlayStarChord(points);
             EmitBurst(points);
-            if (points >= 7)
-            {
-                string sub = points >= 8 ? "ラッキーナンバーに、陰陽と島の調和が重なった"
-                    : LuckyOddsLine(faceId, previousFaceId, faceCount);
-                ShowLabel(points, sub, false);
-            }
+            if (points >= 7) ShowLabel(points, LuckyLabelLines(star, points, faceId, previousFaceId, faceCount), false);
             yield return new WaitForSeconds(0.5f);
             int perPlant = points >= 8 ? 14 : points == 7 ? 10 : points == 6 ? 5 : 3;
             foreach (var c in _communityTops) Shower(c, 6, 3); // community.v1: the answering community glints too
@@ -466,11 +474,26 @@ namespace DestinyGarden.Presentation
             SetHint(faceId); // lights for the face that would complete seven next time
         }
 
+        /// <summary>QA only: a reading for the filmstrip (-dgLuckyCount N lucky numbers before, -dgLuckyStreak S in a row).</summary>
+        private static PrayerStarReading QaReading(int face, int prev)
+        {
+            int before = 2, streak = 0;
+            string[] args = Environment.GetCommandLineArgs();
+            for (int i = 0; i + 1 < args.Length; i++)
+            {
+                if (args[i] == "-dgLuckyCount") int.TryParse(args[i + 1], out before);
+                if (args[i] == "-dgLuckyStreak") int.TryParse(args[i + 1], out streak);
+            }
+            // Same polarity and low harmony: a plain lucky number shows seven, unless it is the garden's seventh.
+            return PrayerStar.Read(face, prev, "water_drop", "seed_single", false, 4, -1, before, streak);
+        }
+
         private IEnumerator QaRollThenReveal(int points, int face, int prev, List<Vector3> tops)
         {
             // The die tumbles as in a roll (the star whirls with it), then the answer is revealed.
             yield return View.PlayOutcome(null, "light", null);
-            yield return PlayRevealCore(points, face, prev, tops);
+            var star = QaReading(face, prev);
+            yield return PlayRevealCore(star.LuckyNumber ? star.Points : points, face, prev, tops, 6, star);
         }
 
         /// <summary>
@@ -635,8 +658,26 @@ namespace DestinyGarden.Presentation
             _labelGroup.alpha = 0f;
             _labelGroup.blocksRaycasts = false;
             _labelGroup.interactable = false;
-            _labelTitle = LabelText(canvasObj.transform, new Vector2(0f, 120f), 44);
-            _labelSub = LabelText(canvasObj.transform, new Vector2(0f, 72f), 19);
+            // The lucky label: a large numeral, the title, the honest odds and the garden's count, popping in together.
+            var rootObj = new GameObject("LuckyLabelRoot");
+            rootObj.transform.SetParent(canvasObj.transform, false);
+            _labelRoot = rootObj.AddComponent<RectTransform>();
+            _labelRoot.anchorMin = Vector2.zero; _labelRoot.anchorMax = Vector2.one;
+            _labelRoot.offsetMin = Vector2.zero; _labelRoot.offsetMax = Vector2.zero;
+            // A soft dark panel behind the two small lines (odds and count) keeps them readable over bright ground.
+            var luckyBackObj = new GameObject("LuckyLabelBacking");
+            luckyBackObj.transform.SetParent(_labelRoot, false);
+            _labelBacking = luckyBackObj.AddComponent<Image>();
+            _labelBacking.color = new Color(0.02f, 0.05f, 0.07f, 0.48f);
+            _labelBacking.raycastTarget = false;
+            var lbRect = luckyBackObj.GetComponent<RectTransform>();
+            lbRect.anchorMin = lbRect.anchorMax = new Vector2(0.5f, 0.5f);
+            lbRect.anchoredPosition = new Vector2(0f, 89f);
+            _labelNumeral = LabelText(_labelRoot, new Vector2(0f, 222f), 112);
+            _labelNumeral.GetComponent<RectTransform>().sizeDelta = new Vector2(400f, 140f);
+            _labelTitle = LabelText(_labelRoot, new Vector2(0f, 146f), 42);
+            _labelSub = LabelText(_labelRoot, new Vector2(0f, 104f), 20);
+            _labelCounter = LabelText(_labelRoot, new Vector2(0f, 74f), 18);
 
             // A quiet line of cause and effect for every roll, under the lucky label's place. Its own canvas: the
             // lucky label's canvas group is transparent on most rolls and would hide it too.
@@ -659,8 +700,8 @@ namespace DestinyGarden.Presentation
             _causeBacking.raycastTarget = false;
             var backRect = backObj.GetComponent<RectTransform>();
             backRect.anchorMin = backRect.anchorMax = new Vector2(0.5f, 0.5f);
-            backRect.anchoredPosition = new Vector2(0f, 24f);
-            _causeText = LabelText(causeObj.transform, new Vector2(0f, 24f), 20);
+            backRect.anchoredPosition = new Vector2(0f, -22f);
+            _causeText = LabelText(causeObj.transform, new Vector2(0f, -22f), 20);
             _causeText.lineSpacing = 1.15f;
             _causeText.GetComponent<RectTransform>().sizeDelta = new Vector2(1400f, 80f);
             _causeText.color = new Color(0.95f, 0.93f, 0.84f, 0.92f);
@@ -687,7 +728,9 @@ namespace DestinyGarden.Presentation
             {
                 var star = eco.PrayerStar;
                 string what = star.GiftGrowth > 0 ? $"星の恵み {gifts}株に ＋{star.GiftGrowth}"
-                    : star.Points == 7 ? $"星の恵みで {gifts}株が半段育った" : $"星の恵みで {gifts}株が一段育った";
+                    : star.Points == 7 && star.LuckyStreak >= 2 ? $"<color={Gold}>ダブル ラッキーナンバー</color>で {gifts}株が一段育った"
+                    : star.Points == 7 ? $"<color={Gold}>ラッキーナンバー</color>で {gifts}株が半段育った"
+                    : $"星の恵みで {gifts}株が一段育った";
                 string site = null;
                 if (star.Points < 8)
                     foreach (var st in Sites.All) if (st.CenterCellId == star.AnchorCellId) site = st.LabelJa;
@@ -703,7 +746,7 @@ namespace DestinyGarden.Presentation
                 string blessing = c.Element == ElementId.Water ? "水" : c.Element == ElementId.Light ? "光" : c.Element == ElementId.Wind ? "風" : "種";
                 parts.Add($"{c.LabelJa}（{c.Cells.Count}株）が{blessing}の恵みに応えた");
             }
-            if (eco.PrayerStar.Points >= 8) parts.Add("八の虹の下で、咲いている花がみな実りを結んだ");
+            if (eco.PrayerStar.Points >= 8) parts.Add("八の虹の下で、咲いている花がみな受粉した");
             if (fruit > 0) parts.Add("蜂や蝶の訪れた花が土に還り、実りを落とした");
             else if (plain > 0) parts.Add("花がひとつ土に還り、となりを養った");
             if (withered > 0) parts.Add("合わなくなった土で、芽がひとつ枯れた");
@@ -715,16 +758,22 @@ namespace DestinyGarden.Presentation
         {
             var g = o != null ? Seasons.Get(o.SeasonGoalId) : null;
             if (g == null) return null;
-            if (o.SeasonMetNow) return $"季節の願いが叶った：{g.LabelJa}　・　次の回に七つめの面が現れる";
+            if (o.SeasonMetNow) return $"季節の願いが叶った：{g.LabelJa}　・　次の回に七つめの面（<color={Gold}>ラッキーナンバー</color>）が現れる";
             if (o.SeasonMet) return $"季節の願い：{g.LabelJa}（叶った）";
             return o.SeasonRollsLeft > 0 ? $"季節の願い：{g.LabelJa}（あと {o.SeasonRollsLeft} 投）" : $"季節の願い：{g.LabelJa}（今季はここまで）";
         }
 
-        /// <summary>The words for the hint: which face would make the lucky number next (no change in its chance).</summary>
-        public static string HintLine(int lastFaceId)
+        /// <summary>
+        /// The words for the hint: which face would make the lucky number next, and how many the garden has toward
+        /// the seven that bring the rainbow (no change in any face's chance).
+        /// </summary>
+        public static string HintLine(int lastFaceId, int luckyCount = 0)
         {
             int k = PrayerStar.FaceCompletingSeven(lastFaceId);
-            return k > 0 ? $"次に {k} の目が出ればラッキーナンバー（どの目も同じ確率）" : null;
+            int have = luckyCount % PrayerStar.LuckiesForRainbow;
+            return k > 0
+                ? $"次に <color={Gold}>{k}</color> の目が出れば <color={Gold}>ラッキーナンバー</color>（いま {have}/{PrayerStar.LuckiesForRainbow}・どの目も同じ確率）"
+                : null;
         }
 
         private void ShowCause(string line)
@@ -778,32 +827,113 @@ namespace DestinyGarden.Presentation
             return t;
         }
 
-        private void ShowLabel(int points, string sub, bool hold)
+        /// <summary>
+        /// The lucky label's four lines [numeral, title, odds, the garden's count] (lucky.v1), from the saved reading.
+        /// Seven: "ラッキーナンバー" (or "ダブル ラッキーナンバー" for two in a row) with the honest odds and k/7.
+        /// Eight: "七つの幸運・八の虹" when it is the seventh lucky number, otherwise "八芒星・八の虹".
+        /// </summary>
+        public static string[] LuckyLabelLines(PrayerStarReading star, int points, int faceId, int previousFaceId, int faceCount)
         {
-            if (_labelGroup == null) return;
+            int count = star != null ? star.LuckyCount : 0;
+            int k = count <= 0 ? 0 : (count % PrayerStar.LuckiesForRainbow == 0 ? PrayerStar.LuckiesForRainbow : count % PrayerStar.LuckiesForRainbow);
+            string progress = $"ラッキーナンバー {k}/{PrayerStar.LuckiesForRainbow}　・　七つそろうと八の虹";
+            if (points >= 8)
+            {
+                if (star != null && star.SevenLuckies)
+                    return new[] { "8", "七つの幸運　・　八の虹", "ラッキーナンバーが七つそろった", $"この庭のラッキーナンバー {count} 回目" };
+                return new[] { "8", "八芒星　・　八の虹", "ラッキーナンバーに、陰陽と島の調和が重なった", progress };
+            }
+            bool dbl = star != null && star.LuckyStreak >= 2;
+            return new[]
+            {
+                "7", dbl ? "ダブル　ラッキーナンバー" : "ラッキーナンバー", LuckyOddsLine(faceId, previousFaceId, faceCount),
+                dbl ? progress + "　・　ふたつ続いて、七株が一段育つ" : progress
+            };
+        }
+
+        private void ShowLabel(int points, string[] lines, bool hold)
+        {
+            if (_labelGroup == null || lines == null) return;
             var font = Font;
             if (font == null)
             {
                 var ui = FindFirstObjectByType<GardenUi>();
                 if (ui != null) font = ui.UiFont;
             }
-            if (font != null) { _labelTitle.font = font; _labelSub.font = font; }
-            _labelTitle.text = points >= 8 ? "八芒星　・　八の虹" : "ラッキーナンバー　７";
+            if (font != null) foreach (var t in new[] { _labelNumeral, _labelTitle, _labelSub, _labelCounter }) t.font = font;
+            _labelNumeral.text = lines[0];
+            _labelTitle.text = lines[1];
+            _labelSub.text = lines[2];
+            _labelCounter.text = lines[3];
             _labelTitle.color = points >= 8 ? new Color(1f, 0.96f, 0.88f) : new Color(1f, 0.86f, 0.52f);
-            _labelSub.text = sub ?? "";
             _labelSub.color = new Color(0.92f, 0.95f, 0.93f, 0.9f);
+            _labelCounter.color = new Color(1f, 0.88f, 0.62f, 0.92f);
+            if (_labelBacking != null)
+                _labelBacking.rectTransform.sizeDelta = new Vector2(
+                    Mathf.Min(1440f, Mathf.Max(_labelSub.preferredWidth, _labelCounter.preferredWidth) + 56f), 66f);
             if (_labelRoutine != null) StopCoroutine(_labelRoutine);
-            _labelRoutine = StartCoroutine(FadeLabel(hold));
+            _labelRoutine = StartCoroutine(FadeLabel(points, hold));
         }
 
-        private IEnumerator FadeLabel(bool hold)
+        /// <summary>The label pops in (a little larger, then settling), its numeral shimmering gold and white.</summary>
+        private IEnumerator FadeLabel(int points, bool hold)
         {
-            for (float t = 0f; t < 0.8f; t += Time.deltaTime) { _labelGroup.alpha = t / 0.8f; yield return null; }
+            var gold = new Color(1f, 0.82f, 0.42f);
+            var white = new Color(1f, 0.98f, 0.92f);
+            void Shimmer(float t)
+            {
+                float k = 0.5f + 0.5f * Mathf.Sin(t * 5f);
+                var c = Color.Lerp(gold, white, k);
+                if (points >= 8) c = Color.HSVToRGB((t * 0.25f) % 1f, 0.35f, 1f); // the eight shimmers through the rainbow
+                _labelNumeral.color = c;
+            }
+            float time = 0f;
+            for (float t = 0f; t < 0.8f; t += Time.deltaTime, time += Time.deltaTime)
+            {
+                _labelGroup.alpha = t / 0.8f;
+                float s = ReducedMotion ? 1f : t < 0.25f ? Mathf.Lerp(0.6f, 1.12f, t / 0.25f) : Mathf.Lerp(1.12f, 1f, Mathf.Clamp01((t - 0.25f) / 0.3f));
+                _labelRoot.localScale = Vector3.one * s;
+                Shimmer(time);
+                yield return null;
+            }
             _labelGroup.alpha = 1f;
-            if (hold) yield break;
-            yield return new WaitForSeconds(3.2f);
-            for (float t = 0f; t < 1.4f; t += Time.deltaTime) { _labelGroup.alpha = 1f - t / 1.4f; yield return null; }
+            _labelRoot.localScale = Vector3.one;
+            for (float t = 0f; hold || t < 3.4f; t += Time.deltaTime, time += Time.deltaTime) { Shimmer(time); yield return null; }
+            for (float t = 0f; t < 1.4f; t += Time.deltaTime, time += Time.deltaTime)
+            {
+                _labelGroup.alpha = 1f - t / 1.4f;
+                Shimmer(time);
+                yield return null;
+            }
             _labelGroup.alpha = 0f;
+        }
+
+        /// <summary>
+        /// lucky.v1: the lanterns on the star's points flare one after another, with glints rising at each point
+        /// (a note of the lucky scale for each, played by GardenAudio.PlayLuckyScale in the same rhythm).
+        /// </summary>
+        private IEnumerator LanternSequence(int points)
+        {
+            yield return null; // let the lanterns take the new star's points first (LateUpdate)
+            for (int v = 0; v < points; v++)
+            {
+                for (int j = 0; j < _lanterns.Count && j < _lanternFlare.Count; j++)
+                    if (_lanternVertex.Length > j && _lanternVertex[j] == v) _lanternFlare[j] = 1f;
+                if (_glints != null && _root != null)
+                {
+                    float a = Mathf.PI * 0.5f + v * Mathf.PI * 2f / points;
+                    var at = _root.TransformPoint(new Vector3(Mathf.Cos(a), Mathf.Sin(a), 0f) * StarRadius);
+                    var col = points >= 8 ? RainbowColors[v % RainbowColors.Length] : new Color(1f, 0.84f, 0.45f);
+                    for (int i = 0; i < 10; i++)
+                        _glints.Emit(new ParticleSystem.EmitParams
+                        {
+                            position = at + UnityEngine.Random.insideUnitSphere * 0.35f,
+                            velocity = ReducedMotion ? Vector3.zero : Vector3.up * UnityEngine.Random.Range(0.6f, 1.6f),
+                            startColor = new Color(col.r, col.g, col.b, 0.95f), startLifetime = UnityEngine.Random.Range(1.2f, 2.2f)
+                        }, 1);
+                }
+                if (!ReducedMotion) yield return new WaitForSeconds(LuckyStep);
+            }
         }
 
         // ------------------------------------------------------------------ motion
@@ -857,6 +987,7 @@ namespace DestinyGarden.Presentation
                 _lanternScale.Add(l.localScale);
                 _lanternDeg.Add(Mathf.Atan2(l.localPosition.z, l.localPosition.x) * Mathf.Rad2Deg);
                 _lanternShow.Add(1f);
+                _lanternFlare.Add(0f);
             }
             foreach (var r in _lanternRefl) _reflScale.Add(r.localScale);
         }
@@ -912,7 +1043,9 @@ namespace DestinyGarden.Presentation
                 if (j >= 7) p.y = 0.9f + (ReducedMotion ? 0f : Mathf.Sin(Time.time * 0.8f + j * 0.9f) * 0.18f); // our own lantern bobs like the rest
                 l.localPosition = new Vector3(Mathf.Cos(rad) * _lanternRadius, p.y, Mathf.Sin(rad) * _lanternRadius);
                 float show = Mathf.SmoothStep(0f, 1f, _lanternShow[j]);
-                l.localScale = _lanternScale[j] * show;
+                if (j < _lanternFlare.Count) _lanternFlare[j] = Mathf.MoveTowards(_lanternFlare[j], 0f, dt * 1.1f);
+                float flare = j < _lanternFlare.Count ? _lanternFlare[j] : 0f;
+                l.localScale = _lanternScale[j] * show * (1f + 1.1f * flare); // a lucky number makes each lantern flare in turn
                 if (j < _lanternRefl.Count)
                 {
                     var r = _lanternRefl[j];
@@ -946,8 +1079,7 @@ namespace DestinyGarden.Presentation
                     _causeCanvas.planeDistance = 1.25f;
                 }
                 if (_qaStar >= 7)
-                    ShowLabel(_qaStar, _qaStar == 7 ? "前の目 3 と今の目 4 で七　・　偶然なら 1/6"
-                        : "ラッキーナンバーに、陰陽と島の調和が重なった", true);
+                    ShowLabel(_qaStar, LuckyLabelLines(QaReading(4, 3), _qaStar, 4, 3, 6), true);
             }
             float dt = Time.deltaTime;
             _sinceChange += dt;

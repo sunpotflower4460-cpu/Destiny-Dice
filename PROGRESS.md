@@ -2385,3 +2385,33 @@ Git diff whitespace check: pass
 
 - Domain: Community.cs・Season.cs（新規）、Ecology.cs、Flora.cs。Application/GardenCoordinator.cs。Presentation/PrayerStarSigil.cs。
 - Tests: CommunityTests.cs・SeasonTests.cs（新規）、LuckySevenTests.cs。docs/unity-garden/ECOLOGY.md §12・§13、PROGRESS.md。
+
+## Jam ラッキーナンバーを主役に — 七つの幸運・ダブル・灯籠と音階・金色の言葉（lucky.v1）（2026-11-14）
+
+### 完了したこと
+
+- 本人の方向付け「ラッキーナンバーというキーワードが輝くように全体的なブラッシュアップ」（ECOLOGY.md §14）。
+- 決まり: 庭のラッキーナンバーを数え、7回目ごとに八芒星（七つの幸運・八の虹）、2回続けばダブル ラッキーナンバー（七芒星の恵みが一段）。
+  保存された出目の並びから数えるので再開しても同じ。確率は変えない。
+- 見せ方: ラッキーナンバーで星の頂点の灯籠が一つずつ灯り、ドレミファソラシ（ド）が上がる。大きな「7」「8」と題・確率・k/7 が少し大きく現れて落ち着く（小さな行には暗い下地）。
+  一投ごとの一行で「ラッキーナンバー」と次の目を金色に。
+- 均衡: 七つの幸運で虹が増え、実りが場所を埋めたため、受粉した花の実りを 2回に1回にした（lifecycle.v4）。
+
+### 完了基準の結果（コマンド出力の要約）
+
+- Unity EditMode: `total="87" passed="87" failed="0"`（数え方・七つの幸運・ダブル、ラッキーナンバーの文字と金色の語の3件を追加）。
+- 計測: 七つの幸運 約42投に1回、ダブル 約23投に1回、虹の八 約19投に1回。長期プレイの種の面 0.08〜0.30/投（直前 0.01〜0.06 に落ちていたのを戻した）。
+- 音の実測: ラッキーナンバーの音階 −25.5 LUFS、8音とも D長調どおり、クリップ 0。
+- 隔離プレビュー（別の会社名・製品名・バンドルID）で、灯籠が順に灯る様子、「8」と「七つの幸運　・　八の虹」、「7」「ラッキーナンバー」と確率・3/7 の表示を撮影して確認。例外 0。
+  本来の庭の台帳の SHA-256 は d605e4eb… のまま。
+- `pnpm typecheck` 0、`pnpm test` 183 passed、`pnpm build` built。
+
+### 要確定・申し送り
+
+- 音は実測のみ。耳での確認は本人に依頼する。
+- ラッキーナンバーは確率 1/6 の偶然のため、ブラウザでの実プレイでは今回は狙って出していない（隔離プレビューの撮影で確認）。
+
+### 触ったファイル
+
+- Domain: PrayerStar.cs、Ecology.cs、Lifecycle.cs。Application/GardenCoordinator.cs。Presentation: PrayerStarSigil.cs、AudioSynth.cs、GardenAudio.cs。
+- Tests: PrayerStarTests.cs、SacredTonesTests.cs。docs/unity-garden/ECOLOGY.md §14、PROGRESS.md。

@@ -372,6 +372,8 @@ namespace DestinyGarden.Application
                 FaceId = faceId,
                 PreviousFaceId = previousFace,
                 AnchorCellId = anchor,
+                LuckyCountBefore = PrayerStar.CountLuckies(_rolledFaces),
+                LuckyStreakBefore = PrayerStar.TrailingStreak(_rolledFaces),
                 SpiritCount = matched ? Math.Min(PrayerSpirits.MaxSpirits,
                     (faceCount + Math.Max(1, MatchingFaces) - 1) / Math.Max(1, MatchingFaces)) : 0
             }, ecologyBytes, n => _ids.NewId("plant") + "-eco" + n);

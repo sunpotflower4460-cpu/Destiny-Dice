@@ -48,6 +48,8 @@ namespace DestinyGarden.Domain
         public int PreviousFaceId;              // face of the previous resolved roll in this run; 0 for none
         public int AnchorCellId = -1;           // the blessing's site centre (resolved site); -1 when unknown
         public int SpiritCount = 3;             // spirits of an answered wish: rarer wishes call more (max 7)
+        public int LuckyCountBefore;            // lucky.v1: the garden's lucky numbers before this roll
+        public int LuckyStreakBefore;           // lucky.v1: lucky numbers in a row up to the previous roll
     }
 
     /// <summary>
@@ -479,7 +481,8 @@ namespace DestinyGarden.Domain
                 var recent = ctx.RecentRecipeIds;
                 string previousRecipe = recent != null && recent.Count >= 2 ? recent[recent.Count - 2] : null;
                 r.PrayerStar = DestinyGarden.Domain.PrayerStar.Read(ctx.FaceId, ctx.PreviousFaceId,
-                    ctx.CurrentRecipeId, previousRecipe, ctx.PrayerAnswered, r.Harmony.Value, ctx.AnchorCellId);
+                    ctx.CurrentRecipeId, previousRecipe, ctx.PrayerAnswered, r.Harmony.Value, ctx.AnchorCellId,
+                    ctx.LuckyCountBefore, ctx.LuckyStreakBefore);
                 foreach (int c in DestinyGarden.Domain.PrayerStar.Recipients(s, r.PrayerStar))
                     Nourish(DestinyGarden.Domain.PrayerStar.GiftKind, c,
                         DestinyGarden.Domain.PrayerStar.GiftFor(r.PrayerStar, s.PlantAt(c).Growth));
@@ -511,7 +514,8 @@ namespace DestinyGarden.Domain
                     // lifecycle.v2: a pollinated flower's seed takes root where it stood (its line goes on), most
                     // likely its own kind, leaning with the recent blessings, thinned by crowding. An unvisited flower
                     // leaves its place open for new seeds (the die's, the creatures').
-                    if (gone.Pollinated && IsEmptyPlantable(s, gone.CellId))
+                    // lifecycle.v4: a pollinated flower sets viable seed one time in two (from the saved ecology bytes).
+                    if (gone.Pollinated && IsEmptyPlantable(s, gone.CellId) && Chance(Lifecycle.SeedSetOneIn))
                     {
                         {
                             int cell = gone.CellId;
