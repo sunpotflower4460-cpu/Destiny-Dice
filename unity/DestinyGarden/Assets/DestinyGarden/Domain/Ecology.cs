@@ -283,7 +283,7 @@ namespace DestinyGarden.Domain
             if (ctx.PrayerAnswered && ctx.Sim != null)
             {
                 var cells = new List<int>();
-                foreach (int c in PrayerSpirits.ReachedPlantCells(ctx.Sim))
+                foreach (int c in PrayerSpirits.ReachedPlantCells(ctx.Sim, int.MaxValue))
                 {
                     var p = s.PlantAt(c);
                     if (p != null && p.Stage != PlantStage.Flower && cells.Count < Math.Min(PrayerSpirits.MaxSpirits, ctx.SpiritCount)) cells.Add(c);
@@ -420,6 +420,15 @@ namespace DestinyGarden.Domain
             foreach (int c in suited) Nourish(Thrive, c, Flora.ThriveGrowth);
             foreach (int c in rooting) Nourish(Lifecycle.RootKind, c, Lifecycle.RootGrowth);
 
+            // 16b. lifecycle.v3: a plant long idle in a place that no longer suits it withers (it leaves nothing).
+            // Before the network, the star and the humus, so no gift goes to a plant that is gone this roll.
+            if (cycle)
+                foreach (var gone in Lifecycle.Wither(s))
+                {
+                    r.Effects.Add(new EcologyEffect { Kind = Lifecycle.WitherKind, CellId = gone.CellId, Species = gone.Species });
+                    r.Events.Add(new GardenEvent { Kind = Lifecycle.WitheredEvent, PlantId = gone.PlantId, CellId = gone.CellId, Tick = 40 });
+                }
+
             // 17. Harmony and the mycorrhizal network (ecology.v2/v3). No chance involved.
             var kinds = new HashSet<string>();
             foreach (var v in presence) kinds.Add(v.Kind);
@@ -490,7 +499,9 @@ namespace DestinyGarden.Domain
                             seedling.Species = Flora.ChooseSpecies(s, seedling, Lifecycle.FruitKind, gone.Species, n => Pick(n), ctx.RecentRecipeIds,
                                 ctx.PrayerAnswered ? ctx.CurrentRecipeId : null, ctx.AnchorCellId);
                             r.Effects.Add(new EcologyEffect { Kind = Lifecycle.FruitKind, CellId = cell, Seed = true, Species = seedling.Species });
-                            r.Effects.Add(new EcologyEffect { Kind = Germinate, CellId = cell, Species = seedling.Species });
+                            var ft = Flora.Get(seedling.Species);
+                            bool fsoft = ft != null && Flora.BaseHardness(cell) > ft.MaxHardness;
+                            r.Effects.Add(new EcologyEffect { Kind = Germinate, CellId = cell, Species = seedling.Species, Softened = fsoft });
                             r.Events.Add(new GardenEvent { Kind = "SeedCarried", PlantId = seedling.PlantId, CellId = cell, Tick = 40 });
                         }
                     }
@@ -500,14 +511,6 @@ namespace DestinyGarden.Domain
                     foreach (int c in near) Nourish(Lifecycle.HumusKind, c, Lifecycle.HumusGrowth);
                 }
             }
-
-            // 19b. lifecycle.v3: a plant long idle in a place that no longer suits it withers (it leaves nothing).
-            if (ctx.FaceId > 0)
-                foreach (var gone in Lifecycle.Wither(s))
-                {
-                    r.Effects.Add(new EcologyEffect { Kind = Lifecycle.WitherKind, CellId = gone.CellId, Species = gone.Species });
-                    r.Events.Add(new GardenEvent { Kind = Lifecycle.WitheredEvent, PlantId = gone.PlantId, CellId = gone.CellId, Tick = 40 });
-                }
 
             r.Events.AddRange(stageEvents.Events);
             return r;

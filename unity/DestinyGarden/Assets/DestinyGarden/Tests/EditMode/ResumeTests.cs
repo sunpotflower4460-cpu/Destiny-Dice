@@ -52,7 +52,7 @@ namespace DestinyGarden.Tests
         }
 
         private static string Garden(WorldState s) =>
-            string.Join(";", s.Plants.OrderBy(p => p.CellId).Select(p => $"{p.CellId}:{p.Species}:{p.Growth}:{(int)p.Stage}:{p.BloomRolls}:{p.Pollinated}"));
+            string.Join(";", s.Plants.OrderBy(p => p.CellId).Select(p => $"{p.CellId}:{p.Species}:{p.Growth}:{(int)p.Stage}:{p.BloomRolls}:{p.Pollinated}:{p.IdleRolls}"));
 
         [Test]
         public void AfterIntent_TheWishIsKept()
@@ -101,6 +101,41 @@ namespace DestinyGarden.Tests
             Assert.AreEqual("InterruptedUnresolved", writer.Entries.Last().Kind);
             Assert.AreEqual(CoordinatorPhase.Ready, resumed.Phase);
             Assert.NotNull(resumed.Prepare(), "the next round prepares as usual");
+        }
+
+        [Test]
+        public void NewVisitor_StartsWithoutThePreviousWish()
+        {
+            var journal = new Memory();
+            var coord = new GardenCoordinator(journal, new FixedEntropy("visitor"), new SequentialIds());
+            coord.CreateRun();
+            coord.Prepare();
+            coord.CommitIntent("face", "3");
+            coord.Roll();
+            coord.Prepare();
+            coord.SwitchToNewVisitor();
+            Assert.AreEqual("none", coord.LastIntentKind, "live switch");
+            coord.Prepare();
+            var resumed = new GardenCoordinator(new Memory(), new FixedEntropy("other"), new SequentialIds());
+            resumed.Restore(new JournalReadResult { ChainValid = true, Entries = journal.Entries });
+            Assert.AreEqual(coord.RunId, resumed.RunId);
+            Assert.AreEqual("none", resumed.LastIntentKind, "restored into the new visitor's run");
+            Assert.IsNull(resumed.LastIntentValue);
+        }
+
+        [Test]
+        public void NewVisitor_AfterASavedDraw_ResolvesThatRoundFirst()
+        {
+            var (journal, _, _, _) = PlayWithWishes(5);
+            var writer = new Memory();
+            var resumed = new GardenCoordinator(writer, new FixedEntropy("other"), new SequentialIds());
+            resumed.Restore(CutAfter(journal, "DrawEntropyCommitted"));
+            resumed.SwitchToNewVisitor();
+            var kinds = writer.Entries.Select(e => e.Kind).ToList();
+            int resolved = kinds.IndexOf("Resolved"), closed = kinds.IndexOf("RunClosed");
+            Assert.GreaterOrEqual(resolved, 0, "the saved draw is resolved");
+            Assert.Greater(closed, resolved, "before the run closes");
+            Assert.IsFalse(kinds.Take(closed).Contains("DrawEntropyCommitted"), "without drawing again");
         }
 
         [Test]

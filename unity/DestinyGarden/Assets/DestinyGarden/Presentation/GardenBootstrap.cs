@@ -465,7 +465,8 @@ namespace DestinyGarden.Presentation
             if (outcome.LuckySeven) _view.SetLuckyDice(true);
             string luckStatus = rainbow ? "空に、虹の八がかかった。"
                 : outcome.LuckySeven ? "七の目。恵みが重なって届いた。"
-                : outcome.Ecology?.PrayerStar?.Points == 7 ? "ラッキーナンバー。七つの芽に、星の恵み。"
+                : outcome.Ecology?.PrayerStar?.Points == 7
+                    ? $"ラッキーナンバー。星の恵みが {outcome.Ecology.Effects.FindAll(e => e.Kind == PrayerStar.GiftKind && e.Amount > 0).Count} 株に。"
                 : EcologyLine(outcome);
             if (luckStatus != null) _ui.ShowStatus(luckStatus);
             else if (_coordinator.LuckySevenOffered) _ui.ShowStatus("七つめの面が、そっと現れている。");

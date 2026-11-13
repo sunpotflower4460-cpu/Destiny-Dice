@@ -151,6 +151,7 @@ namespace DestinyGarden.Tests
                 }
             }
             Assert.Greater(rooted, 0, "suited plants on dry soil put down roots");
+            Assert.Greater(withered, 0, "plants left in unsuitable soil wither over 200 rolls");
             TestContext.WriteLine($"withered={withered} rootedEffects={rooted}");
         }
 

@@ -67,6 +67,13 @@ namespace DestinyGarden.Application
         private int _pendingFaceId, _pendingCardIndex;
         private string _pendingRecipeId;
 
+        /// <summary>A new run (a new visitor) starts without the previous visitor's wish.</summary>
+        private void ResetIntent()
+        {
+            LastIntentKind = "none"; LastIntentValue = null; MatchingFaces = 0;
+            _restoreIntentKind = null; _restoreIntentValue = null;
+        }
+
         private void ClearPending()
         {
             _pendingAcquisition = false;
@@ -91,6 +98,8 @@ namespace DestinyGarden.Application
             _luckyEarned = false; LuckySevenOffered = false;
             _rolledRecipes.Clear();
             _rolledFaces.Clear();
+            ClearPending();
+            ResetIntent();
             _writer.Append("RunStarted", RunId, null, new Dictionary<string, object>
             {
                 ["gameId"] = "destiny-garden",
@@ -128,6 +137,7 @@ namespace DestinyGarden.Application
         {
             if (Phase != CoordinatorPhase.Ready && Phase != CoordinatorPhase.Resolved)
                 throw new InvalidOperationException("Prepare requires Ready/Resolved phase, was " + Phase);
+            ClearPending();
             string roundId = _ids.NewId("round");
             CurrentRoundId = roundId;
             int periodIndex = State.WorldRevision / Weathers.RoundsPerEpisode;
@@ -416,6 +426,10 @@ namespace DestinyGarden.Application
         /// <summary>Closes the current run and starts a fresh garden for the next visitor.</summary>
         public string SwitchToNewVisitor()
         {
+            // A round whose draw was already started or saved is finished first (DATA_CONTRACT §3): resolved from
+            // the saved material, or recorded as unresolved. A known outcome is never dropped for the switch.
+            if (Phase == CoordinatorPhase.IntentCommitted && (_pendingOutcomeBytes != null || _pendingAcquisition))
+                Roll();
             if (RunId != null)
             {
                 _writer.Append("RunClosed", RunId, null, new Dictionary<string, object>
@@ -455,6 +469,8 @@ namespace DestinyGarden.Application
                         _luckyEarned = false; LuckySevenOffered = false;
                         _rolledRecipes.Clear();
                         _rolledFaces.Clear();
+                        ClearPending();
+                        ResetIntent();
                         Phase = CoordinatorPhase.Ready;
                         break;
                     case "CareFocusChanged":

@@ -2321,3 +2321,35 @@ Git diff whitespace check: pass
 
 - Application/GardenCoordinator.cs。Domain: Ecology.cs、PrayerStar.cs、Lifecycle.cs、Flora.cs、GardenTypes.cs、CanonicalJson.cs。Presentation: PrayerStarSigil.cs。
 - Tests: ResumeTests.cs・SystemHealthTests.cs（新規）、LifecycleTests.cs、PrayerStarTests.cs、FloraTests.cs、HarmonyTests.cs、EcologyTests.cs、SacredTonesTests.cs。docs/unity-garden/ECOLOGY.md §3・§8・§9・§10、PROGRESS.md。
+
+## Jam 二度目の独立レビュー・実プレイ確認・めぐりの音（2026-11-14）
+
+### 完了したこと
+
+- WebGL ビルドをアプリ内ブラウザ（localhost の別ポート。台帳はそのブラウザの中だけ）で実際に振って確認した。
+  - 因果の一行が七・八芒星以外の回で表示されていなかった（ラッキーナンバーの文字と同じキャンバスで透明度 0 のままだった）。別のキャンバスに分け、
+    文字を 17 → 20 にし、文字の幅に合わせた半透明の暗い下地を付けた。
+  - サイコロのまわりの七への灯は、通常の視点ではボタンの陰で見えなかった。因果の一行の下に「次に n の目が出ればラッキーナンバー（どの目も同じ確率）」を添えた。
+  - 前のビルドで保存した庭がそのまま読み込めることも確認した。
+- 二度目の独立レビュー（コードのみ読む）の9件をすべてコードで確かめて直した（ECOLOGY.md §11.2）。
+  新しい来場者に前の願いが残る（前回の再開修正による）、再開用の保存材料の消し忘れと交代時の未解決、枯れる株への恵み、精霊の上限の順序、
+  七芒星の「半段」表示、灯籠の柱の置き去り、実りの「やわらいだ土」の記録、テストの弱さ。
+- めぐりの音: 還る（ソ→ド）、実り（ソ→ド→上のド）、枯れる（低いド・ソ）。一投に一つまで。
+
+### 完了基準の結果（コマンド出力の要約）
+
+- Unity EditMode: `total="78" passed="78" failed="0"`（来場者交代の再開2件、めぐりの音の選び方1件を追加。枯れることを実際に確かめるようにした）。
+- WebGL ビルド `Succeeded (22806210 bytes)`。アプリ内ブラウザで振って、因果の一行と次のラッキーナンバーの添え書きが読めることを確認。ブラウザのコンソールに例外 0。
+- 音の実測（再生音量込み）: 還る −28.4 LUFS、実り −29.3、枯れる −30.4（初案の単音は −35.7 で聞こえにくかったため空五度にした）。音程は D長調どおり。クリップ 0。
+- 計測（6庭×60投）: 成長の内訳 自然 47〜51%・星 26〜31%・根 10〜13%。長期プレイの空き・種の面・芽吹きは前回と同程度。
+- `pnpm typecheck` 0、`pnpm test` 183 passed、`pnpm build` built。
+
+### 要確定・申し送り
+
+- 音は実測のみ。耳での確認は本人に依頼する。
+- 七への灯（サイコロのまわりの光）は通常の視点では見えにくいまま残している（言葉の添え書きが主）。不要なら消せる。
+
+### 触ったファイル
+
+- Application/GardenCoordinator.cs。Domain: Ecology.cs、LuckySeven.cs。Presentation: PrayerStarSigil.cs、AudioSynth.cs、GardenAudio.cs、GardenBootstrap.cs（自分で足した1行）。
+- Tests: ResumeTests.cs、LifecycleTests.cs、SacredTonesTests.cs。docs/unity-garden/ECOLOGY.md §11、PROGRESS.md。

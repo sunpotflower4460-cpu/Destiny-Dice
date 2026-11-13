@@ -81,6 +81,8 @@ namespace DestinyGarden.Presentation
         private CanvasGroup _labelGroup;
         private Text _labelTitle, _labelSub;
         private CanvasGroup _causeGroup;
+        private Canvas _causeCanvas;
+        private Image _causeBacking;
         private Text _causeText;
         private Coroutine _causeRoutine;
         private Coroutine _labelRoutine;
@@ -390,8 +392,31 @@ namespace DestinyGarden.Presentation
                             startLifetime = UnityEngine.Random.Range(1.4f, 2.4f)
                         }, 1);
                 }
-            StartCoroutine(ShowCauseLater(CauseLine(outcome.Ecology)));
+            string cause = CauseLine(outcome.Ecology), hint = HintLine(outcome.FaceId);
+            StartCoroutine(ShowCauseLater(cause != null && hint != null ? cause + "\n" + hint : cause ?? hint));
+            StartCoroutine(CycleToneLater(CycleToneFor(outcome.Ecology)));
             yield return PlayRevealCore(star.Points, outcome.FaceId, previousFaceId, tops, outcome.FaceCount);
+        }
+
+        /// <summary>Which cycle tone this roll rings (one at most): seed set, else a return, else a withering.</summary>
+        public static string CycleToneFor(EcologyResult eco)
+        {
+            if (eco == null) return null;
+            bool fruit = false, ret = false, wither = false;
+            foreach (var e in eco.Effects)
+            {
+                if (e.Kind == Lifecycle.FruitKind) fruit = true;
+                else if (e.Kind == Lifecycle.ReturnKind) ret = true;
+                else if (e.Kind == Lifecycle.WitherKind) wither = true;
+            }
+            return fruit ? "fruit" : ret ? "return" : wither ? "wither" : null;
+        }
+
+        private IEnumerator CycleToneLater(string kind)
+        {
+            if (kind == null || Audio == null) yield break;
+            yield return new WaitForSeconds(2.4f); // after the star's chord has bloomed
+            Audio.PlayCycleTone(kind);
         }
 
         private IEnumerator ShowCauseLater(string line)
@@ -600,16 +625,31 @@ namespace DestinyGarden.Presentation
             _labelTitle = LabelText(canvasObj.transform, new Vector2(0f, 120f), 44);
             _labelSub = LabelText(canvasObj.transform, new Vector2(0f, 72f), 19);
 
-            // A quiet line of cause and effect for every roll, under the lucky label's place.
-            var causeObj = new GameObject("SigilCause");
-            causeObj.transform.SetParent(canvasObj.transform, false);
-            var causeRect = causeObj.AddComponent<RectTransform>();
-            causeRect.anchorMin = Vector2.zero; causeRect.anchorMax = Vector2.one;
-            causeRect.offsetMin = Vector2.zero; causeRect.offsetMax = Vector2.zero;
+            // A quiet line of cause and effect for every roll, under the lucky label's place. Its own canvas: the
+            // lucky label's canvas group is transparent on most rolls and would hide it too.
+            var causeObj = new GameObject("SigilCauseCanvas");
+            causeObj.transform.SetParent(transform, false);
+            _causeCanvas = causeObj.AddComponent<Canvas>();
+            _causeCanvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            _causeCanvas.sortingOrder = 39;
+            var causeScaler = causeObj.AddComponent<CanvasScaler>();
+            causeScaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            causeScaler.referenceResolution = new Vector2(1600, 900);
             _causeGroup = causeObj.AddComponent<CanvasGroup>();
             _causeGroup.alpha = 0f;
             _causeGroup.blocksRaycasts = false;
-            _causeText = LabelText(causeObj.transform, new Vector2(0f, 34f), 17);
+            // A soft dark panel behind the line keeps it readable over bright ground (sized to the text when shown).
+            var backObj = new GameObject("SigilCauseBacking");
+            backObj.transform.SetParent(causeObj.transform, false);
+            _causeBacking = backObj.AddComponent<Image>();
+            _causeBacking.color = new Color(0.02f, 0.05f, 0.07f, 0.48f);
+            _causeBacking.raycastTarget = false;
+            var backRect = backObj.GetComponent<RectTransform>();
+            backRect.anchorMin = backRect.anchorMax = new Vector2(0.5f, 0.5f);
+            backRect.anchoredPosition = new Vector2(0f, 24f);
+            _causeText = LabelText(causeObj.transform, new Vector2(0f, 24f), 20);
+            _causeText.lineSpacing = 1.15f;
+            _causeText.GetComponent<RectTransform>().sizeDelta = new Vector2(1400f, 80f);
             _causeText.color = new Color(0.95f, 0.93f, 0.84f, 0.92f);
         }
 
@@ -633,7 +673,8 @@ namespace DestinyGarden.Presentation
             if (gifts > 0)
             {
                 var star = eco.PrayerStar;
-                string what = star.GiftGrowth > 0 ? $"星の恵み {gifts}株に ＋{star.GiftGrowth}" : $"星の恵みで {gifts}株が一段育った";
+                string what = star.GiftGrowth > 0 ? $"星の恵み {gifts}株に ＋{star.GiftGrowth}"
+                    : star.Points == 7 ? $"星の恵みで {gifts}株が半段育った" : $"星の恵みで {gifts}株が一段育った";
                 string site = null;
                 if (star.Points < 8)
                     foreach (var st in Sites.All) if (st.CenterCellId == star.AnchorCellId) site = st.LabelJa;
@@ -651,6 +692,13 @@ namespace DestinyGarden.Presentation
             return parts.Count > 0 ? string.Join("　・　", parts) : null;
         }
 
+        /// <summary>The words for the hint: which face would make the lucky number next (no change in its chance).</summary>
+        public static string HintLine(int lastFaceId)
+        {
+            int k = PrayerStar.FaceCompletingSeven(lastFaceId);
+            return k > 0 ? $"次に {k} の目が出ればラッキーナンバー（どの目も同じ確率）" : null;
+        }
+
         private void ShowCause(string line)
         {
             if (_causeGroup == null || string.IsNullOrEmpty(line)) return;
@@ -662,6 +710,9 @@ namespace DestinyGarden.Presentation
             }
             if (font != null) _causeText.font = font;
             _causeText.text = line;
+            if (_causeBacking != null)
+                _causeBacking.rectTransform.sizeDelta = new Vector2(Mathf.Min(1440f, _causeText.preferredWidth + 48f),
+                    _causeText.preferredHeight + 18f);
             if (_causeRoutine != null) StopCoroutine(_causeRoutine);
             _causeRoutine = StartCoroutine(FadeCause());
         }
@@ -756,7 +807,7 @@ namespace DestinyGarden.Presentation
             foreach (Transform child in _lanternRing)
             {
                 if (child.name.StartsWith("Light")) lights.Add(child);
-                else if (child.name == "Lantern reflection") _lanternRefl.Add(child);
+                else if (child.name == "Lantern reflection" || child.name == "Pillar") _lanternRefl.Add(child); // each lantern's companion
             }
             lights.Sort((a, b) => string.CompareOrdinal(a.name, b.name));
             if (lights.Count == 0) { _lanternRing = null; return; }
@@ -769,7 +820,7 @@ namespace DestinyGarden.Presentation
             if (_lanternRefl.Count > 0)
             {
                 var r = Instantiate(_lanternRefl[0].gameObject, _lanternRing);
-                r.name = "Lantern reflection (prayer star)";
+                r.name = _lanternRefl[0].name + " (prayer star)";
                 _lanternRefl.Add(r.transform);
             }
             foreach (var l in lights)
@@ -838,7 +889,7 @@ namespace DestinyGarden.Presentation
                 {
                     var r = _lanternRefl[j];
                     r.localPosition = new Vector3(Mathf.Cos(rad) * _lanternRadius, r.localPosition.y, Mathf.Sin(rad) * _lanternRadius);
-                    r.localRotation = Quaternion.Euler(90f, 0f, -_lanternDeg[j]);
+                    if (r.name.StartsWith("Lantern reflection")) r.localRotation = Quaternion.Euler(90f, 0f, -_lanternDeg[j]);
                     r.localScale = _reflScale[j] * show;
                 }
             }
@@ -860,6 +911,12 @@ namespace DestinyGarden.Presentation
                 _labelCanvas.renderMode = RenderMode.ScreenSpaceCamera;
                 _labelCanvas.worldCamera = Camera.main;
                 _labelCanvas.planeDistance = 1.2f;
+                if (_causeCanvas != null)
+                {
+                    _causeCanvas.renderMode = RenderMode.ScreenSpaceCamera;
+                    _causeCanvas.worldCamera = Camera.main;
+                    _causeCanvas.planeDistance = 1.25f;
+                }
                 if (_qaStar >= 7)
                     ShowLabel(_qaStar, _qaStar == 7 ? "前の目 3 と今の目 4 で七　・　偶然なら 1/6"
                         : "ラッキーナンバーに、陰陽と島の調和が重なった", true);

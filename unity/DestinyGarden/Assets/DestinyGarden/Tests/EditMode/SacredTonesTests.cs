@@ -16,6 +16,7 @@ namespace DestinyGarden.Tests
             var d = new Dictionary<string, float[]>();
             for (int f = 1; f <= 7; f++) d["face" + f] = AudioSynth.FaceNote(f);
             for (int p = 5; p <= 8; p++) d["chord" + p] = AudioSynth.StarChord(p);
+            foreach (var k in new[] { "return", "fruit", "wither" }) d["cycle-" + k] = AudioSynth.CycleTone(k);
             return d;
         }
 
@@ -160,6 +161,19 @@ namespace DestinyGarden.Tests
             Assert.AreEqual("前の目 3 と今の目 4 で七　・　偶然なら 1/6", PrayerStarSigil.LuckyOddsLine(4, 3, 6));
             Assert.AreEqual("前の目 3 と今の目 4 で七　・　偶然なら 1/7", PrayerStarSigil.LuckyOddsLine(4, 3, 7), "a seventh face makes each face 1/7");
             Assert.AreEqual("七の目　・　偶然なら 1/7", PrayerStarSigil.LuckyOddsLine(7, 2, 7));
+        }
+
+        [Test]
+        public void CycleTone_OneAtMost_FruitFirst()
+        {
+            var eco = new DestinyGarden.Domain.EcologyResult();
+            Assert.IsNull(PrayerStarSigil.CycleToneFor(eco));
+            eco.Effects.Add(new DestinyGarden.Domain.EcologyEffect { Kind = DestinyGarden.Domain.Lifecycle.WitherKind, CellId = 3 });
+            Assert.AreEqual("wither", PrayerStarSigil.CycleToneFor(eco));
+            eco.Effects.Add(new DestinyGarden.Domain.EcologyEffect { Kind = DestinyGarden.Domain.Lifecycle.ReturnKind, CellId = 4 });
+            Assert.AreEqual("return", PrayerStarSigil.CycleToneFor(eco));
+            eco.Effects.Add(new DestinyGarden.Domain.EcologyEffect { Kind = DestinyGarden.Domain.Lifecycle.FruitKind, CellId = 4, Seed = true });
+            Assert.AreEqual("fruit", PrayerStarSigil.CycleToneFor(eco));
         }
 
         [Test]

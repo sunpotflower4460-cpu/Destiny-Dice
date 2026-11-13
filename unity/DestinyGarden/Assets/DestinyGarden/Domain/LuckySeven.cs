@@ -153,7 +153,11 @@ namespace DestinyGarden.Domain
         public const int MaxSpirits = 7;
 
         /// <summary>Plant cells reached by the dice blessing (water, light, wind or new seeds), cellId order.</summary>
-        public static System.Collections.Generic.List<int> ReachedPlantCells(SimulationResult sim)
+        public static System.Collections.Generic.List<int> ReachedPlantCells(SimulationResult sim) =>
+            ReachedPlantCells(sim, MaxSpirits);
+
+        /// <summary>Reached plant cells in the same order, up to max (the ecology step filters flowers before capping).</summary>
+        public static System.Collections.Generic.List<int> ReachedPlantCells(SimulationResult sim, int max)
         {
             var result = new System.Collections.Generic.List<int>();
             if (sim == null || sim.PostState == null) return result;
@@ -175,7 +179,7 @@ namespace DestinyGarden.Domain
             foreach (var set in new[] { touched, grew })
                 foreach (int c in set)
                 {
-                    if (result.Count == MaxSpirits) return result;
+                    if (result.Count == max) return result;
                     result.Add(c);
                 }
             return result;

@@ -71,6 +71,7 @@ namespace DestinyGarden.Presentation
             for (int i = 0; i < 4; i++) names.Add("chirp" + i);
             for (int i = 1; i <= 7; i++) names.Add("face" + i);
             for (int i = 5; i <= 8; i++) names.Add("chord" + i);
+            names.Add("cycle-return"); names.Add("cycle-fruit"); names.Add("cycle-wither");
             foreach (string n in names)
             {
                 Get(n);
@@ -93,6 +94,7 @@ namespace DestinyGarden.Presentation
             else if (name == "rainbow") s = AudioSynth.Rainbow();
             else if (name.StartsWith("face")) s = AudioSynth.FaceNote(int.Parse(name.Substring(4)));
             else if (name.StartsWith("chord")) s = AudioSynth.StarChord(int.Parse(name.Substring(5)));
+            else if (name.StartsWith("cycle-")) s = AudioSynth.CycleTone(name.Substring(6));
             else if (name.StartsWith("star")) s = AudioSynth.StarUp(int.Parse(name.Substring(4)));
             else if (name.StartsWith("bloom")) s = AudioSynth.Bloom(int.Parse(name.Substring(5)));
             else if (name.StartsWith("sprout")) s = AudioSynth.Sprout(int.Parse(name.Substring(6)));
@@ -190,6 +192,10 @@ namespace DestinyGarden.Presentation
         /// <summary>The prayer star's chord (5..8 points), a quiet swell beneath the garden's sounds.</summary>
         public void PlayStarChord(int points) => Shot(_fx, "chord" + Mathf.Clamp(points, 5, 8), StarChordVolume);
 
+        /// <summary>The garden's cycle: "return", "fruit" or "wither" (one per roll), quieter than the face note.</summary>
+        public void PlayCycleTone(string kind) => Shot(_fx, "cycle-" + kind, CycleToneVolume);
+
+        public const float CycleToneVolume = 0.36f;
         public const float FaceNoteVolume = 0.42f;
         public const float StarChordVolume = 0.5f;
     }

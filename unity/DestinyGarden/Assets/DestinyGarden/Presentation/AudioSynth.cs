@@ -538,5 +538,33 @@ namespace DestinyGarden.Presentation
             if (points == 7) for (int k = 0; k < 3; k++) Glass(d, t0 + 0.5 + k * 0.16, SolfegeNote(7, 2), 0.10, 0.4);
             return Finish(Reverb(d, 0.6, 3.0), 0.45, 0.6);
         }
+
+        /// <summary>
+        /// The garden's cycle (lifecycle): "return" a flower goes back to the soil (sol -> do, falling a fifth),
+        /// "fruit" it leaves its seed (sol -> do, then the upper do: the line goes on), "wither" a seedling ends
+        /// (a low open fifth, do-sol). Soft attacks and a long tail, meant to sit under everything else.
+        /// </summary>
+        public static float[] CycleTone(string kind)
+        {
+            var d = new double[(int)(3.4 * Rate)];
+            switch (kind)
+            {
+                case "fruit":
+                    Glass(d, 0.00, SolfegeNote(5), 0.75, 0.70, 0.03);
+                    Glass(d, 0.26, SolfegeNote(1), 0.80, 0.85, 0.03);
+                    Glass(d, 0.62, SolfegeNote(1, 1), 0.55, 0.90, 0.03);
+                    break;
+                case "wither":
+                    // A hollow open fifth, low and brief: a quiet ending.
+                    Glass(d, 0.00, SolfegeNote(1, -1), 0.9, 1.1, 0.05);
+                    Glass(d, 0.04, SolfegeNote(5, -1), 0.7, 1.0, 0.05);
+                    break;
+                default:
+                    Glass(d, 0.00, SolfegeNote(5), 0.75, 0.70, 0.03);
+                    Glass(d, 0.30, SolfegeNote(1), 0.85, 0.95, 0.03);
+                    break;
+            }
+            return Finish(Reverb(d, 0.6, 2.6), 0.40, 0.5);
+        }
     }
 }
