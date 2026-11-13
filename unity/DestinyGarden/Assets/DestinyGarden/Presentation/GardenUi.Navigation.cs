@@ -65,15 +65,15 @@ namespace DestinyGarden.Presentation
             _resetViewLabel = _resetViewButton.GetComponentInChildren<Text>();
             _resetViewButton.gameObject.SetActive(false);
 
-            _panelLayer = new GameObject("GardenPanels", typeof(RectTransform), typeof(Image), typeof(Button));
+            _panelLayer = new GameObject("GardenPanels", typeof(RectTransform));
             _panelLayer.transform.SetParent(canvas, false);
-            var rect = (RectTransform)_panelLayer.transform;
-            rect.anchorMin = Vector2.zero;
-            rect.anchorMax = Vector2.one;
-            rect.offsetMin = rect.offsetMax = Vector2.zero;
-            var backdrop = _panelLayer.GetComponent<Image>();
+            Stretch((RectTransform)_panelLayer.transform);
+            var backdropObject = new GameObject("PanelBackdrop", typeof(RectTransform), typeof(Image), typeof(Button));
+            backdropObject.transform.SetParent(_panelLayer.transform, false);
+            Stretch((RectTransform)backdropObject.transform);
+            var backdrop = backdropObject.GetComponent<Image>();
             backdrop.color = new Color(0.015f, 0.032f, 0.046f, 0.66f);
-            var dismiss = _panelLayer.GetComponent<Button>();
+            var dismiss = backdropObject.GetComponent<Button>();
             dismiss.targetGraphic = backdrop;
             dismiss.transition = Selectable.Transition.None;
             dismiss.navigation = new Navigation { mode = Navigation.Mode.None };
@@ -113,6 +113,13 @@ namespace DestinyGarden.Presentation
                 "「庭を観察」では、どこで何が起きたかを振り返れます。";
             _helpPanel.SetActive(false);
             _panelLayer.SetActive(false);
+        }
+
+        private static void Stretch(RectTransform rect)
+        {
+            rect.anchorMin = Vector2.zero;
+            rect.anchorMax = Vector2.one;
+            rect.offsetMin = rect.offsetMax = Vector2.zero;
         }
 
         private Button MenuChip(Transform menu, int column, int row, string label, Action onClick) =>

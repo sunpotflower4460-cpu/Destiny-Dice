@@ -166,10 +166,7 @@ namespace DestinyGarden.Presentation
 
             var controls = new GameObject("GardenControls", typeof(RectTransform));
             controls.transform.SetParent(canvasObj.transform, false);
-            var controlsRect = controls.GetComponent<RectTransform>();
-            controlsRect.anchorMin = Vector2.zero;
-            controlsRect.anchorMax = Vector2.one;
-            controlsRect.offsetMin = controlsRect.offsetMax = Vector2.zero;
+            Stretch(controls.GetComponent<RectTransform>());
             _gardenControls = controls.AddComponent<CanvasGroup>();
             if (FindFirstObjectByType<UnityEngine.EventSystems.EventSystem>() == null)
             {
@@ -744,9 +741,7 @@ namespace DestinyGarden.Presentation
             _titleCard.transform.SetParent(canvas, false);
             var dim = _titleCard.AddComponent<Image>();
             dim.color = new Color(0.01f, 0.02f, 0.05f, 0.12f);
-            var dimRect = _titleCard.GetComponent<RectTransform>();
-            dimRect.anchorMin = Vector2.zero; dimRect.anchorMax = Vector2.one;
-            dimRect.offsetMin = Vector2.zero; dimRect.offsetMax = Vector2.zero;
+            Stretch(_titleCard.GetComponent<RectTransform>());
 
             var opening = new GameObject("Opening", typeof(RectTransform));
             opening.transform.SetParent(_titleCard.transform, false);
