@@ -6,12 +6,13 @@ namespace DestinyGarden.Domain
     /// <summary>Optional v5 memory. Its absence preserves the exact v4 state and behaviour.</summary>
     public sealed class SuccessionState
     {
+        public CommunityState Community; // absent in saved v5 gardens
         public List<RestingSeed> SeedBank = new List<RestingSeed>();
         public Dictionary<string, FlowerResource> Flowers = new Dictionary<string, FlowerResource>(StringComparer.Ordinal);
         public Dictionary<string, PlantAncestry> Ancestry = new Dictionary<string, PlantAncestry>(StringComparer.Ordinal);
         public SuccessionState Clone()
         {
-            var s = new SuccessionState();
+            var s = new SuccessionState { Community = Community?.Clone() };
             foreach (var seed in SeedBank) s.SeedBank.Add(seed.Clone());
             foreach (var pair in Flowers) s.Flowers.Add(pair.Key, pair.Value.Clone());
             foreach (var pair in Ancestry) s.Ancestry.Add(pair.Key, pair.Value.Clone());

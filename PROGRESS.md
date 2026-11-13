@@ -2157,3 +2157,49 @@ npx --yes pnpm@10 build
 - Presentation: GardenUi.cs、GardenBootstrap.cs、GardenLife.cs
 - Tests: SuccessionTests.cs（新規とmeta）、LivingEcosystemTests.cs（v4の長期試験をv4で固定）
 - docs/unity-garden/ECOSYSTEM_V5.md（新規）、ECOLOGY.md、tools/ecology-check/README.md、PROGRESS.md
+
+## Ecology v6: 定着・子育て・水辺の食物網（2026-11-13）
+### 完了したこと
+- 本人の継続依頼「さらにブラッシュアップ」に対し、住人が庭で暮らし、次の世代につながる一つの改修を実装。仕様は `docs/unity-garden/ECOSYSTEM_V6.md`。
+- 蝶・テントウムシ・ハナアブ・トンボ・カエルが、食草/葉の覆い/持続する水辺と食べものの条件が3投続いた場所へ定着。種類ごと2組、各組の成体3・幼い命2、候補地6まで。成体の活動は住み場所からの範囲と実在する数で制限する。
+- 卵→幼生→（対象種のさなぎ）→成体を保存。蝶の幼虫は食草、テントウムシとハナアブの幼虫はアブラムシ、オタマジャクシは藻、ヤゴは水生の餌を実際に消費。幼生は食べ足りない時には成長しない。卵とさなぎの蓄えを使う期間も区別する。
+- 蝶の幼虫は食草の根と葉の基礎を残して食べる。ハナアブは成体の花蜜と幼虫の捕食を分離。テントウムシの成体は開いた花の実在する蜜でも暮らせる。成体が食べられても幼生の食べものがない場所で産卵を続けない。
+- 成体の食事は保存される実活動の消費量から割り当て、同じ量を2組へ二重計上しない。水辺には養分→藻、落ち葉/藻→小さな餌を追加し、消費量と上限を守る。乾いた時の還元も記録する。水収支は変えない。
+- 一時的な餌不足/住み場所の喪失には猶予。子育て中でない成体は近くの合う場所へ移り、幼生や卵は池の間を瞬間移動しない。成体への成長、外への旅立ち、移動、還元を別の原因イベントとして保存する。
+- 観察に住人の成体数、卵/幼虫/さなぎ/オタマジャクシ/ヤゴの段階、餌不足と居場所の変化、水辺の食物網を追加。新しい段階は既存の地表メッシュにまとめて描く。育った場所や定着/移動の場所に小さな光を出す。
+- 調和の多様性で同じ住人の卵・幼虫・さなぎを別種として数えない。旧規則の調和は変更しない。
+- 新規庭だけ `ecology.v6`。v3/v4/v5の保存済み庭は旧規則で復帰。新しいメモリを推定・追加しない。住人の順序・植物の選択順序を固定し、実JSONを経た復帰でも同じ結果にする。
+### 完了基準の結果（実行出力）
+```text
+dotnet test tools/ecology-check/Ecology.Check.csproj --configuration Release
+Test Run Successful.
+Total tests: 85
+     Passed: 85
+```
+- 前回の65件＋今回20件。実際のDomain/Application/Infrastructureを.NET 8で実行。Unity依存のPresentationTests 5件は含めない。
+- v6の384投×2庭×継続/JSON定期復帰＝1536投で、48投ごとにコーディネーターが生成した全記録のペイロードをJSONへ往復させた後も、全状態ハッシュが一致。
+- v6の2庭で5種類すべての住人が定着。定着69/99件、成体への成長イベント10/37件、組の最大数9/10、384投後の植物31/40株。食事・移動・乾燥・還元などを含む28種類の関係イベントを確認。
+- 水の不変、各種の組/個体数、候補地、藻/小さな餌の上限、二重に食事を使わないこと、食草の根を残すこと、餌不足時に育たないこと、卵や幼生の移動制約を確認。
+- v3初期/24投、v4初期/48投の既知ハッシュを維持。v5の改修前 `0171418` で採取した初期 `16ccb702f7f652d45a96f64b40f5ecda03687a306d8e4755db7e408b83c4c967` /96投 `9d88938fac694561e4850779ba321d1a8737498c7d31a87a8f28603e9b5def47` と一致。
+```text
+npx --yes pnpm@10 typecheck
+> tsc -b --noEmit                         (exit 0)
+npx --yes pnpm@10 test
+Test Files 41 passed (41)
+Tests      183 passed (183)
+npx --yes pnpm@10 build
+✓ 102 modules transformed.
+✓ built in 345ms
+```
+- Unity内の60ファイルをC#9構文検査し、エラー0。`git diff --check` 成功。
+- 既存実験の `src/` と凍結プロトコル、自然シミュレーション、台帳の書き込み経路は変更していない。新しい乱数取得・時刻依存・過去のジャーナルの編集を加えていない。
+### 未確認・申し送り
+- この環境にはUnityエディタ/実行可能なWebGLプレイヤーがなく、Unityの型解決・全EditMode・新しい姿の描画・操作・音・fpsは未検証。85件は実C#の.NET実行であり、Unity検証済みとは扱わない。
+- Unity 6000.3.23f1で、新しい来場者→湿った場所と食草/蜜源を育てる→観察→卵/幼生/さなぎ/羽化→乾いた場所の移動を確認する。小さい幼生の見え方、観察の長文、WebGLの狭い枠とタッチ操作、描画負荷の確認が必要。
+- 旧v3/v4/v5ジャーナルを開く際に旧規則を維持し、次の来場者からv6になることをUnity側でも確認する。配布ビルド・提出画像・ストア公開は更新せず、PR #30をUnity確認前のドラフトとして更新する。
+### 触ったファイル
+- Domain: CommunityState.cs、CommunitySerializer.cs、CommunityRules.cs、CommunityInspection.cs（新規とmeta）、SuccessionState.cs、SuccessionSerializer.cs、EcosystemState.cs、LivingEcosystem.cs、Ecology.cs、EcologyObservations.cs、EcologyInspection.cs
+- Application: GardenCoordinator.cs
+- Presentation: EcosystemResidents.cs、GardenLife.cs、GardenUi.cs
+- Tests: CommunityTests.cs（新規とmeta）、SuccessionTests.cs（v5で固定）
+- docs/unity-garden/ECOLOGY.md・ECOSYSTEM_V6.md、tools/ecology-check/README.md、PROGRESS.md

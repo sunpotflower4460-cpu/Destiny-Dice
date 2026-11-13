@@ -463,7 +463,8 @@ namespace DestinyGarden.Domain
             }
             var payload = new Dictionary<string, object>
             {
-                ["rulesVersion"] = living ? (r.PostState.Ecosystem.Succession != null ? SuccessionRules.RulesVersion : LivingEcosystem.RulesVersion) : RulesVersion,
+                ["rulesVersion"] = living ? (r.PostState.Ecosystem.Succession != null ?
+                    (r.PostState.Ecosystem.Succession.Community != null ? CommunityRules.RulesVersion : SuccessionRules.RulesVersion) : LivingEcosystem.RulesVersion) : RulesVersion,
                 ["harmony"] = r.Harmony != null ? (long)r.Harmony.Value : 0L,
                 ["star"] = r.Harmony != null ? (long)r.Harmony.Star : 0L,
                 ["yin"] = r.Harmony != null ? (long)r.Harmony.Yin : 0L,

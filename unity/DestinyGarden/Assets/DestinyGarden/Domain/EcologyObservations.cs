@@ -8,8 +8,18 @@ namespace DestinyGarden.Domain
     {
         public static string ResidentLabel(string kind)
         {
+            if (kind != null && kind.EndsWith("-eggs", StringComparison.Ordinal)) return ResidentLabel(kind.Substring(0, kind.Length - 5)) + "の卵";
+            if (kind != null && kind.EndsWith("-pupa", StringComparison.Ordinal)) return ResidentLabel(kind.Substring(0, kind.Length - 5)) + "のさなぎ";
             switch (kind)
             {
+                case CommunityRules.Algae: return "藻";
+                case CommunityRules.PondPrey: return "水辺の小さな命";
+                case CommunityRules.Caterpillar: return "蝶の幼虫";
+                case CommunityRules.Chrysalis: return "蝶のさなぎ";
+                case CommunityRules.Tadpole: return "オタマジャクシ";
+                case CommunityRules.Nymph: return "ヤゴ";
+                case CommunityRules.LadybirdLarva: return "テントウムシの幼虫";
+                case CommunityRules.HoverflyLarva: return "ハナアブの幼虫";
                 case Ecology.Bee: return "花蜂";
                 case Ecology.Butterfly: return "蝶";
                 case Ecology.Moss: return "光る苔";
@@ -35,6 +45,14 @@ namespace DestinyGarden.Domain
         {
             switch (kind)
             {
+                case CommunityRules.Caterpillar: return "シロツメクサ・カラスノエンドウ・スミレ・野ばら・野イチゴなど、合う食草の葉を食べて育つ。根は残す。";
+                case CommunityRules.Chrysalis: return "食べるのを休み、蓄えで蝶へ姿を変える時。";
+                case CommunityRules.LadybirdLarva: return "葉の近くのアブラムシを食べ、やがてさなぎになる。";
+                case CommunityRules.HoverflyLarva: return "成体が花蜜を飲む一方、幼虫は葉の小虫を食べる。";
+                case CommunityRules.Nymph: return "持続した水辺で、小さな水生の餌を食べてトンボに育つ。";
+                case CommunityRules.Tadpole: return "藻を食べて育つ。水辺がなくなると、ほかの場所へすぐには移れない。";
+                case CommunityRules.Algae: return "湿りが続く水辺で、養分を使って光から育つ。オタマジャクシの食べもの。";
+                case CommunityRules.PondPrey: return "落ち葉や藻に支えられ、ヤゴやカエルにつながる水辺の食べもの。";
                 case Ecology.Bee: return "雨のやんだ花へ。花粉を届け、実りを支える。";
                 case Ecology.Butterfly: return "好みの花を訪れて受粉を助ける。苦手な花には立ち寄らない。";
                 case LivingEcosystem.Hoverfly: return "開いた形の花とアブラムシが近い所へ。訪花と食物網の二つをつなぐ。";
@@ -62,6 +80,19 @@ namespace DestinyGarden.Domain
             {
                 case "seed-dispersed": return e.Actor == Ecology.Bird ? $"小鳥が{plant}の実を運び、離れた土に種を残した。"
                     : e.Actor == Ecology.Fluff ? $"風に乗った{plant}の種が、東の土へ。" : $"{plant}の実った種が、そばの土にこぼれた。";
+                case "resident-settled": return $"{actor}が、この庭に暮らす場所を見つけた。";
+                case "brood-laid": return $"{actor}が、次の命を託す卵を残した。";
+                case "resident-emerged": return $"幼い命が育ち、この庭で新しい{actor}になった。";
+                case "resident-dispersed": return $"育った{actor}が、庭の外へ旅立った。";
+                case "refuge-moved": return $"{actor}が、近くの新しい居場所へ移った。";
+                case "brood-lost": return $"育つ条件を失った{actor}の幼い命が、土へ還った。";
+                case "resident-returned": return $"{actor}の命がひとつ、土へ静かに還った。";
+                case "resident-left": return $"居場所を失った{actor}が、庭を離れていった。";
+                case "host-leaf-eaten": return "蝶の幼虫が食草の葉を食べ、根を残して育っている。";
+                case "algae-grew": return "続いた湿りと養分から、水辺に藻が育った。";
+                case "algae-eaten": return "オタマジャクシが、水辺の藻を食べて育っている。";
+                case "pond-prey-eaten": return $"{actor}が、水辺の小さな餌を食べた。";
+                case "pond-dried": return "乾いた水辺で、小さな命の蓄えが土へ還った。";
                 case "seed-buried": return e.Actor == Ecology.Bird ? $"小鳥が運んだ{plant}の種が、土の中で時を待つ。"
                     : e.Actor == Ecology.Fluff ? $"風が運んだ{plant}の種が、次の芽吹きを待つ。" : $"{plant}の種が土に残り、次の命を待っている。";
                 case "seed-awakened": return $"土に眠っていた{plant}の種が、居場所を見つけて芽吹いた。";
@@ -85,8 +116,9 @@ namespace DestinyGarden.Domain
 
         public static string Highlight(IList<EcologicalLink> links)
         {
-            foreach (string kind in new[] { "seed-awakened", "seed-buried", "seed-dispersed", "returned-to-soil", "recovered", "stressed", "fruited",
-                "flower-rest", "nutrient-shared", "nitrogen-fixed", "predation", "decomposed", "pollinated", "nectar-fed", "seed-expired" })
+            foreach (string kind in new[] { "resident-emerged", "resident-settled", "refuge-moved", "brood-laid", "seed-awakened", "seed-buried", "seed-dispersed", "returned-to-soil", "recovered", "stressed", "fruited",
+                "flower-rest", "nutrient-shared", "nitrogen-fixed", "predation", "decomposed", "pollinated", "nectar-fed", "seed-expired", "brood-lost", "resident-returned", "resident-left",
+                "resident-dispersed", "host-leaf-eaten", "algae-eaten", "pond-prey-eaten", "algae-grew", "pond-dried" })
                 foreach (var e in links) if (e.Kind == kind) return Describe(e);
             return null;
         }

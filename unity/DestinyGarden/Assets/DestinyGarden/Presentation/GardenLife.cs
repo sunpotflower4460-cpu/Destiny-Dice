@@ -379,6 +379,12 @@ namespace DestinyGarden.Presentation
                 }
             }
             foreach (var link in eco.Relations)
+                if (link.Kind == "resident-emerged" || link.Kind == "resident-settled" || link.Kind == "refuge-moved")
+                {
+                    _seedGlints.transform.position = View.CellTop(link.ToCell) + Vector3.up * 0.25f;
+                    _seedGlints.Emit(new ParticleSystem.EmitParams { startColor = new Color(0.72f, 0.94f, 0.82f, 0.85f) }, 7);
+                }
+            foreach (var link in eco.Relations)
                 if (link.Kind == "seed-buried")
                 {
                     var top = View.CellTop(link.ToCell);

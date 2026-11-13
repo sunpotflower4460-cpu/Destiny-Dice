@@ -23,7 +23,7 @@ namespace DestinyGarden.Tests
         private static WorldState Soil()
         {
             var s = WorldState.CreateInitial(); s.Plants.Clear(); s.WorldRevision = 1;
-            s.Ecosystem = EcosystemState.CreateCurrent();
+            s.Ecosystem = EcosystemState.CreateInitial(); s.Ecosystem.Succession = new SuccessionState();
             for (int c = 0; c < 256; c++) s.SoilWater[c] = GardenMapData.SoilCapacity[c] * 600 / 1000;
             return s;
         }
@@ -248,7 +248,11 @@ namespace DestinyGarden.Tests
                 List<string> Play(bool resume)
                 {
                     var memory = new Memory(); var ids = new SequentialIds(); var entropy = new FixedEntropy("succession-" + garden);
-                    var coord = new GardenCoordinator(memory, entropy, ids); coord.CreateRun();
+                    var coord = new GardenCoordinator(memory, entropy, ids);
+                    var initial = WorldState.CreateInitial(); initial.Ecosystem = EcosystemState.CreateInitial(); initial.Ecosystem.Succession = new SuccessionState();
+                    memory.Append("RunStarted", ids.NewId("run"), null, new Dictionary<string, object>
+                    { ["initialState"] = WorldStateSerializer.ToPayload(initial), ["ecologyPolicyVersion"] = SuccessionRules.RulesVersion });
+                    coord.Restore(new JournalReadResult { ChainValid = true, Entries = memory.Entries });
                     Assert.AreEqual(SuccessionRules.RulesVersion, memory.Entries[0].Payload["ecologyPolicyVersion"]);
                     var hashes = new List<string>(); int emerged = 0, stored = 0, maxBank = 0;
                     for (int roll = 0; roll < 384; roll++)

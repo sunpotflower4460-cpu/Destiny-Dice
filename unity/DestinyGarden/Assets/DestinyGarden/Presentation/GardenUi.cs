@@ -526,11 +526,15 @@ namespace DestinyGarden.Presentation
                 sb.AppendLine("<b>つながりを育てる</b>\n花に昆虫が訪れると受粉し、数投かけて実ります。種は親と同じ種類を受け継ぎ、合う土へ。\n花は休み、寿命を終えた株は落ち葉になり、分解者が次の芽の養分へ戻します。\n水辺は湿りが続くと、草木の陰は背の高い株が育つと生まれます。投数で巡る四つの時期も、結実の量に影響します。\n");
                 if (state.Ecosystem.Succession != null)
                     sb.AppendLine("土の中に残った種は、空き地や湿り、光、養分を待ちます。サクラソウ・スミレ・アネモネは休息の頃を経てから芽吹きます。\n蜂と蝶は花蜜を使い、受粉を待つ花と、長く訪れていない花へ巡ります。『庭を観察』から株や種の今を眺められます。\n");
+                if (state.Ecosystem.Succession?.Community != null)
+                    sb.AppendLine("蝶・テントウムシ・ハナアブ・トンボ・カエルは、条件が続いた住み場所に定着します。卵や幼生には食べものが必要で、成体とは役割が違う命もいます。住み場所が変わってもすぐには消えず、移動や次の世代につながります。\n");
                 sb.AppendLine("<b>この庭で出会った小さな命</b>");
                 foreach (string kind in new[] { Ecology.Bee, Ecology.Butterfly, LivingEcosystem.Hoverfly, Ecology.Bird,
                     Ecology.Mushroom, Ecology.Worm, LivingEcosystem.Springtail, LivingEcosystem.Snail,
                     LivingEcosystem.Aphid, LivingEcosystem.Ladybird, LivingEcosystem.Spider, LivingEcosystem.Frog,
-                    Ecology.Dragonfly, Ecology.Moss, Ecology.Firefly })
+                    Ecology.Dragonfly, Ecology.Moss, Ecology.Firefly, CommunityRules.Caterpillar, CommunityRules.Chrysalis,
+                    CommunityRules.LadybirdLarva, CommunityRules.HoverflyLarva, CommunityRules.Nymph, CommunityRules.Tadpole,
+                    CommunityRules.Algae, CommunityRules.PondPrey })
                     if (residents != null && residents.Contains(kind))
                         sb.AppendLine("<color=#ffe2a6>" + ResidentLabelJa(kind) + "</color>　" + EcologyObservations.ResidentGuide(kind));
                 sb.AppendLine("\n<b>花の条件と役割</b>　庭の中の決まりを記したもの");

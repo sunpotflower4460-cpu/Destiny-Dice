@@ -35,7 +35,9 @@ namespace DestinyGarden.Domain
                     ["carrier"] = p.Carrier, ["bornRevision"] = p.BornRevision
                 });
             }
-            return new Dictionary<string, object> { ["seedBank"] = seeds, ["flowers"] = flowers, ["ancestry"] = ancestry };
+            var payload = new Dictionary<string, object> { ["seedBank"] = seeds, ["flowers"] = flowers, ["ancestry"] = ancestry };
+            if (s.Community != null) payload["community"] = CommunitySerializer.ToPayload(s.Community);
+            return payload;
         }
 
         public static SuccessionState FromPayload(IDictionary<string, object> d)
@@ -57,6 +59,8 @@ namespace DestinyGarden.Domain
                     ParentPlantId = p["parentPlantId"] as string, SeedId = p["seedId"] as string,
                     Carrier = p["carrier"] as string, BornRevision = Int(p, "bornRevision")
                 });
+            if (d.TryGetValue("community", out object value) && value is IDictionary<string, object> community)
+                s.Community = CommunitySerializer.FromPayload(community);
             return s;
         }
         private static int Int(IDictionary<string, object> p, string key) => WorldStateSerializer.ToInt(p[key]);

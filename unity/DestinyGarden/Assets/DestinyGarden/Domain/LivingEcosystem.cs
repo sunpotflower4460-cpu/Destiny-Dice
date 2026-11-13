@@ -80,7 +80,12 @@ namespace DestinyGarden.Domain
             }
             void Add(string kind, List<int> cells, int cap = 6)
             {
-                if (cells.Count == 0) return;
+                if (e.Succession?.Community != null)
+                {
+                    cells = CommunityRules.RestrictVisits(s, kind, cells);
+                    cap = CommunityRules.VisitLimit(s, kind, cap);
+                }
+                if (cells.Count == 0 || cap == 0) return;
                 var selected = e.Succession != null ? SuccessionRules.SelectVisits(s, kind, cells, cap)
                     : cells.GetRange(0, Math.Min(cap, cells.Count));
                 if (selected.Count > 0) visits.Add(new EcologyVisit { Kind = kind, Cells = selected });
@@ -99,9 +104,18 @@ namespace DestinyGarden.Domain
                 if (!rain && Near(open, c, 2)) hoverflies.Add(c);
                 if (Near(cover, c, 1)) spiders.Add(c);
             }
+            if (e.Succession?.Community != null)
+                foreach (int c in open)
+                {
+                    var plant = s.PlantAt(c);
+                    if (!e.Succession.Flowers.TryGetValue(plant.PlantId, out var resource) || resource.Nectar == 0) continue;
+                    if (!ladybirds.Contains(c)) ladybirds.Add(c);
+                    if (!rain && !hoverflies.Contains(c)) hoverflies.Add(c);
+                }
             Add(Ladybird, ladybirds, 4); Add(Hoverfly, hoverflies, 3); Add(Spider, spiders, 3);
             var frogs = new List<int>(); var snails = new List<int>();
-            foreach (int c in pools) if (Near(cover, c, 2) && Near(aphids, c, 3)) frogs.Add(c);
+            foreach (int c in pools)
+                if (Near(cover, c, 2) && (Near(aphids, c, 3) || (e.Succession?.Community != null && e.Succession.Community.AquaticPrey[c] > 0))) frogs.Add(c);
             foreach (int c in litter) if (Flora.Moisture(s, c) >= 600) snails.Add(c);
             Add(Frog, frogs, 2); Add(Snail, snails, 3);
             Add(Ecology.Dragonfly, pools, 4);
@@ -112,6 +126,7 @@ namespace DestinyGarden.Domain
             bool windy = currentRecipeId != null && RecipeCatalog.ElementOf(currentRecipeId) == ElementId.Wind;
             if (windy || (weather != null && weather.BaseWindQ >= 300)) Add(Ecology.Fluff, windSeeds, 3);
             if (rain) Add(Ecology.Dew, cover, 6);
+            CommunityRules.AddYoungPresence(s, visits);
             return visits;
         }
 
@@ -176,6 +191,7 @@ namespace DestinyGarden.Domain
                 bool host = covered && moisture >= 200 && moisture <= 850 && e.CoverAge[c] >= 3;
                 e.Aphids[c] = Math.Max(0, Math.Min(12, e.Aphids[c] + (host ? 1 : -2)));
             }
+            if (e.Succession?.Community != null) CommunityRules.BeforeActivity(s, ctx, r);
             r.Visits = Presence(s, ctx.Weather, ctx.CurrentRecipeId);
             EcologyVisit Visit(string kind) => r.Visits.Find(v => v.Kind == kind);
 
@@ -203,7 +219,8 @@ namespace DestinyGarden.Domain
                         var available = new List<int>();
                         foreach (var p in Ordered(s))
                             if (p.Stage == PlantStage.Flower && Living(s, p) && Flora.Get(p.Species).Butterfly > 0) available.Add(p.CellId);
-                        pollinator.Cells = SuccessionRules.SelectFlowers(s, actor, available, 3);
+                        if (e.Succession.Community != null) available = CommunityRules.RestrictVisits(s, actor, available);
+                        pollinator.Cells = SuccessionRules.SelectFlowers(s, actor, available, CommunityRules.VisitLimit(s, actor, 3));
                         if (pollinator.Cells.Count == 0) { r.Visits.Remove(pollinator); continue; }
                     }
                     Pollinate(actor, pollinator.Cells);
@@ -250,7 +267,7 @@ namespace DestinyGarden.Domain
             foreach (string actor in new[] { Ladybird, Hoverfly, Spider, Frog, Ecology.Bird })
             {
                 var visitor = Visit(actor);
-                if (visitor == null) continue;
+                if (visitor == null || (e.Succession?.Community != null && actor == Hoverfly)) continue;
                 foreach (int c in visitor.Cells)
                 {
                     int preyCell = c;
@@ -439,10 +456,12 @@ namespace DestinyGarden.Domain
             {
                 SuccessionRules.Awaken(s, afterSim, r, newPlantId);
                 SuccessionRules.CleanMemory(s);
+                if (e.Succession.Community != null) CommunityRules.AfterActivity(s, r);
             }
             int residents = 0;
             foreach (var visit in r.Visits)
                 if (visit.Kind != Ecology.Spirit && visit.Kind != Ecology.Fish && visit.Kind != Ecology.Petals) residents++;
+            if (e.Succession?.Community != null) residents = CommunityRules.ResidentKinds(r.Visits);
             r.Harmony = Harmony.Read(ctx.RecentRecipeIds, residents, Flora.BloomingSpecies(s));
             r.Networks = Networks(s);
             r.Events.AddRange(stages.Events);

@@ -76,7 +76,7 @@ namespace DestinyGarden.Application
             _writer.Append("RunStarted", RunId, null, new Dictionary<string, object>
             {
                 ["gameId"] = "destiny-garden",
-                ["ecologyPolicyVersion"] = SuccessionRules.RulesVersion,
+                ["ecologyPolicyVersion"] = CommunityRules.RulesVersion,
                 ["floraPolicyVersion"] = Flora.RulesVersion,
                 ["runLifecycleVersion"] = RuleVersions.RunLifecycle,
                 ["simulationProfile"] = RuleVersions.SimulationProfile,

@@ -106,6 +106,7 @@ namespace DestinyGarden.Domain
                 if (total == 0) sb.AppendLine("眠っている種は、まだない。");
                 else foreach (var pair in groups) sb.AppendLine(pair.Key + $"（{pair.Value}粒）");
             }
+            sb.Append(CommunityInspection.Describe(s, habitat));
             sb.AppendLine("\n株が教えてくれること");
             var readings = ReadPlants(s, habitat);
             if (readings.Count == 0) sb.AppendLine("この居場所に、まだ株はない。");
