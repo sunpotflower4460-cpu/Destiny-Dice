@@ -25,7 +25,8 @@ namespace DestinyGarden.Domain
     /// </summary>
     public static class Flora
     {
-        public const string RulesVersion = "flora.v1";
+        public const string RulesVersion = "flora.v2";
+        public const int LegacySpeciesCount = 15;
         public const int ThriveGrowth = 4;
 
         private static SpeciesTraits T(string id, string ja, int hard, int dMin, int dMax, int mMin, int mMax, int light,
@@ -54,6 +55,15 @@ namespace DestinyGarden.Domain
             T("dandelion", "タンポポ", 1000, 0, 1000, 0, 1000, 1, 0, 1, softens: 150, wind: true),
             T("strawberry", "野イチゴ", 520, 0, 1000, 300, 1000, 1, 0, 1, softens: 100, berries: true),
             T("lily", "ユリ", 380, 400, 1000, 300, 900, 1, 2, 0),
+            T("clover", "シロツメクサ", 800, 250, 900, 180, 850, 0, 1, 2, softens: 60),
+            T("vetch", "カラスノエンドウ", 850, 300, 1000, 180, 800, 0, 1, 2, softens: 80),
+            T("yarrow", "ノコギリソウ", 900, 420, 1000, 0, 700, 0, 2, 1, softens: 90),
+            T("thyme", "タイム", 950, 480, 1000, 0, 650, 0, 1, 2),
+            T("mint", "ハッカ", 650, 0, 620, 400, 1000, 1, 1, 2, drains: -60),
+            T("primrose", "サクラソウ", 580, 0, 650, 350, 900, 2, 1, 1),
+            T("violet", "スミレ", 720, 200, 850, 220, 900, 2, 1, 1, softens: 40),
+            T("loosestrife", "ミソハギ", 780, 0, 560, 500, 1000, 1, 2, 2),
+            T("goldenrod", "アキノキリンソウ", 850, 350, 1000, 100, 850, 0, 2, 1, wind: true),
         };
 
         public static SpeciesTraits Get(string id)
@@ -81,6 +91,18 @@ namespace DestinyGarden.Domain
                    (y > 0 && GardenMapData.Solid[c - 16] == 1) || (y < 15 && GardenMapData.Solid[c + 16] == 1);
         }
 
+        /// <summary>Rock shade plus shade cast by a neighbouring mature canopy in v4 gardens.</summary>
+        public static bool IsShade(WorldState s, int c)
+        {
+            if (IsRockShade(c)) return true;
+            if (s.Ecosystem == null) return false;
+            foreach (var p in s.Plants)
+                if (p.CellId != c && Dist(p.CellId, c) <= 1 && p.Stage >= PlantStage.Leaf &&
+                    PlantStrategies.Get(p.Species).Height == 2 &&
+                    (!s.Ecosystem.Cycles.TryGetValue(p.PlantId, out var life) || life.Stress < 12)) return true;
+            return false;
+        }
+
         /// <summary>Soil moisture in per mille of capacity (0 for cells without soil).</summary>
         public static int Moisture(WorldState s, int c) =>
             GardenMapData.SoilCapacity[c] > 0 ? (int)Math.Min(1000L, 1000L * s.SoilWater[c] / GardenMapData.SoilCapacity[c]) : 0;
@@ -102,6 +124,8 @@ namespace DestinyGarden.Domain
                 if (t == null || t.Softens == 0 || Dist(p.CellId, c) > 1) continue;
                 h -= t.Softens * Weight(p) / 2;
             }
+            if (s.Ecosystem != null) h -= Math.Min(100, s.Ecosystem.Litter[c] * 2);
+            if (s.Ecosystem?.Habitat != null) h -= Math.Min(100, s.Ecosystem.Habitat.Humus[c] * 2);
             return Math.Max(0, Math.Min(1000, h));
         }
 
@@ -125,7 +149,7 @@ namespace DestinyGarden.Domain
             if (d < t.DrainMin || d > t.DrainMax) return false;
             int m = Moisture(s, c);
             if (m < t.MoistMin || m > t.MoistMax) return false;
-            bool shade = IsRockShade(c);
+            bool shade = IsShade(s, c);
             if (t.Light == 0 && shade) return false;
             if (t.Light == 2 && !shade) return false;
             return true;
@@ -134,7 +158,8 @@ namespace DestinyGarden.Domain
         public static List<SpeciesTraits> FittingAt(WorldState s, int c)
         {
             var list = new List<SpeciesTraits>();
-            foreach (var t in All) if (Fits(t, s, c)) list.Add(t);
+            for (int i = 0; i < (s.Ecosystem == null ? LegacySpeciesCount : All.Length); i++)
+                if (Fits(All[i], s, c)) list.Add(All[i]);
             return list;
         }
 
@@ -154,6 +179,7 @@ namespace DestinyGarden.Domain
             {
                 var t = fit[i];
                 int w = 2;
+                if (s.Ecosystem?.Habitat != null) w += HabitatRules.Suitability(t, s, plant.CellId) / 200;
                 if (parentSpecies != null && t.Id == parentSpecies) w += 10;
                 if (carrier == "bird" && t.Berries) w += 6;
                 if (carrier == "fluff" && t.WindSeed) w += 8;

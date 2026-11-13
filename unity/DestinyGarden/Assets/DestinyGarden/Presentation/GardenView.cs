@@ -177,6 +177,46 @@ namespace DestinyGarden.Presentation
             _sun.color = Color.Lerp(_sunBase, toward, Mathf.Abs(_balance) * 0.15f);
         }
         private GameObject _focusRing;
+        private Coroutine _observationFocus;
+
+        public void FocusObservedCell(int cell)
+        {
+            if (cell < 0 || cell >= GardenMapData.CellCount || _focusRing == null) return;
+            if (_observationFocus != null) StopCoroutine(_observationFocus);
+            _observationFocus = StartCoroutine(PulseObservedCell(cell));
+        }
+        private IEnumerator PulseObservedCell(int cell)
+        {
+            _focusRing.transform.position = CellTop(cell) + Vector3.up * 0.10f;
+            _focusRing.SetActive(true);
+            for (float t = 0; t < 1.7f; t += Time.unscaledDeltaTime)
+            {
+                float size = ReducedMotion ? 1f : 1f + Mathf.Sin(t * 5f) * 0.07f;
+                _focusRing.transform.localScale = new Vector3(size, 1f, size);
+                yield return null;
+            }
+            _focusRing.SetActive(false); _observationFocus = null;
+        }
+        private GameObject _careRing;
+
+        public void ShowCareTarget(int cell)
+        {
+            if (_careRing == null && cell >= 0 && _focusRing != null)
+            {
+                _careRing = new GameObject("PreparedCareTarget");
+                _careRing.transform.SetParent(transform);
+                var line = _careRing.AddComponent<LineRenderer>();
+                line.sharedMaterial = _focusRing.GetComponent<LineRenderer>().sharedMaterial;
+                line.useWorldSpace = false; line.loop = true; line.widthMultiplier = 0.025f;
+                line.startColor = line.endColor = new Color(0.60f, 0.95f, 0.90f, 0.8f);
+                line.positionCount = 4;
+                line.SetPositions(new[] { new Vector3(-0.65f, 0f, -0.65f), new Vector3(0.65f, 0f, -0.65f),
+                    new Vector3(0.65f, 0f, 0.65f), new Vector3(-0.65f, 0f, 0.65f) });
+            }
+            if (_careRing == null) return;
+            _careRing.SetActive(cell >= 0);
+            if (cell >= 0) _careRing.transform.position = CellTop(cell) + Vector3.up * 0.06f;
+        }
         private GameObject _lightShaft;
         private ParticleSystem _rain;
         private ParticleSystem _pollen;
@@ -984,7 +1024,8 @@ namespace DestinyGarden.Presentation
                 occupied.Add(plant.CellId);
                 // Rebuild when the stage changes or the plant has grown visibly (every 250 growth).
                 bool suited = PlantSuited(plant, state);
-                int shownKey = (int)plant.Stage * 100 + plant.Growth / 250 + (suited ? 0 : 10000);
+                int shownKey = (int)plant.Stage * 100 + plant.Growth / 250 + (suited ? 0 : 10000) +
+                    (DestinyGarden.Domain.Flora.IndexOf(plant.Species) + 1) * 100000;
                 if (_plantStageShown[plant.CellId] != shownKey || _plantViews[plant.CellId] == null)
                 {
                     DestroyPlantView(_plantViews[plant.CellId]);
@@ -1049,6 +1090,7 @@ namespace DestinyGarden.Presentation
         private static bool PlantSuited(PlantState plant, WorldState state)
         {
             var t = DestinyGarden.Domain.Flora.Get(plant.Species);
+            if (state != null && state.Ecosystem != null && state.Ecosystem.Cycles.TryGetValue(plant.PlantId, out var life) && life.Stress >= 12) return false;
             return t == null || state == null || plant.Stage == PlantStage.Seed || DestinyGarden.Domain.Flora.Fits(t, state, plant.CellId);
         }
 
@@ -1061,8 +1103,10 @@ namespace DestinyGarden.Presentation
         }
 
         /// <summary>Short outcome presentation bound to saved facts. Skipped cues are discarded.</summary>
-        public IEnumerator PlayOutcome(SelectedMessage message, string element, SimulationResult sim)
+        public IEnumerator PlayOutcome(SelectedMessage message, string element, SimulationResult sim, int? observedCell = null)
         {
+            if (_observationFocus != null) StopCoroutine(_observationFocus);
+            _observationFocus = null; _focusRing?.SetActive(false);
             if (ReducedMotion) yield break;
             float tumble = 0.9f;
             _diceRolling = true;
@@ -1097,18 +1141,8 @@ namespace DestinyGarden.Presentation
                     }
             }
 
-            if (message != null && message.FocusCellId >= 0)
-            {
-                _focusRing.transform.position = CellTop(message.FocusCellId) + Vector3.up * 0.10f;
-                _focusRing.SetActive(true);
-                for (float t = 0; t < 1.7f; t += Time.deltaTime)
-                {
-                    float s = 1f + Mathf.Sin(t * 5f) * 0.07f;
-                    _focusRing.transform.localScale = new Vector3(s, 1f, s);
-                    yield return null;
-                }
-                _focusRing.SetActive(false);
-            }
+            int focus = observedCell ?? message?.FocusCellId ?? -1;
+            if (focus >= 0 && focus < GardenMapData.CellCount) yield return PulseObservedCell(focus);
         }
     }
 }

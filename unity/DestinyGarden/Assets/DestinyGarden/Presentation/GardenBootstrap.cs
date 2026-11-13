@@ -100,7 +100,7 @@ namespace DestinyGarden.Presentation
             {
                 _coordinator.SetCareFocus(mode, siteId);
                 _ui.ShowSiteSelection(mode, siteId);
-                _ui.ShowStatus("届け先は、次の一投から適用されます。");
+                _ui.ShowStatus((mode == "habitat" ? siteId + "へ。" : "") + "届け先は、次の準備から適用されます。");
             };
             _ui.OnSwitchVisitor = () =>
             {
@@ -112,6 +112,8 @@ namespace DestinyGarden.Presentation
                 UnityEngine.SceneManagement.SceneManager.LoadScene(UnityEngine.SceneManagement.SceneManager.GetActiveScene().buildIndex);
             };
             _ui.OnResetView = () => { if (_view != null && _view.Rig != null) _view.Rig.ResetView(); };
+            _ui.OnObserveCell = cell => { if (!_busy) _view.FocusObservedCell(cell); };
+            _ui.OnReadMemory = key => GardenMemories.Project(_journal.ReadAll().Entries, _coordinator.RunId, key);
             _ui.OnExport = ExportNow;
             _ui.OnAddLuckySeven = () =>
             {
@@ -204,6 +206,9 @@ namespace DestinyGarden.Presentation
             int wished = 0;
             if (_intentKind == "face" && int.TryParse(_intentValue, out int wf)) wished = wf;
             _ui.ShowFaces(_coordinator.CurrentFaces != null ? _coordinator.CurrentFaces.Faces : null, rolledFaceId, wished);
+            bool activePlan = prepared || _coordinator.Phase == CoordinatorPhase.IntentCommitted;
+            _ui.ShowCarePlan(_coordinator.State, activePlan ? _coordinator.CurrentFaces : null, _coordinator.CurrentWeather);
+            _view.ShowCareTarget(CareRules.Enabled(_coordinator.State) && activePlan && _coordinator.CurrentFaces != null ? CareTargets.Anchor(_coordinator.CurrentFaces) : -1);
             bool sevenUp = prepared && _coordinator.LuckySevenAdded;
             _view.SetLuckyDice(sevenUp);
             _wonders.SetLuckyHalo(sevenUp || offered);
@@ -261,6 +266,7 @@ namespace DestinyGarden.Presentation
         {
             var eco = outcome.Ecology;
             if (eco == null) return null;
+            if (eco.PostState.Ecosystem != null) return EcologyObservations.Highlight(eco.Relations);
             bool Seeded(string kind) => eco.Effects.Exists(e => e.Seed && e.Kind == kind);
             bool Fed(string kind) => eco.Effects.Exists(e => !e.Seed && e.Kind == kind && e.Amount > 0);
             if (Fed(Ecology.Spirit)) return "……かすかな光が、花のほうへ降りていった。";
@@ -292,7 +298,8 @@ namespace DestinyGarden.Presentation
         /// <summary>Residents follow the domain's Ecology.Presence over the saved state and rolled history.</summary>
         private void UpdateButterflies(List<RoundSummary> history)
         {
-            var presence = Ecology.Presence(_coordinator.State, _coordinator.CurrentWeather, new List<string>(_coordinator.RolledRecipes), null);
+            string lastRecipe = _coordinator.RolledRecipes.Count > 0 ? _coordinator.RolledRecipes[_coordinator.RolledRecipes.Count - 1] : null;
+            var presence = Ecology.Presence(_coordinator.State, _coordinator.CurrentWeather, new List<string>(_coordinator.RolledRecipes), lastRecipe);
             _life.ShowPresence(presence, _coordinator.State);
             var kinds = new List<string>();
             foreach (var v in presence) kinds.Add(v.Kind);
@@ -376,16 +383,21 @@ namespace DestinyGarden.Presentation
             _view.Show(_coordinator.State, _coordinator.CurrentWeather);
             string weather = _coordinator.CurrentWeather != null ? _coordinator.CurrentWeather.LabelJa : "";
             string site = _coordinator.CurrentFaces != null
-                ? Sites.ById(_coordinator.CurrentFaces.ResolvedSiteId).LabelJa : "";
+                ? CareTargets.Name(_coordinator.CurrentFaces.ResolvedSiteId) : "";
             _ui.ShowHeader(weather, site, _coordinator.State.WorldRevision);
             ShowPreparedFaces(rolledFaceId);
             var read = _journal.ReadAll();
             var history = HistoryProjector.Project(read.Entries, _coordinator.RunId);
-            _ui.RefreshHistory(history);
+            var moments = GardenMoments.Recent(read.Entries, _coordinator.RunId);
+            _ui.RefreshHistory(history, moments);
+            if (rolledFaceId == 0 && moments.Count > 0) _ui.ShowMessage(null, null, moments[0]);
             var discovered = new HashSet<string>();
             foreach (var r in history) foreach (var g in r.Germinated) discovered.Add(g);
             foreach (var p in _coordinator.State.Plants) if (p.Species != null) discovered.Add(p.Species);
-            _ui.ShowGuide(discovered);
+            var residents = new HashSet<string>();
+            foreach (var r in history) foreach (string kind in r.EcologyKinds) residents.Add(kind);
+            _ui.ShowGuide(discovered, _coordinator.State, residents);
+            _ui.ShowObservation(_coordinator.State);
             UpdateButterflies(history);
             float vitality = Vitality();
             _vitalityNow = vitality;
@@ -416,12 +428,13 @@ namespace DestinyGarden.Presentation
             }
 
             StartCoroutine(_islandHarmony.PlayBlessing(outcome));
+            var moment = GardenMoments.First(GardenMoments.FromOutcome(outcome, _coordinator.CurrentRoundId));
             _audio.PlayBell();
             string element = RecipeCatalog.ElementOf(outcome.RecipeId).ToString().ToLowerInvariant();
             _audio.PlayNature(element);
             if (element == "wind") _view.Flora.Gust();
             // Presentation replays the saved outcome; the saved end state is shown after.
-            yield return _view.PlayOutcome(outcome.Message, element, outcome.Simulation);
+            yield return _view.PlayOutcome(outcome.Message, element, outcome.Simulation, moment?.CellId);
             foreach (var e in outcome.Simulation.Events)
             {
                 if (e.Kind == "Bloomed" || e.Kind == "BudFormed" || e.Kind == "Germinated")
@@ -431,7 +444,7 @@ namespace DestinyGarden.Presentation
                 }
             }
             _view.SetDiceFace(outcome.FaceId);
-            _ui.ShowMessage(outcome.Message, outcome);
+            _ui.ShowMessage(outcome.Message, outcome, moment);
             RefreshAll(outcome.FaceId);
             _view.SetLuckyDice(outcome.LuckySeven);
             bool rainbow = LuckySeven.IsRainbow(outcome.LuckySeven, outcome.Simulation, outcome.Ecology);
@@ -460,11 +473,11 @@ namespace DestinyGarden.Presentation
             if (outcome.LuckySeven) _view.SetLuckyDice(true);
             string luckStatus = rainbow ? "空に、虹の八がかかった。"
                 : outcome.LuckySeven ? "七の目。恵みが重なって届いた。"
-                : EcologyLine(outcome);
+                : moment?.Detail ?? (moment != null ? RecipeCatalog.LabelJa(outcome.RecipeId) + "の一投。" : EcologyLine(outcome));
             if (luckStatus != null) _ui.ShowStatus(luckStatus);
             else if (_coordinator.LuckySevenOffered) _ui.ShowStatus("七つめの面が、そっと現れている。");
             string weather = _coordinator.CurrentWeather.LabelJa;
-            string site = Sites.ById(_coordinator.CurrentFaces.ResolvedSiteId).LabelJa;
+            string site = CareTargets.Name(_coordinator.CurrentFaces.ResolvedSiteId);
             _ui.ShowHeader(weather, site, _coordinator.State.WorldRevision);
             _view.Show(_coordinator.State, _coordinator.CurrentWeather);
             _busy = false;

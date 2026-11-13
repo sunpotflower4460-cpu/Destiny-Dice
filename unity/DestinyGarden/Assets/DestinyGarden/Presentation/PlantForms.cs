@@ -4,7 +4,7 @@ using UnityEngine;
 namespace DestinyGarden.Presentation
 {
     /// <summary>
-    /// Garden plant forms (presentation only). Fifteen species with their own sprout, leaves,
+    /// Garden plant forms (presentation only). Twenty-four species with their own sprout, leaves,
     /// bud and bloom. The species follows where the plant stands (sun, rock or tree shade,
     /// river bank, high ground) and who sowed it: the gardener's die and the first garden, or
     /// the garden's small lives (OriginKind "ecology"), so the ecosystem's own choices show.
@@ -14,7 +14,8 @@ namespace DestinyGarden.Presentation
         public enum Species
         {
             Cosmos, Daisy, Bellflower, Poppy, Sunflower, Foxglove, Anemone, Iris,
-            ForgetMeNot, Buttercup, Lavender, WildRose, Dandelion, Strawberry, Lily
+            ForgetMeNot, Buttercup, Lavender, WildRose, Dandelion, Strawberry, Lily,
+            Clover, Vetch, Yarrow, Thyme, Mint, Primrose, Violet, Loosestrife, Goldenrod
         }
 
         private enum Leaves { Pairs, Strap, Rosette, Heart, Round, Fine }
@@ -61,6 +62,15 @@ namespace DestinyGarden.Presentation
             P(0.32f, Leaves.Rosette, Bloom.Pom, Green, new Color(0.62f, 0.66f, 0.30f), new Color(1f, 0.82f, 0.14f), new Color(1f, 0.92f, 0.40f), new Color(0.96f, 0.72f, 0.10f)),
             P(0.30f, Leaves.Round, Bloom.Berry, DeepGreen, new Color(0.86f, 0.90f, 0.80f), new Color(0.96f, 0.96f, 0.92f), new Color(1f, 1f, 1f), new Color(0.92f, 0.16f, 0.18f), 5, 0.06f, 0.04f, 0.3f, 0.3f, 0.02f),
             P(0.92f, Leaves.Fine, Bloom.Trumpet, Green, new Color(0.86f, 0.84f, 0.74f), new Color(1f, 0.72f, 0.78f), new Color(1f, 0.98f, 0.94f), new Color(0.80f, 0.48f, 0.20f), 6, 0.20f, 0.06f, -0.55f, 0.35f, 0.02f),
+            P(0.28f, Leaves.Round, Bloom.Pom, Green, new Color(0.80f, 0.84f, 0.70f), new Color(0.96f, 0.95f, 0.84f), new Color(1f, 0.84f, 0.90f), Gold, 10, 0.04f, 0.02f),
+            P(0.55f, Leaves.Pairs, Bloom.Spike, Green, new Color(0.64f, 0.32f, 0.70f), new Color(0.58f, 0.26f, 0.72f), new Color(0.90f, 0.66f, 0.94f), Gold),
+            P(0.66f, Leaves.Fine, Bloom.Cluster, GreyGreen, new Color(0.82f, 0.82f, 0.72f), new Color(1f, 0.94f, 0.80f), new Color(1f, 1f, 0.94f), Gold),
+            P(0.22f, Leaves.Round, Bloom.Cluster, GreyGreen, new Color(0.76f, 0.48f, 0.76f), new Color(0.84f, 0.55f, 0.82f), new Color(0.96f, 0.78f, 0.94f), Gold),
+            P(0.58f, Leaves.Pairs, Bloom.Spike, DeepGreen, new Color(0.68f, 0.72f, 0.80f), new Color(0.80f, 0.78f, 0.94f), new Color(0.96f, 0.94f, 1f), Gold),
+            P(0.35f, Leaves.Rosette, Bloom.Radial, Green, new Color(0.88f, 0.48f, 0.66f), new Color(0.94f, 0.54f, 0.74f), new Color(1f, 0.82f, 0.88f), Gold, 5, 0.10f, 0.07f),
+            P(0.25f, Leaves.Heart, Bloom.Radial, DeepGreen, new Color(0.48f, 0.38f, 0.76f), new Color(0.42f, 0.32f, 0.72f), new Color(0.78f, 0.70f, 0.98f), Gold, 5, 0.075f, 0.05f),
+            P(0.90f, Leaves.Pairs, Bloom.Spike, Green, new Color(0.82f, 0.34f, 0.68f), new Color(0.84f, 0.34f, 0.72f), new Color(1f, 0.68f, 0.88f), Gold),
+            P(0.92f, Leaves.Pairs, Bloom.Cluster, Green, new Color(0.88f, 0.74f, 0.26f), new Color(1f, 0.78f, 0.16f), new Color(1f, 0.94f, 0.52f), Gold),
         };
 
         /// <summary>The colour a flower of this saved species shows when it opens (for the opening burst).</summary>
@@ -76,24 +86,8 @@ namespace DestinyGarden.Presentation
 
         public static string LabelJa(Species s)
         {
-            switch (s)
-            {
-                case Species.Cosmos: return "コスモス";
-                case Species.Daisy: return "デイジー";
-                case Species.Bellflower: return "ホタルブクロ";
-                case Species.Poppy: return "ポピー";
-                case Species.Sunflower: return "ヒマワリ";
-                case Species.Foxglove: return "ジギタリス";
-                case Species.Anemone: return "アネモネ";
-                case Species.Iris: return "アイリス";
-                case Species.ForgetMeNot: return "ワスレナグサ";
-                case Species.Buttercup: return "キンポウゲ";
-                case Species.Lavender: return "ラベンダー";
-                case Species.WildRose: return "野ばら";
-                case Species.Dandelion: return "タンポポ";
-                case Species.Strawberry: return "野イチゴ";
-                default: return "ユリ";
-            }
+            int i = (int)s;
+            return i >= 0 && i < Flora.All.Length ? Flora.All[i].LabelJa : "花";
         }
 
         private static uint Hash(string id)
@@ -110,7 +104,10 @@ namespace DestinyGarden.Presentation
                 ["poppy"] = Species.Poppy, ["sunflower"] = Species.Sunflower, ["foxglove"] = Species.Foxglove,
                 ["anemone"] = Species.Anemone, ["iris"] = Species.Iris, ["forgetmenot"] = Species.ForgetMeNot,
                 ["buttercup"] = Species.Buttercup, ["lavender"] = Species.Lavender, ["wildrose"] = Species.WildRose,
-                ["dandelion"] = Species.Dandelion, ["strawberry"] = Species.Strawberry, ["lily"] = Species.Lily
+                ["dandelion"] = Species.Dandelion, ["strawberry"] = Species.Strawberry, ["lily"] = Species.Lily,
+                ["clover"] = Species.Clover, ["vetch"] = Species.Vetch, ["yarrow"] = Species.Yarrow,
+                ["thyme"] = Species.Thyme, ["mint"] = Species.Mint, ["primrose"] = Species.Primrose,
+                ["violet"] = Species.Violet, ["loosestrife"] = Species.Loosestrife, ["goldenrod"] = Species.Goldenrod
             };
 
         /// <summary>The saved species (ecology.v3); before the first ecology step, a stand-in from the place.</summary>

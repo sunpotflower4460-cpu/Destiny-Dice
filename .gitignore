@@ -51,3 +51,9 @@ unity/*/*.csproj
 unity/*/*.sln
 unity/*/*.slnx
 unity/*/.utmp/
+
+# Headless C# ecology checks (the project file is source, outputs are disposable).
+!tools/ecology-check/Ecology.Check.csproj
+tools/ecology-check/bin/
+tools/ecology-check/obj/
+tools/ecology-check/TestResults/

@@ -1,5 +1,16 @@
 # AGENTS.md — このリポジトリの作業ルール
 
+## Unity Garden の並行作業（ユーザー指定・2026-11-13）
+
+Unityゲームのブラッシュアップは **Codex = 仕組み、Claude Code = 見かけ** に分担する。
+着手前に [PARALLEL_WORK.md](docs/unity-garden/PARALLEL_WORK.md) を読み、担当外のファイルを同時に編集しない。
+Domain / Application / Infrastructure はCodex、Presentation（GardenBootstrap含む）/ 描画素材 / シーンはClaude Codeが担当する。
+公開型・既存メソッド・保存形式の互換性を保ち、接続変更が必要なら担当別の引き継ぎ文書とPR本文へ具体的に記録する。
+別ブランチと別checkout/worktreeで作業し、他担当のブランチへのpush・force push・変更の上書きをしない。
+このUnity並行作業に限り、下記§1.11・§7の進捗記録は `docs/unity-garden/worklogs/system/` または
+`docs/unity-garden/worklogs/appearance/` 配下の作業別Markdownでも満たす。共有の `PROGRESS.md` は統合時に追記する。
+この分担はUnityゲームの作業へ適用し、既存実験の `src/` や凍結プロトコルの変更を許可するものではない。
+
 あなた（Claude Code）はこのリポジトリの実装担当です。毎セッションの最初にこのファイルと
 `DESIGN.md`、`PROTOCOL_FREEZE.md` を読んでから作業を始めてください。「何を作るか」は
 `DESIGN.md` v2.0 + `PROTOCOL_FREEZE.md` v2.1 が正です。両者が衝突する場合は **PROTOCOL_FREEZE.md が優先**します。

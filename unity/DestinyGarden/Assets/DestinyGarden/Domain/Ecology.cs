@@ -25,6 +25,8 @@ namespace DestinyGarden.Domain
         public List<EcologyVisit> Visits = new List<EcologyVisit>();
         public List<EcologyEffect> Effects = new List<EcologyEffect>();
         public List<GardenEvent> Events = new List<GardenEvent>();
+        public List<EcologicalLink> Relations = new List<EcologicalLink>(); // ecology.v4: observed causes
+        public CareReport Care; // v8: measured local dice effects; absent from earlier records
         public bool Exhausted;
         public HarmonyReading Harmony;                              // ecology.v2
         public List<List<int>> Networks = new List<List<int>>();    // mycorrhizal networks (cells), ecology.v2
@@ -41,6 +43,8 @@ namespace DestinyGarden.Domain
         public bool PrayerAnswered;
         public SimulationResult Sim;            // this roll's natural simulation
         public WeatherDefinition Weather;
+        public ResolvedRecipe Dice;
+        public CareMeasure Care;
     }
 
     /// <summary>
@@ -113,6 +117,7 @@ namespace DestinyGarden.Domain
         public static List<EcologyVisit> Presence(WorldState s, WeatherDefinition weather,
             IList<string> recentRecipeIds, string currentRecipeId)
         {
+            if (s.Ecosystem != null) return LivingEcosystem.Presence(s, weather, currentRecipeId);
             var visits = new List<EcologyVisit>();
             var flowers = Flowers(s);
 
@@ -165,6 +170,7 @@ namespace DestinyGarden.Domain
         public static EcologyResult Apply(WorldState afterSim, EcologyContext ctx, byte[] ecologyBytes,
             Func<int, string> newPlantId)
         {
+            if (afterSim.Ecosystem != null) return LivingEcosystem.Apply(afterSim, ctx, ecologyBytes, newPlantId);
             var s = afterSim.Clone();
             var r = new EcologyResult { PostState = s };
             var buf = new EntropyBuffer(ecologyBytes ?? new byte[0]);
@@ -412,6 +418,7 @@ namespace DestinyGarden.Domain
         /// <summary>Mycorrhizal networks: plants linked within MycorrhizaReach, as connected components (cellId order).</summary>
         public static List<List<int>> Networks(WorldState s)
         {
+            if (s.Ecosystem != null) return LivingEcosystem.Networks(s);
             var cells = new List<int>();
             foreach (var p in s.Plants) cells.Add(p.CellId);
             cells.Sort();
@@ -439,6 +446,7 @@ namespace DestinyGarden.Domain
         /// <summary>Journal payload for Resolved.ecology.</summary>
         public static Dictionary<string, object> ToPayload(EcologyResult r)
         {
+            bool living = r.PostState != null && r.PostState.Ecosystem != null;
             var visits = new List<object>();
             foreach (var v in r.Visits)
             {
@@ -456,9 +464,10 @@ namespace DestinyGarden.Domain
                 if (e.Species != null) { d["species"] = e.Species; d["softened"] = e.Softened; }
                 effects.Add(d);
             }
-            return new Dictionary<string, object>
+            var payload = new Dictionary<string, object>
             {
-                ["rulesVersion"] = RulesVersion,
+                ["rulesVersion"] = CareRules.Enabled(r.PostState) ? CareRules.RulesVersion : living && r.PostState.Ecosystem.Habitat != null ? HabitatRules.RulesVersion : living ? (r.PostState.Ecosystem.Succession != null ?
+                    (r.PostState.Ecosystem.Succession.Community != null ? CommunityRules.RulesVersion : SuccessionRules.RulesVersion) : LivingEcosystem.RulesVersion) : RulesVersion,
                 ["harmony"] = r.Harmony != null ? (long)r.Harmony.Value : 0L,
                 ["star"] = r.Harmony != null ? (long)r.Harmony.Star : 0L,
                 ["yin"] = r.Harmony != null ? (long)r.Harmony.Yin : 0L,
@@ -467,6 +476,25 @@ namespace DestinyGarden.Domain
                 ["effects"] = effects,
                 ["exhausted"] = r.Exhausted
             };
+            if (r.Care != null) payload["care"] = r.Care.ToPayload();
+            if (living)
+            {
+                var relations = new List<object>();
+                foreach (var e in r.Relations)
+                {
+                    var relation = new Dictionary<string, object>
+                    {
+                        ["kind"] = e.Kind, ["actor"] = e.Actor, ["species"] = e.Species,
+                        ["fromCell"] = e.FromCell, ["toCell"] = e.ToCell, ["amount"] = e.Amount
+                    };
+                    if (e.FromHabitat != null) relation["fromHabitat"] = e.FromHabitat;
+                    if (e.ToHabitat != null) relation["toHabitat"] = e.ToHabitat;
+                    relations.Add(relation);
+                }
+                payload["relations"] = relations;
+                payload["season"] = PlantStrategies.SeasonAt(r.PostState);
+            }
+            return payload;
         }
     }
 }

@@ -17,6 +17,8 @@ namespace DestinyGarden.Domain
     {
         public string DrawnSiteId;
         public string ResolvedSiteId;
+        public int AnchorCellId = -1; // v8 pins the resolved cell before faces are published
+        public string TargetNote;
         public string[] Faces; // length 6, index+1 = faceId
         public List<FaceCandidate> Candidates = new List<FaceCandidate>();
         public List<ResolvedRecipe> Resolved = new List<ResolvedRecipe>();
@@ -43,6 +45,12 @@ namespace DestinyGarden.Domain
             int anchor = Sites.ById(resolvedSiteId).CenterCellId;
 
             var prepared = new PreparedFaces { DrawnSiteId = drawnSiteId, ResolvedSiteId = resolvedSiteId };
+            if (CareRules.Enabled(stateBefore))
+            {
+                prepared.AnchorCellId = anchor;
+                if (preferenceMode == "habitat") CareTargets.ResolveHabitat(stateBefore, preferenceSiteId, prepared);
+                anchor = prepared.AnchorCellId;
+            }
 
             foreach (string recipeId in RecipeCatalog.Order)
             {
@@ -181,6 +189,7 @@ namespace DestinyGarden.Domain
             void Accumulate(int cellId, long dose, int needQ)
             {
                 if (dose <= 0) return;
+                needQ = CareRules.LocalNeed(r, s, weather, cellId, needQ);
                 doseSum += dose;
                 weighted += dose * needQ;
             }
