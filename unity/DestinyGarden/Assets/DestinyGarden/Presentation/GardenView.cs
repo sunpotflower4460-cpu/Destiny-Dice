@@ -177,6 +177,26 @@ namespace DestinyGarden.Presentation
             _sun.color = Color.Lerp(_sunBase, toward, Mathf.Abs(_balance) * 0.15f);
         }
         private GameObject _focusRing;
+        private Coroutine _observationFocus;
+
+        public void FocusObservedCell(int cell)
+        {
+            if (cell < 0 || cell >= GardenMapData.CellCount || _focusRing == null) return;
+            if (_observationFocus != null) StopCoroutine(_observationFocus);
+            _observationFocus = StartCoroutine(PulseObservedCell(cell));
+        }
+        private IEnumerator PulseObservedCell(int cell)
+        {
+            _focusRing.transform.position = CellTop(cell) + Vector3.up * 0.10f;
+            _focusRing.SetActive(true);
+            for (float t = 0; t < 1.7f; t += Time.unscaledDeltaTime)
+            {
+                float size = ReducedMotion ? 1f : 1f + Mathf.Sin(t * 5f) * 0.07f;
+                _focusRing.transform.localScale = new Vector3(size, 1f, size);
+                yield return null;
+            }
+            _focusRing.SetActive(false); _observationFocus = null;
+        }
         private GameObject _careRing;
 
         public void ShowCareTarget(int cell)
@@ -1083,8 +1103,10 @@ namespace DestinyGarden.Presentation
         }
 
         /// <summary>Short outcome presentation bound to saved facts. Skipped cues are discarded.</summary>
-        public IEnumerator PlayOutcome(SelectedMessage message, string element, SimulationResult sim)
+        public IEnumerator PlayOutcome(SelectedMessage message, string element, SimulationResult sim, int? observedCell = null)
         {
+            if (_observationFocus != null) StopCoroutine(_observationFocus);
+            _observationFocus = null; _focusRing?.SetActive(false);
             if (ReducedMotion) yield break;
             float tumble = 0.9f;
             _diceRolling = true;
@@ -1119,18 +1141,8 @@ namespace DestinyGarden.Presentation
                     }
             }
 
-            if (message != null && message.FocusCellId >= 0)
-            {
-                _focusRing.transform.position = CellTop(message.FocusCellId) + Vector3.up * 0.10f;
-                _focusRing.SetActive(true);
-                for (float t = 0; t < 1.7f; t += Time.deltaTime)
-                {
-                    float s = 1f + Mathf.Sin(t * 5f) * 0.07f;
-                    _focusRing.transform.localScale = new Vector3(s, 1f, s);
-                    yield return null;
-                }
-                _focusRing.SetActive(false);
-            }
+            int focus = observedCell ?? message?.FocusCellId ?? -1;
+            if (focus >= 0 && focus < GardenMapData.CellCount) yield return PulseObservedCell(focus);
         }
     }
 }

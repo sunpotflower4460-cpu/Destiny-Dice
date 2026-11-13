@@ -20,12 +20,14 @@ namespace DestinyGarden.Presentation
         public Action OnHideUi;
         public Action OnAddLuckySeven;
         public Action OnResetView;
+        public Action<int> OnObserveCell;
 
         private Font _font;
         private Text _header;
         private Text _messageCard;
         private Text _status;
         private Button _rollButton;
+        private bool _rollEnabled = true;
         private readonly Button[] _faceChips = new Button[7];
         private string _luckyChipMode = "hidden"; // hidden | offer | face
         private Button _wishToggle;
@@ -64,6 +66,11 @@ namespace DestinyGarden.Presentation
         private PreparedFaces _outlookPrepared;
         private WeatherDefinition _outlookWeather;
         private List<CareAftercareNote> _aftercareNotes = new List<CareAftercareNote>();
+        private List<GardenMoment> _recentMoments = new List<GardenMoment>();
+        private List<RoundSummary> _historyData = new List<RoundSummary>();
+        private bool _observationDetails;
+        private Button _observationModeButton, _momentFocusButton;
+        private GardenMoment _focusedMoment;
         private WorldState _observationState;
         private string _observationHabitat;
         private readonly Dictionary<string, Button> _observationChips = new Dictionary<string, Button>();
@@ -172,8 +179,8 @@ namespace DestinyGarden.Presentation
             _header = MakeText(canvasObj.transform, new Vector2(0f, 1f), new Vector2(36f, -42f),
                 new Vector2(640f, 44f), 25, TextAnchor.UpperLeft);
             AddBacking(_header, new Vector2(10f, 5f));
-            _messageCard = MakeText(canvasObj.transform, new Vector2(0.5f, 1f), new Vector2(0f, -104f),
-                new Vector2(940f, 76f), 27, TextAnchor.MiddleCenter);
+            _messageCard = MakeText(canvasObj.transform, new Vector2(0.5f, 1f), new Vector2(0f, -122f),
+                new Vector2(940f, 94f), 27, TextAnchor.MiddleCenter);
             AddBacking(_messageCard, new Vector2(18f, 6f));
             _status = MakeText(canvasObj.transform, new Vector2(0.5f, 0f), new Vector2(0f, 214f),
                 new Vector2(900f, 48f), 17, TextAnchor.MiddleCenter);
@@ -329,8 +336,20 @@ namespace DestinyGarden.Presentation
                     new Vector2(-375f + 150f * i, -36f), new Vector2(140f, 40f), label, 17, () =>
                     { _observationHabitat = label == "全体" ? null : label; RenderObservation(); });
             }
-            _observationText = MakeScrollableText(_observationPanel.transform, new Vector2(940f, 426f), 18);
-            _observationText.transform.parent.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -24f);
+            _observationText = MakeScrollableText(_observationPanel.transform, new Vector2(940f, 360f), 18);
+            _observationText.transform.parent.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, 12f);
+            _observationModeButton = MakeChip(_observationPanel.transform, new Vector2(0.5f, 0f), new Vector2(-185f, 84f),
+                new Vector2(350f, 40f), "見通し・しくみを読む", 17, () =>
+                { _observationDetails = !_observationDetails; RenderObservation(); RenderHistory(); });
+            _momentFocusButton = MakeChip(_observationPanel.transform, new Vector2(0.5f, 0f), new Vector2(185f, 84f),
+                new Vector2(350f, 40f), "最初の出来事の場所を見る", 17, () =>
+                {
+                    if (_focusedMoment == null || _focusedMoment.CellId < 0 || !_rollEnabled) return;
+                    ShowMessage(null, null, _focusedMoment);
+                    ShowStatus(_focusedMoment.Detail ?? _focusedMoment.Caption);
+                    _observationPanel.SetActive(false);
+                    OnObserveCell?.Invoke(_focusedMoment.CellId);
+                });
             _careTargetButton = MakeChip(_observationPanel.transform, new Vector2(0.5f, 0f), new Vector2(0f, 34f),
                 new Vector2(560f, 42f), "この環境を次の届け先にする", 18, () =>
                 { if (_observationHabitat != null) OnSiteSelected?.Invoke("habitat", _observationHabitat); });
@@ -427,7 +446,11 @@ namespace DestinyGarden.Presentation
             panel.SetActive(show);
         }
 
-        public void SetRollEnabled(bool enabled) => _rollButton.interactable = enabled;
+        public void SetRollEnabled(bool enabled)
+        {
+            _rollEnabled = enabled; _rollButton.interactable = enabled;
+            if (_momentFocusButton != null) _momentFocusButton.interactable = enabled && _focusedMoment != null && _focusedMoment.CellId >= 0;
+        }
 
         private bool _rollPulse = true;
         /// <summary>A gentle breathing of the roll button until the first roll (so a new visitor knows where to begin).</summary>
@@ -535,14 +558,7 @@ namespace DestinyGarden.Presentation
             sb.AppendLine($"<b>庭の図鑑</b>　この庭に現れた花 {discovered.Count}/{total}　<color=#9aa8a4>上下にスクロール</color>");
             if (living)
             {
-                sb.AppendLine("<color=#a8e6c8>" + EcologyObservations.HabitatSummary(state) + "</color>\n");
-                sb.AppendLine("<b>つながりを育てる</b>\n花に昆虫が訪れると受粉し、数投かけて実ります。種は親と同じ種類を受け継ぎ、合う土へ。\n花は休み、寿命を終えた株は落ち葉になり、分解者が次の芽の養分へ戻します。\n水辺は湿りが続くと、草木の陰は背の高い株が育つと生まれます。投数で巡る四つの時期も、結実の量に影響します。\n");
-                if (state.Ecosystem.Succession != null)
-                    sb.AppendLine("土の中に残った種は、空き地や湿り、光、養分を待ちます。サクラソウ・スミレ・アネモネは休息の頃を経てから芽吹きます。\n蜂と蝶は花蜜を使い、受粉を待つ花と、長く訪れていない花へ巡ります。『庭を観察』から株や種の今を眺められます。\n");
-                if (state.Ecosystem.Succession?.Community != null)
-                    sb.AppendLine("蝶・テントウムシ・ハナアブ・トンボ・カエルは、条件が続いた住み場所に定着します。卵や幼生には食べものが必要で、成体とは役割が違う命もいます。住み場所が変わってもすぐには消えず、移動や次の世代につながります。\n");
-                if (state.Ecosystem.Habitat != null)
-                    sb.AppendLine("落ち葉の一部は腐植となって土に残り、後の根を支えます。野イチゴ・タイムはつる、ハッカ・スミレは地下茎でも同種の株を広げます。親の蓄えと養分を使い、合う隣の土へ根づきます。育つ条件の中にも、よく合う場所と条件の端の場所があります。\n");
+                if (_recentMoments.Count > 0) sb.AppendLine(GardenMoments.Describe(_recentMoments, max: 2));
                 sb.AppendLine("<b>この庭で出会った小さな命</b>");
                 foreach (string kind in new[] { Ecology.Bee, Ecology.Butterfly, LivingEcosystem.Hoverfly, Ecology.Bird,
                     Ecology.Mushroom, Ecology.Worm, LivingEcosystem.Springtail, LivingEcosystem.Snail,
@@ -605,11 +621,17 @@ namespace DestinyGarden.Presentation
         private void RenderObservation()
         {
             if (_observationText == null || _observationState == null || !_observationPanel.activeSelf) return;
-            if (_careOutlook == null && _outlookPrepared != null)
+            if (_observationDetails && _careOutlook == null && _outlookPrepared != null)
                 _careOutlook = CareOutlook.Build(_outlookState, _outlookPrepared, _outlookWeather);
-            SetScrollableText(_observationText, (_careOutlook?.Describe(_observationHabitat) ?? "") + (_carePlan ?? "") +
+            string text = _observationDetails ? (_careOutlook?.Describe(_observationHabitat) ?? "") + (_carePlan ?? "") +
                 CareAftercare.Describe(_aftercareNotes, _observationHabitat, 3) + "\n" + EcologyInspection.Describe(_observationState, _observationHabitat) +
-                CareTargets.Guidance(_observationState, _observationHabitat));
+                CareTargets.Guidance(_observationState, _observationHabitat)
+                : GardenMoments.Describe(_recentMoments, _observationHabitat) + CareAftercare.Describe(_aftercareNotes, _observationHabitat, 1);
+            SetScrollableText(_observationText, text);
+            _observationModeButton.GetComponentInChildren<Text>().text = _observationDetails ? "出来事へ戻る" : "見通し・しくみを読む";
+            _focusedMoment = GardenMoments.First(_recentMoments, _observationHabitat);
+            _momentFocusButton.gameObject.SetActive(!_observationDetails);
+            _momentFocusButton.interactable = _rollEnabled && _focusedMoment != null && _focusedMoment.CellId >= 0;
             _careTargetButton.gameObject.SetActive(CareRules.Enabled(_observationState));
             _careTargetButton.interactable = _observationHabitat != null;
             _careTargetButton.GetComponentInChildren<Text>().text = _observationHabitat == null ? "上で居場所を選ぶと、次の届け先にできる" : _observationHabitat + "を次の届け先にする";
@@ -745,8 +767,14 @@ namespace DestinyGarden.Presentation
             }
         }
 
-        public void ShowMessage(SelectedMessage message, RollOutcome outcome)
+        public void ShowMessage(SelectedMessage message, RollOutcome outcome, GardenMoment moment = null)
         {
+            if (moment == null && outcome != null) moment = GardenMoments.First(GardenMoments.FromOutcome(outcome));
+            if (moment != null)
+            {
+                _messageCard.text = moment.Headline + "\n<size=16>" + moment.Caption + "</size>";
+                return;
+            }
             if (message == null) { _messageCard.text = ""; return; }
             string card = "";
             if (message.CardId != null)
@@ -762,9 +790,17 @@ namespace DestinyGarden.Presentation
 
         public void ShowStatus(string text) => _status.text = text ?? "";
 
-        public void RefreshHistory(List<RoundSummary> history)
+        public void RefreshHistory(List<RoundSummary> history, IList<GardenMoment> moments = null)
         {
+            _historyData = history;
+            if (moments != null) _recentMoments = new List<GardenMoment>(moments);
             _aftercareNotes = CareAftercare.Project(history);
+            RenderHistory();
+            RefreshGraph(history);
+        }
+        private void RenderHistory()
+        {
+            var history = _historyData;
             var sb = new StringBuilder();
             sb.AppendLine("記録（新しい順・上下にスクロール）");
             sb.Append(CareAftercare.Describe(_aftercareNotes));
@@ -777,19 +813,22 @@ namespace DestinyGarden.Presentation
                     (r.LuckySeven && r.Bloomed ? " ∞虹" : ""));
                 var lives = new List<string>();
                 foreach (var k in r.EcologyKinds) { string n = ResidentLabelJa(k); if (n != null && !lives.Contains(n)) lives.Add(n); }
-                if (lives.Count > 0 || r.EcologySeeds > 0 || r.SeedBankDeposits > 0 || r.Harmony >= 0)
+                if (_observationDetails && (lives.Count > 0 || r.EcologySeeds > 0 || r.SeedBankDeposits > 0 || r.Harmony >= 0))
                     sb.AppendLine("　〔" + string.Join("・", lives) + "〕" +
                                   (r.SeedBankDeposits > 0 ? $" 土に残った種 ×{r.SeedBankDeposits}" : "") +
                                   (r.SeedBankSprouts > 0 ? $" 眠った種が芽吹いた ×{r.SeedBankSprouts}" : r.EcologySeeds > 0 ? $" 種がこぼれた ×{r.EcologySeeds}" : "") +
                                   (r.Harmony >= 0 ? $"　☯{r.Harmony}" : ""));
                 string relationship = EcologyObservations.Highlight(r.Relations);
-                if (r.Care != null) sb.Append(r.Care.Describe());
-                if (relationship != null) sb.AppendLine("　<color=#a8e6c8>" + relationship + "</color>");
-                if (!string.IsNullOrEmpty(r.MessageText)) sb.AppendLine("　" + r.MessageText);
+                int shown = 0;
+                foreach (var moment in _recentMoments)
+                    if (moment.RoundId == r.RoundId && shown++ < 2)
+                    { sb.AppendLine("　" + moment.Headline); if (moment.Detail != null) sb.AppendLine("　" + moment.Detail); }
+                if (_observationDetails && r.Care != null) sb.Append(r.Care.Describe());
+                if (shown == 0 && relationship != null) sb.AppendLine("　<color=#a8e6c8>" + relationship + "</color>");
+                if ((_observationDetails || shown == 0) && !string.IsNullOrEmpty(r.MessageText)) sb.AppendLine("　" + r.MessageText);
             }
             if (history.Count <= 1) sb.AppendLine("まだ記録がありません。");
             SetScrollableText(_historyText, sb.ToString());
-            RefreshGraph(history);
         }
 
         private void RefreshGraph(List<RoundSummary> history)

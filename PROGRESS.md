@@ -2400,3 +2400,56 @@ C# 9 syntax: 72 files, 0 errors (syntax only; Unity type checking requires the e
 - Presentation: GardenUi.cs
 - Tests: CareGuidanceTests.cs（新規とmeta）
 - docs/unity-garden/CARE_GUIDANCE.md・ECOLOGY.md、tools/ecology-check/README.md、PROGRESS.md
+
+## Event expression: 起きたことで伝わる庭へ（2026-11-13）
+### 完了したこと
+- 「基本説明よりは起きたことで説明・表現する」という指定に合わせ、普段の結果・観察・記録・図鑑を出来事が先に出る形へ変更した。同じPR #30の生態系深化の範囲として実装し、生態・配面・保存形式はv8のまま維持する。
+- `GardenMoments` を追加。解決済みの関係・成長イベントと、その投の終了状態から短い場面を作る。同じセル・種類の蜜の補充と訪花、藻の生長と食事、小虫の捕食と株の回復など、記録がそろった組み合わせだけを結ぶ。
+- 「蜜を補ったデイジーに、花蜂が訪れた」「ミミズがほどいた落ち葉の一部が、腐植になった」など、関わった命と実際の変化を伝える。居場所の境目を越えた根、土の種の目覚め、結実、成長や定着も扱う。
+- いるだけの住人数から誕生を作らず、0量の資源から食事や散布の成功を作らない。喪失・弱り・乾燥・還元も残し、花を閉じた株や入れ替わった株に咲いている花として焦点を当てない。
+- 一投の大きな文と光の輪郭を、同じ出来事のセルへ合わせた。観察から出来事を選ぶ場合も、文を大きく表示してパネルを閉じ、実際の場所を示す。投擲再生中はこの操作を無効にし、過去の植物を現在の庭へ作り直さない。
+- 観察の初期表示は最近の出来事とその後の記録にした。見通し・比較値・条件・仕組みは任意の詳細へ移し、その詳細を開くまで見通し用の自然計算を行わない。記録の通常表示も出来事を中心にし、元のカードの言葉と比較値は詳細表示に残す。
+- 図鑑の冒頭にあった長い一般説明を、その庭の最近の出来事へ置き換えた。種類ごとの条件と役割は参照として残す。保存復帰後の大きな文も最後の解決済みの場面から戻す。
+- ライブと履歴は同じ投影を使用。履歴の復元は最近12投に限定し、当時の終了状態・種類・居場所を使う。現在の庭から過去を推測せず、未解決の投・他run・記録にない訪問や感情を補わない。
+### 検証結果（実際の出力）
+- `.NET SDK 8.0.428` でUnity内の実際のDomain / Application / InfrastructureとEditModeテストを直接実行。Unity依存のPresentationTests 5件を除く既存165件＋新規30ケース。
+
+```text
+$ dotnet test tools/ecology-check/Ecology.Check.csproj --configuration Release --no-restore --nologo --logger 'console;verbosity=normal'
+Test Run Successful.
+Total tests: 195
+     Passed: 195
+ Total time: 54.3952 Seconds
+actual scenes: 32 live rounds; latest 3 rounds match JSON history
+```
+
+- 同じセル・種類・株IDの組み合わせ、離れた出来事や0量を結ばないこと、存在と誕生の区別、喪失、5つの居場所、閉じた花・入れ替わった株、種まきと芽の由来、表示順の安定性を検証した。
+- 実coordinatorで32投を解決し、ライブの文と場所を保存。JSON復帰後の最新3投について、文・詳細・場所・種類・順序が一致した。投影の前後で状態ハッシュ・台帳の件数・元のカードの焦点が変わらないことも確認した。
+- v8の768投、v7/v6/v5それぞれ1536投、v4の960投、v3〜v8の既知ハッシュ、見通しと振り返りの有無を比較する96投も維持して通過した。
+- 前回と同じ環境でpnpm 10を用い、既存スクリプトを実行した。
+
+```text
+$ npx --yes pnpm@10 typecheck
+> tsc -b --noEmit
+$ npx --yes pnpm@10 test
+ Test Files  41 passed (41)
+      Tests  183 passed (183)
+$ npx --yes pnpm@10 build
+> tsc -b && vite build
+✓ 102 modules transformed.
+✓ built in 455ms
+C# 9 syntax: 74 files, 0 errors (syntax only; Unity type checking requires the editor).
+```
+
+- `jeep-sqlite` の既存の `crypto` browser externalization警告、VSTestの `VSTEST_ARTIFACTS_DIRECTORY` 未設定の案内は残るが、各コマンドは正常終了した。`git diff --check`、追加C#のメタデータとGUID重複チェックも成功した。
+- Domain、既存実験の `src/`、凍結プロトコル、台帳の書き込み経路は変更していない。元の `selectedMessage`、抽選、保存済みの状態や台帳の編集経路を追加していない。光の焦点は表示用の位置指定で、保存したカードの焦点へ書き戻さない。
+### 未確認・申し送り
+- Unityエディタ/実行可能なWebGLプレイヤーがない。Unityの型解決・全EditMode・描画・操作・音・fpsは未検証。195件は実C#の.NET実行であり、Unity検証済みとは扱わない。
+- Unity 6000.3.23f1で、出来事の文と輪郭の一致、観察の初期表示、場所を見る時のパネル閉鎖、詳細との往復、低刺激表示、図鑑、過去の場所、保存復帰後の最後の文を確認する。文字の収まり・小画面のスクロールとタッチ・初回表示の応答時間も要確認。
+- 文はゲーム内の実記録の抜粋であり、特定の蜜一単位を誰が飲んだかや、その一投だけが原因かまでは断定しない。普段は出来事を先に伝える方針を今後も維持する。
+- 配布ビルド・提出画像・ストア公開は更新せず、PR #30はUnity確認前のドラフトで継続する。
+### 触ったファイル
+- Application: GardenMoments.cs（新規とmeta）
+- Presentation: GardenBootstrap.cs、GardenUi.cs、GardenView.cs
+- Tests: GardenMomentsTests.cs（新規とmeta）
+- docs/unity-garden/EVENT_EXPRESSION.md（新規）・EXPERIENCE.md・CARE_GUIDANCE.md・ECOLOGY.md、tools/ecology-check/README.md、PROGRESS.md
