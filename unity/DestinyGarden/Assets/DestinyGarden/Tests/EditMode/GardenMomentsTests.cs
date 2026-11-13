@@ -130,6 +130,77 @@ namespace DestinyGarden.Tests
             Assert.AreEqual("Germinated", moment.Kind); Assert.That(moment.Detail, Does.Contain("この投で蒔かれた"));
             placed.PlantId = "elsewhere"; Assert.IsNull(GardenMoments.Read(s, new EcologicalLink[0], events, "seed_single", "r").Single().Detail);
         }
+
+        [TestCase("Germinated", PlantStage.Sprout, 250, 5, "芽を出した")]
+        [TestCase("LeafOpened", PlantStage.Leaf, 754, 5, "葉を開いた")]
+        [TestCase("BudFormed", PlantStage.Bud, 1515, 16, "蕾ができた")]
+        [TestCase("Bloomed", PlantStage.Flower, 2500, 1, "花を開いた")]
+        public void ARecordedGiftThatCrossesTheThreshold_NamesTheSamePlantAndStage(
+            string kind, PlantStage stage, int finalGrowth, int gift, string action)
+        {
+            var s = Soil();
+            var p = Plant(s, 85, stage);
+            p.Growth = finalGrowth;
+            var eco = new EcologyResult { PostState = s };
+            eco.Effects.Add(new EcologyEffect { Kind = PrayerStar.GiftKind, CellId = p.CellId, Amount = gift });
+            eco.Events.Add(new GardenEvent { Kind = kind, CellId = p.CellId, PlantId = p.PlantId, Tick = Simulation.TicksPerRound });
+
+            var moment = GardenMoments.FromOutcome(new RollOutcome { Ecology = eco }, "r7").Single();
+
+            Assert.AreEqual(kind, moment.Kind);
+            Assert.That(moment.Headline, Is.EqualTo("星の恵みで、デイジー" + (stage == PlantStage.Bud ? "に" : "が") + action + "。"));
+            Assert.AreEqual(p.CellId, moment.CellId);
+            Assert.AreEqual("p:" + p.PlantId, moment.MemoryKey);
+        }
+
+        [TestCase(755, 40, true, 85)]
+        [TestCase(754, 39, true, 85)]
+        [TestCase(754, 40, true, 86)]
+        [TestCase(754, 40, false, 85)]
+        public void AStageAlreadyReachedOrWithoutMatchingFinalStarEvidence_KeepsItsOwnHeadline(
+            int finalGrowth, int tick, bool ecosystem, int giftCell)
+        {
+            var s = Soil();
+            if (!ecosystem) s.Ecosystem = null;
+            var p = Plant(s, 85, PlantStage.Leaf);
+            p.Growth = finalGrowth;
+            var eco = new EcologyResult { PostState = s };
+            eco.Effects.Add(new EcologyEffect { Kind = PrayerStar.GiftKind, CellId = giftCell, Amount = 5 });
+            eco.Events.Add(new GardenEvent { Kind = "LeafOpened", CellId = p.CellId, PlantId = p.PlantId, Tick = tick });
+
+            var moment = GardenMoments.FromOutcome(new RollOutcome { Ecology = eco }).Single();
+
+            Assert.AreEqual("デイジーが、葉を開いた。", moment.Headline);
+        }
+
+        [TestCase("ReturnedToSoil")]
+        [TestCase(Lifecycle.ReturnedEvent)]
+        public void OnlyOnePlainGiftIsShown_UsingPositiveEffectsAndSkippingReplacements(string returnKind)
+        {
+            var s = Soil();
+            var seed = Plant(s, 85, PlantStage.Seed);
+            seed.Growth = 5;
+            Plant(s, 86, PlantStage.Sprout);
+            Plant(s, 87, PlantStage.Sprout);
+            Plant(s, 88, PlantStage.Sprout);
+            var eco = new EcologyResult { PostState = s, PrayerStar = new PrayerStarReading { Points = 8 } };
+            eco.Events.Add(new GardenEvent { Kind = returnKind, CellId = 88, PlantId = "retired" });
+            eco.Effects.Add(new EcologyEffect { Kind = PrayerStar.GiftKind, CellId = 86, Amount = 0 });
+            eco.Effects.Add(new EcologyEffect { Kind = PrayerStar.GiftKind, CellId = 88, Amount = 77 });
+            eco.Effects.Add(new EcologyEffect { Kind = PrayerStar.GiftKind, CellId = 89, Amount = 77 });
+            var outcome = new RollOutcome { Ecology = eco };
+            Assert.AreEqual("recorded-roll", GardenMoments.FromOutcome(outcome).Single().Kind);
+
+            eco.Effects.Add(new EcologyEffect { Kind = PrayerStar.GiftKind, CellId = 85, Amount = 5 });
+            eco.Effects.Add(new EcologyEffect { Kind = PrayerStar.GiftKind, CellId = 87, Amount = 5 });
+            var moment = GardenMoments.FromOutcome(outcome).Single();
+            eco.Effects.Reverse();
+
+            Assert.AreEqual("星の恵みが、デイジーの種に届いた。", moment.Headline);
+            Assert.AreEqual("p:" + seed.PlantId, moment.MemoryKey);
+            Assert.AreEqual(Signature(new[] { moment }), Signature(GardenMoments.FromOutcome(outcome)));
+        }
+
         [Test]
         public void TheSceneIsNotAlwaysTheFirstCellOrTheHappiestEvent_AndEachCellHasOneMoment()
         {
@@ -160,17 +231,21 @@ namespace DestinyGarden.Tests
         {
             var m = new Memory(); var ids = new SequentialIds(); var c = new GardenCoordinator(m, new FixedEntropy("actual-scenes"), ids); c.CreateRun();
             var live = new Dictionary<string, string>();
+            int starScenes = 0;
             for (int i = 0; i < 32; i++)
             {
                 c.Prepare(); c.CommitIntent("none", null); string round = c.CurrentRoundId; var outcome = c.Roll();
                 int count = m.Entries.Count, focus = outcome.Message.FocusCellId; string hash = Hashing.StateHash(c.State);
-                live[round] = Signature(GardenMoments.FromOutcome(outcome, round));
+                var scenes = GardenMoments.FromOutcome(outcome, round);
+                starScenes += scenes.Count(x => x.Headline.StartsWith("星の恵み", StringComparison.Ordinal));
+                live[round] = Signature(scenes);
                 Assert.AreEqual(hash, Hashing.StateHash(c.State)); Assert.AreEqual(count, m.Entries.Count); Assert.AreEqual(focus, outcome.Message.FocusCellId);
             }
             var json = m.Entries.Select(e => new JournalEntry { Kind = e.Kind, RunId = e.RunId, RoundId = e.RoundId,
                 Payload = (Dictionary<string, object>)new SimpleJsonParser(CanonicalJson.Write(e.Payload)).Parse() }).ToList();
             var recent = GardenMoments.Recent(json, c.RunId, 3); Assert.AreEqual(3, recent.Select(x => x.RoundId).Distinct().Count());
             foreach (var group in recent.GroupBy(x => x.RoundId)) Assert.AreEqual(live[group.Key], Signature(group.ToList()));
+            Assert.Greater(starScenes, 0);
             Assert.AreEqual(32, recent[0].Revision); Assert.IsEmpty(GardenMoments.Recent(json, "other-run"));
             Assert.IsEmpty(GardenMoments.Recent(json.Where(e => e.Kind != "Resolved").ToList(), c.RunId));
             Assert.IsEmpty(GardenMoments.Recent(json, c.RunId, 0));

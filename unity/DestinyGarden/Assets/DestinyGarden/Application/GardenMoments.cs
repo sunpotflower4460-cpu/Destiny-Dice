@@ -15,6 +15,8 @@ namespace DestinyGarden.Application
     /// <summary>Short scenes from resolved facts. No predictions, invented visits or changes to the saved garden.</summary>
     public static class GardenMoments
     {
+        private const string StarGift = "star-gift";
+
         public static List<GardenMoment> FromOutcome(RollOutcome outcome, string roundId = null)
         {
             if (outcome == null) return new List<GardenMoment>();
@@ -22,13 +24,26 @@ namespace DestinyGarden.Application
             if (outcome.Simulation != null) events.AddRange(outcome.Simulation.Events);
             if (outcome.Ecology != null) events.AddRange(outcome.Ecology.Events);
             return Read(outcome.Ecology?.PostState ?? outcome.Simulation?.PostState, outcome.Ecology?.Relations ?? new List<EcologicalLink>(),
-                events, outcome.RecipeId, roundId, outcome.Ecology?.Care, outcome.Simulation?.DiceWaterInjected ?? 0);
+                events, outcome.RecipeId, roundId, outcome.Ecology?.Care, outcome.Simulation?.DiceWaterInjected ?? 0, outcome.Ecology?.Effects);
         }
         public static List<GardenMoment> Read(WorldState state, IList<EcologicalLink> links, IList<GardenEvent> events,
-            string recipeId, string roundId, CareReport care = null, long diceWater = 0)
+            string recipeId, string roundId, CareReport care = null, long diceWater = 0) =>
+            Read(state, links, events, recipeId, roundId, care, diceWater, null);
+
+        private static List<GardenMoment> Read(WorldState state, IList<EcologicalLink> links, IList<GardenEvent> events,
+            string recipeId, string roundId, CareReport care, long diceWater, IEnumerable<EcologyEffect> effects)
         {
             var candidates = new List<GardenMoment>(); if (state == null) return candidates;
             recipeId = recipeId ?? care?.RecipeId;
+            var gifts = new Dictionary<int, int>();
+            if (effects != null)
+                foreach (var effect in effects)
+                    if (effect.Kind == PrayerStar.GiftKind && effect.Amount > 0 &&
+                        effect.CellId >= 0 && effect.CellId < GardenMapData.CellCount)
+                        gifts[effect.CellId] = effect.Amount;
+            foreach (var e in events)
+                if (IsPlantReturn(e.Kind)) gifts.Remove(e.CellId);
+
             void Add(string kind, int c, int from, int rank, string headline, string detail = null, string species = null, string actor = null, string memoryKey = null)
             {
                 if (c < 0 || c >= GardenMapData.CellCount) return;
@@ -108,17 +123,32 @@ namespace DestinyGarden.Application
             }
             foreach (var e in events)
             {
-                int stage = e.Kind == "Bloomed" ? 4 : e.Kind == "BudFormed" ? 3 : e.Kind == "LeafOpened" ? 2 : e.Kind == "Germinated" ? 1 : e.Kind == "SeedPlaced" ? 0 : -1;
-                if (stage < 0) continue;
+                var stage = GrowthStage(e.Kind);
+                if (stage == null) continue;
                 var p = state.PlantAt(e.CellId);
                 // Do not focus a vanished/replaced flower, or say a flower is open after it rested in this roll.
-                if (p == null || p.PlantId != e.PlantId || (int)p.Stage < stage) continue;
+                if (p == null || p.PlantId != e.PlantId || p.Stage < stage.Value) continue;
                 string plant = Flora.Get(p.Species)?.LabelJa ?? "草花";
-                string headline = stage == 4 ? plant + "が、花を開いた。" : stage == 3 ? plant + "に、蕾ができた。"
-                    : stage == 2 ? plant + "が、葉を開いた。" : stage == 1 ? plant + "が、芽を出した。" : plant + "の種が、土に入った。";
+                bool fromStar = state.Ecosystem != null && gifts.TryGetValue(e.CellId, out int giftGrowth) &&
+                    StarCrossedStage(e.Kind, p.Growth, giftGrowth, e.Tick);
+                string pause = fromStar ? "" : "、";
+                string headline = stage == PlantStage.Flower ? plant + "が" + pause + "花を開いた。"
+                    : stage == PlantStage.Bud ? plant + "に" + pause + "蕾ができた。"
+                    : stage == PlantStage.Leaf ? plant + "が" + pause + "葉を開いた。"
+                    : stage == PlantStage.Sprout ? plant + "が" + pause + "芽を出した。" : plant + "の種が、土に入った。";
+                if (fromStar) headline = "星の恵みで、" + headline;
                 bool placed = false; foreach (var earlier in events) if (earlier.Kind == "SeedPlaced" && earlier.PlantId == p.PlantId) placed = true;
-                string detail = placed && stage > 0 ? "この投で蒔かれた種から、育った芽。" : null;
-                Add(e.Kind, e.CellId, e.CellId, 72 + stage * 7, headline, detail, p.Species, memoryKey: "p:" + p.PlantId);
+                string detail = placed && stage > PlantStage.Seed ? "この投で蒔かれた種から、育った芽。" : null;
+                Add(e.Kind, e.CellId, e.CellId, 72 + (int)stage.Value * 7 + (fromStar ? 8 : 0),
+                    headline, detail, p.Species, memoryKey: "p:" + p.PlantId);
+            }
+            foreach (int cell in gifts.Keys)
+            {
+                var plant = state.PlantAt(cell);
+                if (plant == null || string.IsNullOrEmpty(plant.PlantId)) continue;
+                string name = Flora.Get(plant.Species)?.LabelJa ?? "草花";
+                string subject = name + (plant.Stage == PlantStage.Seed ? "の種" : "の株");
+                Add(StarGift, cell, cell, 71, "星の恵みが、" + subject + "に届いた。", species: plant.Species, memoryKey: "p:" + plant.PlantId);
             }
             candidates.Sort((a, b) => a.Rank != b.Rank ? b.Rank.CompareTo(a.Rank)
                 : ((a.CellId + state.WorldRevision * 13) % 256) != ((b.CellId + state.WorldRevision * 13) % 256)
@@ -126,7 +156,14 @@ namespace DestinyGarden.Application
                     : string.CompareOrdinal(a.Kind + ":" + a.Actor + ":" + a.Species + ":" + a.FromCell,
                         b.Kind + ":" + b.Actor + ":" + b.Species + ":" + b.FromCell));
             var result = new List<GardenMoment>(); var cells = new HashSet<int>();
-            foreach (var moment in candidates) if (cells.Add(moment.CellId)) result.Add(moment);
+            bool giftShown = false;
+            foreach (var moment in candidates)
+            {
+                bool isGift = moment.Kind == StarGift;
+                if ((isGift && giftShown) || !cells.Add(moment.CellId)) continue;
+                result.Add(moment);
+                giftShown |= isGift;
+            }
             if (result.Count == 0)
             {
                 // The operation itself is recorded. Do not fill a quiet roll with an invented ecological event.
@@ -136,6 +173,41 @@ namespace DestinyGarden.Application
             }
             return result;
         }
+
+        internal static bool IsPlantReturn(string kind) => kind == "ReturnedToSoil" || kind == Lifecycle.ReturnedEvent;
+
+        private static PlantStage? GrowthStage(string kind) => kind switch
+        {
+            "SeedPlaced" => PlantStage.Seed,
+            "Germinated" => PlantStage.Sprout,
+            "LeafOpened" => PlantStage.Leaf,
+            "BudFormed" => PlantStage.Bud,
+            "Bloomed" => PlantStage.Flower,
+            _ => null
+        };
+
+        // The caller uses this only for the ecosystem that applies the star as its final growth update.
+        internal static bool StarCrossedStage(string kind, int finalGrowth, int giftGrowth, int tick)
+        {
+            if (tick != Simulation.TicksPerRound || giftGrowth <= 0 || giftGrowth > finalGrowth) return false;
+            var stage = GrowthStage(kind);
+            if (stage == null || stage == PlantStage.Seed) return false;
+            int threshold = Simulation.GrowthThreshold(stage.Value);
+            return finalGrowth >= threshold && finalGrowth - giftGrowth < threshold;
+        }
+
+        internal static IEnumerable<EcologyEffect> ReadStarEffects(IDictionary<string, object> ecology)
+        {
+            if (!ecology.TryGetValue("effects", out object value) || !(value is IEnumerable effects)) yield break;
+            foreach (var effect in effects)
+            {
+                if (!(effect is IDictionary<string, object> row) || !row.TryGetValue("kind", out object kind) ||
+                    (kind as string) != PrayerStar.GiftKind || !row.TryGetValue("cellId", out object cell) ||
+                    !row.TryGetValue("amount", out object amount)) continue;
+                yield return new EcologyEffect { Kind = PrayerStar.GiftKind, CellId = WorldStateSerializer.ToInt(cell), Amount = WorldStateSerializer.ToInt(amount) };
+            }
+        }
+
         private static string MemoryKey(WorldState state, EcologicalLink link, IList<GardenEvent> events, string roundId)
         {
             if (link.Kind == "seed-buried" && roundId != null && state.Ecosystem?.Succession != null)
@@ -151,7 +223,7 @@ namespace DestinyGarden.Application
             foreach (var ev in events)
             {
                 if (ev.CellId != link.ToCell) continue;
-                if (ev.Kind == "ReturnedToSoil") return link.Kind == "returned-to-soil" && ev.PlantId != null ? "p:" + ev.PlantId : null;
+                if (IsPlantReturn(ev.Kind)) return link.Kind == "returned-to-soil" && ev.PlantId != null ? "p:" + ev.PlantId : null;
             }
             if (plant == null || plant.Species != link.Species) return null;
             if (link.Kind == "seed-awakened" || link.Kind == "clonal-rooted")
@@ -182,8 +254,10 @@ namespace DestinyGarden.Application
                 var e = resolved[i]; if (!seen.Add(e.RoundId)) continue; count++;
                 var state = WorldStateSerializer.FromPayload((Dictionary<string, object>)e.Payload["postState"]);
                 var links = new List<EcologicalLink>(); var events = new List<GardenEvent>(); CareReport care = null;
+                IEnumerable<EcologyEffect> effects = null;
                 if (e.Payload.TryGetValue("ecology", out object eco) && eco is IDictionary<string, object> d)
                 {
+                    effects = ReadStarEffects(d);
                     if (d.TryGetValue("care", out object cr) && cr is IDictionary<string, object> cd) care = CareReport.FromPayload(cd);
                     if (d.TryGetValue("relations", out object relations) && relations is IEnumerable list)
                         foreach (IDictionary<string, object> item in list)
@@ -197,7 +271,7 @@ namespace DestinyGarden.Application
                             CellId = WorldStateSerializer.ToInt(item["cellId"]), Tick = WorldStateSerializer.ToInt(item["tick"]) });
                 recipes.TryGetValue(e.RoundId, out string recipe);
                 result.AddRange(Read(state, links, events, recipe ?? care?.RecipeId, e.RoundId, care,
-                    e.Payload.TryGetValue("diceWaterInjected", out object dw) ? Convert.ToInt64(dw) : 0));
+                    e.Payload.TryGetValue("diceWaterInjected", out object dw) ? Convert.ToInt64(dw) : 0, effects));
             }
             return result;
         }
