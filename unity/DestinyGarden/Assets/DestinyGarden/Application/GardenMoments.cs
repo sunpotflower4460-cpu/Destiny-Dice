@@ -20,11 +20,16 @@ namespace DestinyGarden.Application
         public static List<GardenMoment> FromOutcome(RollOutcome outcome, string roundId = null)
         {
             if (outcome == null) return new List<GardenMoment>();
+            return FromResolved(outcome.Simulation, outcome.Ecology, outcome.RecipeId, roundId);
+        }
+
+        internal static List<GardenMoment> FromResolved(SimulationResult simulation, EcologyResult ecology, string recipeId, string roundId)
+        {
             var events = new List<GardenEvent>();
-            if (outcome.Simulation != null) events.AddRange(outcome.Simulation.Events);
-            if (outcome.Ecology != null) events.AddRange(outcome.Ecology.Events);
-            return Read(outcome.Ecology?.PostState ?? outcome.Simulation?.PostState, outcome.Ecology?.Relations ?? new List<EcologicalLink>(),
-                events, outcome.RecipeId, roundId, outcome.Ecology?.Care, outcome.Simulation?.DiceWaterInjected ?? 0, outcome.Ecology?.Effects);
+            if (simulation != null) events.AddRange(simulation.Events);
+            if (ecology != null) events.AddRange(ecology.Events);
+            return Read(ecology?.PostState ?? simulation?.PostState, ecology?.Relations ?? new List<EcologicalLink>(),
+                events, recipeId, roundId, ecology?.Care, simulation?.DiceWaterInjected ?? 0, ecology?.Effects);
         }
         public static List<GardenMoment> Read(WorldState state, IList<EcologicalLink> links, IList<GardenEvent> events,
             string recipeId, string roundId, CareReport care = null, long diceWater = 0) =>

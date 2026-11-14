@@ -254,6 +254,66 @@ namespace DestinyGarden.Tests
         }
 
         [Test]
+        public void FreePrayer_ResumesFromTheCommittedWords_AndKeepsTheActualEventInHistory()
+        {
+            var saved = new Memory();
+            var control = new GardenCoordinator(saved, new FixedEntropy("prayer"), new SequentialIds());
+            control.CreateRun();
+            control.Prepare();
+            control.CommitIntent("none", null, "  花が咲きますように。\n空も晴れますように。  ");
+            var resolved = new Memory();
+            var resumed = new GardenCoordinator(resolved, new FixedEntropy("prayer"), new SequentialIds());
+            resumed.Restore(CutAfter(saved, "IntentCommitted"));
+            const string prayer = "花が咲きますように。 空も晴れますように。";
+            Assert.AreEqual(prayer, resumed.LastPrayerText);
+            Assert.AreEqual(0, resumed.MatchingFaces);
+            Assert.Throws<System.InvalidOperationException>(() => resumed.CommitIntent("face", "3", "書き換え"));
+            var outcome = resumed.Roll();
+            Assert.AreEqual(prayer, outcome.PrayerText);
+            Assert.IsFalse(outcome.IntentMatched);
+            Assert.IsFalse(outcome.Ecology.PrayerStar.Wished, "a written prayer is a journal entry, not a dice prediction");
+            var all = saved.Entries.Concat(resolved.Entries).ToList();
+            var summary = HistoryProjector.Project(all, control.RunId).Single(r => r.WorldRevision == 1);
+            Assert.AreEqual(prayer, summary.PrayerText);
+            Assert.AreEqual(outcome.FaceId, summary.FaceId);
+            Assert.AreEqual(outcome.Moment.Headline, summary.MomentHeadline);
+            Assert.AreEqual(outcome.Moment.Headline, GardenMoments.First(GardenMoments.Recent(all, control.RunId)).Headline);
+            resumed.Prepare();
+            resumed.CommitIntent("none", null);
+            Assert.IsFalse(resolved.Entries.Last().Payload.ContainsKey("prayerText"));
+            Assert.IsNull(resumed.LastPrayerText);
+        }
+
+        [Test]
+        public void FailedPrayerSave_DoesNotCommitOrChangeTheWish()
+        {
+            var writer = new FailOnce();
+            var coord = new GardenCoordinator(writer, new FixedEntropy("prayer-write"), new SequentialIds());
+            coord.CreateRun();
+            coord.Prepare();
+            writer.FailKind = "IntentCommitted";
+            Assert.Throws<System.IO.IOException>(() => coord.CommitIntent("face", "3", "風が届きますように。"));
+            Assert.AreEqual(CoordinatorPhase.Prepared, coord.Phase);
+            Assert.AreEqual("none", coord.LastIntentKind);
+            Assert.IsNull(coord.LastPrayerText);
+            coord.CommitIntent("face", "3", "風が届きますように。");
+            Assert.AreEqual(1, coord.MatchingFaces);
+            Assert.AreEqual("風が届きますように。", writer.Entries.Last().Payload["prayerText"]);
+        }
+
+        [Test]
+        public void PrayerText_IsBoundedAndKeepsWholeCharacters()
+        {
+            var longPrayer = new string('花', RollRecord.PrayerLimit - 1) + "🌱種";
+            Assert.AreEqual(new string('花', RollRecord.PrayerLimit - 1) + "🌱", RollRecord.NormalizePrayer(longPrayer));
+            Assert.AreEqual("芽が育つ", RollRecord.NormalizePrayer("　芽が 育つ　"));
+            Assert.IsNull(RollRecord.NormalizePrayer("　\n"));
+            Assert.AreEqual("願い 3の目  ·  別の目", RollRecord.WishComparison("face", "3", false));
+            Assert.AreEqual("願い 水の恵み  ·  一致", RollRecord.WishComparison("family", "water", true));
+            Assert.IsNull(RollRecord.WishComparison("none", null, false));
+        }
+
+        [Test]
         public void ResumedRoll_GivesThePlantsTheSameIds()
         {
             var (journal, original, _, _) = PlayWithWishes(12);
