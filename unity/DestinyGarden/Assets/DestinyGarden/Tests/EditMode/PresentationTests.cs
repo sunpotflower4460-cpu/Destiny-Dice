@@ -91,8 +91,9 @@ namespace DestinyGarden.Tests
             {
                 var ui = root.AddComponent<GardenUi>();
                 int rolls = 0, wishes = 0, offers = 0;
+                string lastKind = null, lastValue = null;
                 ui.OnRoll = () => rolls++;
-                ui.OnIntentSelected = (_, _) => wishes++;
+                ui.OnIntentSelected = (kind, value) => { wishes++; lastKind = kind; lastValue = value; };
                 ui.OnAddLuckySeven = () => offers++;
                 ui.Build();
                 var faces = RecipeCatalog.Order.Take(6).ToArray();
@@ -119,9 +120,10 @@ namespace DestinyGarden.Tests
                 Assert.AreEqual(0, rolls);
 
                 var controls = root.transform.Find("Canvas/GardenControls");
-                Assert.That(controls.GetComponentsInChildren<Button>().Length, Is.EqualTo(3));
+                // Three actions, and each published face can be tapped to wish for it.
                 var strip = controls.Find("PublishedFaces");
-                Assert.IsEmpty(strip.GetComponentsInChildren<Button>());
+                Assert.That(strip.GetComponentsInChildren<Button>().Length, Is.EqualTo(6));
+                Assert.That(controls.GetComponentsInChildren<Button>().Length, Is.EqualTo(3 + 6));
                 Assert.That(controls.GetComponentsInChildren<Text>().Length, Is.EqualTo(9));
                 var roll = Find("サイコロを振る");
                 roll.onClick.Invoke();
@@ -169,7 +171,35 @@ namespace DestinyGarden.Tests
                 ui.ShowIntentSelection("none", null);
                 ui.ShowFaces(faces, 0);
                 Assert.IsFalse(wishBackings.Any(image => image.gameObject.activeInHierarchy));
-                Assert.That(controls.GetComponentsInChildren<Button>().Length, Is.EqualTo(3));
+                Assert.That(controls.GetComponentsInChildren<Button>().Length, Is.EqualTo(3 + 6));
+
+                // Tap a face to wish for it, tap it again to withdraw; never while rolling.
+                var tapFaces = strip.GetComponentsInChildren<Button>();
+                int before = wishes;
+                tapFaces[3].onClick.Invoke();
+                Assert.AreEqual(("face", "4"), (lastKind, lastValue));
+                ui.ShowFaces(faces, 0, 4);
+                tapFaces[3].onClick.Invoke();
+                Assert.AreEqual("none", lastKind);
+                ui.SetRollEnabled(false);
+                tapFaces[1].onClick.Invoke();
+                Assert.AreEqual(before + 2, wishes, "no wish while the die is rolling");
+                ui.SetRollEnabled(true);
+                Assert.AreEqual(1, rolls);
+
+                // Lucky marks: a gold star on the face making seven, two dots on the face making a ゾロ目; no words.
+                var marks = strip.GetComponentsInChildren<Image>(true).Where(image => image.name == "Lucky mark").ToArray();
+                Assert.That(marks.Length, Is.EqualTo(7));
+                ui.ShowFaces(faces, 0, 0, 5, 2);
+                Assert.That(marks.Where(m => m.gameObject.activeInHierarchy).Select(m => m.sprite.name), Is.EqualTo(new[] { "Pair", "LuckyStar" }));
+                Assert.IsTrue(marks[4].gameObject.activeInHierarchy && marks[1].gameObject.activeInHierarchy);
+                Assert.IsFalse(marks.Any(m => m.raycastTarget));
+                ui.ShowFaces(luckyFaces, 0, 0, 0, 3, true);
+                Assert.IsTrue(marks[6].gameObject.activeInHierarchy, "the seventh face is always lucky");
+                Assert.AreEqual("LuckyStar", marks[6].sprite.name);
+                ui.ShowFaces(faces, 2);
+                Assert.IsFalse(marks.Any(m => m.gameObject.activeInHierarchy));
+                Assert.That(strip.GetComponentsInChildren<Text>().Length, Is.EqualTo(6), "the marks add no text");
 
                 ui.ShowFaces(new[] { "seed_single", "seed_scatter" }.Concat(faces.Skip(2)).ToArray(), 0);
                 Assert.AreEqual("1 種を1粒まく", strip.GetComponentsInChildren<Text>()[0].text);
@@ -177,7 +207,7 @@ namespace DestinyGarden.Tests
                 Find("願いをかける").onClick.Invoke();
                 foreach (var label in strip.GetComponentsInChildren<Text>())
                 {
-                    var wishChoice = root.GetComponentsInChildren<Button>()
+                    var wishChoice = root.GetComponentsInChildren<Button>().Where(button => !button.transform.IsChildOf(strip))
                         .Select(button => button.GetComponentInChildren<Text>()).SingleOrDefault(text => text != null && text.text == label.text);
                     Assert.IsNotNull(wishChoice, label.text);
                     Assert.That(wishChoice.preferredWidth, Is.LessThanOrEqualTo(wishChoice.rectTransform.rect.width), label.text);

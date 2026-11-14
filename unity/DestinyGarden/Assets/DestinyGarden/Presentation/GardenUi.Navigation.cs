@@ -43,6 +43,17 @@ namespace DestinyGarden.Presentation
                 var accent = Decoration(_faceLabels[i].transform, "Blessing rule", GardenUiArt.Rule);
                 PlaceDecoration(accent, new Vector2(0.5f, 0f), new Vector2(0f, 2f), new Vector2(72f, 3f));
                 _faceAccents[i] = accent;
+                var mark = Decoration(_faceLabels[i].transform, "Lucky mark", GardenUiArt.Icon(Symbol.LuckyStar));
+                PlaceDecoration(mark, new Vector2(0.5f, 1f), new Vector2(0f, 13f), new Vector2(28f, 28f));
+                mark.gameObject.SetActive(false);
+                _faceMarks[i] = mark;
+                // Tapping a face on the strip wishes for it; tapping it again withdraws the wish.
+                int face = i + 1;
+                _faceLabels[i].raycastTarget = true;
+                var tap = _faceLabels[i].gameObject.AddComponent<Button>();
+                tap.transition = Selectable.Transition.None;
+                tap.navigation = new Navigation { mode = Navigation.Mode.None };
+                tap.onClick.AddListener(() => TapFace(face));
             }
             _rollButton = MakeChip(parent, new Vector2(0.5f, 0f), new Vector2(0f, 23f),
                 new Vector2(350f, 62f), "サイコロを振る", 26, () =>
@@ -188,6 +199,13 @@ namespace DestinyGarden.Presentation
             _intentChips["none"] = MakeChip(parent, new Vector2(0.5f, 0f), new Vector2(0f, 27f),
                 new Vector2(220f, 48f), "願いなし", 19, () => ChooseWish("none", null));
             _wishPanel.SetActive(false);
+        }
+
+        private void TapFace(int face)
+        {
+            if (!_rollEnabled || _activePanel != null || _titleCard.activeSelf) return;
+            if (_wishedFaceId == face) OnIntentSelected?.Invoke("none", null);
+            else OnIntentSelected?.Invoke("face", face.ToString(System.Globalization.CultureInfo.InvariantCulture));
         }
 
         private void ChooseWish(string kind, string value)

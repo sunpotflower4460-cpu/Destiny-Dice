@@ -10,7 +10,7 @@ namespace DestinyGarden.Presentation
         internal enum Symbol
         {
             Bottle, Die, Star, Menu, Back, Observe, House, Journal, Leaf, Compass, Settings, Help,
-            Water, Wind, Seed, Soil, Flower, Moon, Rainbow
+            Water, Wind, Seed, Soil, Flower, Moon, Rainbow, LuckyStar, Pair
         }
 
         private static readonly Dictionary<Surface, Sprite> Surfaces = new Dictionary<Surface, Sprite>();
@@ -292,6 +292,13 @@ namespace DestinyGarden.Presentation
                 case Symbol.Rainbow:
                     ink.Stroke(3.8f, (7, 16), (9, 28), (15, 39), (23, 46), (32, 49), (41, 46), (49, 39), (55, 28), (57, 16));
                     ink.Stroke(3.5f, (18, 16), (20, 27), (25, 34), (32, 38), (39, 34), (44, 27), (46, 16));
+                    break;
+                case Symbol.LuckyStar:   // the face that makes the lucky number next
+                    ink.Star(32, 32, 26, 30);
+                    break;
+                case Symbol.Pair:        // the face that makes a ゾロ目 next
+                    ink.Dot(21, 32, 8.5f);
+                    ink.Dot(43, 32, 8.5f);
                     break;
             }
             return Symbols[symbol] = ink.ToSprite(symbol.ToString());

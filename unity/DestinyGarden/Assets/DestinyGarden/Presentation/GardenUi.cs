@@ -35,6 +35,8 @@ namespace DestinyGarden.Presentation
         private readonly GardenUiButton[] _faceChips = new GardenUiButton[7];
         private readonly Text[] _faceLabels = new Text[7];
         private readonly Image[] _faceWishBackings = new Image[7];
+        private readonly Image[] _faceMarks = new Image[7];   // lucky marks on the face strip (no words)
+        private int _wishedFaceId;
         private RectTransform _faceStrip;
         private GardenUiButton _luckyOffer;
         private Image _luckyOfferGlow;
@@ -458,8 +460,11 @@ namespace DestinyGarden.Presentation
             if (!on && _rollButton != null) _rollButton.Cap.color = Color.white;
         }
 
-        public void ShowFaces(string[] faces, int rolledFaceId, int wishedFaceId = 0)
+        /// <param name="luckyFaceId">The face that would make the lucky number (gold star), 0 for none.</param>
+        /// <param name="pairFaceId">The face that would make a ゾロ目 (two dots), 0 for none.</param>
+        public void ShowFaces(string[] faces, int rolledFaceId, int wishedFaceId = 0, int luckyFaceId = 0, int pairFaceId = 0, bool seventhLucky = false)
         {
+            _wishedFaceId = wishedFaceId;
             int faceCount = Math.Min(faces?.Length ?? 0, _faceLabels.Length);
             _faceStrip.gameObject.SetActive(faceCount > 0);
             _faceStrip.sizeDelta = new Vector2(faceCount * FaceSpacing + 20f, _faceStrip.sizeDelta.y);
@@ -473,10 +478,23 @@ namespace DestinyGarden.Presentation
                 bool present = i < faceCount;
                 label.gameObject.SetActive(present);
                 chip.gameObject.SetActive(present);
+                var mark = _faceMarks[i];
                 if (!present)
                 {
                     backing.gameObject.SetActive(false);
+                    mark.gameObject.SetActive(false);
                     continue;
+                }
+                // The seventh face is always lucky; on a six-face round the face that adds up to seven, and the face
+                // that repeats the last one. Shown only while the round is prepared (the caller passes 0 otherwise).
+                bool luckyMark = (luckyFaceId > 0 && i + 1 == luckyFaceId) || (seventh && seventhLucky);
+                bool pairMark = !luckyMark && pairFaceId > 0 && i + 1 == pairFaceId;
+                mark.gameObject.SetActive(luckyMark || pairMark);
+                if (luckyMark || pairMark)
+                {
+                    mark.sprite = GardenUiArt.Icon(luckyMark ? Symbol.LuckyStar : Symbol.Pair);
+                    mark.color = luckyMark ? PaleGold : new Color(PaleGold.r, PaleGold.g, PaleGold.b, 0.85f);
+                    mark.rectTransform.sizeDelta = luckyMark ? new Vector2(28f, 28f) : new Vector2(30f, 15f);
                 }
 
                 string title = $"{i + 1} {RecipeCatalog.ActionLabelJa(faces[i])}" + (seventh ? "×2" : "");
