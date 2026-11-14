@@ -3399,7 +3399,8 @@ Unity metadata: 76 C# files have meta; 103 unique GUIDs
 
 - `pnpm typecheck` は終了コード0、`pnpm test` は `183 passed (183)`、`pnpm build` は `✓ built in 827ms`。
 - 欠損と整数境界の修正を含む C# テストはローカルと GitHub CI で `308 passed`。GitHub の `verify` も成功。
-- Unity 6000.3.23f1 の全 EditMode テストは `357 passed, 0 failed`。欠損時の復旧と整数の修正を加えた後、関連テストを再実行した。
+- Unity 6000.3.23f1 の全 EditMode テストは `357 passed, 0 failed`。欠損時の復旧と整数の修正を加えた後の関連テストは `30 passed, 0 failed`。
+- 最終 WebGL は `Succeeded (32085143 bytes)`。Chrome の1280×720で新しい庭を開いて3投し、既存庭を再開して三つぞろい、野イチゴの開花、次の投の七つめの面を確認した。旧形式の保存を再開し、次の投から新しい生態で進め、圧縮した記録を再読込した。旧記録はバイト単位で一致し、ブラウザエラーは0件。
 - 統合範囲は Unity Garden と作業記録。既存実験の抽選、台帳、凍結プロトコルに変更なし。
 
 ### 確認範囲
