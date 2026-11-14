@@ -182,13 +182,18 @@ namespace DestinyGarden.Tests
                 int prevFace = i > 0 ? outcomes[i - 1].FaceId : 0;
                 string prevRecipe = i > 0 ? outcomes[i - 1].RecipeId : null;
                 var facesBefore = outcomes.Take(i).Select(x => x.FaceId).ToList();
-                var expect = PrayerStar.Read(o.FaceId, prevFace, o.RecipeId, prevRecipe, o.IntentMatched, o.Ecology.Harmony.Value, -1,
+                // The star reads the harmony before its own gift; the island's final harmony (o.Ecology.Harmony) is read
+                // again after it (ecology.v9), so the expected star is one of the two readings.
+                var low = PrayerStar.Read(o.FaceId, prevFace, o.RecipeId, prevRecipe, o.IntentMatched, 0, -1,
                     PrayerStar.CountLuckies(facesBefore), PrayerStar.TrailingStreak(facesBefore));
-                Assert.AreEqual(expect.Points, star.Points, "roll " + i);
+                var high = PrayerStar.Read(o.FaceId, prevFace, o.RecipeId, prevRecipe, o.IntentMatched, PrayerStar.OctagramHarmony, -1,
+                    PrayerStar.CountLuckies(facesBefore), PrayerStar.TrailingStreak(facesBefore));
+                Assert.IsTrue(star.Points == low.Points || star.Points == high.Points, "roll " + i + ": " + star.Points);
+                if (o.Ecology.Harmony.Value < PrayerStar.OctagramHarmony) Assert.AreEqual(low.Points, star.Points, "roll " + i);
                 points.Add(star.Points);
 
                 var gifts = o.Ecology.Effects.Where(e => e.Kind == PrayerStar.GiftKind).ToList();
-                Assert.LessOrEqual(gifts.Count, star.Triple ? int.MaxValue : star.GiftRecipients, "a 三つぞろい opens every bud");
+                Assert.LessOrEqual(gifts.Count, star.OpensAllBuds ? int.MaxValue : star.GiftRecipients, "a 三つぞろい or a total of 77 opens every bud");
                 foreach (var g in gifts)
                 {
                     Assert.Greater(g.Amount, 0);
@@ -340,6 +345,104 @@ namespace DestinyGarden.Tests
             TestContext.WriteLine(report);
             UnityEngine.Debug.Log("DG-STAR " + report);
             Assert.Greater(rolls, 0);
+        }
+
+        [Test]
+        public void V6_TheSeventhLuckyIsTheEight_OnlyOnARollWithAWish()
+        {
+            var unwished = PrayerStar.Read(4, 3, "water_drop", "seed_single", false, 0, -1, 6, 0, 1, 20, wished: false);
+            Assert.IsTrue(unwished.SevenLuckies);
+            Assert.AreEqual(7, unwished.Points, "the seventh lucky number without a wish stays a lucky number");
+            Assert.AreEqual(8, PrayerStar.Read(4, 3, "water_drop", "seed_single", false, 0, -1, 6, 0, 1, 20).Points);
+            Assert.AreEqual(6, PrayerStar.VersionOf(PrayerStar.RulesVersion));
+            Assert.AreEqual(5, PrayerStar.VersionOf("prayer-star.v5"));
+            Assert.AreEqual(0, PrayerStar.VersionOf(null));
+            Assert.IsTrue(LuckySeven.FamilyWishEarns("prayer-star.v5"));
+            Assert.IsFalse(LuckySeven.FamilyWishEarns(PrayerStar.RulesVersion));
+
+            // In play, a garden that never wishes never sees the eight.
+            var coord = new GardenCoordinator(new Memory(), new FixedEntropy("no-wish-eight"), new SequentialIds());
+            coord.CreateRun();
+            coord.Prepare();
+            int sevenths = 0;
+            for (int i = 0; i < 120; i++)
+            {
+                coord.CommitIntent("none", null);
+                var o = coord.Roll();
+                coord.Prepare();
+                Assert.Less(o.Ecology.PrayerStar.Points, 8);
+                Assert.IsFalse(o.Ecology.PrayerStar.Wished);
+                if (o.Ecology.PrayerStar.SevenLuckies) sevenths++;
+            }
+            Assert.Greater(sevenths, 0, "the seventh lucky number came, without its rainbow");
+        }
+
+        [Test]
+        public void V6_OnlyAFaceWishEarnsTheSeventhFace_AndARestoreAgrees()
+        {
+            var journal = new Memory();
+            var coord = new GardenCoordinator(journal, new FixedEntropy("face-wish-seventh"), new SequentialIds());
+            coord.CreateRun();
+            coord.Prepare();
+            int familyAnswered = 0, faceEarned = 0;
+            for (int i = 0; i < 150; i++)
+            {
+                if (coord.LuckySevenOffered && i % 2 == 0) coord.AddLuckySeven();
+                var faces = coord.CurrentFaces.Faces;
+                // The rarest family of the round (a long shot under lucky-seven.v2), or a face.
+                string rare = faces.GroupBy(f => RecipeCatalog.ElementOf(f).ToString().ToLowerInvariant())
+                    .OrderBy(g => g.Count()).ThenBy(g => g.Key, StringComparer.Ordinal).First().Key;
+                if (i % 3 == 0) coord.CommitIntent("face", "2"); else coord.CommitIntent("family", rare);
+                var o = coord.Roll();
+                coord.Prepare();
+                bool sign = o.Ecology.PrayerStar.EarnsSeventh;
+                if (o.IntentKind == "family" && o.IntentMatched && LuckySeven.WishEarnsSeventh(true, o.MatchingFaces, o.FaceCount))
+                {
+                    familyAnswered++;
+                    Assert.AreEqual(o.SeasonMetNow || sign, o.EarnedSeventh, "a family wish does not earn the seventh face");
+                }
+                if (o.IntentKind == "face" && o.IntentMatched && o.FaceCount == 6) { faceEarned++; Assert.IsTrue(o.EarnedSeventh); }
+                if (i % 10 == 9)
+                {
+                    var restored = new GardenCoordinator(new Memory(), new FixedEntropy("x"), new SequentialIds());
+                    restored.Restore(new JournalReadResult { ChainValid = true, Entries = new List<JournalEntry>(journal.Entries) });
+                    Assert.AreEqual(coord.LuckySevenOffered, restored.LuckySevenOffered, "restored at roll " + (i + 1));
+                }
+            }
+            Assert.Greater(familyAnswered, 3);
+            Assert.Greater(faceEarned, 3);
+        }
+
+        [Test]
+        public void V6_UnderTheRainbow_EveryOpenFlowerReceivesPollen()
+        {
+            var coord = new GardenCoordinator(new Memory(), new FixedEntropy("rainbow-pollen"), new SequentialIds());
+            coord.CreateRun();
+            coord.Prepare();
+            int eights = 0;
+            for (int i = 0; i < 400 && eights < 3; i++)
+            {
+                if (coord.LuckySevenOffered) coord.AddLuckySeven();
+                int last = coord.RolledFaces.Count > 0 ? coord.RolledFaces[coord.RolledFaces.Count - 1] : 0;
+                int lucky = PrayerStar.FaceCompletingSeven(last);
+                if (lucky >= 1 && lucky <= coord.CurrentFaces.Faces.Length) coord.CommitIntent("face", lucky.ToString());
+                else coord.CommitIntent("family", "water");
+                var o = coord.Roll();
+                coord.Prepare();
+                var links = o.Ecology.Relations.Where(l => l.Kind == LivingEcosystem.RainbowPollinated).ToList();
+                if (o.Ecology.PrayerStar.Points < 8) { Assert.AreEqual(0, links.Count); continue; }
+                eights++;
+                var post = o.Ecology.PostState;
+                foreach (var flower in post.Plants.Where(p => p.Stage == PlantStage.Flower))
+                    Assert.GreaterOrEqual(post.Ecosystem.Cycles[flower.PlantId].Pollen, 2, flower.CellId.ToString());
+                Assert.Greater(links.Count, 0, "the eight lifts plants to flower, and they receive pollen");
+                var moments = GardenMoments.FromOutcome(o, coord.CurrentRoundId);
+                // Each pollinated flower is spoken of (a flower that just opened is told as its blooming, which leads).
+                var told = new HashSet<int>(moments.Select(m => m.CellId));
+                foreach (var l in links) Assert.IsTrue(told.Contains(l.ToCell), "cell " + l.ToCell);
+                foreach (var m in moments.Where(m => m.Kind == LivingEcosystem.RainbowPollinated)) StringAssert.StartsWith("虹の下で、", m.Headline);
+            }
+            Assert.Greater(eights, 0);
         }
     }
 }

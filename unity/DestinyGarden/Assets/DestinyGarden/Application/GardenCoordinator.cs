@@ -487,6 +487,7 @@ namespace DestinyGarden.Application
                 LuckyStreakBefore = PrayerStar.TrailingStreak(_rolledFaces),
                 SameRunBefore = PrayerStar.SameRun(_rolledFaces),
                 FaceTotalBefore = PrayerStar.Total(_rolledFaces),
+                NoWish = LastIntentKind == null || LastIntentKind == "none" || LastIntentValue == null,
                 SpiritCount = matched ? Math.Min(PrayerSpirits.MaxSpirits,
                     (faceCount + Math.Max(1, MatchingFaces) - 1) / Math.Max(1, MatchingFaces)) : 0
             }, ecologyBytes, n => _roundScopedIds ? roundId + "-e" + n : _ids.NewId("plant") + "-eco" + n);
@@ -566,7 +567,8 @@ namespace DestinyGarden.Application
             _recentMessageIds.Add(message.TemplateId);
             while (_recentMessageIds.Count > 3) _recentMessageIds.RemoveAt(0);
             Phase = CoordinatorPhase.Resolved;
-            bool wishEarned = LuckySeven.WishEarnsSeventh(matched, MatchingFaces, faceCount);
+            bool wishEarned = LuckySeven.WishEarnsSeventh(matched, MatchingFaces, faceCount) &&
+                              (eco.PrayerStar == null || LuckySeven.FamilyWishEarns(PrayerStar.RulesVersion) || LastIntentKind == "face");
             if (wishEarned) _luckyBank++;
             if (seasonMetNow) { _luckyBank++; SeasonsMetCount++; }
             bool signEarned = eco.PrayerStar != null && eco.PrayerStar.EarnsSeventh; // prayer-star.v5: 三つぞろい, total 77
@@ -770,7 +772,12 @@ namespace DestinyGarden.Application
                             _rolledRecipes.Add(_pendingRecipeId);
                             _rolledFaces.Add(_pendingFaceId);
                         }
-                        if (_pendingWishEarn) _luckyBank++;
+                        // lucky-seven.v3: in a prayer-star.v6 roll only a face wish earns the seventh face.
+                        string starVersion = e.Payload.TryGetValue("ecology", out object ecoRec0) && ecoRec0 is IDictionary<string, object> ecoRec0D &&
+                            ecoRec0D.TryGetValue("prayerStar", out object psRec0) && psRec0 is IDictionary<string, object> psd0
+                            ? psd0["rulesVersion"] as string : null;
+                        if (_pendingWishEarn && (starVersion == null || LuckySeven.FamilyWishEarns(starVersion) || _restoreIntentKind == "face"))
+                            _luckyBank++;
                         _pendingWishEarn = false;
                         ClearPending();
                         lastPost = (Dictionary<string, object>)e.Payload["postState"];
@@ -790,8 +797,9 @@ namespace DestinyGarden.Application
                         if (e.Payload.TryGetValue("ecology", out object ecoRec3) && ecoRec3 is IDictionary<string, object> ecoRec3D &&
                             ecoRec3D.TryGetValue("prayerStar", out object psRec3) && psRec3 is IDictionary<string, object> psd3 &&
                             ((psd3.TryGetValue("triple", out object tr) && tr is bool trb && trb) ||
-                             (psd3.TryGetValue("total77", out object t77) && t77 is bool t77b && t77b)))
-                            _luckyBank = Math.Min(LuckySeven.MaxBanked, _luckyBank + 1); // prayer-star.v5
+                             (PrayerStar.VersionOf(psd3["rulesVersion"] as string) < 6 &&
+                              psd3.TryGetValue("total77", out object t77) && t77 is bool t77b && t77b)))
+                            _luckyBank = Math.Min(LuckySeven.MaxBanked, _luckyBank + 1); // prayer-star.v5 (v6: the triple only)
                         // The earlier prayer-star branch recorded its policy with each outcome.
                         if (!lastPost.ContainsKey("ecosystem") && e.Payload.TryGetValue("ecology", out object ecology) &&
                             ecology is IDictionary<string, object> observed && observed.ContainsKey("prayerStar"))

@@ -31,7 +31,9 @@ namespace DestinyGarden.Tests
             Assert.IsTrue(triple.Triple); Assert.IsTrue(triple.EarnsSeventh);
             Assert.IsFalse(PrayerStar.Read(3, 0, "water_drop", null, false, 0).Zorome, "the first roll has no previous face");
             var total = PrayerStar.Read(4, 2, "water_drop", "seed_single", false, 0, -1, 0, 0, 1, 75);
-            Assert.AreEqual(79, total.FaceTotal); Assert.IsTrue(total.Total77); Assert.IsTrue(total.EarnsSeventh);
+            Assert.AreEqual(79, total.FaceTotal); Assert.IsTrue(total.Total77);
+            Assert.IsFalse(total.EarnsSeventh, "prayer-star.v6: a total of 77 opens every bud instead");
+            Assert.IsTrue(total.OpensBuds); Assert.IsTrue(total.OpensAllBuds); Assert.IsTrue(triple.OpensAllBuds); Assert.IsFalse(zorome.OpensAllBuds);
             Assert.IsFalse(PrayerStar.Read(1, 2, "water_drop", "seed_single", false, 0, -1, 0, 0, 1, 70).Total77);
             Assert.IsTrue(PrayerStar.Read(6, 2, "water_drop", "seed_single", false, 0, -1, 0, 0, 1, 150).Total77, "154 too");
             Assert.AreEqual(3, PrayerStar.SameRun(new List<int> { 1, 4, 4, 4 }));
