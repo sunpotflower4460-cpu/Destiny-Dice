@@ -561,6 +561,7 @@ namespace DestinyGarden.Application
                 ["weatherId"] = CurrentWeather.Id.ToString(),
                 ["ecology"] = ecologyPayload,
                 ["momentHeadline"] = moment?.Headline,
+                ["momentCellId"] = moment?.CellId ?? -1,
                 ["selectedMessage"] = new Dictionary<string, object>
                 {
                     ["templateId"] = message.TemplateId,
