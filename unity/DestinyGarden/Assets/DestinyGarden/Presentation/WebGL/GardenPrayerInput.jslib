@@ -39,6 +39,11 @@ mergeInto(LibraryManager.library, {
     input.style.cssText = "position:fixed;z-index:2;box-sizing:border-box;padding:0 10px;" +
       "border:1px solid #78654e;border-radius:6px;background:#17192e;color:#f4eedf;" +
       "font-family:Georgia,'Hiragino Mincho ProN','Yu Mincho',serif;";
+    input.addEventListener("focus", function () {
+      input.style.outline = "2px solid #e1bd80";
+      input.style.outlineOffset = "1px";
+    });
+    input.addEventListener("blur", function () { input.style.outline = ""; });
     input.addEventListener("keydown", function (event) {
       event.stopPropagation();
       if (!event.isComposing && event.keyCode !== 229 && (event.key === "Enter" || event.key === "Escape")) {

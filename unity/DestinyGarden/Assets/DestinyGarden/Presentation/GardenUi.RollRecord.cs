@@ -203,7 +203,7 @@ namespace DestinyGarden.Presentation
         private void BuildRollResult(Transform card)
         {
             _rollResult = MakeText(card, new Vector2(0f, 1f), new Vector2(78f, -8f),
-                new Vector2(730f, 35f), 26, TextAnchor.MiddleLeft);
+                new Vector2(730f, 40f), 26, TextAnchor.MiddleLeft);
             _rollResult.name = "Rolled face and blessing";
             _rollResult.color = PaleGold;
             GardenType.MakeStrong(_rollResult);
@@ -211,11 +211,8 @@ namespace DestinyGarden.Presentation
                 new Vector2(762f, 30f), 19, TextAnchor.MiddleLeft);
             _rollContext.name = "Wish and lucky number";
             _rollContext.color = GardenUiArt.Pigment(0xdbe5e2);
-            foreach (var line in new[] { _rollResult, _rollContext })
-            {
-                line.horizontalOverflow = HorizontalWrapMode.Overflow;
-                line.verticalOverflow = VerticalWrapMode.Truncate;
-            }
+            _rollResult.horizontalOverflow = HorizontalWrapMode.Overflow;
+            _rollContext.horizontalOverflow = HorizontalWrapMode.Overflow;
         }
 
         private void LayoutRollResult(int faceId, string recipeId, bool amplified, string comparison, bool hasPrayer, string lucky)
@@ -228,7 +225,9 @@ namespace DestinyGarden.Presentation
             _rollResult.text = hasResult
                 ? faceId + "の目" + (recipeId != null ? "  ·  " + FaceName(recipeId) : "") + (amplified ? " ×2" : "")
                 : "";
-            _rollResult.color = amplified || recipeId == null ? PaleGold : ElementLine(ElementOfRecipe(recipeId));
+            var resultInk = amplified || recipeId == null ? PaleGold : ElementLine(ElementOfRecipe(recipeId));
+            resultInk.a = 1f;
+            _rollResult.color = resultInk;
             _rollContext.gameObject.SetActive(hasContext);
             _rollContext.text = context;
             _rollContext.color = lucky != null ? PaleGold : GardenUiArt.Pigment(0xdbe5e2);

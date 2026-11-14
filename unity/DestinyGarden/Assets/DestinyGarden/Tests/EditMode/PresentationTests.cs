@@ -305,6 +305,7 @@ namespace DestinyGarden.Tests
                 var mark = card.Find("Blessing seal/Blessing mark").GetComponent<Image>();
                 Assert.AreEqual("2の目  ·  たっぷり水", result.text);
                 Assert.AreEqual("願い 3の目  ·  別の目", wish.text);
+                Assert.AreEqual(1f, result.color.a);
                 Assert.AreEqual(moment.Headline, headline.text);
                 Assert.AreEqual("水辺", habitat.text);
                 Assert.That(card.GetComponentsInChildren<Text>(), Is.EquivalentTo(new[] { headline, habitat, result, wish }));
