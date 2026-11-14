@@ -786,13 +786,16 @@ namespace DestinyGarden.Presentation
             standScaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             standScaler.screenMatchMode = CanvasScaler.ScreenMatchMode.Expand; // the same scale as the main UI
             standScaler.referenceResolution = new Vector2(1600, 900);
+            var safeArea = new GameObject("StandingSafeArea", typeof(RectTransform));
+            safeArea.transform.SetParent(standCanvasObj.transform, false);
+            safeArea.AddComponent<GardenSafeArea>();
             // Hidden while the title card is up (the title no longer covers the whole screen).
             _standingGroup = standCanvasObj.AddComponent<CanvasGroup>();
             _standingGroup.blocksRaycasts = false;
             _standingGroup.interactable = false;
             _standingGroup.alpha = 0f; // fades in once the garden is entered
             var sbObj = new GameObject("SigilStandingBacking");
-            sbObj.transform.SetParent(standCanvasObj.transform, false);
+            sbObj.transform.SetParent(safeArea.transform, false);
             _standingBacking = sbObj.AddComponent<Image>();
             Plaque(_standingBacking);
             _standingBacking.raycastTarget = false;
@@ -800,7 +803,7 @@ namespace DestinyGarden.Presentation
             sbRect.anchorMin = sbRect.anchorMax = sbRect.pivot = new Vector2(0f, 1f);
             sbRect.anchoredPosition = new Vector2(26f, -82f); // under the header plate, on its left edge
             var stObj = new GameObject("SigilStanding");
-            stObj.transform.SetParent(standCanvasObj.transform, false);
+            stObj.transform.SetParent(safeArea.transform, false);
             _standingText = stObj.AddComponent<Text>();
             _standingText.alignment = TextAnchor.UpperLeft;
             _standingText.fontSize = 17;

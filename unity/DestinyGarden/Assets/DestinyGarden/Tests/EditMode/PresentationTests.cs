@@ -15,6 +15,31 @@ namespace DestinyGarden.Tests
     public class PresentationTests
     {
         [Test]
+        public void SafeAreaMovesControlsWithTheCutoutAndKeepsTheHomeBarClear()
+        {
+            var root = new GameObject("Safe area test", typeof(RectTransform));
+            try
+            {
+                var layout = (RectTransform)root.transform;
+                var screen = new Vector2(1000f, 500f);
+                GardenSafeArea.Apply(layout, new Rect(60f, 20f, 900f, 480f), screen);
+                Assert.That(Vector2.Distance(new Vector2(0.06f, 0.04f), layout.anchorMin), Is.LessThan(0.0001f));
+                Assert.That(Vector2.Distance(new Vector2(0.96f, 1f), layout.anchorMax), Is.LessThan(0.0001f));
+                Assert.AreEqual(Vector2.zero, layout.offsetMin);
+                Assert.AreEqual(Vector2.zero, layout.offsetMax);
+
+                GardenSafeArea.Apply(layout, new Rect(40f, 20f, 900f, 480f), screen);
+                Assert.That(layout.anchorMin.x, Is.EqualTo(0.04f).Within(0.0001f));
+                Assert.That(layout.anchorMax.x, Is.EqualTo(0.94f).Within(0.0001f));
+
+                GardenSafeArea.Apply(layout, Rect.zero, screen);
+                Assert.AreEqual(Vector2.zero, layout.anchorMin);
+                Assert.AreEqual(Vector2.one, layout.anchorMax);
+            }
+            finally { UnityEngine.Object.DestroyImmediate(root); }
+        }
+
+        [Test]
         public void GardenStartsWithThreeActions_AndPanelsDoNotSendARoll()
         {
             var root = new GameObject("Garden UI test");
@@ -31,7 +56,7 @@ namespace DestinyGarden.Tests
                 ui.ShowFaces(faces, 0);
                 ui.ShowTitleCard(true, opening: true);
                 Button Find(string name) => root.GetComponentsInChildren<Button>().Single(button => button.name == "Chip_" + name);
-                var opening = root.transform.Find("Canvas/TitleCard/Opening");
+                var opening = root.transform.Find("Canvas/TitleCard/TitleSafeArea/Opening");
                 var motifs = opening.Find("Opening blessings").GetComponentsInChildren<Image>();
                 CollectionAssert.AreEqual(new[] { "Water", "Wind", "Star", "Seed", "Soil", "Flower", "Moon", "Rainbow" },
                     motifs.Select(image => image.sprite.name));

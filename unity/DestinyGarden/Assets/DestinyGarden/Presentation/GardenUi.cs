@@ -149,7 +149,7 @@ namespace DestinyGarden.Presentation
 
             var controls = new GameObject("GardenControls", typeof(RectTransform));
             controls.transform.SetParent(canvasObj.transform, false);
-            Stretch(controls.GetComponent<RectTransform>());
+            controls.AddComponent<GardenSafeArea>();
             _gardenControls = controls.AddComponent<CanvasGroup>();
             if (FindFirstObjectByType<UnityEngine.EventSystems.EventSystem>() == null)
             {
@@ -173,8 +173,7 @@ namespace DestinyGarden.Presentation
 
             BuildRollControls(parent);
             BuildGoals(parent);
-            BuildNavigation(canvasObj.transform);
-            BuildPanels(_panelLayer.transform);
+            BuildPanels(BuildNavigation(canvasObj.transform));
             BuildTitleCard(canvasObj.transform);
         }
 
@@ -729,9 +728,12 @@ namespace DestinyGarden.Presentation
             var dim = _titleCard.AddComponent<Image>();
             dim.color = new Color(0.035f, 0.016f, 0.055f, 0.07f);
             Stretch(_titleCard.GetComponent<RectTransform>());
+            var safeArea = new GameObject("TitleSafeArea", typeof(RectTransform));
+            safeArea.transform.SetParent(_titleCard.transform, false);
+            safeArea.AddComponent<GardenSafeArea>();
 
             var opening = new GameObject("Opening", typeof(RectTransform));
-            opening.transform.SetParent(_titleCard.transform, false);
+            opening.transform.SetParent(safeArea.transform, false);
             _openingCard = opening.GetComponent<RectTransform>();
             DecorateOpening(opening.transform);
             var topLeft = new Vector2(0f, 1f);
