@@ -73,7 +73,7 @@ namespace DestinyGarden.Presentation
             _cloudNoise = ProceduralArt.CloudNoise();
             _skyMat = new Material(Shader.Find("DestinyGarden/Sky"));
             _skyMat.SetTexture("_CloudNoise", _cloudNoise);
-            var paintedSky = Resources.Load<Texture2D>("StorybookSky");
+            var paintedSky = Resources.Load<Texture2D>("StorybookCloudbanks");
             Shader.SetGlobalTexture("_DGPaintedSky", paintedSky != null ? paintedSky : Texture2D.grayTexture);
             Shader.SetGlobalFloat("_DGPaintedSkyWeight", paintedSky != null ? 1f : 0f);
             var renderer = dome.GetComponent<MeshRenderer>();

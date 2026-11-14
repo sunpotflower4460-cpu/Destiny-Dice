@@ -60,41 +60,38 @@ Shader "DestinyGarden/Glass"
                 float3 normal = normalize(input.normalWS);
                 float3 view = GetWorldSpaceNormalizeViewDir(input.positionWS);
                 float grazing = 1.0 - saturate(abs(dot(normal, view)));
-                float rim = pow(grazing, 4.0);
-                float edge = pow(grazing, 12.0);
+                float rim = pow(grazing, 3.9);
+                float edge = pow(grazing, 14.0);
                 float3 reflected = reflect(-view, normal);
 
-                // Soft sky reflections bend with the glass and travel across it as the camera turns.
-                float3 brightSky = float3(-0.59, 0.57, -0.57);
-                float skyPatch = pow(saturate(dot(reflected, brightSky)), 12.0);
-                float horizon = 1.0 - smoothstep(0.0, 0.11, abs(reflected.y - 0.045));
+                float horizon = 1.0 - smoothstep(0.015, 0.13, abs(reflected.y - 0.028));
                 float sun = pow(saturate(dot(reflected, _DGSkySun.xyz)), 46.0) * _DGSkySun.w;
                 float moon = pow(saturate(dot(reflected, _DGSkyMoon.xyz)), 52.0) * _DGSkyMoon.w;
-                float direct = sun + moon;
                 float night = _DGSkyWeather.y;
-                float softLight = skyPatch * lerp(1.0, 0.56, _DGSkyWeather.x);
-                half3 sky = GardenSkyGradient(reflected);
-                half3 glassTint = lerp(half3(0.52, 0.51, 0.69), half3(0.18, 0.23, 0.43), night);
-                half3 pale = lerp(half3(0.96, 0.86, 0.92), half3(0.56, 0.64, 0.94), night);
-                half3 color = lerp(sky + glassTint * 0.22, glassTint, rim * 0.78);
-                // A tapered stroke follows the shoulder of the bottle like a brush highlight.
-                float shoulder = smoothstep(5.7, 10.6, input.height) * (1.0 - smoothstep(13.0, 15.1, input.height));
-                float strokeAngle = dot(reflected, float3(-0.67, 0.23, -0.705));
-                float brush = smoothstep(0.86, 0.982, strokeAngle) * shoulder * _NearWall;
-                half3 pearl = lerp(half3(1.0, 0.79, 0.64), half3(0.75, 0.72, 0.98), night);
-                float lipTop = smoothstep(16.62, 17.08, input.height);
-                color = lerp(color, pale, saturate(0.47 * edge + 0.55 * softLight + 0.17 * horizon + _Lip * lipTop * 0.38));
-                color = lerp(color, pearl, saturate(edge * 0.35 + brush * 0.84));
-                color += half3(0.71, 0.38, 0.23) * sun + half3(0.28, 0.38, 0.64) * moon;
-                color += pale * (softLight * (rim * 0.15 + _Lip * lipTop * 0.24));
+                half3 sky = lerp(GardenSkyGradient(reflected), GardenPaintedClouds(reflected),
+                    _DGPaintedSkyWeight * smoothstep(-0.035, 0.21, reflected.y) * 0.83);
+                half3 pearl = lerp(half3(1.08, 0.87, 0.72), half3(0.68, 0.76, 1.13), night);
+                half3 inner = lerp(half3(0.22, 0.29, 0.45), half3(0.079, 0.13, 0.29), night);
 
-                // The thicker glass at the foot catches a narrow band of sea light.
-                float heel = 1.0 - smoothstep(0.05, 0.43, abs(input.height - 0.22));
-                color = lerp(color, glassTint * 0.72 + pale * 0.30, heel * (1.0 - edge) * 0.66);
-                float wallAlpha = rim * lerp(0.25, 0.16, _NearWall) + 0.079 * edge + 0.19 * brush
-                    + lerp(0.012, 0.0, _NearWall) + softLight * lerp(0.065, 0.048, _NearWall)
-                    + horizon * rim * 0.058 + direct * 0.17 + heel * lerp(0.021, 0.18, _NearWall);
-                float lipAlpha = (0.16 + rim * 0.36 + softLight * 0.27 + horizon * 0.11 + direct * 0.21) * lipTop;
+                // Two unequal reflections taper over the blown shoulder and follow the orbit.
+                float shoulder = smoothstep(5.2, 9.7, input.height) * (1.0 - smoothstep(13.6, 15.7, input.height));
+                float stroke = smoothstep(0.80, 0.985, dot(reflected, float3(-0.75, 0.62, -0.23)));
+                float sideLight = smoothstep(0.83, 0.988, dot(reflected, float3(0.74, 0.63, -0.24)));
+                float brush = (stroke + sideLight * 0.34) * shoulder * _NearWall
+                    * lerp(1.0, 0.64, _DGSkyWeather.w);
+                float lowerLip = smoothstep(16.62, 16.87, input.height);
+                float lipTop = smoothstep(16.89, 17.17, input.height);
+                float innerRoll = (lowerLip - lipTop) * _Lip;
+                float heel = 1.0 - smoothstep(0.09, 0.48, abs(input.height - 0.30));
+                float heelEdge = 1.0 - smoothstep(0.035, 0.21, abs(input.height - 0.70));
+                half3 color = lerp(inner, sky * 0.86 + pearl * 0.19, saturate(rim * 0.55 + brush + horizon * rim * 0.40));
+                color = lerp(color, pearl, saturate(edge * 0.55 + brush * 0.72 + heelEdge * 0.54 + _Lip * lipTop * 0.79));
+                color = lerp(color, inner, innerRoll * 0.62 + heel * 0.24);
+                color += half3(0.62, 0.34, 0.21) * sun + half3(0.25, 0.37, 0.68) * moon;
+                float wallAlpha = rim * lerp(0.19, 0.14, _NearWall) + 0.16 * edge + 0.30 * brush
+                    + horizon * rim * 0.10 + (sun + moon) * 0.14
+                    + (heel * 0.12 + heelEdge * 0.26) * lerp(0.30, 1.0, _NearWall);
+                float lipAlpha = 0.26 * lowerLip + 0.23 * lipTop + 0.28 * rim + 0.18 * (sun + moon);
                 float nearFade = smoothstep(0.7, 3.4, distance(_WorldSpaceCameraPos, input.positionWS));
                 float waterlineFade = smoothstep(-0.02, 0.06, input.height);
                 return half4(color, saturate(lerp(wallAlpha, lipAlpha, _Lip) * nearFade * waterlineFade * _Visibility));
