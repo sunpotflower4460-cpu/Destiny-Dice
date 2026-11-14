@@ -132,8 +132,8 @@ namespace DestinyGarden.Application
                 bool fromStar = state.Ecosystem != null && gifts.TryGetValue(e.CellId, out int giftGrowth) &&
                     StarCrossedStage(e.Kind, p.Growth, giftGrowth, e.Tick);
                 string pause = fromStar ? "" : "、";
-                string headline = stage == PlantStage.Flower ? plant + "が" + pause + "花を開いた。"
-                    : stage == PlantStage.Bud ? plant + "に" + pause + "蕾ができた。"
+                string headline = stage == PlantStage.Flower ? plant + "が咲いた。"
+                    : stage == PlantStage.Bud ? plant + "に" + pause + "つぼみがついた。"
                     : stage == PlantStage.Leaf ? plant + "が" + pause + "葉を開いた。"
                     : stage == PlantStage.Sprout ? plant + "が" + pause + "芽を出した。" : plant + "の種が、土に入った。";
                 if (fromStar) headline = "星の恵みで、" + headline;
@@ -150,11 +150,18 @@ namespace DestinyGarden.Application
                 string subject = name + (plant.Stage == PlantStage.Seed ? "の種" : "の株");
                 Add(StarGift, cell, cell, 71, "星の恵みが、" + subject + "に届いた。", species: plant.Species, memoryKey: "p:" + plant.PlantId);
             }
-            candidates.Sort((a, b) => a.Rank != b.Rank ? b.Rank.CompareTo(a.Rank)
-                : ((a.CellId + state.WorldRevision * 13) % 256) != ((b.CellId + state.WorldRevision * 13) % 256)
-                    ? ((a.CellId + state.WorldRevision * 13) % 256).CompareTo((b.CellId + state.WorldRevision * 13) % 256)
-                    : string.CompareOrdinal(a.Kind + ":" + a.Actor + ":" + a.Species + ":" + a.FromCell,
-                        b.Kind + ":" + b.Actor + ":" + b.Species + ":" + b.FromCell));
+            int cellOffset = state.WorldRevision * 13;
+            candidates.Sort((a, b) =>
+            {
+                int milestone = MilestonePriority(b.Kind).CompareTo(MilestonePriority(a.Kind));
+                if (milestone != 0) return milestone;
+                int rank = b.Rank.CompareTo(a.Rank);
+                if (rank != 0) return rank;
+                int cell = ((a.CellId + cellOffset) % 256).CompareTo((b.CellId + cellOffset) % 256);
+                if (cell != 0) return cell;
+                return string.CompareOrdinal(a.Kind + ":" + a.Actor + ":" + a.Species + ":" + a.FromCell,
+                    b.Kind + ":" + b.Actor + ":" + b.Species + ":" + b.FromCell);
+            });
             var result = new List<GardenMoment>(); var cells = new HashSet<int>();
             bool giftShown = false;
             foreach (var moment in candidates)
@@ -167,7 +174,9 @@ namespace DestinyGarden.Application
             if (result.Count == 0)
             {
                 // The operation itself is recorded. Do not fill a quiet roll with an invented ecological event.
-                string text = diceWater > 0 ? "ダイスの水が、庭に注がれた。" : recipeId != null ? "「" + RecipeCatalog.LabelJa(recipeId) + "」の面が出た。" : "一投ぶんの庭が、記録された。";
+                string text = diceWater > 0 ? "ダイスの水が、庭に注がれた。"
+                    : recipeId != null ? $"「{RecipeCatalog.ActionLabelJa(recipeId)}」の面が出た。"
+                    : "一投ぶんの庭が、記録された。";
                 result.Add(new GardenMoment { RoundId = roundId, RecipeId = recipeId, Revision = state.WorldRevision,
                     Kind = "recorded-roll", CellId = -1, FromCell = -1, Headline = text });
             }
@@ -175,6 +184,15 @@ namespace DestinyGarden.Application
         }
 
         internal static bool IsPlantReturn(string kind) => kind == "ReturnedToSoil" || kind == Lifecycle.ReturnedEvent;
+
+        // Lead with visible growth and new life. Quiet rolls and setbacks keep their usual order.
+        private static int MilestonePriority(string kind) => kind switch
+        {
+            "Bloomed" => 2,
+            "BudFormed" or "LeafOpened" or "Germinated" or "seed-awakened" or "clonal-rooted" or
+            "fruited" or "recovered" or "resident-emerged" or "resident-settled" => 1,
+            _ => 0
+        };
 
         private static PlantStage? GrowthStage(string kind) => kind switch
         {

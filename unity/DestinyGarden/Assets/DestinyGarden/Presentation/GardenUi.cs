@@ -27,7 +27,6 @@ namespace DestinyGarden.Presentation
         public Action OnViewHouse;
 
         private Font _font;
-        private Text _header;
         private Text _status;
         private Image _statusBacking;
         private GardenUiButton _rollButton;
@@ -35,12 +34,12 @@ namespace DestinyGarden.Presentation
         private Text _houseViewLabel;
         private readonly GardenUiButton[] _faceChips = new GardenUiButton[7];
         private readonly Text[] _faceLabels = new Text[7];
+        private readonly Image[] _faceWishBackings = new Image[7];
         private RectTransform _faceStrip;
         private GardenUiButton _luckyOffer;
-        private string _wishSummary;
-        private int _publishedFaceCount;
+        private Image _luckyOfferGlow;
+        private string _wishedElement;
         private const float FaceSpacing = 138f;
-        private Text _facesLabel;
         private const string StartGardenLabel = "小さな庭をひらく";
         private const float OpeningWidth = 545f;
         private static readonly Vector2 OpeningEntrySize = new Vector2(394f, 86f);
@@ -159,20 +158,14 @@ namespace DestinyGarden.Presentation
             }
 
             var parent = controls.transform;
-            _header = MakeText(parent, new Vector2(0f, 1f), new Vector2(70f, -25f),
-                new Vector2(490f, 44f), 22, TextAnchor.MiddleLeft);
-            var headerPlate = AddBacking(_header, new Vector2(44f, 5f));
-            var compass = Decoration(headerPlate.transform, "Garden compass", GardenUiArt.Icon(Symbol.Compass));
-            compass.color = PaleGold;
-            PlaceDecoration(compass, new Vector2(0f, 0.5f), new Vector2(11f, 0f), Vector2.one * 30f);
             BuildMomentCard(parent);
-            _status = MakeText(parent, new Vector2(0.5f, 0f), new Vector2(0f, 169f),
+            _status = MakeText(parent, new Vector2(0.5f, 0f), new Vector2(0f, 166f),
                 new Vector2(820f, 40f), 17, TextAnchor.MiddleCenter);
+            _status.name = "Garden notice";
             _statusBacking = AddBacking(_status, new Vector2(12f, 4f));
             ShowStatus(null);
 
             BuildRollControls(parent);
-            BuildGoals(parent);
             BuildPanels(BuildNavigation(canvasObj.transform));
             BuildTitleCard(canvasObj.transform);
         }
@@ -357,7 +350,6 @@ namespace DestinyGarden.Presentation
                 {
                     if (_focusedMoment == null || _focusedMoment.CellId < 0 || !_rollEnabled) return;
                     ShowMessage(null, null, _focusedMoment);
-                    ShowStatus(_focusedMoment.Detail ?? _focusedMoment.Caption);
                     ClosePanels();
                     OnObserveCell?.Invoke(_focusedMoment.CellId);
                 });
@@ -450,8 +442,6 @@ namespace DestinyGarden.Presentation
             _wishButton.interactable = enabled;
             _luckyOffer.interactable = enabled;
             if (!enabled) ShowMessage(null, null);
-            _rollButton.Label.text = enabled ? "サイコロを振る" : "庭が変わっています…";
-            _rollButton.Label.fontSize = enabled ? 26 : 21;
             if (enabled && _activePanel == null && !_titleCard.activeSelf) _rollButton.Select();
         }
 
@@ -468,46 +458,45 @@ namespace DestinyGarden.Presentation
             if (!on && _rollButton != null) _rollButton.Cap.color = Color.white;
         }
 
-        public void ShowHeader(string weatherLabel, string siteLabel, int revision)
-        {
-            string progress = revision == 0 ? "最初の一投" : $"{revision}投";
-            _header.text = $"{weatherLabel}  ·  届け先 {siteLabel}  ·  {progress}";
-            string entry = revision >= 2 ? "庭のつづきへ" : StartGardenLabel;
-            if (_enterButton.Label.text != entry) _enterButton.Label.text = entry;
-        }
-
         public void ShowFaces(string[] faces, int rolledFaceId, int wishedFaceId = 0)
         {
-            _publishedFaceCount = Math.Min(faces?.Length ?? 0, _faceLabels.Length);
-            _faceStrip.gameObject.SetActive(_publishedFaceCount > 0);
-            _facesLabel.gameObject.SetActive(_publishedFaceCount > 0);
+            int faceCount = Math.Min(faces?.Length ?? 0, _faceLabels.Length);
+            _faceStrip.gameObject.SetActive(faceCount > 0);
+            _faceStrip.sizeDelta = new Vector2(faceCount * FaceSpacing + 20f, _faceStrip.sizeDelta.y);
             for (int i = 0; i < _faceLabels.Length; i++)
             {
                 var label = _faceLabels[i];
                 var accent = _faceAccents[i];
                 var chip = _faceChips[i];
+                var backing = _faceWishBackings[i];
                 bool seventh = i == LuckySeven.FaceId - 1;
-                bool present = i < _publishedFaceCount;
+                bool present = i < faceCount;
                 label.gameObject.SetActive(present);
                 chip.gameObject.SetActive(present);
-                if (!present) continue;
+                if (!present)
+                {
+                    backing.gameObject.SetActive(false);
+                    continue;
+                }
 
-                string title = $"{i + 1}  {RecipeCatalog.LabelJa(faces[i])}" + (seventh ? "×2" : "");
+                string title = $"{i + 1} {RecipeCatalog.ActionLabelJa(faces[i])}" + (seventh ? "×2" : "");
+                int fontSize = seventh ? 15 : 18;
                 label.text = title;
-                label.fontSize = seventh ? 16 : 18;
-                label.rectTransform.anchoredPosition =
-                    new Vector2((i - (_publishedFaceCount - 1) * 0.5f) * FaceSpacing, 2f);
+                label.fontSize = fontSize;
+                var position = new Vector2((i - (faceCount - 1) * 0.5f) * FaceSpacing, 2f);
+                label.rectTransform.anchoredPosition = position;
                 string element = ElementOfRecipe(faces[i]);
                 bool rolled = rolledFaceId == i + 1;
-                bool wished = wishedFaceId == i + 1;
+                bool wished = wishedFaceId == i + 1 || _wishedElement == element;
+                backing.rectTransform.anchoredPosition = position;
+                backing.gameObject.SetActive(wished);
                 label.color = rolled ? PaleGold : wished ? WishInk : TextColor;
                 GardenType.Emphasis(label, rolled || wished);
                 accent.color = rolled ? PaleGold : wished ? WishInk : ElementLine(element);
                 SetSurface(chip, wished ? Surface.Brass : BlessingSurface(element));
                 chip.Label.text = title;
-                chip.Label.fontSize = seventh ? 16 : 18;
+                chip.Label.fontSize = fontSize;
             }
-            UpdateFacesLabel();
         }
 
         public void ShowLuckyOffer(bool offered)
@@ -515,21 +504,21 @@ namespace DestinyGarden.Presentation
             _luckyOffer.gameObject.SetActive(offered);
         }
 
-        private void UpdateFacesLabel()
-        {
-            _facesLabel.text = _wishSummary ?? (_publishedFaceCount == 7 ? "サイコロの面   ·   各面 1/7" : "サイコロの面");
-            _facesLabel.color = _wishSummary != null ? WishInk : TextColor;
-        }
-
         private void Update()
         {
             if (IsOpening) LayoutOpeningCard();
             if (_momentCard != null && !float.IsNegativeInfinity(_momentShownAt)) UpdateMomentCard();
+            bool animateButtons = _rollEnabled && _activePanel == null && !IsOpening && View?.ReducedMotion != true;
             if (_rollButton != null)
             {
-                bool pulse = _rollPulse && _rollEnabled && _activePanel == null && !IsOpening && View?.ReducedMotion != true;
-                float light = pulse ? 0.97f + 0.03f * Mathf.Sin(Time.unscaledTime * 3.2f) : 1f;
+                float light = _rollPulse && animateButtons ? 0.97f + 0.03f * Mathf.Sin(Time.unscaledTime * 3.2f) : 1f;
                 _rollButton.Cap.color = new Color(light, light, light);
+            }
+            if (_luckyOffer != null && _luckyOffer.gameObject.activeSelf)
+            {
+                Color glow = PaleGold;
+                glow.a = animateButtons ? 0.67f + 0.25f * Mathf.Sin(Time.unscaledTime * 3.2f) : 0.67f;
+                _luckyOfferGlow.color = glow;
             }
 
             if (_resetViewButton != null)
@@ -548,22 +537,8 @@ namespace DestinyGarden.Presentation
                 GoBack();
         }
 
-        private Text _residents;
-        private Image _residentsBacking;
-
-        /// <summary>The garden's presence: residents living in the garden right now (no explanations).</summary>
-        private void BuildGoals(Transform canvas)
-        {
-            _residents = MakeText(canvas, new Vector2(1f, 0f), new Vector2(-24f, 20f), new Vector2(500f, 64f), 17,
-                TextAnchor.UpperLeft);
-            _residents.supportRichText = true;
-            _residentsBacking = AddBacking(_residents, new Vector2(14f, 10f));
-            ShowResidents(null);
-        }
-
         public static string ResidentLabelJa(string kind) => EcologyObservations.ResidentLabel(kind);
 
-        private int _harmony = -1;
         private GameObject _guidePanel;
         private Text _guideText;
 
@@ -694,33 +669,6 @@ namespace DestinyGarden.Presentation
                                 (harmony >= 0 ? $"\n☯ 調和 {harmony}/8" : "");
         }
 
-        public void ShowHarmony(int harmony)
-        {
-            _harmony = harmony;
-            ShowResidents(_lastKinds);
-        }
-
-        private List<string> _lastKinds = new List<string>();
-
-        public void ShowResidents(IEnumerable<string> kinds)
-        {
-            if (kinds != null && !ReferenceEquals(kinds, _lastKinds)) _lastKinds = new List<string>(kinds);
-            var names = new List<string>();
-            if (kinds != null)
-                foreach (var k in kinds)
-                {
-                    string n = ResidentLabelJa(k);
-                    if (n != null && !names.Contains(n)) names.Add(n);
-                }
-            _residents.text = "<color=#cfe6dc>庭の気配</color>" +
-                (_harmony >= 0 ? $"　<color=#ffe2a6>☯ 調和 {_harmony}/8</color>" : "") + "\n" +
-                (names.Count > 0 ? string.Join("・", names.GetRange(0, Math.Min(6, names.Count))) +
-                    (names.Count > 6 ? $" ほか{names.Count - 6}種" : "") : "<color=#9aa8a4>まだ静か</color>");
-            bool visible = names.Count > 0 || _harmony > 0;
-            _residents.gameObject.SetActive(visible);
-            _residentsBacking.gameObject.SetActive(visible);
-        }
-
         private void BuildTitleCard(Transform canvas)
         {
             _titleCard = new GameObject("TitleCard");
@@ -786,6 +734,11 @@ namespace DestinyGarden.Presentation
         /// <summary>Whether the title card is up (overlays of other components stay hidden under it).</summary>
         public bool TitleCardOpen => _titleCard != null && _titleCard.activeSelf;
 
+        internal void ShowOpeningProgress(int revision)
+        {
+            _enterButton.Label.text = revision >= 2 ? "庭のつづきへ" : StartGardenLabel;
+        }
+
         public void ShowTitleCard(bool show, bool opening = false)
         {
             if (_titleCard == null) return;
@@ -813,11 +766,9 @@ namespace DestinyGarden.Presentation
 
         public void ShowIntentSelection(string kind, string value)
         {
-            _wishSummary = kind == "face" && value != null ? $"{value}の目に願いをかけています"
-                : kind == "family" && value != null ? (value == "water" ? "水" : value == "wind" ? "風" : value == "light" ? "光" : "種") + "の恵みを願っています"
-                : null;
-            _wishButton.Engraving.color = _wishSummary != null ? PaleGold : WishInk;
-            UpdateFacesLabel();
+            _wishedElement = kind == "family" ? value : null;
+            bool hasWish = value != null && (kind == "face" || kind == "family");
+            _wishButton.Engraving.color = hasWish ? PaleGold : WishInk;
             foreach (var kv in _intentChips)
             {
                 bool active = (kind == "none" && kv.Key == "none") || (kind == "family" && kv.Key == value);
@@ -848,7 +799,7 @@ namespace DestinyGarden.Presentation
             if (moment != null)
             {
                 PaintMoment(outcome?.RecipeId ?? moment.RecipeId, outcome?.LuckySeven == true, outcome != null,
-                    moment.Headline, MomentCaption(moment, outcome));
+                    moment.Headline, moment.Habitat);
                 return;
             }
             string card = "";
@@ -857,10 +808,7 @@ namespace DestinyGarden.Presentation
                 int idx = Array.IndexOf(OracleCatalogData.CardOrder, message.CardId);
                 if (idx >= 0) card = "【" + OracleCatalogData.CardLabelsJa[idx] + "】";
             }
-            string result = outcome == null ? null : outcome.LuckySeven
-                ? $"幸運の七「{RecipeCatalog.LabelJa(outcome.RecipeId)}×2」"
-                : $"{outcome.FaceId}の目「{RecipeCatalog.LabelJa(outcome.RecipeId)}」";
-            PaintMoment(outcome?.RecipeId, outcome?.LuckySeven == true, outcome != null, card + message.Text, result);
+            PaintMoment(outcome?.RecipeId, outcome?.LuckySeven == true, outcome != null, card + message.Text, null);
         }
 
         public void ShowStatus(string text)

@@ -94,11 +94,11 @@ namespace DestinyGarden.Tests
                 var entryLabel = enter.GetComponentInChildren<Text>();
                 Assert.AreEqual("小さな庭をひらく", entryLabel.text);
                 Assert.That(entryLabel.preferredWidth, Is.LessThanOrEqualTo(entryLabel.rectTransform.rect.width));
-                ui.ShowHeader("晴れ", "草地", 1);
+                ui.ShowOpeningProgress(1);
                 Assert.AreEqual("小さな庭をひらく", entryLabel.text);
-                ui.ShowHeader("晴れ", "草地", 2);
+                ui.ShowOpeningProgress(2);
                 Assert.AreEqual("庭のつづきへ", entryLabel.text);
-                ui.ShowHeader("晴れ", "草地", 0);
+                ui.ShowOpeningProgress(0);
                 Assert.AreEqual("小さな庭をひらく", entryLabel.text);
                 enter.onClick.Invoke();
                 Assert.IsFalse(ui.TitleCardOpen);
@@ -106,7 +106,9 @@ namespace DestinyGarden.Tests
 
                 var controls = root.transform.Find("Canvas/GardenControls");
                 Assert.That(controls.GetComponentsInChildren<Button>().Length, Is.EqualTo(3));
-                Assert.IsEmpty(controls.Find("PublishedFaces").GetComponentsInChildren<Button>());
+                var strip = controls.Find("PublishedFaces");
+                Assert.IsEmpty(strip.GetComponentsInChildren<Button>());
+                Assert.That(controls.GetComponentsInChildren<Text>().Length, Is.EqualTo(9));
                 var roll = Find("サイコロを振る");
                 roll.onClick.Invoke();
                 Assert.AreEqual(1, rolls);
@@ -131,16 +133,41 @@ namespace DestinyGarden.Tests
                 Assert.IsTrue(controls.GetComponent<CanvasGroup>().blocksRaycasts);
 
                 ui.ShowLuckyOffer(true);
+                Assert.IsNotNull(Find("七つめの面を加える").targetGraphic.transform.Find("Seventh face glow"));
                 Find("七つめの面を加える").onClick.Invoke();
                 Assert.AreEqual(1, offers);
                 ui.ShowLuckyOffer(false);
-                var luckyFaces = faces.Concat(new[] { "light_soft" }).ToArray();
+                var luckyFaces = faces.Concat(new[] { "water_drop" }).ToArray();
                 ui.ShowFaces(luckyFaces, 0, 7);
-                var published = controls.Find("PublishedFaces").GetComponentsInChildren<Text>();
+                var published = strip.GetComponentsInChildren<Text>();
                 Assert.That(published.Length, Is.EqualTo(7));
-                Assert.AreEqual("7  柔らかい光×2", published[6].text);
-                Assert.That(published[6].preferredWidth, Is.LessThanOrEqualTo(published[6].rectTransform.rect.width));
+                CollectionAssert.AreEqual(new[] { "1 土に水を注ぐ", "2 雨を降らせる", "3 そよ風を送る", "4 強い風を送る",
+                    "5 周りを照らす", "6 一点を照らす", "7 土に水を注ぐ×2" }, published.Select(label => label.text));
+                foreach (var label in published)
+                    Assert.That(label.preferredWidth, Is.LessThanOrEqualTo(label.rectTransform.rect.width), label.text);
+                var wishBackings = strip.GetComponentsInChildren<Image>(true).Where(image => image.name == "Wished face").ToArray();
+                Assert.That(wishBackings.Where(image => image.gameObject.activeInHierarchy),
+                    Is.EqualTo(new[] { wishBackings[6] }));
+                ui.ShowIntentSelection("family", "water");
+                ui.ShowFaces(faces, 1);
+                Assert.That(wishBackings.Where(image => image.gameObject.activeInHierarchy),
+                    Is.EqualTo(wishBackings.Take(2)));
+                ui.ShowIntentSelection("none", null);
+                ui.ShowFaces(faces, 0);
+                Assert.IsFalse(wishBackings.Any(image => image.gameObject.activeInHierarchy));
                 Assert.That(controls.GetComponentsInChildren<Button>().Length, Is.EqualTo(3));
+
+                ui.ShowFaces(new[] { "seed_single", "seed_scatter" }.Concat(faces.Skip(2)).ToArray(), 0);
+                Assert.AreEqual("1 種を1粒まく", strip.GetComponentsInChildren<Text>()[0].text);
+                Assert.AreEqual("2 種を2粒まく", strip.GetComponentsInChildren<Text>()[1].text);
+                Find("願いをかける").onClick.Invoke();
+                foreach (var label in strip.GetComponentsInChildren<Text>())
+                {
+                    var wishChoice = root.GetComponentsInChildren<Button>()
+                        .Select(button => button.GetComponentInChildren<Text>()).SingleOrDefault(text => text != null && text.text == label.text);
+                    Assert.IsNotNull(wishChoice, label.text);
+                    Assert.That(wishChoice.preferredWidth, Is.LessThanOrEqualTo(wishChoice.rectTransform.rect.width), label.text);
+                }
             }
             finally
             {
@@ -210,9 +237,13 @@ namespace DestinyGarden.Tests
                     Habitat = "水辺"
                 };
                 ui.ShowMessage(null, outcome, moment);
-                var caption = card.Find("Moment caption").GetComponent<Text>();
+                var headline = card.Find("Moment headline").GetComponent<Text>();
+                var habitat = card.Find("Moment habitat").GetComponent<Text>();
                 var mark = card.Find("Blessing seal/Blessing mark").GetComponent<Image>();
-                Assert.AreEqual("1投目　·　2の目「しずく」　/　水辺", caption.text);
+                Assert.AreEqual(moment.Headline, headline.text);
+                Assert.AreEqual("水辺", habitat.text);
+                Assert.That(card.GetComponentsInChildren<Text>(), Is.EquivalentTo(new[] { headline, habitat }));
+                Assert.That(800f - ((RectTransform)card).rect.width * 0.5f, Is.GreaterThanOrEqualTo(360f));
                 Assert.AreEqual("Water", mark.sprite.name);
                 Assert.AreEqual(1f, card.GetComponent<CanvasGroup>().alpha);
                 Assert.IsFalse(card.GetComponent<CanvasGroup>().blocksRaycasts);
@@ -222,7 +253,10 @@ namespace DestinyGarden.Tests
                 ui.SetRollEnabled(false);
                 Assert.IsFalse(card.gameObject.activeSelf);
                 ui.ShowMessage(null, null, moment);
-                Assert.AreEqual(moment.Caption, caption.text);
+                Assert.AreEqual(moment.Headline, headline.text);
+                moment.Habitat = null;
+                ui.ShowMessage(null, null, moment);
+                Assert.IsFalse(habitat.gameObject.activeSelf);
             }
             finally
             {

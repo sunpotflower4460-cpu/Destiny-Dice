@@ -55,6 +55,20 @@ namespace DestinyGarden.Domain
                 default: return recipeId;
             }
         }
+
+        /// <summary>Short action shown on the prepared die and when reporting a quiet roll.</summary>
+        public static string ActionLabelJa(string recipeId) => recipeId switch
+        {
+            "water_drop" => "土に水を注ぐ",
+            "water_rain" => "雨を降らせる",
+            "wind_breeze" => "そよ風を送る",
+            "wind_passage" => "強い風を送る",
+            "light_soft" => "周りを照らす",
+            "light_beam" => "一点を照らす",
+            "seed_single" => "種を1粒まく",
+            "seed_scatter" => "種を2粒まく",
+            _ => LabelJa(recipeId)
+        };
     }
 
     public static class RecipeResolver
