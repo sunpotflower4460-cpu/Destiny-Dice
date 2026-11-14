@@ -84,7 +84,7 @@ namespace DestinyGarden.Presentation
         private static void StylePrimary(GardenUiButton button)
         {
             SetSurface(button, Surface.Brass);
-            button.Label.fontStyle = FontStyle.Bold;
+            GardenType.MakeStrong(button.Label);
         }
 
         private static Surface BlessingSurface(string element) => element switch

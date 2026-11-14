@@ -227,7 +227,7 @@ namespace DestinyGarden.Presentation
                 new Vector2(465f, 47f), 29, TextAnchor.MiddleLeft);
             heading.text = title;
             heading.color = PaleGold;
-            heading.fontStyle = FontStyle.Bold;
+            GardenType.MakeStrong(heading);
             var back = MakeChip(panel.transform, Vector2.one, new Vector2(-23f, -19f),
                 new Vector2(110f, 48f), "戻る", 18, GoBack);
             Engrave(back, Symbol.Back, 22f, 10f);

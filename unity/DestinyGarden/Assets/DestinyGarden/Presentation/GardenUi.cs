@@ -124,16 +124,9 @@ namespace DestinyGarden.Presentation
         {
             get
             {
-#if UNITY_WEBGL
-                // Browsers expose no OS fonts to WebGL; use the bundled Japanese font (SIL OFL 1.1).
-                if (_font == null) _font = Resources.Load<Font>("Fonts/NotoSerifJP-Regular");
-#endif
-                if (_font == null)
-                {
-                    _font = Font.CreateDynamicFontFromOSFont(
-                        new[] { "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans CJK JP", "Yu Gothic", "Arial" }, 24);
-                    if (_font == null) _font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-                }
+                // The bundled Noto Serif JP on every platform (GardenType), so the garden reads the same in the
+                // browser and in the app (the app used to fall back to the system's sans-serif font).
+                if (_font == null) _font = GardenType.Body;
                 return _font;
             }
         }
@@ -503,7 +496,7 @@ namespace DestinyGarden.Presentation
                 bool rolled = rolledFaceId == i + 1;
                 bool wished = wishedFaceId == i + 1;
                 label.color = rolled ? PaleGold : wished ? WishInk : TextColor;
-                label.fontStyle = rolled || wished ? FontStyle.Bold : FontStyle.Normal;
+                GardenType.Emphasis(label, rolled || wished);
                 accent.color = rolled ? PaleGold : wished ? WishInk : ElementLine(element);
                 SetSurface(chip, wished ? Surface.Brass : BlessingSurface(element));
                 chip.Label.text = title;
@@ -738,15 +731,17 @@ namespace DestinyGarden.Presentation
             _openingHeading = MakeText(opening.transform, new Vector2(0f, 1f), new Vector2(0f, -74f), new Vector2(545f, 76f),
                 64, TextAnchor.MiddleLeft);
             _openingHeading.text = "Destiny Garden";
-            _openingHeading.fontStyle = FontStyle.Bold;
+            GardenType.MakeDisplay(_openingHeading);
             _openingHeading.color = GardenUiArt.Pigment(0xffedc6);
             _openingTagline = MakeText(opening.transform, new Vector2(0f, 1f), new Vector2(4f, -169f), new Vector2(537f, 34f),
                 27, TextAnchor.UpperLeft);
             _openingTagline.text = "瓶の中で、あなただけの庭を育てよう。";
+            GardenType.MakeStrong(_openingTagline);
             _openingTagline.color = GardenUiArt.Pigment(0xffedc6);
             _openingDescription = MakeText(opening.transform, new Vector2(0f, 1f), new Vector2(4f, -212f), new Vector2(537f, 52f),
                 21, TextAnchor.UpperLeft);
             _openingDescription.text = "サイコロを振ると、水・風・光・種が庭に届きます。";
+            _openingDescription.lineSpacing = 1.2f;
             _openingDescription.color = GardenUiArt.Pigment(0xdcecf2);
             _enterButton = MakeChip(opening.transform, new Vector2(0f, 1f), new Vector2(4f, -260f),
                 new Vector2(290f, 62f), "庭に入る", 24, () => ShowTitleCard(false));
@@ -1026,6 +1021,7 @@ namespace DestinyGarden.Presentation
             text.rectTransform.offsetMin = new Vector2(10f, 0f);
             text.rectTransform.offsetMax = new Vector2(-10f, 0f);
             text.text = label;
+            GardenType.MakeStrong(text); // every button label in the real SemiBold weight
             button.Label = text;
             return button;
         }

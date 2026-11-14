@@ -715,6 +715,7 @@ namespace DestinyGarden.Presentation
             _labelCanvas = canvas;
             var scaler = canvasObj.AddComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.Expand; // the same scale as the main UI
             scaler.referenceResolution = new Vector2(1600, 900);
             _labelGroup = canvasObj.AddComponent<CanvasGroup>();
             _labelGroup.alpha = 0f;
@@ -730,7 +731,7 @@ namespace DestinyGarden.Presentation
             var luckyBackObj = new GameObject("LuckyLabelBacking");
             luckyBackObj.transform.SetParent(_labelRoot, false);
             _labelBacking = luckyBackObj.AddComponent<Image>();
-            _labelBacking.color = new Color(0.02f, 0.05f, 0.07f, 0.48f);
+            Plaque(_labelBacking);
             _labelBacking.raycastTarget = false;
             var lbRect = luckyBackObj.GetComponent<RectTransform>();
             lbRect.anchorMin = lbRect.anchorMax = new Vector2(0.5f, 0.5f);
@@ -750,6 +751,7 @@ namespace DestinyGarden.Presentation
             _causeCanvas.sortingOrder = -2;
             var causeScaler = causeObj.AddComponent<CanvasScaler>();
             causeScaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            causeScaler.screenMatchMode = CanvasScaler.ScreenMatchMode.Expand; // the same scale as the main UI
             causeScaler.referenceResolution = new Vector2(1600, 900);
             _causeGroup = causeObj.AddComponent<CanvasGroup>();
             _causeGroup.alpha = 0f;
@@ -758,14 +760,14 @@ namespace DestinyGarden.Presentation
             var backObj = new GameObject("SigilCauseBacking");
             backObj.transform.SetParent(causeObj.transform, false);
             _causeBacking = backObj.AddComponent<Image>();
-            _causeBacking.color = new Color(0.02f, 0.05f, 0.07f, 0.48f);
+            Plaque(_causeBacking);
             _causeBacking.raycastTarget = false;
             var backRect = backObj.GetComponent<RectTransform>();
             backRect.anchorMin = backRect.anchorMax = new Vector2(0.5f, 0.5f);
             backRect.pivot = new Vector2(0.5f, 1f);
             backRect.anchoredPosition = new Vector2(0f, 0f);
             // The lines wrap within the screen and grow downward, away from the lucky label above.
-            _causeText = LabelText(causeObj.transform, new Vector2(0f, -9f), 20);
+            _causeText = LabelText(causeObj.transform, new Vector2(0f, -15f), 20);
             _causeText.lineSpacing = 1.15f;
             _causeText.alignment = TextAnchor.UpperCenter;
             _causeText.horizontalOverflow = HorizontalWrapMode.Wrap;
@@ -782,6 +784,7 @@ namespace DestinyGarden.Presentation
             standCanvas.sortingOrder = -3;
             var standScaler = standCanvasObj.AddComponent<CanvasScaler>();
             standScaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            standScaler.screenMatchMode = CanvasScaler.ScreenMatchMode.Expand; // the same scale as the main UI
             standScaler.referenceResolution = new Vector2(1600, 900);
             // Hidden while the title card is up (the title no longer covers the whole screen).
             _standingGroup = standCanvasObj.AddComponent<CanvasGroup>();
@@ -791,26 +794,27 @@ namespace DestinyGarden.Presentation
             var sbObj = new GameObject("SigilStandingBacking");
             sbObj.transform.SetParent(standCanvasObj.transform, false);
             _standingBacking = sbObj.AddComponent<Image>();
-            _standingBacking.color = new Color(0.02f, 0.05f, 0.07f, 0.42f);
+            Plaque(_standingBacking);
             _standingBacking.raycastTarget = false;
             var sbRect = sbObj.GetComponent<RectTransform>();
             sbRect.anchorMin = sbRect.anchorMax = sbRect.pivot = new Vector2(0f, 1f);
-            sbRect.anchoredPosition = new Vector2(30f, -70f);
+            sbRect.anchoredPosition = new Vector2(26f, -82f); // under the header plate, on its left edge
             var stObj = new GameObject("SigilStanding");
             stObj.transform.SetParent(standCanvasObj.transform, false);
             _standingText = stObj.AddComponent<Text>();
             _standingText.alignment = TextAnchor.UpperLeft;
-            _standingText.fontSize = 15;
-            _standingText.lineSpacing = 1.1f;
+            _standingText.fontSize = 17;
+            _standingText.lineSpacing = 1.18f;
+            _standingText.font = GardenType.Body;
             _standingText.raycastTarget = false;
             _standingText.horizontalOverflow = HorizontalWrapMode.Overflow;
             _standingText.verticalOverflow = VerticalWrapMode.Overflow;
-            _standingText.color = new Color(0.93f, 0.95f, 0.92f, 0.95f);
+            _standingText.color = GardenUiArt.Pigment(0xf4eedf); // the main UI's text colour
             var stShadow = stObj.AddComponent<Shadow>();
             stShadow.effectColor = new Color(0.02f, 0.04f, 0.06f, 0.6f);
             var stRect = stObj.GetComponent<RectTransform>();
             stRect.anchorMin = stRect.anchorMax = stRect.pivot = new Vector2(0f, 1f);
-            stRect.anchoredPosition = new Vector2(40f, -74f);
+            stRect.anchoredPosition = new Vector2(46f, -94f);
             stRect.sizeDelta = new Vector2(300f, 44f);
             _causeText.color = new Color(0.95f, 0.93f, 0.84f, 0.92f);
         }
@@ -884,13 +888,15 @@ namespace DestinyGarden.Presentation
                 int harmony = Harmony.Read(recent, kinds.Count, Flora.BloomingSpecies(c.State)).Value;
                 var (have, need) = Seasons.Progress(goalId, c.State, harmony, kinds.Contains(Ecology.Butterfly));
                 int left = Seasons.Length - ((c.State.WorldRevision) % Seasons.Length);
-                rows.Add(c.UpcomingSeasonMet ? $"季節の願い：{g.LabelJa}（叶った）" : $"季節の願い：{g.LabelJa} {Math.Min(have, need)}/{need}（あと {left} 投）");
+                // Three short rows (a narrow plaque that stays clear of the event card beside it).
+                rows.Add(c.UpcomingSeasonMet ? "<color=#cfe6dc>季節の願い</color>　叶った" : $"<color=#cfe6dc>季節の願い</color>　あと {left} 投");
+                rows.Add(c.UpcomingSeasonMet ? g.LabelJa : $"{g.LabelJa}　{Math.Min(have, need)}/{need}");
             }
             var faces = c.RolledFaces;
             int count = PrayerStar.CountLuckies(new List<int>(faces));
             int last = faces.Count > 0 ? faces[faces.Count - 1] : 0;
             int k = PrayerStar.FaceCompletingSeven(last);
-            string next = k > 0 ? $"・次は <color={Gold}>{k}</color> の目" : "";
+            string next = k > 0 ? $"・次は <color={Gold}>{k}</color>" : "";
             rows.Add($"<color={Gold}>ラッキーナンバー</color> {count % PrayerStar.LuckiesForRainbow}/{PrayerStar.LuckiesForRainbow}{next}");
             return string.Join("\n", rows);
         }
@@ -915,7 +921,7 @@ namespace DestinyGarden.Presentation
             }
             _standingText.text = text ?? "";
             if (_standingBacking != null)
-                _standingBacking.rectTransform.sizeDelta = new Vector2(_standingText.preferredWidth + 24f, _standingText.preferredHeight + 10f);
+                _standingBacking.rectTransform.sizeDelta = new Vector2(_standingText.preferredWidth + 40f, _standingText.preferredHeight + 24f);
         }
 
         /// <summary>
@@ -1000,17 +1006,11 @@ namespace DestinyGarden.Presentation
         private void ShowCause(string line)
         {
             if (_causeGroup == null || string.IsNullOrEmpty(line)) return;
-            var font = Font;
-            if (font == null)
-            {
-                var ui = FindFirstObjectByType<GardenUi>();
-                if (ui != null) font = ui.UiFont;
-            }
-            if (font != null) _causeText.font = font;
+            _causeText.font = Font != null ? Font : GardenType.Body;
             _causeText.text = line;
             if (_causeBacking != null)
-                _causeBacking.rectTransform.sizeDelta = new Vector2(Mathf.Min(1320f, _causeText.preferredWidth) + 48f,
-                    _causeText.preferredHeight + 18f);
+                _causeBacking.rectTransform.sizeDelta = new Vector2(Mathf.Min(1320f, _causeText.preferredWidth) + 64f,
+                    _causeText.preferredHeight + 30f);
             if (_causeRoutine != null) StopCoroutine(_causeRoutine);
             _causeRoutine = StartCoroutine(FadeCause());
         }
@@ -1022,6 +1022,14 @@ namespace DestinyGarden.Presentation
             yield return new WaitForSeconds(4.0f);
             for (float t = 0f; t < 1.4f; t += Time.deltaTime) { _causeGroup.alpha = 1f - t / 1.4f; yield return null; }
             _causeGroup.alpha = 0f;
+        }
+
+        /// <summary>The main UI's plaque (GardenUiArt), so the star's words sit on the same kind of plate.</summary>
+        private static void Plaque(Image image)
+        {
+            image.sprite = GardenUiArt.Plaque;
+            image.type = Image.Type.Sliced;
+            image.color = Color.white;
         }
 
         private Text LabelText(Transform parent, Vector2 pos, int size)
@@ -1082,7 +1090,9 @@ namespace DestinyGarden.Presentation
                 var ui = FindFirstObjectByType<GardenUi>();
                 if (ui != null) font = ui.UiFont;
             }
-            if (font != null) foreach (var t in new[] { _labelNumeral, _labelTitle, _labelSub, _labelCounter }) t.font = font;
+            if (font != null) foreach (var t in new[] { _labelSub, _labelCounter }) t.font = font;
+            GardenType.MakeDisplay(_labelNumeral); // the large 7 / 8 in the display serif
+            GardenType.MakeStrong(_labelTitle);    // ラッキーナンバー in the real SemiBold weight
             _labelNumeral.text = lines[0];
             _labelTitle.text = lines[1];
             _labelSub.text = lines[2];

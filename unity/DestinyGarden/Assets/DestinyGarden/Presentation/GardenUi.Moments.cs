@@ -35,7 +35,7 @@ namespace DestinyGarden.Presentation
             _momentHeadline = MakeText(plate.transform, new Vector2(0f, 1f), new Vector2(112f, -10f),
                 new Vector2(742f, 59f), 26, TextAnchor.MiddleLeft);
             _momentHeadline.name = "Moment headline";
-            _momentHeadline.fontStyle = FontStyle.Bold;
+            GardenType.MakeStrong(_momentHeadline);
             _momentHeadline.color = PaleGold;
             _momentHeadline.verticalOverflow = VerticalWrapMode.Truncate;
             _momentHeadline.resizeTextForBestFit = true;
