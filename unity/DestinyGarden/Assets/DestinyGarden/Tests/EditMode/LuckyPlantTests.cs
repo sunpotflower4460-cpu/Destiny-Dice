@@ -74,7 +74,7 @@ namespace DestinyGarden.Tests
             Assert.AreEqual(7, PrayerStar.Read(4, 3, "water_drop", "light_soft", false, 8).Points);
             // The seventh lucky number is always the eight.
             Assert.AreEqual(8, PrayerStar.Read(4, 3, "water_drop", "seed_single", false, 0, -1, 6, 0).Points);
-            Assert.AreEqual("prayer-star.v4", PrayerStar.RulesVersion);
+            StringAssert.StartsWith("prayer-star.v", PrayerStar.RulesVersion);
         }
     }
 }

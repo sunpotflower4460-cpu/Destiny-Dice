@@ -188,13 +188,13 @@ namespace DestinyGarden.Tests
                 points.Add(star.Points);
 
                 var gifts = o.Ecology.Effects.Where(e => e.Kind == PrayerStar.GiftKind).ToList();
-                Assert.LessOrEqual(gifts.Count, star.GiftRecipients);
+                Assert.LessOrEqual(gifts.Count, star.Triple ? int.MaxValue : star.GiftRecipients, "a 三つぞろい opens every bud");
                 foreach (var g in gifts)
                 {
                     Assert.Greater(g.Amount, 0);
                     // A bud on a lucky number opens (a full stage, up to 1000); otherwise seven is half a stage.
                     bool opened = o.Ecology.PostState.PlantAt(g.CellId)?.Stage == PlantStage.Flower;
-                    Assert.LessOrEqual(g.Amount, star.GiftGrowth > 0 ? star.GiftGrowth : star.Points == 7 && star.LuckyStreak < 2 && !opened ? 500 : 1000,
+                    Assert.LessOrEqual(g.Amount, opened && star.OpensBuds ? 1000 : star.GiftGrowth > 0 ? star.GiftGrowth : star.Points == 7 && star.LuckyStreak < 2 && !opened ? 500 : 1000,
                         "five: +60; seven half a stage (a bud opens; a double lucky number a full one); otherwise one stage");
                 }
                 Assert.AreEqual(o.Simulation.PostState.TotalWater(), o.Ecology.PostState.TotalWater(), "the star never moves water");

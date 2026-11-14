@@ -18,6 +18,14 @@ namespace DestinyGarden.Domain
         public int LuckyStreak;       // lucky.v1: lucky numbers in a row ending with this roll (0 when not lucky)
         public bool SevenLuckies;     // lucky.v1: this lucky number is the 7th, 14th, ... of the garden: the eight
         public int LuckyPlantCellId = -1; // prayer-star.v4: the plant this lucky number marked (-1 when none)
+        public bool Zorome;          // v5: the same face as the previous roll (ゾロ目)
+        public bool Triple;          // v5: the same face three times in a row (三つぞろい)
+        public int FaceTotal;        // v5: the sum of every face of this garden so far, this one included
+        public bool Total77;         // v5: this roll's face carried the total past a multiple of 77
+        /// <summary>v5: buds open on a lucky number or a ゾロ目.</summary>
+        public bool OpensBuds => LuckyNumber || Zorome;
+        /// <summary>v5: a 三つぞろい or a total of 77 brings the seventh face to the next round.</summary>
+        public bool EarnsSeventh => Triple || Total77;
         public bool HasElement;     // prayer-star.v2: the rolled blessing steers where the gift goes
         public ElementId Element;
     }
@@ -44,7 +52,10 @@ namespace DestinyGarden.Domain
     {
         // v3 (lucky.v1): seven luckies, double lucky. v4: the eight is luck met by prayer — a lucky number on a roll whose
         // wish came true (in a harmonious garden), or the garden's seventh lucky number; a yin-yang turn alone stays six.
-        public const string RulesVersion = "prayer-star.v4";
+        // v5 (lucky signs): ゾロ目 (the same face twice) opens a bud; 三つぞろい (three times) opens every bud and brings
+        // the seventh face; the garden's face total passing a multiple of 77 brings the seventh face. Odds never change.
+        public const string RulesVersion = "prayer-star.v5";
+        public const int LuckyTotal = 77;
         public const string GiftKind = "star";          // EcologyEffect.Kind for the star's gift
         public const int LuckySum = 7;
         public const int OctagramHarmony = 8;  // v4: the island in full harmony (7 in v1–v3)
@@ -69,10 +80,10 @@ namespace DestinyGarden.Domain
         /// </summary>
         public static int GiftFor(PrayerStarReading star, int growth)
         {
-            if (star.GiftGrowth > 0) return star.GiftGrowth;
             int step = ToNextStage(growth);
-            // prayer-star.v4: on a lucky number a bud opens — a full stage to bloom (luck is seen as flowers).
-            if (star.LuckyNumber && growth >= 1500) return step;
+            // prayer-star.v4/v5: on a lucky number or a ゾロ目 a bud opens — a full stage to bloom (luck is seen as flowers).
+            if (star.OpensBuds && growth >= 1500) return step;
+            if (star.GiftGrowth > 0) return star.GiftGrowth;
             return star.Points == 7 && star.LuckyStreak < 2 ? Math.Min(step, Math.Max(FiveGift, step / 2)) : step;
         }
 
@@ -106,6 +117,23 @@ namespace DestinyGarden.Domain
         }
 
         /// <summary>Lucky numbers in a row at the end of a run's faces.</summary>
+        /// <summary>v5: how many of the last faces are the same face (0 for none, 1 when the last differs from the one before).</summary>
+        public static int SameRun(IList<int> faces)
+        {
+            if (faces == null || faces.Count == 0) return 0;
+            int n = 1;
+            for (int i = faces.Count - 1; i > 0 && faces[i] == faces[i - 1]; i--) n++;
+            return n;
+        }
+
+        /// <summary>v5: the sum of the faces.</summary>
+        public static int Total(IList<int> faces)
+        {
+            int t = 0;
+            if (faces != null) foreach (int f in faces) t += f;
+            return t;
+        }
+
         public static int TrailingStreak(IList<int> faces)
         {
             int n = 0;
@@ -116,7 +144,7 @@ namespace DestinyGarden.Domain
 
         public static PrayerStarReading Read(int faceId, int previousFaceId, string recipeId,
             string previousRecipeId, bool wishAnswered, int harmonyValue, int anchorCellId = -1,
-            int luckyCountBefore = 0, int luckyStreakBefore = 0)
+            int luckyCountBefore = 0, int luckyStreakBefore = 0, int sameRunBefore = 0, int faceTotalBefore = 0)
         {
             var r = new PrayerStarReading { WishAnswered = wishAnswered, AnchorCellId = anchorCellId };
             if (recipeId != null) { r.HasElement = true; r.Element = RecipeCatalog.ElementOf(recipeId); }
@@ -136,6 +164,11 @@ namespace DestinyGarden.Domain
                 : 5;
             r.GiftGrowth = GiftGrowthFor(r.Points);
             r.GiftRecipients = GiftRecipientsFor(r.Points);
+            // v5: lucky signs from the faces alone.
+            r.Zorome = previousFaceId > 0 && faceId == previousFaceId;
+            r.Triple = r.Zorome && sameRunBefore >= 2;
+            r.FaceTotal = faceTotalBefore + Math.Max(0, faceId);
+            r.Total77 = faceId > 0 && r.FaceTotal / LuckyTotal > faceTotalBefore / LuckyTotal;
             return r;
         }
 
@@ -175,9 +208,9 @@ namespace DestinyGarden.Domain
             {
                 // prayer-star.v4: on a lucky number the buds come first, wherever they are (they open into flowers);
                 // then the blessing's site (prayer-star.v2), then the blessing's own preference.
-                bool waitingBud = star.LuckyNumber && p.Stage == PlantStage.Bud;
+                bool waitingBud = star.OpensBuds && p.Stage == PlantStage.Bud;
                 bool far = star.AnchorCellId >= 0 && Dist(p.CellId, star.AnchorCellId) > SiteReach;
-                prio[p] = (star.LuckyNumber && !waitingBud ? 1 << 20 : 0) + (far ? 1 << 16 : 0) + Priority(s, p, star);
+                prio[p] = (star.OpensBuds && !waitingBud ? 1 << 20 : 0) + (far ? 1 << 16 : 0) + Priority(s, p, star);
             }
             young.Sort((a, b) =>
             {
@@ -185,8 +218,11 @@ namespace DestinyGarden.Domain
                 if (c != 0) return c;
                 return a.Growth != b.Growth ? a.Growth.CompareTo(b.Growth) : a.CellId.CompareTo(b.CellId);
             });
+            // v5: a 三つぞろい opens every bud (they come first in the order above).
+            int take = star.GiftRecipients;
+            if (star.Triple) { int buds = 0; foreach (var p in young) if (p.Stage == PlantStage.Bud) buds++; take = Math.Max(take, buds); }
             var cells = new List<int>();
-            for (int i = 0; i < young.Count && i < star.GiftRecipients; i++) cells.Add(young[i].CellId);
+            for (int i = 0; i < young.Count && i < take; i++) cells.Add(young[i].CellId);
             return cells;
         }
 
@@ -198,7 +234,7 @@ namespace DestinyGarden.Domain
             // prayer-star.v3: the anchor (the site the blessing reached) and the garden's lucky count and streak.
             var star = Read(context.FaceId, context.PreviousFaceId, context.CurrentRecipeId,
                 previous, context.PrayerAnswered, result.Harmony.Value, context.AnchorCellId,
-                context.LuckyCountBefore, context.LuckyStreakBefore);
+                context.LuckyCountBefore, context.LuckyStreakBefore, context.SameRunBefore, context.FaceTotalBefore);
             result.PrayerStar = star;
             var recipients = Recipients(result.PostState, star);
             foreach (int cell in recipients)
@@ -234,7 +270,11 @@ namespace DestinyGarden.Domain
             ["sevenLuckies"] = r.SevenLuckies,
             ["anchorCellId"] = (long)r.AnchorCellId,
             ["giftElement"] = r.HasElement ? r.Element.ToString().ToLowerInvariant() : null,
-            ["luckyPlantCellId"] = (long)r.LuckyPlantCellId
+            ["luckyPlantCellId"] = (long)r.LuckyPlantCellId,
+            ["zorome"] = r.Zorome,
+            ["triple"] = r.Triple,
+            ["faceTotal"] = (long)r.FaceTotal,
+            ["total77"] = r.Total77
         };
     }
 }

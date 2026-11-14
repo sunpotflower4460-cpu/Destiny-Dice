@@ -55,6 +55,8 @@ namespace DestinyGarden.Domain
         public int SpiritCount = 3;             // spirits of an answered wish: rarer wishes call more (max 7)
         public int LuckyCountBefore;            // lucky.v1: the garden's lucky numbers before this roll
         public int LuckyStreakBefore;           // lucky.v1: lucky numbers in a row up to the previous roll
+        public int SameRunBefore;               // prayer-star.v5: the same face in a row up to the previous roll
+        public int FaceTotalBefore;             // prayer-star.v5: the garden's faces summed before this roll
     }
 
     /// <summary>
