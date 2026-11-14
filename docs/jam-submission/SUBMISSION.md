@@ -97,9 +97,12 @@ Sound starts after your first click or tap (browser rule).
 All 3D shapes, plants, creatures, textures, shaders, music and sounds are made in code for this game (no audio files). No
 Asset Store packages, no external models, textures, music or sound files.
 
-- **Font: Noto Serif JP** (Regular) — Google / Adobe, SIL Open Font License 1.1.
+- **Font: Noto Serif JP** (Regular, SemiBold) — Google / Adobe, SIL Open Font License 1.1.
   https://github.com/notofonts/noto-cjk — license text is bundled at
   `Assets/DestinyGarden/Resources/Fonts/NotoSerifJP-OFL.txt`.
+- **Font: Cormorant Garamond** (SemiBold) — The Cormorant Project Authors, SIL Open Font License 1.1.
+  https://github.com/CatharsisFonts/Cormorant — license text is bundled at
+  `Assets/DestinyGarden/Resources/Fonts/CormorantGaramond-OFL.txt`.
 - **Engine:** Unity 6 (6000.3.23f1), Universal Render Pipeline, Input System, uGUI.
 
 ## 6. Generative AI disclosure (English)

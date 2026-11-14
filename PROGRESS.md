@@ -3246,3 +3246,26 @@ Unity metadata: 76 C# files have meta; 103 unique GUIDs
 
 - Unity EditMode: `total="324" passed="324" failed="0"`。`pnpm typecheck` 0、`pnpm test` 183 passed、`pnpm build` built。
 - WebGL をブラウザで確認: タイトルに余計な行が出ない／「庭に入る」から振ると因果の一行と左上の2行が出る／コンソールのエラー 0。
+
+## Jam 文字の仕上げ — 見出しと説明とボタンの書体（2026-11-14）
+
+### 完了したこと
+
+- 本人の方向付け「タイトルや説明・ボタンのフォントやデザインに完成版の感覚が足りない」。Codex の #37（絵本の庭・手描きのタイトル文字）の上に重ねた。
+- 書体の役割を `GardenType` にまとめた: 本文は Noto Serif JP Regular、見出し・ボタン・選ばれた面は **Noto Serif JP SemiBold（本物の太さ）**、
+  英字の大きな文字（タイトルの予備・祈りの星の「7」「8」）は Cormorant Garamond SemiBold。どれも SIL OFL 1.1 で同梱（本人承認済みの取得）。
+- それまでの太字は Unity の合成の太字で、日本語の線がにじんでいた。ボタン・見出し・出来事の見出し・選ばれた面・タイトルの一文を本物の SemiBold にした。
+- アプリ版（macOS など）は端末のゴシック体に置き換わっていたのを、ブラウザ版と同じ同梱の明朝体にそろえた。
+- タイトルは Codex の手描きの「Destiny Garden」（StorybookLettering）を採用。文字のタイトルは画像がないときの予備。
+- 祈りの星の文字（左上の季節の願いとラッキーナンバー、一投ごとの一行、ラッキーナンバーの小さな2行）を本体と同じ札（GardenUiArt.Plaque）と同じ縮尺にそろえた。
+  左上の札は出来事の札と重なっていたので、3行の細い札にした。
+
+### 完了基準の結果（コマンド出力の要約）
+
+- Unity EditMode: `total="324" passed="324" failed="0"`。`pnpm typecheck` 0、`pnpm test` 183 passed、`pnpm build` built。
+- WebGL をブラウザ（1280×720）で確認: 手描きのタイトル、SemiBold の一文とボタン、左上の札が出来事の札と重ならない、一行の札。コンソールのエラー 0。
+
+### 要確定・申し送り
+
+- WebGL の読み込みが約 7 MB 増えた（SemiBold 6.3 MB・Cormorant 1.0 MB）。重さが気になる場合は SemiBold を使う文字だけに絞る（サブセット化）ことができる。
+- 文字は Unity の従来の Text のまま（字間の調整はできない）。さらに仕上げるなら TextMeshPro への移行を検討する。
