@@ -111,8 +111,21 @@ namespace DestinyGarden.Tests
                 Assert.AreEqual("小さな庭をひらく", entryLabel.text);
                 ui.ShowOpeningProgress(2);
                 Assert.AreEqual("庭のつづきへ", entryLabel.text);
+                // A saved garden can also be left for a new one (it stays in the record): two presses, never by accident.
+                int switched = 0;
+                ui.OnSwitchVisitor = () => switched++;
+                var fresh = opening.GetComponentsInChildren<Button>().Single(b => b.name == "Chip_新しい庭をはじめる");
+                var freshLabel = fresh.GetComponentInChildren<Text>();
+                Assert.That(freshLabel.preferredWidth, Is.LessThanOrEqualTo(freshLabel.rectTransform.rect.width));
+                fresh.onClick.Invoke();
+                Assert.AreEqual(0, switched);
+                Assert.AreEqual("もう一度押す・今の庭は残ります", freshLabel.text);
+                Assert.That(freshLabel.preferredWidth, Is.LessThanOrEqualTo(freshLabel.rectTransform.rect.width));
+                fresh.onClick.Invoke();
+                Assert.AreEqual(1, switched);
                 ui.ShowOpeningProgress(0);
                 Assert.AreEqual("小さな庭をひらく", entryLabel.text);
+                Assert.IsFalse(fresh.gameObject.activeSelf, "a first garden has nothing to leave");
                 enter.onClick.Invoke();
                 Assert.IsFalse(ui.TitleCardOpen);
                 Assert.AreEqual(0, rolls);
@@ -155,10 +168,16 @@ namespace DestinyGarden.Tests
                 ui.ShowFaces(luckyFaces, 0, 7);
                 var published = strip.GetComponentsInChildren<Text>();
                 Assert.That(published.Length, Is.EqualTo(7));
-                CollectionAssert.AreEqual(new[] { "1 土に水を注ぐ", "2 雨を降らせる", "3 そよ風を送る", "4 強い風を送る",
-                    "5 周りを照らす", "6 一点を照らす", "7 土に水を注ぐ×2" }, published.Select(label => label.text));
+                CollectionAssert.AreEqual(new[] { "1 たっぷり水", "2 小雨", "3 そよ風", "4 つよい風",
+                    "5 やわらかな光", "6 ひとすじの光", "7 たっぷり水×2" }, published.Select(label => label.text.Split('\n')[0]));
+                StringAssert.Contains("一か所に深く", published[0].text, "each face says where and how its blessing falls");
                 foreach (var label in published)
+                {
                     Assert.That(label.preferredWidth, Is.LessThanOrEqualTo(label.rectTransform.rect.width), label.text);
+                    Assert.That(label.preferredHeight, Is.LessThanOrEqualTo(label.rectTransform.rect.height), label.text);
+                }
+                var icons = strip.GetComponentsInChildren<Image>().Where(image => image.name == "Face blessing").ToArray();
+                CollectionAssert.AreEqual(new[] { "Water", "Water", "Wind", "Wind", "Star", "Star", "Water" }, icons.Select(i => i.sprite.name));
                 var wishBackings = strip.GetComponentsInChildren<Image>(true).Where(image => image.name == "Wished face").ToArray();
                 Assert.That(wishBackings.Where(image => image.gameObject.activeInHierarchy),
                     Is.EqualTo(new[] { wishBackings[6] }));
@@ -200,8 +219,8 @@ namespace DestinyGarden.Tests
                 Assert.That(strip.GetComponentsInChildren<Text>().Length, Is.EqualTo(6), "the marks add no text");
 
                 ui.ShowFaces(new[] { "seed_single", "seed_scatter" }.Concat(faces.Skip(2)).ToArray(), 0);
-                Assert.AreEqual("1 種を1粒まく", strip.GetComponentsInChildren<Text>()[0].text);
-                Assert.AreEqual("2 種を2粒まく", strip.GetComponentsInChildren<Text>()[1].text);
+                StringAssert.StartsWith("1 種ひと粒\n", strip.GetComponentsInChildren<Text>()[0].text);
+                StringAssert.StartsWith("2 種ふた粒\n", strip.GetComponentsInChildren<Text>()[1].text);
                 Find("願いをかける").onClick.Invoke();
                 foreach (var label in strip.GetComponentsInChildren<Text>())
                 {
@@ -282,7 +301,10 @@ namespace DestinyGarden.Tests
                 var headline = card.Find("Moment headline").GetComponent<Text>();
                 var habitat = card.Find("Moment habitat").GetComponent<Text>();
                 var mark = card.Find("Blessing seal/Blessing mark").GetComponent<Image>();
-                Assert.AreEqual(moment.Headline, headline.text);
+                // A live roll names the face that came up first, so the strip and the event meet.
+                StringAssert.StartsWith("<color=#", headline.text);
+                StringAssert.Contains(">2 たっぷり水</color>　", headline.text);
+                StringAssert.EndsWith(moment.Headline, headline.text);
                 Assert.AreEqual("水辺", habitat.text);
                 Assert.That(card.GetComponentsInChildren<Text>(), Is.EquivalentTo(new[] { headline, habitat }));
                 Assert.That(800f - ((RectTransform)card).rect.width * 0.5f, Is.GreaterThanOrEqualTo(360f));

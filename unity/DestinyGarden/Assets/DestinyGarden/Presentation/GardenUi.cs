@@ -36,6 +36,7 @@ namespace DestinyGarden.Presentation
         private readonly Text[] _faceLabels = new Text[7];
         private readonly Image[] _faceWishBackings = new Image[7];
         private readonly Image[] _faceMarks = new Image[7];   // lucky marks on the face strip (no words)
+        private readonly Image[] _faceIcons = new Image[7];   // the blessing's mark of each face
         private int _wishedFaceId;
         private RectTransform _faceStrip;
         private GardenUiButton _luckyOffer;
@@ -50,6 +51,11 @@ namespace DestinyGarden.Presentation
         private float _openingScale;
         private Text _openingHeading, _openingTagline;
         private GardenUiButton _enterButton;
+        // The title's second way in: a new garden (the current one stays in the record). Two presses, so it is never by accident.
+        private GardenUiButton _newGardenButton;
+        private bool _newGardenArmed;
+        private const string NewGardenLabel = "新しい庭をはじめる", NewGardenConfirm = "もう一度押す・今の庭は残ります";
+        private static readonly Vector2 NewGardenSize = new Vector2(372f, 48f);
         private CanvasGroup _gardenControls;
         internal bool IsOpening { get; private set; }
         private readonly Dictionary<string, GardenUiButton> _intentChips = new Dictionary<string, GardenUiButton>();
@@ -110,6 +116,46 @@ namespace DestinyGarden.Presentation
         }
 
         /// <summary>Bright hairline for a blessing, so colour reads as an edge of light, not a block.</summary>
+        /// <summary>What a face is called on the die: a short, concrete name (presentation only).</summary>
+        public static string FaceName(string recipeId) => recipeId switch
+        {
+            "water_drop" => "たっぷり水",
+            "water_rain" => "小雨",
+            "wind_breeze" => "そよ風",
+            "wind_passage" => "つよい風",
+            "light_soft" => "やわらかな光",
+            "light_beam" => "ひとすじの光",
+            "seed_single" => "種ひと粒",
+            "seed_scatter" => "種ふた粒",
+            _ => RecipeCatalog.LabelJa(recipeId)
+        };
+
+        /// <summary>Where and how the face's blessing falls, in a few words (from the recipe's footprint).</summary>
+        public static string FaceHint(string recipeId) => recipeId switch
+        {
+            "water_drop" => "一か所に深く",
+            "water_rain" => "まわりに広く",
+            "wind_breeze" => "広くやさしく",
+            "wind_passage" => "すぐそばを強く",
+            "light_soft" => "まわりを照らす",
+            "light_beam" => "一点を強く",
+            "seed_single" => "すぐそばに",
+            "seed_scatter" => "少し離して",
+            _ => ""
+        };
+
+        /// <summary>"4 つよい風" and, smaller, "すぐそばを強く" (the seventh face is doubled: "×2").</summary>
+        public static string FaceTitle(int face, string recipeId, bool seventh = false) =>
+            $"{face} {FaceName(recipeId)}" + (seventh ? "×2" : "") + $"\n<size=13><color=#cdbfa8>{FaceHint(recipeId)}</color></size>";
+
+        internal static Symbol ElementSymbol(string element) => element switch
+        {
+            "water" => Symbol.Water,
+            "wind" => Symbol.Wind,
+            "seed" => Symbol.Seed,
+            _ => Symbol.Star
+        };
+
         public static Color ElementLine(string element)
         {
             switch (element)
@@ -498,12 +544,13 @@ namespace DestinyGarden.Presentation
                     mark.rectTransform.sizeDelta = luckyMark ? new Vector2(28f, 28f) : new Vector2(30f, 15f);
                 }
 
-                string title = $"{i + 1} {RecipeCatalog.ActionLabelJa(faces[i])}" + (seventh ? "×2" : "");
-                int fontSize = seventh ? 15 : 18;
+                string title = FaceTitle(i + 1, faces[i], seventh);
+                int fontSize = seventh ? 14 : 16;
                 label.text = title;
                 label.fontSize = fontSize;
-                var position = new Vector2((i - (faceCount - 1) * 0.5f) * FaceSpacing, 2f);
-                label.rectTransform.anchoredPosition = position;
+                _faceIcons[i].sprite = GardenUiArt.Icon(ElementSymbol(ElementOfRecipe(faces[i])));
+                var position = new Vector2((i - (faceCount - 1) * 0.5f) * FaceSpacing, 0f);
+                label.rectTransform.anchoredPosition = position + new Vector2(13f, 0f);
                 string element = ElementOfRecipe(faces[i]);
                 bool rolled = rolledFaceId == i + 1;
                 bool wished = wishedFaceId == i + 1 || _wishedElement == element;
@@ -512,6 +559,8 @@ namespace DestinyGarden.Presentation
                 label.color = rolled ? PaleGold : wished ? WishInk : TextColor;
                 GardenType.Emphasis(label, rolled || wished);
                 accent.color = rolled ? PaleGold : wished ? WishInk : ElementLine(element);
+                var iconInk = ElementLine(element); iconInk.a = 1f;
+                _faceIcons[i].color = rolled ? PaleGold : iconInk;
                 SetSurface(chip, wished ? Surface.Brass : BlessingSurface(element));
                 chip.Label.text = title;
                 chip.Label.fontSize = fontSize;
@@ -547,8 +596,14 @@ namespace DestinyGarden.Presentation
                 if (_resetViewButton.gameObject.activeSelf != visible) _resetViewButton.gameObject.SetActive(visible);
                 if (visible)
                 {
-                    string label = rig.IsHouseFocused ? "庭全体を見る" : "視点を戻す";
+                    // At the house the way back is the one thing to do: it says so and stands out in gold.
+                    string label = rig.IsHouseFocused ? "庭にもどる" : "視点を戻す";
                     if (_resetViewLabel.text != label) _resetViewLabel.text = label;
+                    if (_resetPrimary != rig.IsHouseFocused)
+                    {
+                        _resetPrimary = rig.IsHouseFocused;
+                        if (_resetPrimary) StylePrimary(_resetChip); else { SetSurface(_resetChip, Surface.Enamel); GardenType.MakeBody(_resetChip.Label); }
+                    }
                 }
             }
 
@@ -714,6 +769,20 @@ namespace DestinyGarden.Presentation
             _enterButton = MakeChip(opening.transform, topLeft, Vector2.zero,
                 OpeningEntrySize, StartGardenLabel, 30, () => ShowTitleCard(false));
             DecorateOpeningEntry(_enterButton);
+            _newGardenButton = MakeChip(opening.transform, topLeft, Vector2.zero, NewGardenSize, NewGardenLabel, 19, () =>
+            {
+                if (!_newGardenArmed)
+                {
+                    _newGardenArmed = true;
+                    _newGardenButton.Label.text = NewGardenConfirm;
+                    StylePrimary(_newGardenButton);
+                    return;
+                }
+                _newGardenArmed = false;
+                OnSwitchVisitor?.Invoke();
+            });
+            Engrave(_newGardenButton, Symbol.Seed, 24f, 16f);
+            _newGardenButton.gameObject.SetActive(false);
             _openingHeading.gameObject.SetActive(_openingLettering == null);
             LayoutOpeningCard();
         }
@@ -747,6 +816,11 @@ namespace DestinyGarden.Presentation
             entry.anchoredPosition = new Vector2(side ? 4f : (OpeningWidth - OpeningEntrySize.x) * 0.5f,
                 side ? -449f : -308f - portraitOffset) * scale;
             LayoutOpeningEntry(scale);
+            var fresh = (RectTransform)_newGardenButton.transform;
+            fresh.sizeDelta = NewGardenSize * scale;
+            fresh.anchoredPosition = new Vector2(side ? 4f + (OpeningEntrySize.x - NewGardenSize.x) * 0.5f : (OpeningWidth - NewGardenSize.x) * 0.5f,
+                (side ? -449f : -308f - portraitOffset) - OpeningEntrySize.y - 14f) * scale;
+            _newGardenButton.Label.fontSize = Mathf.RoundToInt(19 * scale);
             LayoutOpeningDecorations(side, portrait, scale);
         }
 
@@ -756,6 +830,11 @@ namespace DestinyGarden.Presentation
         public void ShowOpeningProgress(int revision)
         {
             _enterButton.Label.text = revision >= 2 ? "庭のつづきへ" : StartGardenLabel;
+            _newGardenButton.gameObject.SetActive(revision >= 2);
+            _newGardenArmed = false;
+            _newGardenButton.Label.text = NewGardenLabel;
+            SetSurface(_newGardenButton, Surface.Enamel);
+            GardenType.MakeBody(_newGardenButton.Label);
         }
 
         public void ShowTitleCard(bool show, bool opening = false)
@@ -818,7 +897,7 @@ namespace DestinyGarden.Presentation
             if (moment != null)
             {
                 PaintMoment(outcome?.RecipeId ?? moment.RecipeId, outcome?.LuckySeven == true, outcome != null,
-                    moment.Headline, moment.Habitat);
+                    moment.Headline, moment.Habitat, outcome?.FaceId ?? 0);
                 return;
             }
             string card = "";
@@ -827,7 +906,7 @@ namespace DestinyGarden.Presentation
                 int idx = Array.IndexOf(OracleCatalogData.CardOrder, message.CardId);
                 if (idx >= 0) card = "【" + OracleCatalogData.CardLabelsJa[idx] + "】";
             }
-            PaintMoment(outcome?.RecipeId, outcome?.LuckySeven == true, outcome != null, card + message.Text, null);
+            PaintMoment(outcome?.RecipeId, outcome?.LuckySeven == true, outcome != null, card + message.Text, null, outcome?.FaceId ?? 0);
         }
 
         public void ShowStatus(string text)

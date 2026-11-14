@@ -112,30 +112,39 @@ namespace DestinyGarden.Presentation
             }
         }
 
-        /// <summary>A small hall: four damped combs and two all-passes. Returns dry + wet tail.</summary>
+        /// <summary>
+        /// A soft hall (Freeverb-like): two input diffusers, eight damped combs and four all-passes. Returns dry + wet
+        /// tail. Measured against the earlier four-comb hall (scratch reverb_lab.py): the tail is dense after 0.07 s
+        /// instead of 1.2 s (no grainy flutter), with the same decay (RT60 about 1.7 s at tail 2.2) and the same energy.
+        /// </summary>
         private static double[] Reverb(double[] x, double wet, double tail)
         {
             int n = x.Length + (int)(tail * Rate);
             var dry = new double[n];
             Array.Copy(x, dry, x.Length);
+            var pre = (double[])dry.Clone();
+            AllPass(pre, 142, 0.6);
+            AllPass(pre, 107, 0.6);
             var acc = new double[n];
-            foreach (int d in new[] { 1307, 1637, 1811, 1931 })
+            foreach (int d in new[] { 1116, 1188, 1277, 1356, 1422, 1491, 1557, 1617 })
             {
                 double g = Math.Pow(10.0, -3.0 * d / (Rate * Math.Max(0.2, tail)));
                 var buf = new double[d]; int idx = 0; double lp = 0;
                 for (int i = 0; i < n; i++)
                 {
                     double y = buf[idx];
-                    lp = y * 0.62 + lp * 0.38;
-                    buf[idx] = dry[i] + lp * g;
+                    lp = y * 0.55 + lp * 0.45;
+                    buf[idx] = pre[i] + lp * g;
                     if (++idx == d) idx = 0;
                     acc[i] += y;
                 }
             }
-            AllPass(acc, 225, 0.5);
             AllPass(acc, 556, 0.5);
+            AllPass(acc, 441, 0.5);
+            AllPass(acc, 341, 0.5);
+            AllPass(acc, 225, 0.5);
             var o = new double[n];
-            for (int i = 0; i < n; i++) o[i] = dry[i] + acc[i] * 0.22 * wet;
+            for (int i = 0; i < n; i++) o[i] = dry[i] + acc[i] * 0.156 * wet;
             return o;
         }
 
@@ -185,12 +194,13 @@ namespace DestinyGarden.Presentation
         public static float[] Stream()
         {
             int n = Rate * 6, x = Rate / 2, warm = Rate / 5, total = n + x;
-            var w = White(21); var bp = Biquad.Band(2700, 0.9); var envLp = Biquad.Low(16, 0.7);
+            // Softer than before (2.7 kHz, 11% of its energy above 6 kHz): it plays all the time while the garden lives.
+            var w = White(21); var bp = Biquad.Band(2100, 0.8); var soft = Biquad.Low(4800, 0.7); var envLp = Biquad.Low(16, 0.7);
             var s = new double[total]; var e = new double[total];
             for (int i = -warm; i < total; i++)
             {
                 double v = w();
-                double a = bp.Process(v), b = envLp.Process(w());
+                double a = soft.Process(bp.Process(v)), b = envLp.Process(w());
                 if (i >= 0) { s[i] = a; e[i] = b; }
             }
             double sd = 0;
@@ -241,7 +251,7 @@ namespace DestinyGarden.Presentation
                     for (int i = 0; i < len; i++)
                     {
                         double u = i / (double)len, t = (start + i) / (double)Rate;
-                        o[start + i] += (Math.Sin(2 * Math.PI * 4300 * t) + 0.5 * Math.Sin(2 * Math.PI * 4650 * t)) * Math.Pow(Math.Sin(Math.PI * u), 2);
+                        o[start + i] += (Math.Sin(2 * Math.PI * 4300 * t) + 0.25 * Math.Sin(2 * Math.PI * 4650 * t)) * Math.Pow(Math.Sin(Math.PI * u), 2); // less beating buzz
                     }
                 }
             return Finish(o, 0.5, 0, 0);
@@ -323,7 +333,9 @@ namespace DestinyGarden.Presentation
             for (int j = 0; j < len; j++) { buf[j] = r.NextDouble() * 2 - 1; mean += buf[j]; }
             mean /= len;
             for (int j = 0; j < len; j++) buf[j] -= mean; // no DC: the string must not carry a constant offset
-            for (int j = 0; j < len; j++) buf[j] = 0.5 * (buf[j] + buf[(j + 1) % len]);
+            // Smoothed twice: a rounder, softer pluck (it answers every growth, so it should never be sharp).
+            for (int pass = 0; pass < 2; pass++)
+                for (int j = 0; j < len; j++) buf[j] = 0.5 * (buf[j] + buf[(j + 1) % len]);
             var o = new double[n]; int idx = 0;
             for (int i = 0; i < n; i++)
             {
@@ -343,12 +355,13 @@ namespace DestinyGarden.Presentation
         {
             int n = (int)(2.0 * Rate);
             var w = White(51); var b1 = Biquad.Band(800, 0.8); var b2 = Biquad.Band(1700, 0.8); var envLp = Biquad.Low(14, 0.7);
+            var soft = Biquad.Low(5200, 0.7); // the pour keeps its brightening, without hiss on top
             var s = new double[n]; var e = new double[n];
             for (int i = 0; i < n; i++)
             {
                 double v = w();
                 double u = i / (double)n;
-                s[i] = b1.Process(v) * (1 - u) + b2.Process(v) * u;
+                s[i] = soft.Process(b1.Process(v) * (1 - u) + b2.Process(v) * u);
                 e[i] = envLp.Process(w());
             }
             double sd = 0;

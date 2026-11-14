@@ -124,13 +124,16 @@ namespace DestinyGarden.Presentation
         }
 
         /// <summary>Names joined with "・", at most seven, then "ほかN".</summary>
-        public static string NameList(IList<string> names)
+        public static string NameList(IList<string> names, int max = CardNames)
         {
             if (names == null || names.Count == 0) return null;
             var shown = new List<string>();
-            for (int i = 0; i < names.Count && i < CardNames; i++) shown.Add(names[i]);
+            for (int i = 0; i < names.Count && i < max; i++) shown.Add(names[i]);
             string list = string.Join("・", shown);
-            return names.Count > CardNames ? list + $" ほか{names.Count - CardNames}" : list;
+            return names.Count > max ? list + $" ほか{names.Count - max}" : list;
         }
+
+        /// <summary>Flower names are longer than creature names: six keep the line whole.</summary>
+        public const int CardFlowerNames = 6;
     }
 }

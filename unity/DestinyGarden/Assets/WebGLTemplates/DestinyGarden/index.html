@@ -15,6 +15,11 @@
         justify-content: center; gap: 14px; color: #e3dec9; font: 15px Georgia, serif; letter-spacing: 0.08em; }
       #bar { width: 240px; height: 3px; background: rgba(227, 222, 201, 0.18); }
       #bar-fill { width: 0; height: 100%; background: #c9862a; transition: width 0.2s; }
+      /* Phones held upright: the 16:9 garden is small, so a quiet hint to turn the phone (touch screens only). */
+      #turn { display: none; position: absolute; left: 0; right: 0; top: calc(14px + env(safe-area-inset-top, 0px));
+        text-align: center; color: #e3dec9; opacity: 0.72; font: 13px Georgia, "Hiragino Mincho ProN", serif;
+        letter-spacing: 0.08em; pointer-events: none; }
+      @media (orientation: portrait) and (pointer: coarse) { #turn { display: block; } }
       #error { display: none; position: absolute; left: 16px; right: 16px; bottom: 16px; padding: 10px 12px;
         background: #6b1d1d; color: #fff; font: 14px sans-serif; }
     </style>
@@ -22,10 +27,13 @@
   <body>
     <div id="stage"><canvas id="unity-canvas" width={{{ WIDTH }}} height={{{ HEIGHT }}} tabindex="-1"></canvas></div>
     <div id="loading"><div>Destiny Garden</div><div id="bar"><div id="bar-fill"></div></div></div>
+    <div id="turn">横向きにすると、庭が大きく見えます</div>
     <div id="error"></div>
     <script src="Build/{{{ LOADER_FILENAME }}}"></script>
     <script>
       var canvas = document.querySelector("#unity-canvas");
+      var isPhone = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) ||
+        (navigator.maxTouchPoints > 1 && window.matchMedia && window.matchMedia("(pointer: coarse)").matches);
       function fit() {
         var w = window.innerWidth, h = window.innerHeight;
         if (w / h > 16 / 9) w = Math.floor(h * 16 / 9); else h = Math.floor(w * 9 / 16);
@@ -60,8 +68,9 @@
         productVersion: {{{ JSON.stringify(PRODUCT_VERSION) }}},
         // The garden journal lives in persistentDataPath; persist it to IndexedDB on every write.
         autoSyncPersistentDataPath: true,
-        // Cap the render scale so high-DPI screens stay smooth with post-processing.
-        devicePixelRatio: Math.min(window.devicePixelRatio || 1, 1.5),
+        // Cap the render scale so high-DPI screens stay smooth with post-processing. Phones show the garden on a
+        // small CSS size, so they get up to 2x (about the pixel count of a 1280x720 desktop) to stay sharp.
+        devicePixelRatio: Math.min(window.devicePixelRatio || 1, isPhone ? 2 : 1.5),
         showBanner: function (msg, type) { if (type === "error") showError(msg); },
       }, function (progress) {
         document.querySelector("#bar-fill").style.width = (100 * progress) + "%";

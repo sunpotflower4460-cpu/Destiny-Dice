@@ -15,6 +15,8 @@ namespace DestinyGarden.Presentation
         private Button _resetViewButton, _muteButton, _motionButton;
         private GardenUiButton _menuButton, _wishButton;
         private Text _resetViewLabel;
+        private GardenUiButton _resetChip;
+        private bool _resetPrimary;
         private Button _observedDestinationButton;
         private bool _choosingHabitat;
 
@@ -26,8 +28,8 @@ namespace DestinyGarden.Presentation
             strip.transform.SetParent(parent, false);
             _faceStrip = (RectTransform)strip.transform;
             _faceStrip.anchorMin = _faceStrip.anchorMax = new Vector2(0.5f, 0f);
-            _faceStrip.anchoredPosition = new Vector2(0f, 116f);
-            _faceStrip.sizeDelta = new Vector2(986f, 40f);
+            _faceStrip.anchoredPosition = new Vector2(0f, 120f);
+            _faceStrip.sizeDelta = new Vector2(986f, 54f);
             var background = strip.GetComponent<Image>();
             SetPlate(background, GardenUiArt.Plaque);
             background.raycastTarget = false;
@@ -35,11 +37,17 @@ namespace DestinyGarden.Presentation
             {
                 var wish = Decoration(_faceStrip, "Wished face", GardenUiArt.Button(Surface.Amethyst));
                 wish.type = Image.Type.Sliced;
-                PlaceDecoration(wish, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(FaceSpacing - 6f, 34f));
+                PlaceDecoration(wish, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(FaceSpacing - 6f, 48f));
                 wish.gameObject.SetActive(false);
                 _faceWishBackings[i] = wish;
                 _faceLabels[i] = MakeText(_faceStrip, new Vector2(0.5f, 0.5f), Vector2.zero,
-                    new Vector2(FaceSpacing, 40f), 18, TextAnchor.MiddleCenter);
+                    new Vector2(FaceSpacing - 26f, 54f), 16, TextAnchor.MiddleLeft);
+                _faceLabels[i].supportRichText = true;
+                _faceLabels[i].lineSpacing = 0.92f;
+                // The blessing's mark, in its own colour: the same mark the event card shows when this face comes up.
+                var icon = Decoration(_faceLabels[i].transform, "Face blessing", GardenUiArt.Icon(Symbol.Water));
+                PlaceDecoration(icon, new Vector2(0f, 0.5f), new Vector2(-24f, 0f), new Vector2(21f, 21f));
+                _faceIcons[i] = icon;
                 var accent = Decoration(_faceLabels[i].transform, "Blessing rule", GardenUiArt.Rule);
                 PlaceDecoration(accent, new Vector2(0.5f, 0f), new Vector2(0f, 2f), new Vector2(72f, 3f));
                 _faceAccents[i] = accent;
@@ -86,9 +94,12 @@ namespace DestinyGarden.Presentation
             _menuButton = MakeChip(parent, Vector2.one, new Vector2(-34f, -21f),
                 new Vector2(154f, 54f), "メニュー", 21, () => OpenPanel(_menuPanel));
             Engrave(_menuButton, Symbol.Menu, 26f, 15f);
-            _resetViewButton = MakeChip(parent, Vector2.one, new Vector2(-34f, -88f),
-                new Vector2(176f, 50f), "視点を戻す", 18, () => OnResetView?.Invoke());
-            _resetViewLabel = _resetViewButton.GetComponentInChildren<Text>();
+            var reset = MakeChip(parent, Vector2.one, new Vector2(-34f, -88f),
+                new Vector2(206f, 54f), "視点を戻す", 19, () => OnResetView?.Invoke());
+            Engrave(reset, Symbol.Back, 24f, 14f);
+            _resetChip = reset;
+            _resetViewButton = reset;
+            _resetViewLabel = reset.Label;
             _resetViewButton.gameObject.SetActive(false);
 
             _panelLayer = new GameObject("GardenPanels", typeof(RectTransform));
@@ -112,7 +123,8 @@ namespace DestinyGarden.Presentation
             _menuPanel = MakePanel(panels, new Vector2(720f, 482f));
             AddPanelHeader(_menuPanel, "メニュー");
             var menu = _menuPanel.transform;
-            MenuChip(menu, 0, 0, "庭を観察", Symbol.Observe, OpenObservation);
+            // Each item says in a few words what it opens (the menu is the one place for such words).
+            MenuChip(menu, 0, 0, "庭を観察", Symbol.Observe, OpenObservation, "出来事と生き物");
             var house = MenuChip(menu, 1, 0, "家を見る", Symbol.House, () =>
             {
                 ClosePanels();
@@ -121,10 +133,10 @@ namespace DestinyGarden.Presentation
             SetSurface(house, Surface.Light);
             _houseViewLabel = house.Label;
             _houseViewLabel.supportRichText = true;
-            MenuChip(menu, 0, 1, "庭の記録", Symbol.Journal, () => OpenPanel(_graphPanel));
-            MenuChip(menu, 1, 1, "図鑑", Symbol.Leaf, () => OpenPanel(_guidePanel));
-            MenuChip(menu, 0, 2, "届け先を選ぶ", Symbol.Compass, () => OpenPanel(_destinationPanel));
-            MenuChip(menu, 1, 2, "設定", Symbol.Settings, () => OpenPanel(_settingsPanel));
+            MenuChip(menu, 0, 1, "庭の記録", Symbol.Journal, () => OpenPanel(_graphPanel), "これまでの投と変化");
+            MenuChip(menu, 1, 1, "図鑑", Symbol.Leaf, () => OpenPanel(_guidePanel), "出会った花と生き物");
+            MenuChip(menu, 0, 2, "届け先を選ぶ", Symbol.Compass, () => OpenPanel(_destinationPanel), "恵みが届く場所");
+            MenuChip(menu, 1, 2, "設定", Symbol.Settings, () => OpenPanel(_settingsPanel), "音・動き・新しい庭");
             var helpButton = MakeChip(menu, new Vector2(0.5f, 0f), new Vector2(-112f, 26f), new Vector2(206f, 52f),
                 "遊び方", 21, () => OpenPanel(_helpPanel));
             Engrave(helpButton, Symbol.Help, 26f, 24f);
@@ -157,11 +169,16 @@ namespace DestinyGarden.Presentation
             rect.offsetMin = rect.offsetMax = Vector2.zero;
         }
 
-        private GardenUiButton MenuChip(Transform menu, int column, int row, string label, Symbol symbol, Action onClick)
+        private GardenUiButton MenuChip(Transform menu, int column, int row, string label, Symbol symbol, Action onClick, string hint = null)
         {
             var chip = MakeChip(menu, new Vector2(0.5f, 1f), new Vector2(-160f + column * 320f, -100f - row * 90f),
                 new Vector2(296f, 72f), label, 24, onClick);
             Engrave(chip, symbol, 37f, 23f, leftAlign: true);
+            if (hint != null)
+            {
+                chip.Label.supportRichText = true;
+                chip.Label.text = label + "\n<size=16><color=#cdbfa8>" + hint + "</color></size>";
+            }
             return chip;
         }
 

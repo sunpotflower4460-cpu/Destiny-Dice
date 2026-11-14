@@ -84,6 +84,13 @@ namespace DestinyGarden.Presentation
             _view = gameObject.AddComponent<GardenView>();
             _view.Seed = islandSeed;
             _view.Build();
+            if (UnityEngine.Application.isMobilePlatform)
+            {
+                // Phones (also in a mobile browser): the lighter picture from the start, and patience before stepping down.
+                _view.Mobile = true;
+                _quality.MinimumFps = 24f;
+                _view.ApplyQuality(0);
+            }
             _atmosphere = gameObject.AddComponent<SacredAtmosphere>();
             _atmosphere.View = _view;
             _atmosphere.Build();
@@ -106,7 +113,12 @@ namespace DestinyGarden.Presentation
             _ui = gameObject.AddComponent<GardenUi>();
             _ui.Audio = _audio;
             _ui.View = _view;
-            _ui.OnRoll = () => StartCoroutine(RollFlow());
+            _ui.OnRoll = () =>
+            {
+                // Rolling from the house (or a turned view) glides back to the garden, where the roll is seen.
+                if (_view != null && _view.Rig != null && _view.Rig.IsHouseFocused) _view.Rig.ResetView();
+                StartCoroutine(RollFlow());
+            };
             _ui.OnIntentSelected = (kind, value) =>
             {
                 // A wish made (not withdrawn) is heard as a quiet prayer tone.
