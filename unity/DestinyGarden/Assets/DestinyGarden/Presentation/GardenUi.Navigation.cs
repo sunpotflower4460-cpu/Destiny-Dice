@@ -125,9 +125,12 @@ namespace DestinyGarden.Presentation
             MenuChip(menu, 1, 1, "図鑑", Symbol.Leaf, () => OpenPanel(_guidePanel));
             MenuChip(menu, 0, 2, "届け先を選ぶ", Symbol.Compass, () => OpenPanel(_destinationPanel));
             MenuChip(menu, 1, 2, "設定", Symbol.Settings, () => OpenPanel(_settingsPanel));
-            var helpButton = MakeChip(menu, new Vector2(0.5f, 0f), new Vector2(0f, 26f), new Vector2(198f, 52f),
+            var helpButton = MakeChip(menu, new Vector2(0.5f, 0f), new Vector2(-112f, 26f), new Vector2(206f, 52f),
                 "遊び方", 21, () => OpenPanel(_helpPanel));
             Engrave(helpButton, Symbol.Help, 26f, 24f);
+            var keepsake = MakeChip(menu, new Vector2(0.5f, 0f), new Vector2(112f, 26f), new Vector2(206f, 52f),
+                "庭のしおり", 21, () => OnOpenKeepsake?.Invoke());
+            Engrave(keepsake, Symbol.Bottle, 26f, 18f);
             _menuPanel.SetActive(false);
 
             BuildWishPanel(panels);
