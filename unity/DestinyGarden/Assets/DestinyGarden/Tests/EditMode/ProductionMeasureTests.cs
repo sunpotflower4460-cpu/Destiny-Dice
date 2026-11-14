@@ -71,7 +71,7 @@ namespace DestinyGarden.Tests
             int n = 0; foreach (var e in read.Entries) { e.ComputeHash(); n++; }
             double hashMs = t.Elapsed.TotalMilliseconds;
             t.Restart();
-            var bytes = System.IO.File.ReadAllBytes(path);
+            long bytesTotal = 0; for (int k = 0; k < journal.SegmentCount(); k++) bytesTotal += System.IO.File.ReadAllBytes(journal.SegmentPath(k)).Length;
             double fileMs = t.Elapsed.TotalMilliseconds;
             t.Restart();
             var restored = new GardenCoordinator(journal, new FixedEntropy("x"), new SequentialIds());
@@ -80,7 +80,7 @@ namespace DestinyGarden.Tests
             t.Restart();
             var history = HistoryProjector.Project(read.Entries, restored.RunId);
             double projectMs = t.Elapsed.TotalMilliseconds;
-            string report = $"300 rolls, {n} entries, {bytes.Length / 1024} KiB: open+read+verify {readMs:0} ms (of which re-hashing ≈ {hashMs:0} ms), " +
+            string report = $"300 rolls, {n} entries, {bytesTotal / 1024} KiB in {journal.SegmentCount()} segments: open+read+verify {readMs:0} ms (of which re-hashing ≈ {hashMs:0} ms), " +
                             $"file read {fileMs:0} ms, restore {restoreMs:0} ms, project {projectMs:0} ms";
             TestContext.WriteLine(report);
             UnityEngine.Debug.Log("DG-COLD " + report);
