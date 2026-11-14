@@ -121,6 +121,11 @@ namespace DestinyGarden.Presentation
             };
             _ui.OnIntentSelected = (kind, value) =>
             {
+                if (_coordinator.Phase == CoordinatorPhase.IntentCommitted)
+                {
+                    _ui.ShowStatus("この一投の願いは記録済みです。");
+                    return;
+                }
                 // A wish made (not withdrawn) is heard as a quiet prayer tone.
                 if (kind != "none" && (kind != _intentKind || value != _intentValue) && _audio != null) _audio.PlayPrayer();
                 _intentKind = kind; _intentValue = value;
@@ -159,6 +164,8 @@ namespace DestinyGarden.Presentation
             _ui.Build();
             _ui.ShowOpeningProgress(_coordinator.State.WorldRevision);
             _ui.ShowIntentSelection(_intentKind, _intentValue);
+            _ui.SetPrayerDraft(_coordinator.Phase == CoordinatorPhase.IntentCommitted ? _coordinator.LastPrayerText : null);
+            _ui.SetWishEditable(_coordinator.Phase != CoordinatorPhase.IntentCommitted);
             _ui.ShowSiteSelection(_coordinator.PreferenceMode, _coordinator.PreferenceSiteId);
             RefreshAll();
             _view.Flora.Snap();
@@ -266,6 +273,7 @@ namespace DestinyGarden.Presentation
             int pair = marks && last >= 1 && last <= 6 ? last : 0;
             _ui.ShowFaces(_coordinator.CurrentFaces != null ? _coordinator.CurrentFaces.Faces : null, rolledFaceId, wished, lucky, pair,
                 marks && _coordinator.LuckySevenAdded);
+            _ui.ShowLuckyClue(_coordinator.RolledFaces.Count <= 4 ? lucky : 0);
             bool activePlan = prepared || _coordinator.Phase == CoordinatorPhase.IntentCommitted;
             _ui.ShowCarePlan(_coordinator.State, activePlan ? _coordinator.CurrentFaces : null, _coordinator.CurrentWeather);
             _view.ShowCareTarget(CareRules.Enabled(_coordinator.State) && activePlan && _coordinator.CurrentFaces != null ? CareTargets.Anchor(_coordinator.CurrentFaces) : -1);
@@ -410,7 +418,15 @@ namespace DestinyGarden.Presentation
             _history = history;
             var moments = GardenMoments.Recent(read.Entries, _coordinator.RunId);
             _ui.RefreshHistory(history, moments);
-            if (rolledFaceId == 0 && moments.Count > 0) _ui.ShowMessage(null, null, moments[0]);
+            if (rolledFaceId == 0)
+            {
+                var last = history.FindLast(round => round.Resolved && round.WorldRevision > 0 && round.FaceId.HasValue);
+                if (last != null)
+                {
+                    _view.SetDiceFace(last.FaceId.Value);
+                    _ui.ShowSavedRoll(last, moments.Find(moment => moment.RoundId == last.RoundId));
+                }
+            }
             var house = CottageGrowth.Project(_coordinator.State.WorldRevision, history);
             _view.ShowHouse(house);
             _ui.ShowHouse(house.Label);
@@ -440,7 +456,7 @@ namespace DestinyGarden.Presentation
                     if (_coordinator.Phase == CoordinatorPhase.Ready || _coordinator.Phase == CoordinatorPhase.Resolved)
                         _coordinator.Prepare();
                     if (_coordinator.Phase == CoordinatorPhase.Prepared)
-                        _coordinator.CommitIntent(_intentKind, _intentValue);
+                        _coordinator.CommitIntent(_intentKind, _intentValue, _ui.PrayerDraft);
                 }))
             {
                 ShowPreparedFaces();
@@ -448,6 +464,7 @@ namespace DestinyGarden.Presentation
             }
             if (_coordinator.Phase != CoordinatorPhase.IntentCommitted) yield break;
             _busy = true;
+            _ui.SetWishEditable(false);
             _ui.SetRollEnabled(false);
             _ui.ShowStatus(null); // Clear feedback from the previous roll.
             _sigil.BeginRoll();
@@ -466,36 +483,28 @@ namespace DestinyGarden.Presentation
             if (outcome == null)
             {
                 _ui.ShowStatus("この回は成立しませんでした。記録は欠測のまま残ります。");
-                _coordinator.Prepare();
+                _ui.SetPrayerDraft(null);
+                TrySave(() => _coordinator.Prepare());
                 RefreshAll();
+                _ui.SetWishEditable(true);
                 _busy = false;
                 _ui.SetRollEnabled(true);
                 yield break;
             }
 
-            StartCoroutine(_islandHarmony.PlayBlessing(outcome));
-            var moment = GardenMoments.First(GardenMoments.FromOutcome(outcome, _coordinator.CurrentRoundId));
+            _ui.SetPrayerDraft(null);
+            var moment = outcome.Moment;
             _audio.PlayBell();
             string element = RecipeCatalog.ElementOf(outcome.RecipeId).ToString().ToLowerInvariant();
             _audio.PlayNature(element);
             if (element == "wind") _view.Flora.Gust();
-            // Presentation replays the saved outcome; the saved end state is shown after.
-            yield return _view.PlayOutcome(outcome.Message, element, outcome.Simulation, moment?.CellId);
-            foreach (var e in outcome.Simulation.Events)
-            {
-                if (e.Kind == "Bloomed" || e.Kind == "BudFormed" || e.Kind == "Germinated")
-                {
-                    _audio.PlayGrowthAccent();
-                    break;
-                }
-            }
+            // Land the saved face, then show the actual change in the garden.
+            yield return _view.PlayOutcome(outcome.Message, element, outcome.Simulation, -1);
             _view.SetDiceFace(outcome.FaceId);
             _ui.ShowMessage(outcome.Message, outcome, moment);
             RefreshAll(outcome.FaceId);
             _view.SetLuckyDice(outcome.LuckySeven);
-            _sigil.Reveal(outcome, _coordinator.State);
-            bool rainbow = PrayerStar.IsRainbow(outcome.LuckySeven, outcome.Simulation, outcome.Ecology);
-            if (rainbow) { StartCoroutine(_wonders.PlayRainbowEight()); _audio.PlayRainbow(); }
+            StartCoroutine(_islandHarmony.PlayBlessing(outcome));
             StartCoroutine(_life.PlayGrowthMoments(outcome, _audio));
             StartCoroutine(_life.PlayRollEffects(outcome.Ecology));
             StartCoroutine(_islandHarmony.PlayPulses(outcome));
@@ -519,12 +528,24 @@ namespace DestinyGarden.Presentation
                 }
                 StartCoroutine(_wonders.PlayPrayerSpirits(tops));
             }
+            if (moment != null && moment.CellId >= 0 && moment.CellId < GardenMapData.CellCount)
+            {
+                _view.FocusObservedCell(moment.CellId);
+                yield return _view.Rig.FocusOnRoll(_view.CellTop(moment.CellId), _view.ReducedMotion);
+            }
+            _sigil.Reveal(outcome, _coordinator.State);
+            if (PrayerStar.IsRainbow(outcome.LuckySeven, outcome.Simulation, outcome.Ecology))
+            {
+                StartCoroutine(_wonders.PlayRainbowEight());
+                _audio.PlayRainbow();
+            }
             // The next round is prepared now; if it cannot be saved, the die stays usable and the next press retries.
             TrySave(() => _coordinator.Prepare());
             // Publish the next faces only after the end state is on screen.
             ShowPreparedFaces();
             if (outcome.LuckySeven) _view.SetLuckyDice(true);
             _view.Show(_coordinator.State, _coordinator.CurrentWeather);
+            _ui.SetWishEditable(true);
             _busy = false;
             _ui.SetRollEnabled(true);
             if (GardenKeepsake.CardDue(_coordinator.State.WorldRevision)) StartCoroutine(KeepsakeAfterRoll());

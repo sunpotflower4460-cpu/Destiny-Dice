@@ -13,6 +13,8 @@ namespace DestinyGarden.Application
         public string SiteId;
         public string IntentKind;
         public string IntentValue;
+        public string PrayerText;
+        public string MomentHeadline;
         public int? FaceId;
         public string RecipeId;
         public string CardId;
@@ -35,6 +37,7 @@ namespace DestinyGarden.Application
         public CareReport Care;
         public int PrayerStar;    // 5..8, the star beneath the die (prayer-star.v1); 0 for older records
         public bool LuckyNumber;  // the prayer star reached the lucky number seven
+        public int LuckySumFace;  // the preceding face when the two total seven, or 0 for the seventh face
         /// <summary>The rainbow eight rose this roll: an eight-pointed star (rainbow.v3); older records keep their old rule.</summary>
         public bool Rainbow => PrayerStar > 0 ? PrayerStar >= 8 : LuckySeven && Bloomed;
         public List<string> Germinated = new List<string>(); // species that took root this roll (ecology.v3)
@@ -48,6 +51,7 @@ namespace DestinyGarden.Application
             var rounds = new List<RoundSummary>();
             var byRound = new Dictionary<string, RoundSummary>();
             RoundSummary initial = null;
+            int previousFace = 0;
 
             RoundSummary Get(string roundId)
             {
@@ -81,6 +85,7 @@ namespace DestinyGarden.Application
                             var s = Get(e.RoundId);
                             s.IntentKind = e.Payload["kind"] as string;
                             s.IntentValue = e.Payload["value"] as string;
+                            if (e.Payload.TryGetValue("prayerText", out object prayer)) s.PrayerText = prayer as string;
                             if (e.Payload.TryGetValue("matchingFaces", out object mf))
                                 s.MatchingFaces = WorldStateSerializer.ToInt(mf);
                             break;
@@ -100,6 +105,7 @@ namespace DestinyGarden.Application
                             s.Resolved = true;
                             s.WorldRevision = WorldStateSerializer.ToInt(e.Payload["worldRevision"]);
                             if (e.Payload.TryGetValue("weatherId", out object w)) s.WeatherId = w as string;
+                            if (e.Payload.TryGetValue("momentHeadline", out object headline)) s.MomentHeadline = headline as string;
                             if (e.Payload.TryGetValue("selectedMessage", out object sm) &&
                                 sm is Dictionary<string, object> smd)
                             {
@@ -116,6 +122,8 @@ namespace DestinyGarden.Application
                                 {
                                     s.PrayerStar = WorldStateSerializer.ToInt(psd["points"]);
                                     s.LuckyNumber = psd["luckyNumber"] is bool ln && ln;
+                                    if (s.LuckyNumber && s.FaceId.HasValue && s.FaceId.Value + previousFace == PrayerStar.LuckySum)
+                                        s.LuckySumFace = previousFace;
                                 }
                                 if (ecod.TryGetValue("relations", out object rl) && rl is IEnumerable links)
                                     foreach (IDictionary<string, object> link in links)
@@ -149,11 +157,11 @@ namespace DestinyGarden.Application
                                 foreach (var ev in evList)
                                     if (ev is IDictionary<string, object> evd && evd["kind"] as string == "Bloomed")
                                         s.Bloomed = true;
-                            if (s.IntentKind == "family" && s.RecipeId != null)
-                                s.IntentMatched = DestinyGarden.Domain.RecipeCatalog.ElementOf(s.RecipeId)
-                                    .ToString().ToLowerInvariant() == s.IntentValue;
-                            if (s.IntentKind == "face" && s.FaceId.HasValue && s.IntentValue != null)
-                                s.IntentMatched = s.FaceId.Value.ToString() == s.IntentValue;
+                            if (s.FaceId.HasValue)
+                            {
+                                s.IntentMatched = LuckySeven.IntentMatched(s.IntentKind, s.IntentValue, s.FaceId.Value, s.RecipeId);
+                                previousFace = s.FaceId.Value;
+                            }
                             break;
                         }
                 }

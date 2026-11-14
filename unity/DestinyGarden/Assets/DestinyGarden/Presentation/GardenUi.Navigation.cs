@@ -63,6 +63,7 @@ namespace DestinyGarden.Presentation
                 tap.navigation = new Navigation { mode = Navigation.Mode.None };
                 tap.onClick.AddListener(() => TapFace(face));
             }
+            BuildLuckyClue();
             _rollButton = MakeChip(parent, new Vector2(0.5f, 0f), new Vector2(0f, 23f),
                 new Vector2(350f, 62f), "サイコロを振る", 26, () =>
                 {
@@ -184,10 +185,10 @@ namespace DestinyGarden.Presentation
 
         private void BuildWishPanel(Transform panels)
         {
-            _wishPanel = MakePanel(panels, new Vector2(776f, 488f));
+            _wishPanel = MakePanel(panels, new Vector2(776f, 576f));
             AddPanelHeader(_wishPanel, "願いをかける");
             var parent = _wishPanel.transform;
-            PanelText(parent, -94f, "願いは自由です。選ぶと庭へ戻ります。");
+            PanelText(parent, -94f, "恵みや面を選ぶ。言葉で祈りを添える。");
             var odds = MakeText(parent, new Vector2(0.5f, 1f), new Vector2(0f, -124f),
                 new Vector2(690f, 26f), 16, TextAnchor.MiddleLeft);
             odds.color = new Color(0.73f, 0.84f, 0.82f);
@@ -216,20 +217,27 @@ namespace DestinyGarden.Presentation
                     new Vector2(148f, 52f), "", 18, () => ChooseWish("face", face));
                 _faceChips[i].gameObject.SetActive(false);
             }
-            _intentChips["none"] = MakeChip(parent, new Vector2(0.5f, 0f), new Vector2(0f, 27f),
-                new Vector2(220f, 48f), "願いなし", 19, () => ChooseWish("none", null));
+            BuildWrittenPrayer(parent);
+            _intentChips["none"] = MakeChip(parent, new Vector2(0.5f, 0f), new Vector2(-138f, 27f),
+                new Vector2(234f, 48f), "願いをほどく", 19, () =>
+                {
+                    SetPrayerDraft(null);
+                    OnIntentSelected?.Invoke("none", null);
+                    ClosePanels();
+                });
             _wishPanel.SetActive(false);
         }
 
         private void TapFace(int face)
         {
-            if (!_rollEnabled || _activePanel != null || _titleCard.activeSelf) return;
+            if (!_rollEnabled || !_wishEditable || _activePanel != null || _titleCard.activeSelf) return;
             if (_wishedFaceId == face) OnIntentSelected?.Invoke("none", null);
             else OnIntentSelected?.Invoke("face", face.ToString(System.Globalization.CultureInfo.InvariantCulture));
         }
 
         private void ChooseWish(string kind, string value)
         {
+            ApplyWrittenPrayer();
             OnIntentSelected?.Invoke(kind, value);
             ClosePanels();
         }
@@ -335,6 +343,7 @@ namespace DestinyGarden.Presentation
             _activePanel = panel;
             _panelLayer.SetActive(panel != null);
             UpdateGardenControls();
+            if (panel != _wishPanel) SetWrittenPrayerVisible(false);
             if (panel == null)
             {
                 if (_rollEnabled && !_titleCard.activeSelf) _rollButton.Select();
@@ -343,6 +352,8 @@ namespace DestinyGarden.Presentation
             panel.SetActive(true);
             if (panel == _observationPanel) RenderObservation();
             if (panel == _settingsPanel) RefreshSettings();
+            if (panel == _wishPanel) SetWrittenPrayerVisible(true);
+            if (panel == _historyPanel) { _historyPage = 0; RenderHistory(); }
             var back = panel.transform.Find("PanelBack");
             if (back != null) back.GetComponent<Button>().Select();
         }

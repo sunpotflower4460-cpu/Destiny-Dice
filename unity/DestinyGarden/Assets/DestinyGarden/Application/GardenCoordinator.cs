@@ -26,6 +26,9 @@ namespace DestinyGarden.Application
         public bool SeasonMetNow;       // met by this roll (brings the seventh face to the next round)
         public int SeasonRollsLeft;     // rolls left in the season after this one
         public string IntentKind = "none";   // the wish of this roll (none / face / family)
+        public string IntentValue;
+        public string PrayerText;
+        public GardenMoment Moment;
         public int MatchingFaces;            // faces that would have answered it (its chance: MatchingFaces / FaceCount)
         public bool EarnedSeventh;           // lucky-seven.v2: this roll earned the seventh face (a long-shot wish or the season's wish)
         public int SeasonsMetCount;          // this run so far
@@ -60,6 +63,7 @@ namespace DestinyGarden.Application
         private readonly List<string> _recentMessageIds = new List<string>(); // newest last, max 3 kept for novelty
         public string LastIntentKind { get; private set; } = "none";
         public string LastIntentValue { get; private set; }
+        public string LastPrayerText { get; private set; }
 
         // Lucky Seven: earned by a roll whose wish came true, offered on the next prepared round only.
         // lucky-seven.v2: seventh faces earned (a long-shot wish come true, a season's wish met), one offered per
@@ -108,7 +112,7 @@ namespace DestinyGarden.Application
         /// <summary>A new run (a new visitor) starts without the previous visitor's wish.</summary>
         private void ResetIntent()
         {
-            LastIntentKind = "none"; LastIntentValue = null; MatchingFaces = 0;
+            LastIntentKind = "none"; LastIntentValue = null; LastPrayerText = null; MatchingFaces = 0;
             _restoreIntentKind = null; _restoreIntentValue = null;
         }
 
@@ -342,30 +346,37 @@ namespace DestinyGarden.Application
             return recipeId;
         }
 
-        public void CommitIntent(string kind, string value)
+        public void CommitIntent(string kind, string value) => CommitIntent(kind, value, null);
+
+        public void CommitIntent(string kind, string value, string prayerText)
         {
             if (Phase != CoordinatorPhase.Prepared)
                 throw new InvalidOperationException("Intent requires Prepared phase.");
-            LastIntentKind = kind ?? "none";
-            LastIntentValue = value;
+            kind = kind ?? "none";
+            prayerText = RollRecord.NormalizePrayer(prayerText);
             int matchFaces = 0;
-            if (LastIntentKind == "family" && value != null)
+            if (kind == "family" && value != null)
                 foreach (string f in CurrentFaces.Faces)
                     if (RecipeCatalog.ElementOf(f).ToString().ToLowerInvariant() == value) matchFaces++;
             // A face wish counts only for a face on this die (a 7 kept from a seven-face round cannot come true now).
-            if (LastIntentKind == "face" && value != null &&
+            if (kind == "face" && value != null &&
                 int.TryParse(value, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out int wishFace) &&
                 wishFace >= 1 && wishFace <= CurrentFaces.Faces.Length)
                 matchFaces = 1;
-            MatchingFaces = matchFaces;
-            _writer.Append("IntentCommitted", RunId, CurrentRoundId, new Dictionary<string, object>
+            var payload = new Dictionary<string, object>
             {
-                ["kind"] = LastIntentKind,
+                ["kind"] = kind,
                 ["value"] = value,
                 ["matchingFaces"] = matchFaces,
                 ["baselineNumerator"] = matchFaces, // probability = matchingFaces / faceCount
                 ["faceCount"] = CurrentFaces.Faces.Length
-            });
+            };
+            if (prayerText != null) payload["prayerText"] = prayerText;
+            _writer.Append("IntentCommitted", RunId, CurrentRoundId, payload);
+            LastIntentKind = kind;
+            LastIntentValue = value;
+            LastPrayerText = prayerText;
+            MatchingFaces = matchFaces;
             Phase = CoordinatorPhase.IntentCommitted;
         }
 
@@ -534,6 +545,7 @@ namespace DestinyGarden.Application
                     ["kind"] = e.Kind, ["plantId"] = e.PlantId, ["cellId"] = e.CellId, ["tick"] = e.Tick
                 });
             }
+            var moment = GardenMoments.First(GardenMoments.FromResolved(sim, eco, recipeId, roundId));
             var post = eco.PostState;
             string afterHash = Hashing.StateHash(post);
             _writer.Append("Resolved", RunId, roundId, new Dictionary<string, object>
@@ -548,6 +560,8 @@ namespace DestinyGarden.Application
                 ["evaporated"] = sim.Evaporated,
                 ["weatherId"] = CurrentWeather.Id.ToString(),
                 ["ecology"] = ecologyPayload,
+                ["momentHeadline"] = moment?.Headline,
+                ["momentCellId"] = moment?.CellId ?? -1,
                 ["selectedMessage"] = new Dictionary<string, object>
                 {
                     ["templateId"] = message.TemplateId,
@@ -582,7 +596,8 @@ namespace DestinyGarden.Application
                 FaceId = faceId, FaceCount = faceCount, LuckySeven = luckyRolled, IntentMatched = matched,
                 SeasonGoalId = SeasonGoalId, SeasonMet = SeasonMet, SeasonMetNow = seasonMetNow,
                 SeasonRollsLeft = Seasons.RollsLeft(revision),
-                IntentKind = LastIntentKind, MatchingFaces = MatchingFaces,
+                IntentKind = LastIntentKind, IntentValue = LastIntentValue, PrayerText = LastPrayerText,
+                MatchingFaces = MatchingFaces, Moment = moment,
                 EarnedSeventh = wishEarned || seasonMetNow || signEarned,
                 SeasonsMetCount = SeasonsMetCount, RainbowCount = RainbowCount,
                 YearEnded = Seasons.RollsLeft(revision) == 0 && (season + 1) % 4 == 0,
@@ -746,6 +761,7 @@ namespace DestinyGarden.Application
                         // The wish belongs to the round: a resumed roll must judge it as it was made.
                         LastIntentKind = _restoreIntentKind ?? "none";
                         LastIntentValue = _restoreIntentValue;
+                        LastPrayerText = e.Payload.TryGetValue("prayerText", out object prayer) ? prayer as string : null;
                         MatchingFaces = e.Payload.TryGetValue("matchingFaces", out object mfv) ? WorldStateSerializer.ToInt(mfv) : 0;
                         if (Phase == CoordinatorPhase.Prepared) Phase = CoordinatorPhase.IntentCommitted;
                         break;

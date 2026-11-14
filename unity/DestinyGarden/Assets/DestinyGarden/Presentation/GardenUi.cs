@@ -38,6 +38,7 @@ namespace DestinyGarden.Presentation
         private readonly Image[] _faceMarks = new Image[7];   // lucky marks on the face strip (no words)
         private readonly Image[] _faceIcons = new Image[7];   // the blessing's mark of each face
         private int _wishedFaceId;
+        private bool _hasSelectedWish;
         private RectTransform _faceStrip;
         private GardenUiButton _luckyOffer;
         private Image _luckyOfferGlow;
@@ -247,8 +248,10 @@ namespace DestinyGarden.Presentation
         {
             _historyPanel = MakePanel(canvas, new Vector2(880f, 620f));
             AddPanelHeader(_historyPanel, "投ごとの記録");
-            _historyText = MakeScrollableText(_historyPanel.transform, new Vector2(800f, 475f), 20);
-            _historyText.transform.parent.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -32f);
+            _historyText = MakeScrollableText(_historyPanel.transform, new Vector2(800f, 432f), 20);
+            _historyText.supportRichText = false;
+            _historyText.transform.parent.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -10f);
+            BuildHistoryPages(_historyPanel.transform);
             _historyPanel.SetActive(false);
 
             _graphPanel = MakePanel(canvas, new Vector2(920f, 590f));
@@ -392,7 +395,6 @@ namespace DestinyGarden.Presentation
                 {
                     _observationDetails = !_observationDetails;
                     RenderObservation();
-                    RenderHistory();
                 });
             _momentFocusButton = MakeChip(panel, new Vector2(0.5f, 0f), new Vector2(-36f, 33f),
                 new Vector2(250f, 48f), "この場所を見る", 19, () =>
@@ -488,7 +490,7 @@ namespace DestinyGarden.Presentation
             _rollEnabled = enabled;
             _rollButton.interactable = enabled;
             _menuButton.interactable = enabled;
-            _wishButton.interactable = enabled;
+            _wishButton.interactable = enabled && _wishEditable;
             _luckyOffer.interactable = enabled;
             if (!enabled) ShowMessage(null, null);
             if (enabled && _activePanel == null && !_titleCard.activeSelf) _rollButton.Select();
@@ -865,8 +867,8 @@ namespace DestinyGarden.Presentation
         public void ShowIntentSelection(string kind, string value)
         {
             _wishedElement = kind == "family" ? value : null;
-            bool hasWish = value != null && (kind == "face" || kind == "family");
-            _wishButton.Engraving.color = hasWish ? PaleGold : WishInk;
+            _hasSelectedWish = value != null && (kind == "face" || kind == "family");
+            RefreshWishLight();
             foreach (var kv in _intentChips)
             {
                 bool active = (kind == "none" && kv.Key == "none") || (kind == "family" && kv.Key == value);
@@ -886,27 +888,31 @@ namespace DestinyGarden.Presentation
 
         public void ShowMessage(SelectedMessage message, RollOutcome outcome, GardenMoment moment = null)
         {
-            if (moment == null && outcome != null) moment = GardenMoments.First(GardenMoments.FromOutcome(outcome));
-            bool hasMessage = moment != null || message != null;
+            if (moment == null && outcome != null) moment = outcome.Moment ?? GardenMoments.First(GardenMoments.FromOutcome(outcome));
+            bool hasMessage = moment != null || message != null || (outcome?.FaceId ?? 0) > 0;
             _momentCard.gameObject.SetActive(hasMessage);
             if (!hasMessage)
             {
                 _momentShownAt = float.NegativeInfinity;
                 return;
             }
+            var star = outcome?.Ecology?.PrayerStar;
+            LayoutRollResult(outcome?.FaceId ?? 0, outcome?.RecipeId, outcome?.LuckySeven == true,
+                RollRecord.WishComparison(outcome?.IntentKind, outcome?.IntentValue, outcome?.IntentMatched == true),
+                outcome?.PrayerText != null, star?.LuckyNumber == true ? RollRecord.LuckyLabel(outcome.FaceId, star.FaceSum - outcome.FaceId) : null);
             if (moment != null)
             {
                 PaintMoment(outcome?.RecipeId ?? moment.RecipeId, outcome?.LuckySeven == true, outcome != null,
-                    moment.Headline, moment.Habitat, outcome?.FaceId ?? 0);
+                    moment.Headline, moment.Habitat);
                 return;
             }
             string card = "";
-            if (message.CardId != null)
+            if (message?.CardId != null)
             {
                 int idx = Array.IndexOf(OracleCatalogData.CardOrder, message.CardId);
                 if (idx >= 0) card = "【" + OracleCatalogData.CardLabelsJa[idx] + "】";
             }
-            PaintMoment(outcome?.RecipeId, outcome?.LuckySeven == true, outcome != null, card + message.Text, null, outcome?.FaceId ?? 0);
+            PaintMoment(outcome?.RecipeId, outcome?.LuckySeven == true, outcome != null, card + message?.Text, null);
         }
 
         public void ShowStatus(string text)
@@ -915,11 +921,12 @@ namespace DestinyGarden.Presentation
             bool visible = !string.IsNullOrEmpty(text);
             _status.gameObject.SetActive(visible);
             _statusBacking.gameObject.SetActive(visible);
+            RefreshLuckyClue();
         }
 
         public void RefreshHistory(List<RoundSummary> history, IList<GardenMoment> moments = null)
         {
-            _historyData = history;
+            _historyData = history.FindAll(round => round.Resolved && round.WorldRevision > 0);
             if (moments != null)
             {
                 _recentMoments = new List<GardenMoment>(moments);
@@ -936,39 +943,57 @@ namespace DestinyGarden.Presentation
                 if (_memoryView != null) _memoryDirty = true;
             }
             _aftercareNotes = CareAftercare.Project(history);
-            RenderHistory();
+            if (_activePanel == _historyPanel) RenderHistory();
             RefreshGraph(history);
         }
         private void RenderHistory()
         {
             var history = _historyData;
+            int pageCount = Mathf.Max(1, (history.Count + HistoryPageSize - 1) / HistoryPageSize);
+            _historyPage = Mathf.Clamp(_historyPage, 0, pageCount - 1);
+            _historyPageLabel.text = $"{_historyPage + 1} / {pageCount}";
+            _historyPageLabel.gameObject.SetActive(pageCount > 1);
+            _newerRolls.gameObject.SetActive(_historyPage > 0);
+            _olderRolls.gameObject.SetActive(_historyPage + 1 < pageCount);
+
             var sb = new StringBuilder();
-            sb.AppendLine("記録（新しい順・上下にスクロール）");
-            sb.Append(CareAftercare.Describe(_aftercareNotes));
-            for (int i = history.Count - 1; i >= 1; i--) // scroll through every saved roll
+            int start = history.Count - 1 - _historyPage * HistoryPageSize;
+            int end = Mathf.Max(0, start - HistoryPageSize + 1);
+            for (int i = start; i >= end; i--)
             {
                 var r = history[i];
-                sb.AppendLine($"{r.WorldRevision}投目 {WeatherLabel(r.WeatherId)} {SiteLabel(r.SiteId)} " +
-                    $"{(r.FaceId.HasValue ? r.FaceId.Value + "の目" : "")} {RecipeLabel(r.RecipeId)}" +
-                    (r.LuckySeven ? " ★幸運の七" : r.FaceCount == 7 ? "（7面）" : "") +
-                    (r.Rainbow ? " ∞虹" : ""));
-                var lives = new List<string>();
-                foreach (var k in r.EcologyKinds) { string n = ResidentLabelJa(k); if (n != null && !lives.Contains(n)) lives.Add(n); }
-                if (_observationDetails && (lives.Count > 0 || r.EcologySeeds > 0 || r.SeedBankDeposits > 0 || r.Harmony >= 0))
-                    sb.AppendLine("　〔" + string.Join("・", lives) + "〕" +
-                                  (r.SeedBankDeposits > 0 ? $" 土に残った種 ×{r.SeedBankDeposits}" : "") +
-                                  (r.SeedBankSprouts > 0 ? $" 眠った種が芽吹いた ×{r.SeedBankSprouts}" : r.EcologySeeds > 0 ? $" 種がこぼれた ×{r.EcologySeeds}" : "") +
-                                  (r.Harmony >= 0 ? $"　☯{r.Harmony}" : ""));
+                sb.AppendLine($"{r.WorldRevision}投目    {RollRecord.FaceLabel(r.FaceId ?? 0, r.RecipeId, r.LuckySeven)}" +
+                    (r.Rainbow ? "    虹" : ""));
+                string wish = RollRecord.WishComparison(r.IntentKind, r.IntentValue, r.IntentMatched);
+                if (wish != null) sb.AppendLine("　" + wish);
+                if (r.PrayerText != null) sb.AppendLine("　祈り「" + r.PrayerText + "」");
+                if (r.LuckyNumber) sb.AppendLine("　" + RollRecord.LuckyLabel(r.FaceId ?? 0, r.LuckySumFace));
+                if (_observationDetails) sb.AppendLine($"　{WeatherLabel(r.WeatherId)}　{SiteLabel(r.SiteId)}");
+                if (_observationDetails)
+                {
+                    var lives = new List<string>();
+                    foreach (var k in r.EcologyKinds) { string n = ResidentLabelJa(k); if (n != null && !lives.Contains(n)) lives.Add(n); }
+                    if (lives.Count > 0 || r.EcologySeeds > 0 || r.SeedBankDeposits > 0 || r.Harmony >= 0)
+                        sb.AppendLine("　〔" + string.Join("・", lives) + "〕" +
+                                      (r.SeedBankDeposits > 0 ? $" 土に残った種 ×{r.SeedBankDeposits}" : "") +
+                                      (r.SeedBankSprouts > 0 ? $" 眠った種が芽吹いた ×{r.SeedBankSprouts}" : r.EcologySeeds > 0 ? $" 種がこぼれた ×{r.EcologySeeds}" : "") +
+                                      (r.Harmony >= 0 ? $"　☯{r.Harmony}" : ""));
+                }
                 string relationship = EcologyObservations.Highlight(r.Relations);
                 int shown = 0;
                 foreach (var moment in _recentMoments)
                     if (moment.RoundId == r.RoundId && shown++ < 2)
                     { sb.AppendLine("　" + moment.Headline); if (moment.Detail != null) sb.AppendLine("　" + moment.Detail); }
                 if (_observationDetails && r.Care != null) sb.Append(r.Care.Describe());
-                if (shown == 0 && relationship != null) sb.AppendLine("　<color=#a8e6c8>" + relationship + "</color>");
-                if ((_observationDetails || shown == 0) && !string.IsNullOrEmpty(r.MessageText)) sb.AppendLine("　" + r.MessageText);
+                if (shown == 0)
+                {
+                    string recorded = r.MomentHeadline ?? relationship ?? r.MessageText;
+                    if (recorded != null) sb.AppendLine("　" + recorded);
+                }
+                sb.AppendLine();
             }
-            if (history.Count <= 1) sb.AppendLine("まだ記録がありません。");
+            if (history.Count == 0) sb.AppendLine("まだ記録がありません。");
+            if (_historyPage == 0) sb.Append(CareAftercare.Describe(_aftercareNotes));
             SetScrollableText(_historyText, sb.ToString());
         }
 

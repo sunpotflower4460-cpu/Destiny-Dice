@@ -20,11 +20,47 @@ namespace DestinyGarden.Application
         public static List<GardenMoment> FromOutcome(RollOutcome outcome, string roundId = null)
         {
             if (outcome == null) return new List<GardenMoment>();
+            return FromResolved(outcome.Simulation, outcome.Ecology, outcome.RecipeId, roundId);
+        }
+
+        internal static List<GardenMoment> FromResolved(SimulationResult simulation, EcologyResult ecology, string recipeId, string roundId)
+        {
             var events = new List<GardenEvent>();
-            if (outcome.Simulation != null) events.AddRange(outcome.Simulation.Events);
-            if (outcome.Ecology != null) events.AddRange(outcome.Ecology.Events);
-            return Read(outcome.Ecology?.PostState ?? outcome.Simulation?.PostState, outcome.Ecology?.Relations ?? new List<EcologicalLink>(),
-                events, outcome.RecipeId, roundId, outcome.Ecology?.Care, outcome.Simulation?.DiceWaterInjected ?? 0, outcome.Ecology?.Effects);
+            if (simulation != null) events.AddRange(simulation.Events);
+            if (ecology != null) events.AddRange(ecology.Events);
+            var state = ecology?.PostState ?? simulation?.PostState;
+            var moments = Read(state, ecology?.Relations ?? new List<EcologicalLink>(),
+                events, recipeId, roundId, ecology?.Care, simulation?.DiceWaterInjected ?? 0, ecology?.Effects);
+            if (moments.Count == 1 && moments[0].Kind == "recorded-roll" && simulation?.Evidence != null && recipeId != null)
+                FocusQuietRoll(moments[0], state, recipeId, simulation.Evidence, ecology?.Care?.AnchorCellId ?? -1);
+            return moments;
+        }
+
+        private static void FocusQuietRoll(GardenMoment moment, WorldState state, string recipeId, RoundEvidence evidence, int anchor)
+        {
+            var (cells, headline) = RecipeCatalog.ElementOf(recipeId) switch
+            {
+                ElementId.Water => (evidence.DiceWaterCells, "土に水が届いた。"),
+                ElementId.Light => (evidence.LightReceivedCells, "光が土を照らした。"),
+                ElementId.Wind => (evidence.WindReceivedCells, "土の上を風が渡った。"),
+                _ => (null, null)
+            };
+            if (cells == null) return;
+            int closest = -1, distance = int.MaxValue;
+            foreach (int cell in cells)
+            {
+                if (GardenMapData.Plantable[cell] != 1) continue;
+                int step = anchor >= 0
+                    ? Math.Abs(cell % 16 - anchor % 16) + Math.Abs(cell / 16 - anchor / 16)
+                    : 0;
+                if (step > distance || (step == distance && cell >= closest)) continue;
+                closest = cell;
+                distance = step;
+            }
+            if (closest < 0) return;
+            moment.Headline = headline;
+            moment.CellId = moment.FromCell = closest;
+            moment.Habitat = LivingEcosystem.Habitat(state, closest);
         }
         public static List<GardenMoment> Read(WorldState state, IList<EcologicalLink> links, IList<GardenEvent> events,
             string recipeId, string roundId, CareReport care = null, long diceWater = 0) =>
@@ -294,8 +330,21 @@ namespace DestinyGarden.Application
                         events.Add(new GardenEvent { Kind = item["kind"] as string, PlantId = item["plantId"] as string,
                             CellId = WorldStateSerializer.ToInt(item["cellId"]), Tick = WorldStateSerializer.ToInt(item["tick"]) });
                 recipes.TryGetValue(e.RoundId, out string recipe);
-                result.AddRange(Read(state, links, events, recipe ?? care?.RecipeId, e.RoundId, care,
-                    e.Payload.TryGetValue("diceWaterInjected", out object dw) ? Convert.ToInt64(dw) : 0, effects));
+                var moments = Read(state, links, events, recipe ?? care?.RecipeId, e.RoundId, care,
+                    e.Payload.TryGetValue("diceWaterInjected", out object dw) ? Convert.ToInt64(dw) : 0, effects);
+                if (moments.Count == 1 && moments[0].Kind == "recorded-roll" &&
+                    e.Payload.TryGetValue("momentHeadline", out object headline) && headline is string text &&
+                    e.Payload.TryGetValue("momentCellId", out object focus))
+                {
+                    int cell = WorldStateSerializer.ToInt(focus);
+                    if (cell >= 0 && cell < GardenMapData.CellCount)
+                    {
+                        moments[0].Headline = text;
+                        moments[0].CellId = moments[0].FromCell = cell;
+                        moments[0].Habitat = LivingEcosystem.Habitat(state, cell);
+                    }
+                }
+                result.AddRange(moments);
             }
             return result;
         }
