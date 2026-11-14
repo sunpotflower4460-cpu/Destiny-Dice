@@ -7,13 +7,21 @@ namespace DestinyGarden.Domain
     /// The cycle of the garden (lifecycle.v1, docs/unity-garden/ECOLOGY.md §9). A flower counts the rolls it
     /// has been in bloom; when it reaches its species' span it bears its seed and returns to the soil, which
     /// frees its place and feeds the plants beside it. At most one returns in a roll, the longest past their
-    /// span first. A flower that bees or butterflies visited while in bloom (lifecycle.v2) lets its seed fall on open
-    /// ground nearby as it returns; an unvisited one leaves only its nourishment. Water is never moved. Without it a garden fills up after about sixty
+    /// span first. A flower that bees or butterflies visited while in bloom (lifecycle.v2) leaves its seed in its own
+    /// place as it returns, one time in two (lifecycle.v4); an unvisited one leaves only its nourishment. Water is never moved. Without it a garden fills up after about sixty
     /// rolls and the dice can no longer change it.
     /// </summary>
     public static class Lifecycle
     {
-        public const string RulesVersion = "lifecycle.v2";
+        // v5 (2026-11-14): a plant fed earlier in the same ecology step is not counted idle (never withers the roll it was fed).
+        public const string RulesVersion = "lifecycle.v5";
+        public const int SeedSetOneIn = 2;           // lifecycle.v4: a pollinated flower sets viable seed 1 time in 2
+        public const string RootKind = "root";       // EcologyEffect.Kind: a suited plant the weather did not move puts down roots
+        public const string WitherKind = "wither";   // EcologyEffect.Kind: a plant that no longer suits its place withered
+        public const string WitheredEvent = "Withered";
+        public const int RootGrowth = 30;
+        public const int WitherAfter = 8;            // idle rolls in an unsuitable place before a plant withers
+        public const int MaxWithersPerRoll = 1;
         public const string FruitKind = "fruit";     // EcologyEffect.Kind: the seed a pollinated flower lets fall
         public const string ReturnKind = "return";   // EcologyEffect.Kind: a flower returned to the soil
         public const string HumusKind = "humus";     // EcologyEffect.Kind: a neighbour fed by it
@@ -26,11 +34,25 @@ namespace DestinyGarden.Domain
         {
             switch (species)
             {
-                case "dandelion": return 12;
-                case "cosmos": case "poppy": case "sunflower": case "daisy": return 20;
-                case null: return 20;
-                default: return 30;
+                case "dandelion": return 16;
+                case "cosmos": case "poppy": case "sunflower": case "daisy": return 26;
+                case null: return 26;
+                default: return 40;
             }
+        }
+
+        /// <summary>
+        /// lifecycle.v3: plants that went WitherAfter rolls without growing in a place that no longer suits them
+        /// (the soil dried or drowned) wither, at most one a roll, the longest idle first. They leave nothing.
+        /// </summary>
+        public static List<PlantState> Wither(WorldState s)
+        {
+            var due = new List<PlantState>();
+            foreach (var p in s.Plants) if (p.Stage != PlantStage.Flower && p.IdleRolls >= WitherAfter) due.Add(p);
+            due.Sort((a, b) => a.IdleRolls != b.IdleRolls ? b.IdleRolls.CompareTo(a.IdleRolls) : a.CellId.CompareTo(b.CellId));
+            if (due.Count > MaxWithersPerRoll) due.RemoveRange(MaxWithersPerRoll, due.Count - MaxWithersPerRoll);
+            foreach (var p in due) s.Plants.Remove(p);
+            return due;
         }
 
         /// <summary>Counts one more roll for every flower, then removes the flowers that return this roll.</summary>

@@ -11,8 +11,12 @@ namespace DestinyGarden.Domain
         public bool WishAnswered;   // the wish of this roll came true
         public bool LuckyNumber;    // the Lucky Seven face, or this face + the previous face = 7
         public int FaceSum;         // this face + the previous face (0 when there was no previous roll)
-        public int GiftGrowth;      // growth given to each recipient
+        public int GiftGrowth;      // growth given to each recipient (five points); 0 = one full stage (six to eight)
         public int GiftRecipients;  // how many plants may receive (int.MaxValue = every non-flowering plant)
+        public int AnchorCellId = -1; // prayer-star.v2: the blessing's site; plants near it receive first
+        public int LuckyCount;        // lucky.v1: lucky numbers in this garden so far, this one included
+        public int LuckyStreak;       // lucky.v1: lucky numbers in a row ending with this roll (0 when not lucky)
+        public bool SevenLuckies;     // lucky.v1: this lucky number is the 7th, 14th, ... of the garden: the eight
         public bool HasElement;     // prayer-star.v2: the rolled blessing steers where the gift goes
         public ElementId Element;
     }
@@ -37,16 +41,35 @@ namespace DestinyGarden.Domain
     /// </summary>
     public static class PrayerStar
     {
-        public const string RulesVersion = "prayer-star.v2";
+        public const string RulesVersion = "prayer-star.v3";   // v3 (lucky.v1): seven luckies, double lucky
         public const string GiftKind = "star";          // EcologyEffect.Kind for the star's gift
         public const int LuckySum = 7;
         public const int OctagramHarmony = 7;
 
-        public static int GiftGrowthFor(int points) =>
-            points >= 8 ? 88 : points == 7 ? 77 : points == 6 ? 16 : points == 5 ? 5 : 0;
+        public const int SiteReach = 3;               // plants within this distance of the blessing's site come first
+        public const int FiveGift = 60;
 
+        /// <summary>prayer-star.v2: five gives +60; six and eight lift each recipient one full growth stage, seven half a stage.</summary>
+        public static int GiftGrowthFor(int points) => points == 5 ? FiveGift : 0;
+
+        /// <summary>Five and six: one plant. Seven: seven plants. Eight: every plant not yet in flower.</summary>
         public static int GiftRecipientsFor(int points) =>
-            points >= 8 ? int.MaxValue : points >= 5 ? points : 0;
+            points >= 8 ? int.MaxValue : points == 7 ? 7 : points >= 5 ? 1 : 0;
+
+        /// <summary>Growth that lifts a plant to the next stage threshold (250 / 750 / 1500 / 2500).</summary>
+        public static int ToNextStage(int growth) =>
+            growth < 250 ? 250 - growth : growth < 750 ? 750 - growth : growth < 1500 ? 1500 - growth : Math.Max(0, 2500 - growth);
+
+        /// <summary>
+        /// The gift one recipient receives: five +60; six and eight a full stage; seven half a stage (at least 60),
+        /// or a full stage for a double lucky number (two in a row, lucky.v1).
+        /// </summary>
+        public static int GiftFor(PrayerStarReading star, int growth)
+        {
+            if (star.GiftGrowth > 0) return star.GiftGrowth;
+            int step = ToNextStage(growth);
+            return star.Points == 7 && star.LuckyStreak < 2 ? Math.Min(step, Math.Max(FiveGift, step / 2)) : step;
+        }
 
         public static bool IsLuckyNumber(int faceId, int previousFaceId)
         {
@@ -56,6 +79,8 @@ namespace DestinyGarden.Domain
         }
 
         /// <summary>The face that would make the lucky number on the next roll (7 - last face), 0 when none does.</summary>
+        public static int Dist(int a, int b) => Math.Abs(a % 16 - b % 16) + Math.Abs(a / 16 - b / 16);
+
         public static int FaceCompletingSeven(int lastFaceId) =>
             lastFaceId >= 1 && lastFaceId <= 6 ? LuckySum - lastFaceId : 0;
 
@@ -64,10 +89,31 @@ namespace DestinyGarden.Domain
         /// <param name="recipeId">Recipe rolled this time.</param>
         /// <param name="previousRecipeId">Recipe of the previous resolved roll, null for none.</param>
         /// <param name="harmonyValue">This roll's harmony reading (0..8).</param>
-        public static PrayerStarReading Read(int faceId, int previousFaceId, string recipeId,
-            string previousRecipeId, bool wishAnswered, int harmonyValue)
+        public const int LuckiesForRainbow = 7;   // lucky.v1: every seventh lucky number of a garden is the eight
+
+        /// <summary>Lucky numbers in a run's faces (oldest first): each face that makes seven with the one before, or a 7.</summary>
+        public static int CountLuckies(IList<int> faces)
         {
-            var r = new PrayerStarReading { WishAnswered = wishAnswered };
+            int n = 0;
+            if (faces == null) return 0;
+            for (int i = 0; i < faces.Count; i++) if (IsLuckyNumber(faces[i], i > 0 ? faces[i - 1] : 0)) n++;
+            return n;
+        }
+
+        /// <summary>Lucky numbers in a row at the end of a run's faces.</summary>
+        public static int TrailingStreak(IList<int> faces)
+        {
+            int n = 0;
+            if (faces == null) return 0;
+            for (int i = faces.Count - 1; i >= 0 && IsLuckyNumber(faces[i], i > 0 ? faces[i - 1] : 0); i--) n++;
+            return n;
+        }
+
+        public static PrayerStarReading Read(int faceId, int previousFaceId, string recipeId,
+            string previousRecipeId, bool wishAnswered, int harmonyValue, int anchorCellId = -1,
+            int luckyCountBefore = 0, int luckyStreakBefore = 0)
+        {
+            var r = new PrayerStarReading { WishAnswered = wishAnswered, AnchorCellId = anchorCellId };
             if (recipeId != null) { r.HasElement = true; r.Element = RecipeCatalog.ElementOf(recipeId); }
             if (recipeId != null && previousRecipeId != null)
                 r.YinYangUnion = Harmony.IsYin(RecipeCatalog.ElementOf(recipeId)) !=
@@ -75,7 +121,11 @@ namespace DestinyGarden.Domain
             r.LuckyNumber = IsLuckyNumber(faceId, previousFaceId);
             r.FaceSum = previousFaceId > 0 ? faceId + previousFaceId : 0;
             bool joined = r.YinYangUnion || r.WishAnswered;
-            r.Points = r.LuckyNumber && joined && harmonyValue >= OctagramHarmony ? 8
+            // lucky.v1: count the garden's lucky numbers; the seventh (and every seventh after) is the eight.
+            r.LuckyCount = luckyCountBefore + (r.LuckyNumber ? 1 : 0);
+            r.LuckyStreak = r.LuckyNumber ? luckyStreakBefore + 1 : 0;
+            r.SevenLuckies = r.LuckyNumber && r.LuckyCount % LuckiesForRainbow == 0;
+            r.Points = r.LuckyNumber && (r.SevenLuckies || (joined && harmonyValue >= OctagramHarmony)) ? 8
                 : r.LuckyNumber ? 7
                 : joined ? 6
                 : 5;
@@ -116,7 +166,12 @@ namespace DestinyGarden.Domain
             var young = new List<PlantState>();
             foreach (var p in s.Plants) if (p.Stage != PlantStage.Flower && p.Growth < 2500) young.Add(p);
             var prio = new Dictionary<PlantState, int>();
-            foreach (var p in young) prio[p] = Priority(s, p, star);
+            foreach (var p in young)
+            {
+                // The blessing's site comes first (prayer-star.v2), then the blessing's own preference.
+                bool far = star.AnchorCellId >= 0 && Dist(p.CellId, star.AnchorCellId) > SiteReach;
+                prio[p] = (far ? 1 << 16 : 0) + Priority(s, p, star);
+            }
             young.Sort((a, b) =>
             {
                 int c = prio[a].CompareTo(prio[b]);
@@ -133,10 +188,13 @@ namespace DestinyGarden.Domain
             if (context.FaceId <= 0) return;
             var recent = context.RecentRecipeIds;
             string previous = recent != null && recent.Count >= 2 ? recent[recent.Count - 2] : null;
+            // prayer-star.v3: the anchor (the site the blessing reached) and the garden's lucky count and streak.
             var star = Read(context.FaceId, context.PreviousFaceId, context.CurrentRecipeId,
-                previous, context.PrayerAnswered, result.Harmony.Value);
+                previous, context.PrayerAnswered, result.Harmony.Value, context.AnchorCellId,
+                context.LuckyCountBefore, context.LuckyStreakBefore);
             result.PrayerStar = star;
-            foreach (int cell in Recipients(result.PostState, star)) nourish(cell, star.GiftGrowth);
+            foreach (int cell in Recipients(result.PostState, star))
+                nourish(cell, GiftFor(star, result.PostState.PlantAt(cell).Growth));
         }
 
         /// <summary>
@@ -156,6 +214,11 @@ namespace DestinyGarden.Domain
             ["wishAnswered"] = r.WishAnswered,
             ["faceSum"] = (long)r.FaceSum,
             ["giftGrowth"] = (long)r.GiftGrowth,
+            ["giftStage"] = r.GiftGrowth == 0,
+            ["luckyCount"] = (long)r.LuckyCount,
+            ["luckyStreak"] = (long)r.LuckyStreak,
+            ["sevenLuckies"] = r.SevenLuckies,
+            ["anchorCellId"] = (long)r.AnchorCellId,
             ["giftElement"] = r.HasElement ? r.Element.ToString().ToLowerInvariant() : null
         };
     }

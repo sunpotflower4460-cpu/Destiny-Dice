@@ -143,6 +143,8 @@ namespace DestinyGarden.Tests
             Assert.AreEqual(2, Flora.Leaning(cosmos, new[] { "light_soft", "light_beam" }), "cosmos needs sun");
             Assert.AreEqual(1, Flora.Leaning(rose, new[] { "seed_single" }), "seed leans to berry plants");
             Assert.AreEqual(1, Flora.Leaning(dandelion, new[] { "wind_breeze" }), "wind leans to wind-sown seeds");
+            Assert.AreEqual(2, Flora.Leaning(dandelion, new[] { "wind_breeze", "seed_single" }), "seed also leans to self-sowers");
+            Assert.AreEqual(1, Flora.Leaning(Flora.Get("buttercup"), new[] { "water_drop" }), "water leans to moisture lovers (from 300)");
             Assert.AreEqual(0, Flora.Leaning(iris, null));
             // Only the last eight rolls count.
             var old = Enumerable.Repeat("water_rain", 5).Concat(Enumerable.Repeat("light_soft", 8)).ToList();
@@ -194,6 +196,27 @@ namespace DestinyGarden.Tests
             CollectionAssert.AreEqual(fit.Select(t => t.Id).ToList(), fitAfter.Select(t => t.Id).ToList(), "seeds do not change the soil");
             ChooseAt(s, seed, 0, out int crowdedTotal);
             Assert.AreEqual(total - (first == Flora.Pioneer ? 0 : 1), crowdedTotal);
+        }
+
+        [Test]
+        public void AnsweredWish_LeansThisRollsSeeds()
+        {
+            var s = new WorldState();
+            int cell = -1;
+            for (int c = 0; c < GardenMapData.CellCount && cell < 0; c++)
+            {
+                if (GardenMapData.Plantable[c] != 1 || GardenMapData.SoilCapacity[c] <= 0 || Flora.IsRockShade(c)) continue;
+                s.SoilWater[c] = GardenMapData.SoilCapacity[c] / 2;
+                if (Flora.FittingAt(s, c).Any(t => Flora.Suits(t, ElementId.Light))) cell = c; else s.SoilWater[c] = 0;
+            }
+            Assert.GreaterOrEqual(cell, 0);
+            var seed = new PlantState { PlantId = "seed", CellId = cell, OriginKind = "ecology" };
+            int plain = 0, answered = 0;
+            // Under the blessing rules (recent blessings given, here none yet).
+            Flora.ChooseSpecies(s, seed, "die", null, n => { plain = n; return 0; }, new string[0]);
+            Flora.ChooseSpecies(s, seed, "die", null, n => { answered = n; return 0; }, new string[0], "light_soft");
+            int suited = Flora.FittingAt(s, cell).Count(t => Flora.Suits(t, ElementId.Light));
+            Assert.AreEqual(plain + suited * Flora.AnsweredWishLeaning, answered, "each sun-loving fitting species gains the answered wish's weight");
         }
     }
 }

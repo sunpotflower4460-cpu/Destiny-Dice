@@ -12,7 +12,16 @@ namespace DestinyGarden.Domain
     /// </summary>
     public static class LuckySeven
     {
-        public const string RulesVersion = "lucky-seven.v1";
+        public const string RulesVersion = "lucky-seven.v2";
+        public const int MaxBanked = 2;
+
+        /// <summary>
+        /// lucky-seven.v2: a wish that came true earns the seventh face only when it was a long shot — a chance of 1/3
+        /// or less on a six-face die (a face, or a family with at most two faces). A likely wish (a family with three
+        /// faces, 1/2) or a wish on a seven-face round earns nothing, so the seventh face cannot be farmed.
+        /// </summary>
+        public static bool WishEarnsSeventh(bool matched, int matchingFaces, int faceCount) =>
+            matched && faceCount == 6 && matchingFaces > 0 && matchingFaces * 3 <= faceCount;
         public const int FaceId = 7;
         public const int Amplification = 2;
         public const string LabelJa = "幸運の七";
@@ -155,7 +164,11 @@ namespace DestinyGarden.Domain
         public const int MaxSpirits = 7;
 
         /// <summary>Plant cells reached by the dice blessing (water, light, wind or new seeds), cellId order.</summary>
-        public static System.Collections.Generic.List<int> ReachedPlantCells(SimulationResult sim)
+        public static System.Collections.Generic.List<int> ReachedPlantCells(SimulationResult sim) =>
+            ReachedPlantCells(sim, MaxSpirits);
+
+        /// <summary>Reached plant cells in the same order, up to max (the ecology step filters flowers before capping).</summary>
+        public static System.Collections.Generic.List<int> ReachedPlantCells(SimulationResult sim, int max)
         {
             var result = new System.Collections.Generic.List<int>();
             if (sim == null || sim.PostState == null) return result;
@@ -177,7 +190,7 @@ namespace DestinyGarden.Domain
             foreach (var set in new[] { touched, grew })
                 foreach (int c in set)
                 {
-                    if (result.Count == MaxSpirits) return result;
+                    if (result.Count == max) return result;
                     result.Add(c);
                 }
             return result;

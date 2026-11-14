@@ -105,18 +105,19 @@ namespace DestinyGarden.Tests
             Assert.IsFalse(coord.LuckySevenOffered, "no chance on the first round");
             Assert.IsNull(coord.AddLuckySeven());
 
-            // Wish for the water family until a wish comes true.
+            // Wish for face 1 (a long shot, 1/6) until a wish comes true (lucky-seven.v2: only long shots earn it).
             RollOutcome outcome = null;
-            for (int i = 0; i < 40; i++)
+            for (int i = 0; i < 60; i++)
             {
-                coord.CommitIntent("family", "water");
+                coord.CommitIntent("face", "1");
                 outcome = coord.Roll();
                 Assert.NotNull(outcome);
                 coord.Prepare();
                 if (outcome.IntentMatched) break;
-                Assert.IsFalse(coord.LuckySevenOffered, "a missed wish never offers the seventh face");
+                Assert.AreEqual(outcome.SeasonMetNow, coord.LuckySevenOffered,
+                    "a missed wish offers the seventh face only when the season's wish came true (season.v1)");
             }
-            Assert.IsTrue(outcome.IntentMatched, "fixture should produce a matched wish within 40 rolls");
+            Assert.IsTrue(outcome.IntentMatched, "fixture should produce a matched wish within 60 rolls");
             Assert.IsTrue(coord.LuckySevenOffered);
 
             string seventh = coord.AddLuckySeven();
