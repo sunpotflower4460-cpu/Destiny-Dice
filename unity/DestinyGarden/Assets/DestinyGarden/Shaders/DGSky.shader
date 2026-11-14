@@ -34,15 +34,15 @@ Shader "DestinyGarden/Sky"
                 return o;
             }
 
-            half3 Clouds(float3 ray, half3 sky)
+            half3 Clouds(float3 ray, half3 sky, out half veil)
             {
                 // Project the upper hemisphere onto a distant cloud layer. Distance
                 // compression keeps the banks thin and soft near the horizon.
                 float altitude = max(ray.y + 0.20, 0.20);
                 float2 plane = ray.xz / altitude;
-                float2 drift = _DGSkyWeather.z * float2(0.0031, -0.0013);
-                float2 broad = plane * float2(0.19, 0.43) + drift + float2(0.19, 0.31);
-                float2 detail = plane * float2(0.36, 0.75) + drift * 1.38 + float2(0.61, 0.17);
+                float2 drift = _DGSkyWeather.z * float2(0.0017, -0.0008);
+                float2 broad = plane * float2(0.15, 0.31) + drift + float2(0.19, 0.31);
+                float2 detail = plane * float2(0.34, 0.67) + drift * 1.6 + float2(0.61, 0.17);
                 half billow = SAMPLE_TEXTURE2D(_CloudNoise, sampler_CloudNoise, broad).r;
                 half wisps = SAMPLE_TEXTURE2D(_CloudNoise, sampler_CloudNoise, detail).r;
                 half cover = _DGSkyWeather.x;
@@ -50,27 +50,26 @@ Shader "DestinyGarden/Sky"
                 half density = billow * 0.73 + wisps * 0.27;
                 half edge = lerp(0.53, 0.39, cover);
                 half mass = smoothstep(edge, edge + 0.18, density);
-                half higher = smoothstep(-0.075, 0.038, ray.y) * (1.0 - smoothstep(0.43, 0.86, ray.y) * 0.50);
-                half streak = smoothstep(0.43, 0.72, wisps) * (1.0 - mass) * 0.21;
-                half haze = smoothstep(-0.06, 0.06, ray.y) * (1.0 - smoothstep(0.07, 0.21, ray.y));
+                half higher = smoothstep(0.002, 0.073, ray.y);
+                half streak = smoothstep(0.49, 0.76, wisps) * (1.0 - mass) * 0.19;
                 half light = pow(saturate(dot(ray, _DGSkySun.xyz)), 6.0) * _DGSkySun.w;
                 half silver = pow(saturate(dot(ray, _DGSkyMoon.xyz)), 7.0) * _DGSkyMoon.w;
-                half3 cloud = lerp(half3(0.26, 0.23, 0.36), half3(0.023, 0.026, 0.061), night);
+                half3 cloud = lerp(half3(0.22, 0.19, 0.32), half3(0.022, 0.028, 0.069), night);
                 half edges = smoothstep(edge + 0.08, edge + 0.28, density);
                 cloud = lerp(cloud, half3(0.70, 0.73, 0.77), edges * (0.66 - night * 0.64));
                 cloud = lerp(cloud, half3(0.88, 0.43, 0.24), (0.32 + 0.48 * light) * _DGSkyWarmth.w * (0.44 + edges * 0.56));
                 cloud += half3(0.050, 0.075, 0.14) * silver;
-                sky = lerp(sky, _DGSkyHorizon.rgb * 1.08, haze * cover * 0.31);
-                return lerp(sky, cloud, higher * (mass * (0.66 + cover * 0.17) + streak));
+                veil = higher * saturate(mass * (0.19 + cover * 0.61) + streak);
+                return lerp(sky, cloud, veil);
             }
 
             half3 Sun(float3 ray)
             {
                 float distance = length(cross(ray, _DGSkySun.xyz));
                 float visibility = step(0.0, dot(ray, _DGSkySun.xyz)) * _DGSkySun.w;
-                float core = 1.0 - smoothstep(0.013, 0.019, distance);
-                float halo = exp2(-22.0 * distance) * 0.17 + exp2(-6.7 * distance) * 0.06;
-                return visibility * (half3(1.18, 0.80, 0.46) * core + _DGSkyWarmth.rgb * halo * 5.0);
+                float core = 1.0 - smoothstep(0.011, 0.019, distance);
+                float halo = exp2(-24.0 * distance) * 0.25 + exp2(-7.2 * distance) * 0.071;
+                return visibility * (half3(1.39, 0.94, 0.55) * core + half3(0.61, 0.26, 0.13) * halo);
             }
 
             half3 Moon(float3 ray)
@@ -84,8 +83,10 @@ Shader "DestinyGarden/Sky"
                 float feather = max(0.014, 0.6 * fwidth(r));
                 half body = 1.0 - smoothstep(1.0 - feather, 1.0 + feather, r);
                 half crescent = body * smoothstep(0.86 - feather, 0.86 + feather, darkEdge);
-                half shade = lerp(0.72, 1.07, saturate(disc.x * -0.48 + disc.y * 0.40 + 0.54));
-                half halo = exp2(-1.8 * r) * 0.17 + exp2(-0.32 * r) * 0.036;
+                half shade = lerp(0.68, 1.05, saturate(disc.x * -0.48 + disc.y * 0.40 + 0.54));
+                float2 mare = disc + float2(0.42, 0.22);
+                shade -= 0.075 * exp2(-9.0 * dot(mare, mare));
+                half halo = exp2(-1.65 * r) * 0.16 + exp2(-0.35 * r) * 0.038;
                 half3 gold = lerp(half3(1.12, 0.85, 0.56), half3(1.21, 1.07, 0.83), _DGSkyWeather.y);
                 return front * (gold * crescent * shade + half3(0.42, 0.37, 0.64) * halo);
             }
@@ -94,13 +95,13 @@ Shader "DestinyGarden/Sky"
             {
                 float3 ray = normalize(input.ray);
                 half3 sky = GardenSkyGradient(ray);
-                half3 movingClouds = Clouds(ray, sky);
-                half paint = _DGPaintedSkyWeight * smoothstep(0.002, 0.045, ray.y)
-                    * (1.0 - smoothstep(0.38, 0.70, ray.y));
-                paint *= lerp(0.94, 0.60, _DGSkyWeather.w);
-                sky = lerp(movingClouds, GardenPaintedClouds(ray), paint);
-                sky += (Sun(ray) + Moon(ray)) * lerp(1.0, 0.68, _DGSkyWeather.x);
-                return half4(sky, 1.0);
+                half paint = _DGPaintedSkyWeight * (1.0 - smoothstep(0.38, 0.74, ray.y));
+                sky = lerp(sky, GardenPaintedClouds(ray), paint * lerp(0.97, 0.80, _DGSkyWeather.w));
+                half veil;
+                sky = Clouds(ray, sky, veil);
+                sky += (Sun(ray) + Moon(ray)) * (1.0 - veil * 0.78);
+                // Far water uses the same color all the way down to the painted horizon.
+                return half4(lerp(GardenHorizon(ray), sky, smoothstep(-0.005, 0.066, ray.y)), 1.0);
             }
             ENDHLSL
         }

@@ -467,6 +467,7 @@ namespace DestinyGarden.Presentation
             // Told by what happens, not by explanation: words only for what cannot be seen (a season's wish came
             // true; at a season's end, the garden's name).
             Track(StartCoroutine(ShowCauseLater(MomentWord(outcome))));
+            _wishFace = outcome.IntentKind == "face" && outcome.IntentMatched;
             Track(StartCoroutine(CycleToneLater(CycleToneFor(outcome.Ecology))));
             yield return PlayRevealCore(star.Points, outcome.FaceId, previousFaceId, tops, outcome.FaceCount, star);
         }
@@ -518,6 +519,9 @@ namespace DestinyGarden.Presentation
             if (Audio != null) Audio.PlayStarChord(points);
             EmitBurst(points);
             if (points >= 7) ShowLabel(points, LuckyLabelLines(star, points, faceId, previousFaceId, faceCount), false);
+            // prayer-star.v5: the other lucky signs, each with its number, name, sound and light (after the lucky number).
+            var signs = SignLabels(star, faceId, _wishFace);
+            if (signs.Count > 0) Track(StartCoroutine(PlaySigns(signs, points >= 7 ? 2.6f : 0f)));
             LightBeads();
             yield return new WaitForSeconds(0.5f);
             int perPlant = points >= 8 ? 14 : points == 7 ? 10 : points == 6 ? 5 : 3;
@@ -538,6 +542,46 @@ namespace DestinyGarden.Presentation
             }
             yield return new WaitForSeconds(0.4f);
             SetHint(faceId); // lights for the face that would complete seven next time
+        }
+
+        private bool _wishFace;
+
+        /// <summary>
+        /// prayer-star.v5: the lucky signs of a roll besides the lucky number, most special first: 三つぞろい, a total
+        /// of 77 (or 154, 231 ...), ゾロ目, and a face wished for coming up. Each is [number, name, "", ""] and a sound.
+        /// </summary>
+        public static List<string[]> SignLabels(PrayerStarReading star, int faceId, bool wishFace)
+        {
+            var list = new List<string[]>();
+            if (star == null) return list;
+            if (star.Triple) list.Add(new[] { $"{faceId}{faceId}{faceId}", "三つぞろい", "", "" });
+            if (star.Total77)
+            {
+                int total = star.FaceTotal / PrayerStar.LuckyTotal * PrayerStar.LuckyTotal;
+                list.Add(new[] { total.ToString(System.Globalization.CultureInfo.InvariantCulture), "出目の合計", "", "" });
+            }
+            if (star.Zorome && !star.Triple && !star.LuckyNumber) list.Add(new[] { $"{faceId}{faceId}", "ゾロ目", "", "" });
+            if (wishFace && !star.LuckyNumber && list.Count == 0) list.Add(new[] { faceId.ToString(System.Globalization.CultureInfo.InvariantCulture), "願いの目", "", "" });
+            return list;
+        }
+
+        private IEnumerator PlaySigns(List<string[]> signs, float delay)
+        {
+            if (delay > 0f) yield return new WaitForSeconds(delay);
+            foreach (var lines in signs)
+            {
+                bool big = lines[1] == "三つぞろい" || lines[1] == "出目の合計";
+                if (Audio != null)
+                {
+                    if (big) Audio.PlayLuckySeven();
+                    else if (lines[1] == "ゾロ目") { int f; if (int.TryParse(lines[0].Substring(0, 1), out f)) Audio.PlayFaceNote(f); }
+                    else Audio.PlayStarChord(6);
+                }
+                _flash = big ? 1f : 0.6f;
+                EmitBurst(big ? 7 : 6);
+                ShowLabel(7, lines, false);
+                yield return new WaitForSeconds(2.6f);
+            }
         }
 
         /// <summary>QA only: a reading for the filmstrip (-dgLuckyCount N lucky numbers before, -dgLuckyStreak S in a row).</summary>
@@ -796,13 +840,16 @@ namespace DestinyGarden.Presentation
             standScaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             standScaler.screenMatchMode = CanvasScaler.ScreenMatchMode.Expand; // the same scale as the main UI
             standScaler.referenceResolution = new Vector2(1600, 900);
+            var safeArea = new GameObject("StandingSafeArea", typeof(RectTransform));
+            safeArea.transform.SetParent(standCanvasObj.transform, false);
+            safeArea.AddComponent<GardenSafeArea>();
             // Hidden while the title card is up (the title no longer covers the whole screen).
             _standingGroup = standCanvasObj.AddComponent<CanvasGroup>();
             _standingGroup.blocksRaycasts = false;
             _standingGroup.interactable = false;
             _standingGroup.alpha = 0f; // fades in once the garden is entered
             var sbObj = new GameObject("SigilStandingBacking");
-            sbObj.transform.SetParent(standCanvasObj.transform, false);
+            sbObj.transform.SetParent(safeArea.transform, false);
             _standingBacking = sbObj.AddComponent<Image>();
             Plaque(_standingBacking);
             _standingBacking.raycastTarget = false;
@@ -810,7 +857,7 @@ namespace DestinyGarden.Presentation
             sbRect.anchorMin = sbRect.anchorMax = sbRect.pivot = new Vector2(0f, 1f);
             sbRect.anchoredPosition = new Vector2(26f, -82f); // under the header plate, on its left edge
             var stObj = new GameObject("SigilStanding");
-            stObj.transform.SetParent(standCanvasObj.transform, false);
+            stObj.transform.SetParent(safeArea.transform, false);
             _standingText = stObj.AddComponent<Text>();
             _standingText.alignment = TextAnchor.UpperLeft;
             _standingText.fontSize = 17;
@@ -907,11 +954,11 @@ namespace DestinyGarden.Presentation
                 else
                 {
                     var recent = new List<string>(c.RolledRecipes);
-                    var presence = Ecology.Presence(c.State, c.CurrentWeather, recent, null);
-                    var kinds = new HashSet<string>();
-                    foreach (var v in presence) kinds.Add(v.Kind);
-                    int harmony = Harmony.Read(recent, kinds.Count, Flora.BloomingSpecies(c.State)).Value;
-                    var (have, need) = Seasons.Progress(goalId, c.State, harmony, kinds.Contains(Ecology.Butterfly));
+                    var presence = c.UsesConnectedHabitats ? LivingEcosystem.IslandPresence(c.State, c.CurrentWeather)
+                        : Ecology.Presence(c.State, c.CurrentWeather, recent, null);
+                    int kinds = c.UsesConnectedHabitats ? CommunityRules.ResidentKinds(presence) : presence.Count;
+                    int harmony = Harmony.Read(recent, kinds, Flora.BloomingSpecies(c.State)).Value;
+                    var (have, need) = Seasons.Progress(goalId, c.State, harmony, presence.Exists(v => v.Kind == Ecology.Butterfly));
                     rows.Add($"<color=#cfe6dc>願い</color>　{g.LabelJa}　{Math.Min(have, need)}/{need}");
                 }
             }

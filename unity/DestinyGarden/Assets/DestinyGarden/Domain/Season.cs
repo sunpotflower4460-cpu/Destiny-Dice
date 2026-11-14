@@ -19,7 +19,10 @@ namespace DestinyGarden.Domain
     /// </summary>
     public static class Seasons
     {
-        public const string RulesVersion = "season.v2";
+        // v3: a season's wish for a stand (wetland, meadow, nectar, thicket) counts buds as well as flowers — measured in
+        // the living gardens, three flowers of a kind side by side came true in only 0–27% of seasons.
+        public const string RulesVersion = "season.v3";
+        public const int StandReach = 2; // season.v3: three of a kind within two cells of each other (a loose stand)
         public const int Length = 12;
         public const int BloomingTarget = 5;
         public const int HarmonyTarget = 7;
@@ -31,7 +34,7 @@ namespace DestinyGarden.Domain
             new SeasonGoal { Id = "wetland", LabelJa = "水辺の群落をつくる" },
             new SeasonGoal { Id = "meadow", LabelJa = "花の野をつくる" },
             new SeasonGoal { Id = "nectar", LabelJa = "蜜の花畑をつくる" },
-            new SeasonGoal { Id = "thicket", LabelJa = "実りの藪をつくる" },
+            new SeasonGoal { Id = "thicket", LabelJa = "種をこぼす草むらをつくる" }, // season.v3: berries and wind-sown seeds
             new SeasonGoal { Id = "harmony", LabelJa = "島の調和を7に" },
         };
 
@@ -56,7 +59,7 @@ namespace DestinyGarden.Domain
                 case "harmony": return (harmony, HarmonyTarget);
                 default:
                     var e = ElementOfGoal(id);
-                    return (e.HasValue ? Math.Min(Communities.MinSize, Communities.LargestCluster(s, e.Value)) : 0, Communities.MinSize);
+                    return (e.HasValue ? Math.Min(Communities.MinSize, Communities.LargestCluster(s, e.Value, true, StandReach)) : 0, Communities.MinSize);
             }
         }
 
@@ -75,6 +78,8 @@ namespace DestinyGarden.Domain
                 case "butterfly": return butterflies;
                 case "harmony": return harmony >= HarmonyTarget;
                 default:
+                    var e = ElementOfGoal(id);
+                    if (e.HasValue && Communities.LargestCluster(s, e.Value, true, StandReach) >= Communities.MinSize) return true;
                     if (communities != null)
                         foreach (var c in communities) if (c.Kind == id) return true;
                     return false;
@@ -85,14 +90,20 @@ namespace DestinyGarden.Domain
         /// The goal of a season: the goals the garden does not yet meet (judged on the state before the season's
         /// first roll), turned by the season index. If it already meets all of them, the list turns the same way.
         /// </summary>
-        public static SeasonGoal Pick(int seasonIndex, WorldState before, IList<string> recentRecipeIds, WeatherDefinition weather)
+        public static SeasonGoal Pick(int seasonIndex, WorldState before, IList<string> recentRecipeIds, WeatherDefinition weather) =>
+            Pick(seasonIndex, before, recentRecipeIds, weather, false);
+
+        public static SeasonGoal Pick(int seasonIndex, WorldState before, IList<string> recentRecipeIds,
+            WeatherDefinition weather, bool connectedHabitats)
         {
             var communities = Communities.Find(before);
-            var presence = Ecology.Presence(before, weather, recentRecipeIds, null);
+            var presence = before.Ecosystem == null ? Ecology.Presence(before, weather, recentRecipeIds, null)
+                : connectedHabitats ? LivingEcosystem.IslandPresence(before, weather) : LivingEcosystem.Presence(before, weather, null);
             bool butterflies = presence.Exists(v => v.Kind == Ecology.Butterfly);
             var kinds = new HashSet<string>();
             foreach (var v in presence) kinds.Add(v.Kind);
-            int harmony = Harmony.Read(recentRecipeIds, kinds.Count, Flora.BloomingSpecies(before)).Value;
+            int residentCount = connectedHabitats ? CommunityRules.ResidentKinds(presence) : kinds.Count;
+            int harmony = Harmony.Read(recentRecipeIds, residentCount, Flora.BloomingSpecies(before)).Value;
             var open = new List<SeasonGoal>();
             foreach (var g in All)
             {
@@ -103,7 +114,16 @@ namespace DestinyGarden.Domain
                 if (e.HasValue && !Communities.CanBegin(before, e.Value)) continue;
                 open.Add(g);
             }
-            var from = open.Count > 0 ? open : new List<SeasonGoal>(All);
+            // When every possible wish is already met, the season asks again for one the island can give (never for a
+            // stand it has nothing to begin with — season.v3).
+            var from = open;
+            if (from.Count == 0)
+                foreach (var g in All)
+                {
+                    var e = ElementOfGoal(g.Id);
+                    if (!e.HasValue || Communities.CanBegin(before, e.Value)) from.Add(g);
+                }
+            if (from.Count == 0) from = new List<SeasonGoal>(All);
             return from[Math.Max(0, seasonIndex) % from.Count];
         }
     }

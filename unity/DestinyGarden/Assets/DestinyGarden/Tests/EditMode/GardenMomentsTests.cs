@@ -62,6 +62,18 @@ namespace DestinyGarden.Tests
             var moment = Read(Soil(), Link("algae-eaten", actor: CommunityRules.Tadpole, species: null), Link("algae-grew", 86, CommunityRules.Algae, null)).Single(m => m.CellId == 85);
             Assert.That(moment.Headline, Does.Not.Contain("育った水辺")); Assert.IsNull(moment.Detail);
         }
+
+        [TestCase("algae-eaten", CommunityRules.Tadpole, "オタマジャクシ")]
+        [TestCase("pond-prey-eaten", CommunityRules.Nymph, "ヤゴ")]
+        public void AYoungMealFromTheNextPool_UsesTheRecordedPlace(string kind, string actor, string animal)
+        {
+            var meal = Link(kind, actor: actor, species: null);
+            meal.FromCell = 84;
+            var moment = Read(Soil(800), meal, Link("care-algae", 84, "light_beam", null)).Single(m => m.CellId == 85);
+            Assert.That(moment.Headline, Does.Contain(animal).And.Contain("隣の水辺"));
+            Assert.AreEqual(84, moment.FromCell);
+            Assert.IsNull(moment.Detail);
+        }
         [Test]
         public void RecoveryCanBeJoinedToActualPredationOnTheSameLeaf()
         {
@@ -133,8 +145,8 @@ namespace DestinyGarden.Tests
 
         [TestCase("Germinated", PlantStage.Sprout, 250, 5, "芽を出した")]
         [TestCase("LeafOpened", PlantStage.Leaf, 754, 5, "葉を開いた")]
-        [TestCase("BudFormed", PlantStage.Bud, 1515, 16, "蕾ができた")]
-        [TestCase("Bloomed", PlantStage.Flower, 2500, 1, "花を開いた")]
+        [TestCase("BudFormed", PlantStage.Bud, 1515, 16, "つぼみがついた")]
+        [TestCase("Bloomed", PlantStage.Flower, 2500, 1, "咲いた")]
         public void ARecordedGiftThatCrossesTheThreshold_NamesTheSamePlantAndStage(
             string kind, PlantStage stage, int finalGrowth, int gift, string action)
         {
@@ -202,17 +214,42 @@ namespace DestinyGarden.Tests
         }
 
         [Test]
-        public void TheSceneIsNotAlwaysTheFirstCellOrTheHappiestEvent_AndEachCellHasOneMoment()
+        public void ANewSproutLeadsWhileARecordedLossStillHasItsOwnScene()
         {
             var events = new[] { Link("nectar-fed", 85), Link("pollinated", 85), Link("brood-lost", 86, LivingEcosystem.Frog, null), Link("seed-awakened", 87) };
             var a = Read(Soil(), events); var b = Read(Soil(), events.Reverse().ToArray());
-            Assert.AreEqual("brood-lost", a[0].Kind); Assert.AreEqual(a.Count, a.Select(x => x.CellId).Distinct().Count()); Assert.AreEqual(Signature(a), Signature(b));
+            Assert.AreEqual("seed-awakened", a[0].Kind);
+            Assert.That(a.Select(moment => moment.Kind), Does.Contain("brood-lost"));
+            Assert.AreEqual(a.Count, a.Select(x => x.CellId).Distinct().Count());
+            Assert.AreEqual(Signature(a), Signature(b));
+        }
+
+        [Test]
+        public void AnOpenFlowerLeadsOverLossesAndOtherGrowth_WhileAFadedFlowerDoesNot()
+        {
+            var state = Soil();
+            var flower = Plant(state, 85, PlantStage.Flower);
+            var bud = Plant(state, 86, PlantStage.Bud, "wildrose");
+            var ecology = new EcologyResult { PostState = state };
+            ecology.Events.Add(new GardenEvent { Kind = "Bloomed", CellId = flower.CellId, PlantId = flower.PlantId });
+            ecology.Events.Add(new GardenEvent { Kind = "BudFormed", CellId = bud.CellId, PlantId = bud.PlantId });
+            ecology.Relations.Add(Link("brood-lost", 87, Ecology.Dragonfly, null));
+            var outcome = new RollOutcome { Ecology = ecology };
+
+            var moments = GardenMoments.FromOutcome(outcome);
+            Assert.That(moments.Select(moment => moment.Kind), Is.EqualTo(new[] { "Bloomed", "BudFormed", "brood-lost" }));
+            Assert.AreEqual("デイジーが咲いた。", moments[0].Headline);
+            Assert.AreEqual("p:" + flower.PlantId, moments[0].MemoryKey);
+
+            flower.Stage = PlantStage.Leaf;
+            Assert.That(GardenMoments.FromOutcome(outcome).Select(moment => moment.Kind),
+                Is.EqualTo(new[] { "BudFormed", "brood-lost" }));
         }
         [Test]
         public void AQuietRollOnlyReportsItsRecordedOperation_WithoutMakingUpASuccess()
         {
             var a = GardenMoments.Read(Soil(), new EcologicalLink[0], new GardenEvent[0], "wind_passage", "r").Single();
-            Assert.AreEqual(-1, a.CellId); Assert.That(a.Headline, Does.Contain("面が出た")); Assert.That(a.Headline, Does.Not.Contain("種"));
+            Assert.AreEqual(-1, a.CellId); Assert.AreEqual("「強い風を送る」の面が出た。", a.Headline);
             var b = GardenMoments.Read(Soil(), new EcologicalLink[0], new GardenEvent[0], "water_drop", "r", diceWater: 1200).Single();
             Assert.That(b.Headline, Does.Contain("注がれた")); Assert.That(b.Headline, Does.Not.Contain("水辺が生まれ"));
         }

@@ -15,6 +15,20 @@ namespace DestinyGarden.Tests
     public class PresentationTests
     {
         [Test]
+        public void SignLabels_AreNumbersAndNames()
+        {
+            var triple = PrayerStar.Read(5, 5, "water_drop", "water_drop", false, 0, -1, 0, 0, 2, 72);
+            var lines = PrayerStarSigil.SignLabels(triple, 5, false);
+            CollectionAssert.AreEqual(new[] { "555", "三つぞろい", "", "" }, lines[0]);
+            CollectionAssert.AreEqual(new[] { "77", "出目の合計", "", "" }, lines[1], "72 + 5 = 77");
+            var zorome = PrayerStar.Read(2, 2, "water_drop", "water_drop", false, 0, -1, 0, 0, 1, 10);
+            CollectionAssert.AreEqual(new[] { "22", "ゾロ目", "", "" }, PrayerStarSigil.SignLabels(zorome, 2, false)[0]);
+            var plain = PrayerStar.Read(4, 1, "water_drop", "water_drop", false, 0, -1, 0, 0, 1, 10);
+            CollectionAssert.AreEqual(new[] { "4", "願いの目", "", "" }, PrayerStarSigil.SignLabels(plain, 4, true)[0]);
+            Assert.AreEqual(0, PrayerStarSigil.SignLabels(plain, 4, false).Count);
+        }
+
+        [Test]
         public void LuckyDots_ShowTheCountWithoutWords()
         {
             string dots = PrayerStarSigil.LuckyDots(3);
@@ -44,6 +58,31 @@ namespace DestinyGarden.Tests
         }
 
         [Test]
+        public void SafeAreaMovesControlsWithTheCutoutAndKeepsTheHomeBarClear()
+        {
+            var root = new GameObject("Safe area test", typeof(RectTransform));
+            try
+            {
+                var layout = (RectTransform)root.transform;
+                var screen = new Vector2(1000f, 500f);
+                GardenSafeArea.Apply(layout, new Rect(60f, 20f, 900f, 480f), screen);
+                Assert.That(Vector2.Distance(new Vector2(0.06f, 0.04f), layout.anchorMin), Is.LessThan(0.0001f));
+                Assert.That(Vector2.Distance(new Vector2(0.96f, 1f), layout.anchorMax), Is.LessThan(0.0001f));
+                Assert.AreEqual(Vector2.zero, layout.offsetMin);
+                Assert.AreEqual(Vector2.zero, layout.offsetMax);
+
+                GardenSafeArea.Apply(layout, new Rect(40f, 20f, 900f, 480f), screen);
+                Assert.That(layout.anchorMin.x, Is.EqualTo(0.04f).Within(0.0001f));
+                Assert.That(layout.anchorMax.x, Is.EqualTo(0.94f).Within(0.0001f));
+
+                GardenSafeArea.Apply(layout, Rect.zero, screen);
+                Assert.AreEqual(Vector2.zero, layout.anchorMin);
+                Assert.AreEqual(Vector2.one, layout.anchorMax);
+            }
+            finally { UnityEngine.Object.DestroyImmediate(root); }
+        }
+
+        [Test]
         public void GardenStartsWithThreeActions_AndPanelsDoNotSendARoll()
         {
             var root = new GameObject("Garden UI test");
@@ -60,11 +99,30 @@ namespace DestinyGarden.Tests
                 ui.ShowFaces(faces, 0);
                 ui.ShowTitleCard(true, opening: true);
                 Button Find(string name) => root.GetComponentsInChildren<Button>().Single(button => button.name == "Chip_" + name);
-                Find("庭に入る").onClick.Invoke();
+                var opening = root.transform.Find("Canvas/TitleCard/TitleSafeArea/Opening");
+                var motifs = opening.Find("Opening blessings").GetComponentsInChildren<Image>();
+                CollectionAssert.AreEqual(new[] { "Water", "Wind", "Star", "Seed", "Soil", "Flower", "Moon", "Rainbow" },
+                    motifs.Select(image => image.sprite.name));
+                Assert.IsFalse(motifs.Any(image => image.raycastTarget));
+                var enter = opening.GetComponentsInChildren<Button>().Single();
+                var entryLabel = enter.GetComponentInChildren<Text>();
+                Assert.AreEqual("小さな庭をひらく", entryLabel.text);
+                Assert.That(entryLabel.preferredWidth, Is.LessThanOrEqualTo(entryLabel.rectTransform.rect.width));
+                ui.ShowOpeningProgress(1);
+                Assert.AreEqual("小さな庭をひらく", entryLabel.text);
+                ui.ShowOpeningProgress(2);
+                Assert.AreEqual("庭のつづきへ", entryLabel.text);
+                ui.ShowOpeningProgress(0);
+                Assert.AreEqual("小さな庭をひらく", entryLabel.text);
+                enter.onClick.Invoke();
+                Assert.IsFalse(ui.TitleCardOpen);
+                Assert.AreEqual(0, rolls);
 
                 var controls = root.transform.Find("Canvas/GardenControls");
                 Assert.That(controls.GetComponentsInChildren<Button>().Length, Is.EqualTo(3));
-                Assert.IsEmpty(controls.Find("PublishedFaces").GetComponentsInChildren<Button>());
+                var strip = controls.Find("PublishedFaces");
+                Assert.IsEmpty(strip.GetComponentsInChildren<Button>());
+                Assert.That(controls.GetComponentsInChildren<Text>().Length, Is.EqualTo(9));
                 var roll = Find("サイコロを振る");
                 roll.onClick.Invoke();
                 Assert.AreEqual(1, rolls);
@@ -89,16 +147,41 @@ namespace DestinyGarden.Tests
                 Assert.IsTrue(controls.GetComponent<CanvasGroup>().blocksRaycasts);
 
                 ui.ShowLuckyOffer(true);
+                Assert.IsNotNull(Find("七つめの面を加える").targetGraphic.transform.Find("Seventh face glow"));
                 Find("七つめの面を加える").onClick.Invoke();
                 Assert.AreEqual(1, offers);
                 ui.ShowLuckyOffer(false);
-                var luckyFaces = faces.Concat(new[] { "light_soft" }).ToArray();
+                var luckyFaces = faces.Concat(new[] { "water_drop" }).ToArray();
                 ui.ShowFaces(luckyFaces, 0, 7);
-                var published = controls.Find("PublishedFaces").GetComponentsInChildren<Text>();
+                var published = strip.GetComponentsInChildren<Text>();
                 Assert.That(published.Length, Is.EqualTo(7));
-                Assert.AreEqual("7  柔らかい光×2", published[6].text);
-                Assert.That(published[6].preferredWidth, Is.LessThanOrEqualTo(published[6].rectTransform.rect.width));
+                CollectionAssert.AreEqual(new[] { "1 土に水を注ぐ", "2 雨を降らせる", "3 そよ風を送る", "4 強い風を送る",
+                    "5 周りを照らす", "6 一点を照らす", "7 土に水を注ぐ×2" }, published.Select(label => label.text));
+                foreach (var label in published)
+                    Assert.That(label.preferredWidth, Is.LessThanOrEqualTo(label.rectTransform.rect.width), label.text);
+                var wishBackings = strip.GetComponentsInChildren<Image>(true).Where(image => image.name == "Wished face").ToArray();
+                Assert.That(wishBackings.Where(image => image.gameObject.activeInHierarchy),
+                    Is.EqualTo(new[] { wishBackings[6] }));
+                ui.ShowIntentSelection("family", "water");
+                ui.ShowFaces(faces, 1);
+                Assert.That(wishBackings.Where(image => image.gameObject.activeInHierarchy),
+                    Is.EqualTo(wishBackings.Take(2)));
+                ui.ShowIntentSelection("none", null);
+                ui.ShowFaces(faces, 0);
+                Assert.IsFalse(wishBackings.Any(image => image.gameObject.activeInHierarchy));
                 Assert.That(controls.GetComponentsInChildren<Button>().Length, Is.EqualTo(3));
+
+                ui.ShowFaces(new[] { "seed_single", "seed_scatter" }.Concat(faces.Skip(2)).ToArray(), 0);
+                Assert.AreEqual("1 種を1粒まく", strip.GetComponentsInChildren<Text>()[0].text);
+                Assert.AreEqual("2 種を2粒まく", strip.GetComponentsInChildren<Text>()[1].text);
+                Find("願いをかける").onClick.Invoke();
+                foreach (var label in strip.GetComponentsInChildren<Text>())
+                {
+                    var wishChoice = root.GetComponentsInChildren<Button>()
+                        .Select(button => button.GetComponentInChildren<Text>()).SingleOrDefault(text => text != null && text.text == label.text);
+                    Assert.IsNotNull(wishChoice, label.text);
+                    Assert.That(wishChoice.preferredWidth, Is.LessThanOrEqualTo(wishChoice.rectTransform.rect.width), label.text);
+                }
             }
             finally
             {
@@ -168,9 +251,13 @@ namespace DestinyGarden.Tests
                     Habitat = "水辺"
                 };
                 ui.ShowMessage(null, outcome, moment);
-                var caption = card.Find("Moment caption").GetComponent<Text>();
+                var headline = card.Find("Moment headline").GetComponent<Text>();
+                var habitat = card.Find("Moment habitat").GetComponent<Text>();
                 var mark = card.Find("Blessing seal/Blessing mark").GetComponent<Image>();
-                Assert.AreEqual("1投目　·　2の目「しずく」　/　水辺", caption.text);
+                Assert.AreEqual(moment.Headline, headline.text);
+                Assert.AreEqual("水辺", habitat.text);
+                Assert.That(card.GetComponentsInChildren<Text>(), Is.EquivalentTo(new[] { headline, habitat }));
+                Assert.That(800f - ((RectTransform)card).rect.width * 0.5f, Is.GreaterThanOrEqualTo(360f));
                 Assert.AreEqual("Water", mark.sprite.name);
                 Assert.AreEqual(1f, card.GetComponent<CanvasGroup>().alpha);
                 Assert.IsFalse(card.GetComponent<CanvasGroup>().blocksRaycasts);
@@ -180,7 +267,10 @@ namespace DestinyGarden.Tests
                 ui.SetRollEnabled(false);
                 Assert.IsFalse(card.gameObject.activeSelf);
                 ui.ShowMessage(null, null, moment);
-                Assert.AreEqual(moment.Caption, caption.text);
+                Assert.AreEqual(moment.Headline, headline.text);
+                moment.Habitat = null;
+                ui.ShowMessage(null, null, moment);
+                Assert.IsFalse(habitat.gameObject.activeSelf);
             }
             finally
             {

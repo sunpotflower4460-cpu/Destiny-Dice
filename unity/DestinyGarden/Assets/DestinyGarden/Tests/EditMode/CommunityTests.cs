@@ -121,6 +121,153 @@ namespace DestinyGarden.Tests
             Assert.AreEqual(2, s.Ecosystem.Litter[c]);
         }
 
+        [TestCase(LivingEcosystem.Frog, "algae-eaten", CommunityRules.Tadpole)]
+        [TestCase(Ecology.Dragonfly, "pond-prey-eaten", CommunityRules.Nymph)]
+        public void AConnectedNurseryUsesNeighbouringFoodButCannotReachAnIsolatedPool(string kind, string meal, string young)
+        {
+            var s = Soil(800);
+            var cells = Cluster();
+            int home = cells[0], neighbour = cells[1], separated = cells[2];
+            foreach (int c in cells) s.Ecosystem.WetAge[c] = 6;
+            s.Ecosystem.CoverAge[home] = 8;
+            var m = s.Ecosystem.Succession.Community;
+            var food = kind == LivingEcosystem.Frog ? m.Algae : m.AquaticPrey;
+            food[neighbour] = 1;
+            food[separated] = 6;
+            s.Ecosystem.Aphids[home] = 2;
+            var f = Family(s, kind, home, brood: 1, age: 1);
+            var r = Result(s);
+
+            CommunityRules.AfterActivity(s, r, true);
+
+            var feeding = r.Relations.Single(link => link.Kind == meal && link.Actor == young);
+            Assert.AreEqual(home, feeding.FromCell);
+            Assert.AreEqual(neighbour, feeding.ToCell);
+            Assert.AreEqual(2, f.BroodAge);
+            Assert.AreEqual(0, food[neighbour]);
+            Assert.AreEqual(6, food[separated]);
+
+            s.SoilWater[neighbour] = 0;
+            s.Ecosystem.Aphids[home] = 1;
+            food[neighbour] = 6;
+            CommunityRules.AfterActivity(s, Result(s), true);
+            Assert.AreEqual(2, f.BroodAge);
+            Assert.AreEqual(1, f.NurseryHunger);
+            Assert.AreEqual(6, food[neighbour]);
+            Assert.AreEqual(6, food[separated]);
+        }
+
+        [TestCase(1, 8, 1)]
+        [TestCase(2, 2, 0)]
+        [TestCase(2, 8, 2)]
+        public void AquaticBroodSizeDependsOnLocalFoodAndReplenishment(int wetCells, int stock, int expected)
+        {
+            var s = Soil(800);
+            var cells = Cluster();
+            int home = cells[0];
+            s.Ecosystem.CoverAge[home] = 8;
+            s.Ecosystem.Aphids[home] = 2;
+            var m = s.Ecosystem.Succession.Community;
+            for (int i = 0; i < wetCells; i++)
+            {
+                s.Ecosystem.WetAge[cells[i]] = 6;
+                s.Ecosystem.Nutrients[cells[i]] = 5;
+            }
+            m.AquaticPrey[home] = stock;
+            var f = Family(s, Ecology.Dragonfly, home);
+
+            CommunityRules.AfterActivity(s, Result(s), true);
+
+            Assert.AreEqual(expected, f.Brood);
+            Assert.AreEqual(stock, m.AquaticPrey[home], "the adult used the aphid, leaving nursery food");
+        }
+
+        [Test]
+        public void LadybirdLarvaeCanFeedTwoCellsAwayFromTheirHost()
+        {
+            var s = Soil();
+            var cells = Cluster();
+            int home = cells[0], food = cells[2];
+            Plant(s, home, "clover", false);
+            s.Ecosystem.Aphids[food] = 4;
+            var family = Family(s, LivingEcosystem.Ladybird, home, brood: 1, age: 1);
+            var result = Result(s);
+
+            CommunityRules.AfterActivity(s, result, true);
+
+            var meal = result.Relations.Single(link => link.Kind == "predation");
+            Assert.AreEqual(CommunityRules.LadybirdLarva, meal.Actor);
+            Assert.AreEqual(home, meal.FromCell);
+            Assert.AreEqual(food, meal.ToCell);
+            Assert.AreEqual(3, s.Ecosystem.Aphids[food]);
+            Assert.AreEqual(2, family.BroodAge);
+        }
+
+        [Test]
+        public void ManagedAdultsAppearAtHomeEvenWhenTheyCannotVisitFlowers()
+        {
+            var s = Soil();
+            int home = Cluster()[0];
+            Family(s, Ecology.Butterfly, home, brood: 1);
+            var drizzle = Weathers.All[(int)WeatherId.Drizzle];
+            var visits = LivingEcosystem.Presence(s, drizzle, null);
+            var presence = LivingEcosystem.IslandPresence(s, drizzle);
+
+            Assert.IsFalse(visits.Any(visit => visit.Kind == Ecology.Butterfly));
+            CollectionAssert.AreEqual(new[] { home }, presence.Single(visit => visit.Kind == Ecology.Butterfly).Cells);
+            Assert.AreEqual(1, CommunityRules.ResidentKinds(presence), "adult and egg belong to one kind");
+        }
+
+        [TestCase(Ecology.Butterfly, "cosmos")]
+        [TestCase(LivingEcosystem.Hoverfly, "daisy")]
+        public void ASettledPollinatorFindsAnotherFlowerAndPaysForTheMeal(string kind, string species)
+        {
+            var s = Soil();
+            var cells = Cluster();
+            Plant(s, cells[0], "clover", false);
+            var spent = Plant(s, cells[1], species);
+            s.Ecosystem.Succession.Flowers[spent.PlantId].Nectar = 0;
+            var flower = Plant(s, cells[2], species);
+            var family = Family(s, kind, cells[0]);
+
+            var rainy = Result(s);
+            CommunityRules.AfterActivity(s, rainy, true, Weathers.All[(int)WeatherId.Drizzle]);
+            Assert.IsFalse(rainy.Relations.Any(link => link.Kind == "nectar-fed"));
+            Assert.AreEqual(1, family.AdultHunger);
+
+            var clear = Result(s);
+            CommunityRules.AfterActivity(s, clear, true, Weathers.All[(int)WeatherId.Clear]);
+            var meal = clear.Relations.Single(link => link.Kind == "nectar-fed");
+            Assert.AreEqual(flower.CellId, meal.ToCell);
+            Assert.AreEqual(5, s.Ecosystem.Succession.Flowers[flower.PlantId].Nectar);
+            Assert.AreEqual(1, s.Ecosystem.Cycles[flower.PlantId].Pollen);
+            Assert.AreEqual(0, family.AdultHunger);
+        }
+
+        [Test]
+        public void RecordedHarmonyUsesTheIslandAfterTheStarOpensItsFourthFlower()
+        {
+            var s = Soil();
+            var cells = Cluster(4);
+            Plant(s, cells[0], "daisy");
+            Plant(s, cells[1], "poppy");
+            Plant(s, cells[2], "cosmos");
+            var bud = Plant(s, cells[3], "iris", false);
+            bud.Stage = PlantStage.Bud;
+            bud.Growth = 2490;
+            var context = Context(s);
+            context.ConnectedHabitats = true;
+            context.RecentRecipeIds = new[] { "water_drop", "wind_breeze", "light_soft", "seed_single" };
+            context.FaceId = 1;
+            var result = Ecology.Apply(s, context, new byte[64], null);
+            int residents = CommunityRules.ResidentKinds(result.FinalPresence);
+
+            Assert.AreEqual(3, Flora.BloomingSpecies(s));
+            Assert.AreEqual(4, Flora.BloomingSpecies(result.PostState));
+            Assert.AreEqual(Harmony.Read(context.RecentRecipeIds, residents, 3).Value + 1, result.Harmony.Value);
+            Assert.AreEqual(Harmony.ReadIsland(result.PostState, context.Weather, context.RecentRecipeIds).Value, result.Harmony.Value);
+        }
+
         [Test]
         public void Caterpillars_UseHostLeaves_AndPreserveTheLivingRoot()
         {

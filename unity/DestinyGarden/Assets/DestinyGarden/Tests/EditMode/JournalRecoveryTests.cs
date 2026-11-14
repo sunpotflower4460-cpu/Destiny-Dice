@@ -103,6 +103,18 @@ namespace DestinyGarden.Tests
             Assert.AreEqual(-12L, parsed["a"]);
             Assert.AreEqual(0L, parsed["b"]);
             Assert.Throws<FormatException>(() => new SimpleJsonParser("{\"a\":١٢}").Parse(), "only ASCII digits are numbers");
+            // The fast paths read exactly what the canonical writer wrote: escapes, unicode, the long range.
+            var original = new System.Collections.Generic.Dictionary<string, object>
+            {
+                ["plain"] = "庭の名前", ["escaped"] = "a\"b\\c\nd\u0001", ["max"] = long.MaxValue, ["min"] = long.MinValue,
+                ["small"] = 7L, ["neg"] = -64L, ["list"] = new System.Collections.Generic.List<object> { 0L, 2560L, 2561L, "x", null, true }
+            };
+            string text = CanonicalJson.Write(original);
+            var back = new SimpleJsonParser(text).Parse();
+            Assert.AreEqual(text, CanonicalJson.Write(back), "parse then write gives the same canonical text");
+            Assert.Throws<OverflowException>(() => new SimpleJsonParser("{\"a\":9223372036854775808}").Parse());
+            Assert.Throws<OverflowException>(() => new SimpleJsonParser("{\"a\":-9223372036854775809}").Parse());
+            Assert.Throws<FormatException>(() => new SimpleJsonParser("{\"a\":-}").Parse());
         }
     }
 }
