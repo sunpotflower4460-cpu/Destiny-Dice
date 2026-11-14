@@ -18,4 +18,5 @@
 - Chrome で16:9と4:3のタイトルの文字と瓶を確認した。初回の一投、願い、届け先、24投の保存から復帰して25投目を追加する操作を通した。25投目は動きを抑えた設定で実行し、札の出目と恵みの図柄を確認した。
 - 844×390のタッチ再現では、メニューを閉じたタップで投数が増えず、次のタップで一投だけが記録された。スマートフォン実機の確認は未実施。
 - 24投の保存の先頭からのバイト列が一致した。既存の macOS の保存21件は作業前後で SHA-256 が一致した。
+- Unity EditMode は `total=284 passed=284 failed=0`。出目の札が次の面の準備に引きずられず、次の一投の開始時に消えることを表示テストで確認した。
 - `dotnet test tools/ecology-check/Ecology.Check.csproj --configuration Release` は `241/241` 成功。`pnpm typecheck` は終了コード0、`pnpm test` は `183 passed (183)`、`pnpm build` は `✓ built in 807ms`。
