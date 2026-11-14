@@ -53,8 +53,6 @@ namespace DestinyGarden.Tests
             StringAssert.StartsWith("虹のかかる", GardenKeepsake.Name(s, null, 3, 0));
             StringAssert.StartsWith("幸運の灯る", GardenKeepsake.Name(s, null, 0, 7));
             StringAssert.StartsWith("虹を見た", GardenKeepsake.Name(s, null, 1, 0));
-            string keepsake = GardenKeepsake.SeasonKeepsake("コスモスの庭", 24, 5, 3, 1, 2);
-            Assert.AreEqual("〈コスモスの庭〉 24投・ラッキーナンバー 5・幸運の株 3・八の虹 1・叶った季節 2", keepsake);
         }
 
         [Test]

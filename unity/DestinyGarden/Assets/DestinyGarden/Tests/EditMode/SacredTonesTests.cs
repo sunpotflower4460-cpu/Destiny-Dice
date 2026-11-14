@@ -136,48 +136,8 @@ namespace DestinyGarden.Tests
         }
 
         [Test]
-        public void CauseLine_TellsWhereTheGiftWent_AndTheCycle()
-        {
-            var eco = new DestinyGarden.Domain.EcologyResult
-            {
-                PrayerStar = DestinyGarden.Domain.PrayerStar.Read(2, 1, "water_drop", "light_soft", false, 3)
-            };
-            eco.Effects.Add(new DestinyGarden.Domain.EcologyEffect { Kind = DestinyGarden.Domain.PrayerStar.GiftKind, CellId = 10, Amount = 16 });
-            eco.Effects.Add(new DestinyGarden.Domain.EcologyEffect { Kind = DestinyGarden.Domain.PrayerStar.GiftKind, CellId = 11, Amount = 16 });
-            Assert.AreEqual("星の恵みで 2株が一段育った　水の恵み → 乾いた土の株へ", PrayerStarSigil.CauseLine(eco));
-            var atSite = new DestinyGarden.Domain.EcologyResult
-            {
-                PrayerStar = DestinyGarden.Domain.PrayerStar.Read(1, 0, "light_soft", null, false, 3, DestinyGarden.Domain.Sites.ById("inlet").CenterCellId)
-            };
-            atSite.Effects.Add(new DestinyGarden.Domain.EcologyEffect { Kind = DestinyGarden.Domain.PrayerStar.GiftKind, CellId = 10, Amount = 60 });
-            Assert.AreEqual("星の恵み 1株に ＋60（入口のあたりから）　光の恵み → 日向を好む株へ", PrayerStarSigil.CauseLine(atSite));
-            eco.Effects.Add(new DestinyGarden.Domain.EcologyEffect { Kind = DestinyGarden.Domain.Lifecycle.ReturnKind, CellId = 20 });
-            StringAssert.EndsWith("花がひとつ土に還り、となりを養った", PrayerStarSigil.CauseLine(eco));
-            eco.Effects.Add(new DestinyGarden.Domain.EcologyEffect { Kind = DestinyGarden.Domain.Lifecycle.FruitKind, CellId = 20, Seed = true });
-            StringAssert.EndsWith("受粉した花が土に還り、実りを落とした", PrayerStarSigil.CauseLine(eco));
-            Assert.IsNull(PrayerStarSigil.CauseLine(new DestinyGarden.Domain.EcologyResult()), "no star, no line");
-        }
-
-        [Test]
-        public void LuckyOdds_FollowTheFacesOnTheDie()
-        {
-            // The chance of any lucky number this round: the face that makes seven, and the 7 on a seven-face die.
-            Assert.AreEqual("前の目 3 と今の目 4 で七　・　偶然なら 1/6（4 の目）", PrayerStarSigil.LuckyOddsLine(4, 3, 6));
-            Assert.AreEqual("前の目 3 と今の目 4 で七　・　偶然なら 2/7（4 と 7 の目）", PrayerStarSigil.LuckyOddsLine(4, 3, 7),
-                "a seventh face: two of seven faces are lucky");
-            Assert.AreEqual("七の目　・　偶然なら 2/7（5 と 7 の目）", PrayerStarSigil.LuckyOddsLine(7, 2, 7));
-            Assert.AreEqual("七の目　・　偶然なら 1/7（7 の目）", PrayerStarSigil.LuckyOddsLine(7, 7, 7), "after a seven only the 7 is lucky");
-        }
-
-        [Test]
         public void LuckyWords_AreGold_AndCountTowardSeven()
         {
-            string hint = PrayerStarSigil.HintLine(3, 9);
-            StringAssert.Contains("<color=" + PrayerStarSigil.Gold + ">4</color>", hint, "the face that makes seven shines");
-            StringAssert.Contains("<color=" + PrayerStarSigil.Gold + ">ラッキーナンバー</color>", hint);
-            StringAssert.Contains("いま 2/7", hint, "nine lucky numbers: two toward the next seven");
-            Assert.IsNull(PrayerStarSigil.HintLine(7, 3), "nothing makes seven after a seven");
-
             // The label is the event itself: the number, its name, and the two faces that made it — no explanation.
             var seventh = DestinyGarden.Domain.PrayerStar.Read(4, 3, "water_drop", "seed_single", false, 0, -1, 6, 0);
             var lines = PrayerStarSigil.LuckyLabelLines(seventh, seventh.Points, 4, 3, 6);

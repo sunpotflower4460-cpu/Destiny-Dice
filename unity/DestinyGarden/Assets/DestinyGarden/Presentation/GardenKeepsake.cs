@@ -132,16 +132,5 @@ namespace DestinyGarden.Presentation
             string list = string.Join("・", shown);
             return names.Count > CardNames ? list + $" ほか{names.Count - CardNames}" : list;
         }
-
-        /// <summary>The keepsake line at the end of a season: the name and what this garden's luck has brought.</summary>
-        public static string SeasonKeepsake(string name, int rolls, int luckyCount, int luckyPlants, int rainbows, int seasonsMet)
-        {
-            var parts = new List<string> { $"〈{name}〉 {rolls}投" };
-            parts.Add($"ラッキーナンバー {luckyCount}");
-            if (luckyPlants > 0) parts.Add($"幸運の株 {luckyPlants}");
-            if (rainbows > 0) parts.Add($"八の虹 {rainbows}");
-            if (seasonsMet > 0) parts.Add($"叶った季節 {seasonsMet}");
-            return string.Join("・", parts);
-        }
     }
 }

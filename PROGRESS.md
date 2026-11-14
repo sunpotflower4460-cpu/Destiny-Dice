@@ -3464,3 +3464,13 @@ Unity metadata: 76 C# files have meta; 103 unique GUIDs
 
 - 48投目に自動で開く流れは、フェーズ7の通しプレイで確認する。
 - 12投ごとの願いの選び方を生態の季節に合わせる（season.v4）は未実施。
+
+## Garden 仕上げ — 説明文の片づけ・遊び方・検証で見つかった2件（2026-11-14）
+
+- 画面に出なくなった説明文の関数（CauseLine・WishLine・HintLine・SeasonLine・YearLine・FirstTimeTip・LuckyOddsLine・KeepsakeLine・SeasonKeepsake）とそのテストを削除（約200行）。
+- 「遊び方」を5行で今の遊びに合わせた（面を押して祈る、金の星と二つの点、48投ごとの庭のしおり）。
+- Codex の検証（worklogs/system/final-verification-2026-11-14.md）の2件を修正:
+  - 幸運の株の印は、星の恵みで実際に育った最初の株に付ける（負荷で恵みを受け取れない株には付かない）。
+  - 一投の前後の準備・願いの保存に失敗しても、振るボタンが戻り、次に押したとき保存済みのところから準備をやり直す（`GardenBootstrap.TrySave`）。
+- Unity 全 EditMode 362 passed（固定ハッシュ含む）。
+- 申し送り: 合計77・三つぞろいで「つぼみがすべて咲く」は、負荷の高い（土や水が合わない）つぼみを除く。合わない場所のつぼみは開かない、という因果としてそのままにした。保存失敗の画面での再現確認は Codex の注入試験に委ねる。

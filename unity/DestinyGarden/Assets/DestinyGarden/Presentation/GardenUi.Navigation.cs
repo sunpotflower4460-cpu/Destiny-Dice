@@ -141,10 +141,10 @@ namespace DestinyGarden.Presentation
                 new Vector2(704f, 260f), 24, TextAnchor.UpperLeft);
             help.lineSpacing = 1.35f;
             help.text = "「サイコロを振る」で、水・風・光・種が庭に届きます。\n" +
-                "「願いをかける」で、恵みや面を選べます。\n" +
-                "届け先の変更は、次の一投の準備から反映されます。\n" +
+                "下の面を押すと、その面に願いがかかります。\n" +
+                "金の星は7になる面、二つの点はゾロ目になる面。\n" +
                 "ドラッグで見回し、ホイールや二本指で近づけます。\n" +
-                "「庭を観察」で、出来事を振り返れます。";
+                "48投ごとに「庭のしおり」が届きます。";
             _helpPanel.SetActive(false);
             _panelLayer.SetActive(false);
             return panels;

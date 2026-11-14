@@ -253,14 +253,17 @@ namespace DestinyGarden.Domain
                 context.LuckyCountBefore, context.LuckyStreakBefore, context.SameRunBefore, context.FaceTotalBefore, !context.NoWish);
             result.PrayerStar = star;
             var recipients = Recipients(result.PostState, star);
+            PlantState marked = null;
             foreach (int cell in recipients)
-                nourish(cell, GiftFor(star, result.PostState.PlantAt(cell).Growth));
-            // prayer-star.v4: a lucky number leaves its mark on the plant its gift reached first (the lucky plant).
-            if (star.LuckyNumber && recipients.Count > 0)
             {
-                var first = result.PostState.PlantAt(recipients[0]);
-                if (first != null) { first.LuckyMarks++; star.LuckyPlantCellId = first.CellId; }
+                var plant = result.PostState.PlantAt(cell);
+                int before = plant.Growth;
+                nourish(cell, GiftFor(star, before));
+                // prayer-star.v4: a lucky number leaves its mark on the first plant its gift reached (the lucky plant);
+                // v6: one that really grew from it (a plant too stressed to take the gift is passed over).
+                if (marked == null && star.LuckyNumber && plant.Growth > before) marked = plant;
             }
+            if (marked != null) { marked.LuckyMarks++; star.LuckyPlantCellId = marked.CellId; }
         }
 
         /// <summary>

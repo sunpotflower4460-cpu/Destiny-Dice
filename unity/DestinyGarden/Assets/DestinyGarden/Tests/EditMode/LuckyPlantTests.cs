@@ -50,6 +50,8 @@ namespace DestinyGarden.Tests
                     marked++;
                     Assert.IsTrue(star.LuckyNumber, "only a lucky number marks a plant");
                     Assert.GreaterOrEqual(post.PlantAt(star.LuckyPlantCellId).LuckyMarks, 1);
+                    Assert.IsTrue(o.Ecology.Effects.Any(e => e.Kind == PrayerStar.GiftKind && e.CellId == star.LuckyPlantCellId && e.Amount > 0),
+                        "the marked plant really grew from the star's gift (prayer-star.v6)");
                     Assert.AreEqual(survivingBefore + 1, survivingAfter, "one mark per lucky number");
                 }
                 else Assert.AreEqual(survivingBefore, survivingAfter, "no lucky number, no new mark");

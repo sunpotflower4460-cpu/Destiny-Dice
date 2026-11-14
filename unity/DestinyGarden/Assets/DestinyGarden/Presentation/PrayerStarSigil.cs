@@ -695,23 +695,6 @@ namespace DestinyGarden.Presentation
                     }, 1);
         }
 
-        /// <summary>
-        /// The lucky number and its honest chance: one face out of the faces on the die this round
-        /// (1/6, or 1/7 when the seventh face was added).
-        /// </summary>
-        public static string LuckyOddsLine(int faceId, int previousFaceId, int faceCount)
-        {
-            // Honest odds of a lucky number this round: the face that makes seven with the previous one, and on a
-            // seven-face round the 7 as well (2/7). (Previously each face's own 1/n was shown, understating 2/7.)
-            int n = Mathf.Max(1, faceCount);
-            int k = PrayerStar.FaceCompletingSeven(previousFaceId);
-            bool seven = faceCount >= LuckySeven.FaceId;
-            int lucky = (k > 0 ? 1 : 0) + (seven ? 1 : 0);
-            string which = k > 0 && seven ? $"{k} と 7 の目" : k > 0 ? $"{k} の目" : "7 の目";
-            string odds = $"偶然なら {Mathf.Max(1, lucky)}/{n}（{which}）";
-            return faceId == LuckySeven.FaceId ? $"七の目　・　{odds}" : $"前の目 {previousFaceId} と今の目 {faceId} で七　・　{odds}";
-        }
-
         private Color GlintColor(int points) =>
             points >= 8 ? RainbowColors[UnityEngine.Random.Range(0, RainbowColors.Length)] : StarColor(points);
 
@@ -876,68 +859,6 @@ namespace DestinyGarden.Presentation
             _causeText.color = new Color(0.95f, 0.93f, 0.84f, 0.92f);
         }
 
-        /// <summary>
-        /// One line of what this roll set going, from the saved effects only: where the star's gift went
-        /// (by the rolled blessing) and the cycle of the garden (a flower returned; a pollinated one let its seed fall).
-        /// </summary>
-        public static string CauseLine(EcologyResult eco)
-        {
-            if (eco == null || eco.PrayerStar == null) return null;
-            int gifts = 0, fruit = 0, returned = 0, plain = 0, withered = 0;
-            foreach (var e in eco.Effects)
-            {
-                if (e.Kind == PrayerStar.GiftKind && e.Amount > 0) gifts++;
-                if (e.Kind == Lifecycle.FruitKind) fruit++;
-                if (e.Kind == Lifecycle.ReturnKind) returned++;
-                if (e.Kind == Lifecycle.WitherKind) withered++;
-            }
-            plain = returned - fruit;
-            var parts = new List<string>();
-            if (gifts > 0)
-            {
-                var star = eco.PrayerStar;
-                string what = star.GiftGrowth > 0 ? $"星の恵み {gifts}株に ＋{star.GiftGrowth}"
-                    : star.Points == 7 && star.LuckyStreak >= 2 ? $"<color={Gold}>ダブル ラッキーナンバー</color>で {gifts}株が一段育った"
-                    : star.Points == 7 ? $"<color={Gold}>ラッキーナンバー</color>で {gifts}株が半段育った"
-                    : $"星の恵みで {gifts}株が一段育った";
-                string site = null;
-                if (star.Points < 8)
-                    foreach (var st in Sites.All) if (st.CenterCellId == star.AnchorCellId) site = st.LabelJa;
-                string where = !star.HasElement ? "若い芽へ"
-                    : star.Element == ElementId.Water ? "水の恵み → 乾いた土の株へ"
-                    : star.Element == ElementId.Light ? "光の恵み → 日向を好む株へ"
-                    : star.Element == ElementId.Wind ? "風の恵み → 蜂や蝶に好かれる株へ"
-                    : "種の恵み → いちばん若い芽へ";
-                parts.Add(what + (site != null ? $"（{site}のあたりから）" : "") + "　" + where);
-            }
-            if (eco.PrayerStar.LuckyNumber && eco.PrayerStar.LuckyPlantCellId >= 0 && eco.PostState != null)
-            {
-                var lucky = eco.PostState.PlantAt(eco.PrayerStar.LuckyPlantCellId);
-                var lt = lucky != null ? Flora.Get(lucky.Species) : null;
-                if (lucky != null)
-                    parts.Add(lucky.LuckyMarks > 1
-                        ? $"{(lt != null ? lt.LabelJa : "芽")}に<color={Gold}>ラッキーナンバー</color>の光がまた宿った（幸運の株・{lucky.LuckyMarks}度目）"
-                        : $"{(lt != null ? lt.LabelJa : "芽")}に<color={Gold}>ラッキーナンバー</color>の光が宿った（幸運の株）");
-            }
-            foreach (var c in eco.Answered)
-            {
-                string blessing = c.Element == ElementId.Water ? "水" : c.Element == ElementId.Light ? "光" : c.Element == ElementId.Wind ? "風" : "種";
-                parts.Add($"{c.LabelJa}（{c.Cells.Count}株）が{blessing}の恵みに応えた");
-            }
-            if (eco.PrayerStar.Points >= 8 && eco.PostState != null &&
-                eco.PostState.Plants.Exists(p => p.Stage == PlantStage.Flower && p.Pollinated))
-                parts.Add("八の虹の下で、咲いている花がみな受粉した");
-            if (fruit > 0) parts.Add("受粉した花が土に還り、実りを落とした");
-            else if (plain > 0) parts.Add("花がひとつ土に還り、となりを養った");
-            else if (eco.Relations.Exists(link => link.Kind == "fruited"))
-                parts.Add("花に、次の種が実った");
-            else if (eco.Relations.Exists(link => link.Kind == "returned-to-soil"))
-                parts.Add("花の株が土へ還った");
-            foreach (var e in eco.Effects)
-                if (e.Kind == Lifecycle.WitherKind) parts.Add(WitherLine(e.Reason));
-            return parts.Count > 0 ? string.Join("　・　", parts) : null;
-        }
-
         /// <summary>The standing line's two rows (season's wish with progress; lucky count and the next lucky face).</summary>
         public static string StandingLines(GardenCoordinator c)
         {
@@ -999,36 +920,6 @@ namespace DestinyGarden.Presentation
                 _standingBacking.rectTransform.sizeDelta = new Vector2(_standingText.preferredWidth + 40f, _standingText.preferredHeight + 24f);
         }
 
-        /// <summary>
-        /// A one-time tip the first time something happens on this device (PlayerPrefs; presentation only): the first
-        /// lucky number, the first season's wish, the first seventh face earned, the first flower returning to the soil.
-        /// </summary>
-        private static string FirstTimeTip(RollOutcome o)
-        {
-            var star = o?.Ecology?.PrayerStar;
-            if (star == null) return null;
-            string Once(string key, string text)
-            {
-                try
-                {
-                    if (PlayerPrefs.GetInt(key, 0) == 1) return null;
-                    PlayerPrefs.SetInt(key, 1);
-                    PlayerPrefs.Save();
-                }
-                catch (Exception) { return null; }
-                return text;
-            }
-            if (star.LuckyNumber)
-                return Once("dg.tip.lucky", $"ヒント：前の目と今の目を足して 7 になると <color={Gold}>ラッキーナンバー</color>。七つ集めるか、願いが叶った回に重なると八の虹。");
-            if (o.EarnedSeventh)
-                return Once("dg.tip.seventh", "ヒント：七つめの面を足すと、7 の目もラッキーナンバーになる。どの面も 1/7。");
-            if (o.Ecology.Effects.Exists(e => e.Kind == Lifecycle.ReturnKind))
-                return Once("dg.tip.cycle", "ヒント：花は咲き終えると土に還る。蜂や蝶が訪れた花は、実りを残すことがある。");
-            if (o.SeasonGoalId != null)
-                return Once("dg.tip.season", "ヒント：12投ごとに、庭が一つ願う（左上）。叶えると七つめの面を足せる。");
-            return null;
-        }
-
         /// <summary>Why a seedling withered, and what would help (lifecycle.v4, from the saved reason).</summary>
         public static string WitherLine(string reason) =>
             reason == "dry" ? "乾きすぎた土で、芽がひとつ枯れた（水の恵みが助けになる）"
@@ -1038,17 +929,6 @@ namespace DestinyGarden.Presentation
             : reason == "light" ? "日の当たりが合わず、芽がひとつ枯れた"
             : "合わなくなった土で、芽がひとつ枯れた";
 
-        /// <summary>The wish of this roll, said plainly with its honest chance, and whether it earned the seventh face.</summary>
-        public static string WishLine(RollOutcome o)
-        {
-            if (o == null || o.IntentKind == null || o.IntentKind == "none" || o.MatchingFaces <= 0) return null;
-            string odds = $"偶然なら {o.MatchingFaces}/{o.FaceCount}";
-            if (!o.IntentMatched) return $"願い：叶わなかった（{odds}）";
-            bool longShot = LuckySeven.WishEarnsSeventh(true, o.MatchingFaces, o.FaceCount);
-            return longShot ? $"願い：叶った（{odds}）　・　次の回に七つめの面を足せる"
-                : $"願い：叶った（{odds}）";
-        }
-
         /// <summary>The one word a roll may need: a season's wish came true, or (at a season's end) the garden's name.</summary>
         private string MomentWord(RollOutcome o)
         {
@@ -1056,43 +936,6 @@ namespace DestinyGarden.Presentation
             if (o.SeasonMetNow) return "庭の願いが叶った";
             if (o.SeasonRollsLeft == 0 && Coordinator != null) return $"〈{CurrentName(Coordinator)}〉";
             return null;
-        }
-
-        /// <summary>At each season's end (every 12 rolls): the garden's name and what its luck has brought so far.</summary>
-        private string KeepsakeLine(RollOutcome o, int luckyCount)
-        {
-            if (o == null || o.SeasonRollsLeft != 0 || Coordinator == null || Coordinator.State == null) return null;
-            return "季節の終わりの庭：" + GardenKeepsake.SeasonKeepsake(CurrentName(Coordinator), Coordinator.State.WorldRevision,
-                luckyCount, LuckyPlants(Coordinator.State), o.RainbowCount, o.SeasonsMetCount);
-        }
-
-        /// <summary>Every fourth season: a look back over the year (48 rolls).</summary>
-        public static string YearLine(RollOutcome o, int luckyCount) =>
-            o != null && o.YearEnded
-                ? $"一年がめぐった：叶った季節 {o.SeasonsMetCount}・八の虹 {o.RainbowCount}・<color={Gold}>ラッキーナンバー</color> {luckyCount}"
-                : null;
-
-        /// <summary>The season's wish (season.v1): what the garden asks, how long is left, or that it came true.</summary>
-        public static string SeasonLine(RollOutcome o)
-        {
-            var g = o != null ? Seasons.Get(o.SeasonGoalId) : null;
-            if (g == null) return null;
-            if (o.SeasonMetNow) return $"季節の願いが叶った：{g.LabelJa}　・　次の回に七つめの面を足せる（<color={Gold}>7</color> も<color={Gold}>ラッキーナンバー</color>になる）";
-            if (o.SeasonMet) return $"季節の願い：{g.LabelJa}（叶った）";
-            return o.SeasonRollsLeft > 0 ? $"季節の願い：{g.LabelJa}（あと {o.SeasonRollsLeft} 投）" : $"季節の願い：{g.LabelJa}（今季はここまで）";
-        }
-
-        /// <summary>
-        /// The words for the hint: which face would make the lucky number next, and how many the garden has toward
-        /// the seven that bring the rainbow (no change in any face's chance).
-        /// </summary>
-        public static string HintLine(int lastFaceId, int luckyCount = 0)
-        {
-            int k = PrayerStar.FaceCompletingSeven(lastFaceId);
-            int have = luckyCount % PrayerStar.LuckiesForRainbow;
-            return k > 0
-                ? $"次に <color={Gold}>{k}</color> の目（七つめの面があれば <color={Gold}>7</color> も）が出れば <color={Gold}>ラッキーナンバー</color>（いま {have}/{PrayerStar.LuckiesForRainbow}・どの目も同じ確率）"
-                : null;
         }
 
         private void ShowCause(string line)
