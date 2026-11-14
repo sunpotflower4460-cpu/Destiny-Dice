@@ -622,11 +622,15 @@ namespace DestinyGarden.Application
             _weatherEntropyByPeriod.Clear();
             _recentMessageIds.Clear();
 
+            // Only the last saved garden is the garden now: it is rebuilt once, after the loop (rebuilding every
+            // roll's saved garden made resuming a long run slow).
+            Dictionary<string, object> lastPost = null;
             foreach (var e in read.Entries)
             {
                 switch (e.Kind)
                 {
                     case "RunStarted":
+                        lastPost = null;
                         _weatherEntropyByPeriod.Clear();
                         _recentMessageIds.Clear();
                         RunId = e.RunId;
@@ -660,6 +664,7 @@ namespace DestinyGarden.Application
                     case "RunClosed":
                         // The visitor's run is over: nothing of it continues (a new run follows, or will be created).
                         ClearPending(); ClearOpenRound(); ResetIntent(); ResetSeason();
+                        lastPost = null;
                         RunId = null; State = null; CurrentFaces = null; CurrentRoundId = null;
                         Phase = CoordinatorPhase.NoRun;
                         break;
@@ -738,8 +743,7 @@ namespace DestinyGarden.Application
                         if (_pendingWishEarn) _luckyBank++;
                         _pendingWishEarn = false;
                         ClearPending();
-                        State = WorldStateSerializer.FromPayload(
-                            (Dictionary<string, object>)e.Payload["postState"]);
+                        lastPost = (Dictionary<string, object>)e.Payload["postState"];
                         if (e.Payload.TryGetValue("ecology", out object ecoRec) && ecoRec is IDictionary<string, object> ecoRecD &&
                             ecoRecD.TryGetValue("season", out object seasonRec) && seasonRec is IDictionary<string, object> sd)
                         {
@@ -754,7 +758,7 @@ namespace DestinyGarden.Application
                             WorldStateSerializer.ToInt(psd["points"]) >= 8)
                             RainbowCount++;
                         // The earlier prayer-star branch recorded its policy with each outcome.
-                        if (State.Ecosystem == null && e.Payload.TryGetValue("ecology", out object ecology) &&
+                        if (!lastPost.ContainsKey("ecosystem") && e.Payload.TryGetValue("ecology", out object ecology) &&
                             ecology is IDictionary<string, object> observed && observed.ContainsKey("prayerStar"))
                             _prayerStarEnabled = true;
                         if (e.Payload.TryGetValue("selectedMessage", out object sm) &&
@@ -776,6 +780,7 @@ namespace DestinyGarden.Application
                         break;
                 }
             }
+            if (lastPost != null) State = WorldStateSerializer.FromPayload(lastPost);
         }
     }
 }

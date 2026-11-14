@@ -71,6 +71,8 @@ namespace DestinyGarden.Domain
         {
             if (star.GiftGrowth > 0) return star.GiftGrowth;
             int step = ToNextStage(growth);
+            // prayer-star.v4: on a lucky number a bud opens — a full stage to bloom (luck is seen as flowers).
+            if (star.LuckyNumber && growth >= 1500) return step;
             return star.Points == 7 && star.LuckyStreak < 2 ? Math.Min(step, Math.Max(FiveGift, step / 2)) : step;
         }
 
@@ -171,9 +173,11 @@ namespace DestinyGarden.Domain
             var prio = new Dictionary<PlantState, int>();
             foreach (var p in young)
             {
-                // The blessing's site comes first (prayer-star.v2), then the blessing's own preference.
+                // prayer-star.v4: on a lucky number the buds come first, wherever they are (they open into flowers);
+                // then the blessing's site (prayer-star.v2), then the blessing's own preference.
+                bool waitingBud = star.LuckyNumber && p.Stage == PlantStage.Bud;
                 bool far = star.AnchorCellId >= 0 && Dist(p.CellId, star.AnchorCellId) > SiteReach;
-                prio[p] = (far ? 1 << 16 : 0) + Priority(s, p, star);
+                prio[p] = (star.LuckyNumber && !waitingBud ? 1 << 20 : 0) + (far ? 1 << 16 : 0) + Priority(s, p, star);
             }
             young.Sort((a, b) =>
             {

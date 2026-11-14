@@ -226,7 +226,7 @@ namespace DestinyGarden.Infrastructure
                     result.Entries.AddRange(_verified); result.Entries.AddRange(fresh);
                     return result;
                 }
-                if (entry.Seq != expectedSeq || entry.PrevHash != expectedPrev || entry.ComputeHash() != entry.EntryHash)
+                if (entry.Seq != expectedSeq || entry.PrevHash != expectedPrev || !EntryHashMatches(payloadBytes, entry))
                 {
                     result.ChainValid = false;
                     result.Error = "Chain mismatch at seq " + entry.Seq;
@@ -247,6 +247,42 @@ namespace DestinyGarden.Infrastructure
             if (lastDigest != null) _verifiedTailDigest = lastDigest;
             result.Entries.AddRange(_verified);
             return result;
+        }
+
+        private static readonly byte[] EntryHashField = Encoding.UTF8.GetBytes("\"entryHash\":\"");
+
+        /// <summary>
+        /// The entry hash is SHA-256 of the entry's canonical JSON without its own entryHash field — which is exactly the
+        /// stored frame with the field `"entryHash":"…",` taken out (the same writer, keys in canonical order). Verified
+        /// from the stored bytes, without re-serializing the payload; anything unexpected falls back to the full recompute.
+        /// </summary>
+        internal static bool EntryHashMatches(byte[] frame, JournalEntry entry)
+        {
+            int at = IndexOf(frame, EntryHashField);
+            int end = at + EntryHashField.Length + 64;
+            if (at > 0 && end + 1 < frame.Length && frame[end] == (byte)'"' && frame[end + 1] == (byte)',' && entry.EntryHash != null)
+            {
+                using (var sha = SHA256.Create())
+                {
+                    sha.TransformBlock(frame, 0, at, null, 0);
+                    sha.TransformFinalBlock(frame, end + 2, frame.Length - (end + 2));
+                    if (Hashing.ToHex(sha.Hash) == entry.EntryHash) return true;
+                }
+            }
+            return entry.ComputeHash() == entry.EntryHash;
+        }
+
+        private static int IndexOf(byte[] data, byte[] pattern)
+        {
+            // The field is near the start of every frame (after createdAt); search only the head.
+            int limit = Math.Min(data.Length - pattern.Length, 256);
+            for (int i = 0; i <= limit; i++)
+            {
+                int j = 0;
+                while (j < pattern.Length && data[i + j] == pattern[j]) j++;
+                if (j == pattern.Length) return i;
+            }
+            return -1;
         }
 
         private static bool ReadFully(Stream s, byte[] buffer, int count)

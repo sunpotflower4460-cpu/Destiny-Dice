@@ -10,6 +10,16 @@ namespace DestinyGarden.Domain
         private readonly string _s;
         private int _i;
 
+        // Boxed small integers, shared (the saved garden is mostly small numbers: soil, ages, counts).
+        private const long SmallMin = -64, SmallMax = 2560;
+        private static readonly object[] Small = MakeSmall();
+        private static object[] MakeSmall()
+        {
+            var a = new object[SmallMax - SmallMin + 1];
+            for (long v = SmallMin; v <= SmallMax; v++) a[v - SmallMin] = v;
+            return a;
+        }
+
         public SimpleJsonParser(string s) { _s = s; }
 
         public object Parse()
@@ -77,6 +87,16 @@ namespace DestinyGarden.Domain
         {
             if (_s[_i] != '"') throw new FormatException("Expected string at " + _i);
             _i++;
+            // Fast path (almost every string the journal holds): no escapes, one Substring.
+            int start = _i;
+            while (_i < _s.Length)
+            {
+                char f = _s[_i];
+                if (f == '"') { string plain = _s.Substring(start, _i - start); _i++; return plain; }
+                if (f == '\\') break;
+                _i++;
+            }
+            _i = start;
             var sb = new StringBuilder();
             while (_i < _s.Length)
             {
@@ -104,13 +124,20 @@ namespace DestinyGarden.Domain
         private object ParseNumber()
         {
             int start = _i;
-            if (_s[_i] == '-') _i++;
+            bool negative = _s[_i] == '-';
+            if (negative) _i++;
             // ASCII digits only, parsed the same on every device language (not char.IsDigit / current culture).
-            while (_i < _s.Length && _s[_i] >= '0' && _s[_i] <= '9') _i++;
-            string text = _s.Substring(start, _i - start);
-            if (text.Length == 0 || text == "-") throw new FormatException("Bad number at " + start);
-            return long.Parse(text, System.Globalization.NumberStyles.AllowLeadingSign,
-                System.Globalization.CultureInfo.InvariantCulture);
+            // Accumulated directly (no Substring); overflow throws as long.Parse would.
+            long value = 0;
+            int digits = 0;
+            while (_i < _s.Length && _s[_i] >= '0' && _s[_i] <= '9')
+            {
+                value = checked(value * 10 + (_s[_i] - '0'));
+                _i++; digits++;
+            }
+            if (digits == 0) throw new FormatException("Bad number at " + start);
+            if (negative) value = -value;
+            return value >= SmallMin && value <= SmallMax ? Small[value - SmallMin] : value;
         }
 
         private void Expect(string literal)
