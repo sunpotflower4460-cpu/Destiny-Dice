@@ -135,13 +135,15 @@ Asset Store packages, no external models, textures, music or sound files.
 ## 7. Images
 
 - Cover image: [cover.png](cover.png) — 1260×1000 (itch.io ratio 630:500, 2× size)
-- Screenshots (1920×1080):
-  - [screenshot-1.png](screenshot-1.png) — a garden after 20 rolls with the interface (WebGL)
-  - [screenshot-2.png](screenshot-2.png) — the rainbow figure-8 in the air above the bottle, the sun in the sky
-    (macOS build of the same code, QA capture `-dgWonders -dgNoUi -dgSeed 3333`; the moment itself is rare in play)
-  - [screenshot-3.png](screenshot-3.png) — opening: the whole bottle, bare earth and water, with the title card (WebGL)
-  - [screenshot-4.png](screenshot-4.png) — a different island (seed 44444): its river, spring and waterfall, tree layout (macOS, no UI)
-  - [screenshot-5.png](screenshot-5.png) — the same island seen from a low angle after turning it around (macOS, no UI, `-dgYaw 235 -dgPitch 34 -dgDist 17`)
+- Screenshots (1920×1080), recaptured from the final build on 2026-11-14:
+  - [screenshot-1.png](screenshot-1.png) — a garden after 20 rolls with the interface, at a lucky number (WebGL, the frozen ZIP, canvas at 1920×1080)
+  - [screenshot-2.png](screenshot-2.png) — the rainbow figure-8 in the air above the bottle
+    (macOS build of the same code, QA capture `-dgWonders -dgNoUi -dgSeed 3333 -dgAutoRolls 20`; the moment itself is rare in play)
+  - [screenshot-3.png](screenshot-3.png) — opening: the whole bottle, bare earth and water, with the title card (WebGL, the frozen ZIP, a fresh garden)
+  - [screenshot-4.png](screenshot-4.png) — a different island (seed 44444): its river, spring and tree layout (macOS, no UI, `-dgSeed 44444 -dgAutoRolls 12`)
+  - [screenshot-5.png](screenshot-5.png) — the same island from a low angle (macOS, no UI, `-dgYaw 235 -dgPitch 34 -dgDist 17`)
+- Cover [cover.png](cover.png): macOS, no UI, `-dgNoUi -dgSeed 3333 -dgAutoRolls 30 -dgCaptureSize 1260x1000`.
+- macOS captures use `-dgCaptureSize WxH` (QA only) and run with the app in front (the player pauses in the background).
 
 Suggested order on the page: 3, 1, 4, 5, 2 (from the bottle to your own island, from every side).
 Islands in the screenshots were fixed with `-dgSeed` for the photos only; in the game the island comes from the garden's own id.
@@ -171,3 +173,17 @@ Islands in the screenshots were fixed with `-dgSeed` for the photos only; in the
 - Sound was measured offline (see v7 notes) and **not listened to by ear**.
 - Not tested: real touch devices (pinch and one-finger drag are written but only simulated mouse input was tried),
   Safari, Firefox, slower GPUs, the real itch.io page.
+
+## 10. Final build (2026-11-14 evening)
+
+- Code: `main` after PR #57 (completion, phone, sound) plus the WebGL 2 setting and QA capture options of this commit.
+- Graphics API (Web): the project had no Web entry (Unity's automatic default). The build now sets **WebGL 2 only**
+  (`GraphicsDeviceType.OpenGLES3`, automatic off) and logs it; recorded in ProjectSettings as `WebGLSupport 0b000000`.
+- Zip: `unity/DestinyGarden/Builds/DestinyGarden-WebGL.zip`, **31,510,732 bytes**, sha256 `7ea87667…5b8f`,
+  6 entries, `index.html` at the root, 32,095,669 bytes unpacked (largest file 19.4 MB).
+- Checks on the frozen zip (unpacked fresh, Chromium, 1280×720 iframe like itch.io):
+  1. Japanese text renders (title, buttons, face strip) — no tofu. OK
+  2. Audio context is suspended until the first click and running after it. OK
+  3. Rolls are saved in the browser: after a reload the title offers 「庭のつづきへ」; no console errors. OK
+  4. 1280×720 embed: canvas 1280×720 CSS (16:9), 1920×1080 drawing buffer, WebGL 2.0 context. OK
+- Not tested: Safari/Firefox, real phones, the real itch.io page.
