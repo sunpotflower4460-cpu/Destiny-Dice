@@ -59,7 +59,7 @@ namespace DestinyGarden.Presentation
             }
             var texture = new Texture2D(size, size, TextureFormat.RGBA32, true)
             {
-                name = "Cork grain", wrapMode = TextureWrapMode.Repeat, filterMode = FilterMode.Trilinear, anisoLevel = 2
+                name = "Cork grain and ribbon", wrapMode = TextureWrapMode.Repeat, filterMode = FilterMode.Trilinear, anisoLevel = 2
             };
             texture.SetPixels32(pixels);
             texture.Apply(updateMipmaps: true, makeNoLongerReadable: true);
@@ -72,7 +72,21 @@ namespace DestinyGarden.Presentation
             float height = Mathf.Clamp01(v / SideTextureHeight);
             var grain = Color.Lerp(Grain(u * 4f, height), Grain((u - 1f) * 4f, height), Mathf.SmoothStep(0f, 1f, u));
             float compression = Mathf.SmoothStep(0.65f, 1f, Mathf.InverseLerp(0.10f, 0.30f, height));
-            return grain * compression;
+            float ribbonHeight = 0.53f + 0.026f * Mathf.Sin(u * 2f * Mathf.PI);
+            float offset = Mathf.Abs(height - ribbonHeight);
+            float ribbon = 1f - SmoothRange(0.144f, 0.172f, offset);
+            var wine = new Color(0.48f, 0.13f, 0.28f) * (0.80f + 0.26f * grain.r);
+            var gold = new Color(1f, 0.78f, 0.43f);
+            float hem = 1f - SmoothRange(0.010f, 0.030f, Mathf.Abs(offset - 0.114f));
+            var color = Color.Lerp(grain * compression, Color.Lerp(wine, gold, hem * 0.83f), ribbon);
+            // The stamped seal faces the garden's opening view.
+            var sealPoint = new Vector2((u - 0.75f) / 0.036f, (height - ribbonHeight) / 0.27f);
+            float sealEdge = sealPoint.magnitude;
+            float seal = 1f - SmoothRange(0.92f, 1.06f, sealEdge);
+            float stamp = Mathf.Sqrt(Mathf.Abs(sealPoint.x)) + Mathf.Sqrt(Mathf.Abs(sealPoint.y));
+            float impression = 1f - SmoothRange(0.88f, 1.02f, stamp);
+            var wax = Color.Lerp(new Color(0.59f, 0.22f, 0.30f), gold, impression * 0.87f);
+            return Color.Lerp(color, wax * (1f - sealEdge * seal * 0.20f), seal);
         }
 
         private static Color Cap(float u, float v)
@@ -80,11 +94,14 @@ namespace DestinyGarden.Presentation
             float x = (u - 0.5f) / CapTextureRadius, y = (v - CapTextureCenter) / CapTextureRadius;
             Color grain = Grain(x * 0.92f, y * 0.92f) * 1.04f;
             float radius = Mathf.Sqrt(x * x + y * y);
-            float ring = 1f - Mathf.SmoothStep(0.010f, 0.027f, Mathf.Abs(radius - 0.49f));
+            float ring = 1f - SmoothRange(0.010f, 0.027f, Mathf.Abs(radius - 0.49f));
             float star = Mathf.Sqrt(Mathf.Abs(x) / 0.32f) + Mathf.Sqrt(Mathf.Abs(y) / 0.32f);
-            float stamp = Mathf.Max(ring, 1f - Mathf.SmoothStep(0.92f, 1.08f, star));
+            float stamp = Mathf.Max(ring, 1f - SmoothRange(0.92f, 1.08f, star));
             return Color.Lerp(grain, new Color(0.39f, 0.22f, 0.13f), stamp * 0.65f);
         }
+
+        private static float SmoothRange(float lower, float upper, float value) =>
+            Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(lower, upper, value));
 
         private static Color Grain(float x, float y)
         {
@@ -98,7 +115,8 @@ namespace DestinyGarden.Presentation
         internal static Material CreateMaterial(Shader lit, Texture2D texture)
         {
             // Fade with the lip as the camera enters the garden. Draw between the far and near glass.
-            var material = new Material(lit) { name = "Matte cork", mainTexture = texture, renderQueue = 3049 };
+            var material = new Material(lit) { name = "Matte cork", renderQueue = 3049 };
+            material.SetTexture("_BaseMap", texture);
             material.SetFloat("_Smoothness", 0.14f);
             material.SetFloat("_Surface", 1f);
             material.SetFloat("_SrcBlend", (float)BlendMode.SrcAlpha);

@@ -137,7 +137,7 @@ namespace DestinyGarden.Presentation
             _sky = SkyClock.Evaluate(SkyClock.PhaseFor(_clockRolls), _weatherId);
             float grey = _weatherId == WeatherId.Drizzle ? 0.6f : _weatherId == WeatherId.Cloudy ? 0.25f : 0f;
             float wi = _weatherId == WeatherId.Clear ? 1f : _weatherId == WeatherId.Cloudy ? 0.8f : 0.7f;
-            _sunBase = Color.Lerp(_sky.Sun, new Color(0.78f, 0.84f, 0.92f), grey);
+            _sunBase = Color.Lerp(_sky.Sun, new Color(0.81f, 0.82f, 0.94f), grey);
             // Keep leaf and sand detail in direct daylight, especially when seen from above.
             _sun.intensity = _sky.SunIntensity * wi * Mathf.Lerp(0.80f, 0.92f, _sky.Night);
             _sun.transform.rotation = Quaternion.Euler(_sky.Elevation, _sky.Azimuth, 0f);
@@ -149,8 +149,8 @@ namespace DestinyGarden.Presentation
             RenderSettings.fogStartDistance = Mathf.Lerp(30f, 23f, _sky.Moisture);
             RenderSettings.fogEndDistance = Mathf.Lerp(63f, 51f, _sky.Moisture);
             if (ViewCamera != null) ViewCamera.backgroundColor = haze;
-            if (_bloom != null) _bloom.intensity.value = 0.46f * _sky.Bloom;
-            if (_gardenLight != null) _gardenLight.intensity = Mathf.Lerp(0.19f, 0.46f, _sky.Night);
+            if (_bloom != null) _bloom.intensity.value = 0.54f * _sky.Bloom;
+            if (_gardenLight != null) _gardenLight.intensity = Mathf.Lerp(0.20f, 0.49f, _sky.Night);
             ApplyBalance();
         }
 
@@ -343,28 +343,29 @@ namespace DestinyGarden.Presentation
             var bloom = profile.Add<Bloom>(true);
             _bloom = bloom;
             bloom.intensity.value = 0.58f;
-            bloom.threshold.value = 0.94f;
-            bloom.scatter.value = 0.64f;
-            bloom.tint.value = new Color(1.0f, 0.93f, 0.86f);
+            bloom.threshold.value = 0.89f;
+            bloom.scatter.value = 0.62f;
+            bloom.tint.value = new Color(1.0f, 0.89f, 0.81f);
             var vignette = profile.Add<Vignette>(true);
-            vignette.intensity.value = 0.15f;
-            vignette.smoothness.value = 0.55f;
+            vignette.color.value = new Color(0.10f, 0.067f, 0.15f);
+            vignette.intensity.value = 0.19f;
+            vignette.smoothness.value = 0.58f;
             var split = profile.Add<SplitToning>(true);
-            split.shadows.value = new Color(0.42f, 0.53f, 0.58f);
-            split.highlights.value = new Color(0.70f, 0.59f, 0.49f);
+            split.shadows.value = new Color(0.49f, 0.46f, 0.57f);
+            split.highlights.value = new Color(0.68f, 0.57f, 0.51f);
             split.balance.value = -4f;
             var dof = profile.Add<DepthOfField>(true);
             _dof = dof;
             dof.mode.value = DepthOfFieldMode.Gaussian;
-            dof.gaussianStart.value = 37f;
-            dof.gaussianEnd.value = 54f;
-            dof.gaussianMaxRadius.value = 0.82f;
+            dof.gaussianStart.value = 43f;
+            dof.gaussianEnd.value = 64f;
+            dof.gaussianMaxRadius.value = 0.72f;
             var tonemap = profile.Add<Tonemapping>(true);
             tonemap.mode.value = TonemappingMode.ACES;
             var colors = profile.Add<ColorAdjustments>(true);
-            colors.saturation.value = 1f;
+            colors.saturation.value = 4f;
             colors.postExposure.value = 0.18f;
-            colors.contrast.value = 7f;
+            colors.contrast.value = 2f;
             volume.profile = profile;
 
             var sunObj = new GameObject("Sun");
@@ -393,7 +394,7 @@ namespace DestinyGarden.Presentation
             var pool = poolObj.AddComponent<Light>();
             _gardenLight = pool;
             pool.type = LightType.Point;
-            pool.color = new Color(1f, 0.82f, 0.58f);
+            pool.color = new Color(1f, 0.78f, 0.52f);
             pool.range = 11f;
             pool.intensity = 0.19f;
             pool.shadows = LightShadows.None;
@@ -932,8 +933,8 @@ namespace DestinyGarden.Presentation
                 var camera = ViewCamera.transform;
                 Vector3 island = new Vector3(IslandSeed.Center.x, 1f, IslandSeed.Center.y);
                 float depth = Vector3.Dot(island - camera.position, camera.forward);
-                _dof.gaussianStart.value = Mathf.Max(37f, depth + 13f);
-                _dof.gaussianEnd.value = _dof.gaussianStart.value + 20f;
+                _dof.gaussianStart.value = Mathf.Max(43f, depth + 15f);
+                _dof.gaussianEnd.value = _dof.gaussianStart.value + 21f;
             }
             UpdateGrowers();
             if (_cottage != null) _cottage.UpdateAppearance(_sky, ReducedMotion, Time.deltaTime);

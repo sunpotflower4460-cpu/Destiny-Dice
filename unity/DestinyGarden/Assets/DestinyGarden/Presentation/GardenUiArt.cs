@@ -15,32 +15,36 @@ namespace DestinyGarden.Presentation
 
         private static readonly Dictionary<Surface, Sprite> Surfaces = new Dictionary<Surface, Sprite>();
         private static readonly Dictionary<Symbol, Sprite> Symbols = new Dictionary<Symbol, Sprite>();
-        private static Sprite _well, _focus, _panel, _plaque, _rule, _veil;
+        private static Sprite _well, _focus, _panel, _plaque, _rule, _titleRule, _titleLettering, _veil;
+
+        internal static Sprite TitleLettering => _titleLettering != null ? _titleLettering :
+            _titleLettering = Resources.Load<Sprite>("StorybookLettering");
 
         internal static Sprite Button(Surface surface)
         {
             if (Surfaces.TryGetValue(surface, out var sprite) && sprite != null) return sprite;
             var (top, bottom, rim) = surface switch
             {
-                Surface.Brass   => (0xffe6a9u, 0xd99b55u, 0xf8cf87u),
-                Surface.Amethyst => (0x4b3d6eu, 0x251d3eu, 0xac98d6u),
+                Surface.Brass   => (0xffedc3u, 0xe2ae74u, 0xf1cf95u),
+                Surface.Amethyst => (0x684861u, 0x34213du, 0xd4a9c2u),
                 Surface.Water   => (0x245875u, 0x142e43u, 0x78b7d9u),
                 Surface.Wind    => (0x286454u, 0x142f32u, 0x87c4a5u),
                 Surface.Light   => (0x625132u, 0x362a22u, 0xd4b16du),
                 Surface.Seed    => (0x62513du, 0x352c26u, 0xc5a57bu),
-                _               => (0x245055u, 0x102d3bu, 0x74a599u)
+                _               => (0x2f5359u, 0x172a3bu, 0x9cb3a8u)
             };
-            return Surfaces[surface] = Plate(surface.ToString(), 9f, 14, top, bottom, rim, 1f);
+            return Surfaces[surface] = Plate(surface.ToString(), 9f, 14, top, bottom, rim, 1f,
+                engraved: surface == Surface.Brass);
         }
 
         internal static Sprite Well => _well != null ? _well :
-            _well = Plate("Button base", 9f, 14, 0x132b35, 0x081724, 0x416067, 1f);
+            _well = Plate("Button base", 9f, 14, 0x25253b, 0x121428, 0x61566f, 1f);
 
         internal static Sprite Panel => _panel != null ? _panel :
-            _panel = Plate("Garden panel", 17f, 32, 0x183943, 0x0a1c2b, 0xb29664, 0.96f, engraved: true);
+            _panel = Plate("Garden panel", 17f, 32, 0x33304d, 0x18182d, 0xcfaa75, 0.96f, engraved: true);
 
         internal static Sprite Plaque => _plaque != null ? _plaque :
-            _plaque = Plate("Garden plaque", 9f, 14, 0x163643, 0x0b2030, 0x668681, 0.91f);
+            _plaque = Plate("Garden plaque", 9f, 14, 0x2c3047, 0x181b30, 0x8a8095, 0.93f);
 
         internal static Sprite Focus => _focus != null ? _focus :
             _focus = Bake("Button focus", 64, 64, 14, (x, y) =>
@@ -53,13 +57,26 @@ namespace DestinyGarden.Presentation
             _rule = Bake("Engraved rule", 128, 2, 0, (x, _) =>
                 Pigment(0xd5b478, 0.7f * Mathf.SmoothStep(0f, 1f, 1f - Mathf.Abs(x / 64f - 1f))));
 
+        internal static Sprite TitleRule => _titleRule != null ? _titleRule :
+            _titleRule = Bake("Gilded title ornament", 384, 16, 0, (x, y) =>
+            {
+                float u = Mathf.Abs(x - 192f);
+                float taper = 1f - Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(132f, 192f, u));
+                float line = Band(y, 8f, 0.48f) * Mathf.Clamp01((u - 13f) * 0.20f);
+                float curl = Band(y, 8f + 4f * Mathf.Sin((u - 16f) * 0.095f), 0.42f)
+                    * Mathf.Clamp01((u - 13f) * 0.26f) * Mathf.Clamp01((56f - u) * 0.15f);
+                float star = Diamond(u, y, 0f, 8f, 6.5f, 6.8f);
+                float leaf = Diamond(u, y, 9.5f, 8f, 2.1f, 2.0f);
+                return Pigment(0xf5d498, Mathf.Max(Mathf.Max(star, leaf * 0.85f), Mathf.Max(line, curl) * taper * 0.81f));
+            });
+
         internal static Sprite Veil => _veil != null ? _veil :
             _veil = Bake("Opening title shade", 96, 64, 0, (x, y) =>
             {
                 float u = Mathf.Abs(x / 48f - 1f), v = Mathf.Abs(y / 32f - 1f);
                 float across = 1f - Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.45f, 1f, u));
                 float down = 1f - Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.32f, 1f, v));
-                return Pigment(0x071e32, 0.70f * across * down);
+                return Pigment(0x1b142d, 0.78f * across * down);
             });
 
         internal static Color Pigment(uint rgb, float alpha = 1f) => new Color(
@@ -75,6 +92,9 @@ namespace DestinyGarden.Presentation
                 float depth = CutCornerDepth(x, y, width, height, cut);
                 float vertical = y / height;
                 Color metal = Color.Lerp(shade, light, vertical);
+                // Leave a little variation along the fixed edges of the pressed paper.
+                float grain = Mathf.Sin(x * 1.73f + y * 2.31f) * Mathf.Sin(x * 0.81f - y * 1.47f);
+                metal *= 1f + 0.031f * grain * (1f - Mathf.InverseLerp(5f, 13f, depth));
                 metal = Color.Lerp(metal, edge, Band(depth, 1.7f, 0.75f) * (0.46f + 0.44f * vertical));
                 metal = Color.Lerp(metal, shade * 0.65f, Band(depth, 3.7f, 0.6f) * 0.52f);
                 metal = Color.Lerp(metal, edge, Band(depth, 5.5f, 0.55f) * 0.28f);
@@ -137,8 +157,9 @@ namespace DestinyGarden.Presentation
                 case Symbol.Bottle:
                     ink.Ring(32, 32, 29, 1.2f);
                     ink.Ring(32, 32, 26, 0.65f);
-                    ink.Stroke(2, (26, 49), (38, 49), (38, 44), (36, 44), (36, 38), (45, 33), (49, 26),
-                        (48, 20), (44, 15), (20, 15), (16, 20), (15, 26), (19, 33), (28, 38), (28, 44), (26, 44), (26, 49));
+                    ink.Stroke(2, (26, 47), (38, 47), (38, 43), (36, 43), (36, 38), (45, 33), (49, 26),
+                        (48, 20), (44, 15), (20, 15), (16, 20), (15, 26), (19, 33), (28, 38), (28, 43), (26, 43), (26, 47));
+                    ink.Stroke(1.6f, (27, 48), (25, 53), (39, 53), (37, 48));
                     ink.Stroke(1.7f, (18, 22), (24, 24), (33, 22), (40, 25), (46, 23));
                     ink.Stroke(1.8f, (31, 25), (31, 30), (28, 33), (24, 34), (26, 30), (31, 29),
                         (34, 34), (39, 36), (37, 32), (32, 30));

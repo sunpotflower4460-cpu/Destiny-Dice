@@ -61,17 +61,17 @@ namespace DestinyGarden.Presentation
             _textures.Add(plasterGrain);
             _textures.Add(waterTexture);
             _textures.Add(tileTexture);
-            _plaster = Lit("Lime plaster", new Color(1f, 0.97f, 0.90f), 0.19f, plasterGrain);
-            _stonework = Lit("Foundation stone", new Color(0.78f, 0.80f, 0.79f), 0.15f, stoneGrain);
+            _plaster = Lit("Lime plaster", new Color(1f, 0.94f, 0.85f), 0.19f, plasterGrain);
+            _stonework = Lit("Foundation stone", new Color(0.80f, 0.78f, 0.82f), 0.15f, stoneGrain);
             _pathStone = Lit("Worn grey stepping stone", new Color(0.61f, 0.62f, 0.56f), 0.19f, plasterGrain);
             _wood = Lit("Cedar boards", new Color(1.20f, 1.05f, 0.88f), 0.23f, woodGrain);
             _trim = Lit("Warm oak", new Color(0.40f, 0.247f, 0.145f), 0.27f);
-            _door = Lit("Painted door", new Color(0.19f, 0.39f, 0.37f), 0.29f);
+            _door = Lit("Painted door", new Color(0.21f, 0.43f, 0.37f), 0.29f);
             var tile = new[]
             {
-                new Color(0.51f, 0.26f, 0.20f),
-                new Color(0.24f, 0.38f, 0.40f),
-                new Color(0.41f, 0.33f, 0.24f)
+                new Color(0.65f, 0.31f, 0.32f),
+                new Color(0.24f, 0.48f, 0.50f),
+                new Color(0.51f, 0.34f, 0.47f)
             }[(seed & int.MaxValue) % 3];
             _roof = Lit("Roof tiles", tile, 0.25f, tileTexture);
             _roofShade = Lit("Weathered roof tiles", tile * 0.77f, 0.20f, tileTexture);
@@ -120,7 +120,7 @@ namespace DestinyGarden.Presentation
             _lamp.transform.SetParent(transform, false);
             _lamp.transform.localPosition = new Vector3(0.34f, 0.77f, -0.80f);
             _lamp.type = LightType.Point;
-            _lamp.color = new Color(1f, 0.76f, 0.47f);
+            _lamp.color = new Color(1f, 0.71f, 0.39f);
             _lamp.range = 2.75f;
             _daylight = new GameObject("Bounced daylight").AddComponent<Light>();
             _daylight.transform.SetParent(transform, false);
@@ -219,9 +219,9 @@ namespace DestinyGarden.Presentation
 
         private void SetLight(float night)
         {
-            _lamp.intensity = Mathf.Lerp(0.22f, 1.65f, night);
+            _lamp.intensity = Mathf.Lerp(0.26f, 1.76f, night);
             _daylight.intensity = Mathf.Lerp(1.45f, 0.03f, night);
-            _glow.SetColor("_EmissionColor", new Color(2.2f, 1.30f, 0.48f) * Mathf.Lerp(0.18f, 0.92f, night));
+            _glow.SetColor("_EmissionColor", new Color(2.2f, 1.24f, 0.43f) * Mathf.Lerp(0.22f, 1f, night));
             if (_greenhouseLamp != null) _greenhouseLamp.intensity = Mathf.Lerp(0.03f, 0.68f, night);
         }
 
@@ -276,8 +276,7 @@ namespace DestinyGarden.Presentation
             model.Gable(_plaster, new Vector3(0f, Eave - 0.009f, 0f),
                 new Vector3(CabinWidth - 0.027f, Ridge - Eave + 0.013f, CabinDepth - 0.012f));
             Roof(model, 0f, 0f, CabinWidth + 0.29f, CabinDepth + 0.26f, Eave, Ridge);
-            model.Box(_trim, new Vector3(0f, 1.14f, front - 0.018f), new Vector3(0.20f, 0.15f, 0.065f));
-            model.Box(_glow, new Vector3(0f, 1.14f, front - 0.057f), new Vector3(0.13f, 0.085f, 0.019f));
+            RoundWindow(model, new Vector3(0f, 1.15f, front), 0.21f);
             model.Box(_wood, new Vector3(0f, Eave + 0.012f, front - 0.016f), new Vector3(CabinWidth - 0.07f, 0.055f, 0.052f));
             for (int side = -1; side <= 1; side += 2)
                 model.Post(_trim, new Vector3(side * 0.65f, Eave + 0.04f, front - 0.016f),

@@ -381,11 +381,11 @@ namespace DestinyGarden.Presentation
         private static float[] _earthMask, _shade, _greenAt, _bankF, _shoreF;
         private static List<KeyValuePair<int, float>>[] _bedWeights;
         private static Texture2D _bakeTex;
-        private static readonly Color Sand = new Color(0.78f, 0.71f, 0.57f);
-        private static readonly Color WetSand = new Color(0.51f, 0.49f, 0.39f);
-        private static readonly Color DarkRock = new Color(0.29f, 0.34f, 0.36f);
-        private static readonly Color LightRock = new Color(0.56f, 0.60f, 0.57f);
-        private static readonly Color Bank = new Color(0.31f, 0.42f, 0.27f);
+        private static readonly Color Sand = new Color(0.79f, 0.72f, 0.61f);
+        private static readonly Color WetSand = new Color(0.51f, 0.49f, 0.43f);
+        private static readonly Color DarkRock = new Color(0.30f, 0.32f, 0.39f);
+        private static readonly Color LightRock = new Color(0.58f, 0.59f, 0.63f);
+        private static readonly Color Bank = new Color(0.34f, 0.46f, 0.32f);
 
         // Use the same broad, curved patches to place the blades and colour the ground beneath them.
         internal static float MeadowPattern(float x, float z, Vector2 wind)
@@ -469,10 +469,10 @@ namespace DestinyGarden.Presentation
             var meadowLight = _seed.MeadowLight;
             var moss = _seed.Moss;
             var wind = new Vector2(Mathf.Cos(_seed.WindAngle), Mathf.Sin(_seed.WindAngle));
-            var soilA = new Color(0.51f, 0.42f, 0.33f);
-            var soilB = new Color(0.39f, 0.34f, 0.30f);
-            var clay = new Color(0.65f, 0.52f, 0.40f);
-            var dampBank = new Color(0.33f, 0.29f, 0.24f);
+            var soilA = new Color(0.52f, 0.44f, 0.37f);
+            var soilB = new Color(0.42f, 0.36f, 0.35f);
+            var clay = new Color(0.62f, 0.49f, 0.42f);
+            var dampBank = new Color(0.34f, 0.32f, 0.29f);
             for (int py = 0; py < size; py++)
                 for (int px = 0; px < size; px++)
                 {
@@ -491,7 +491,7 @@ namespace DestinyGarden.Presentation
                     var bare = Color.Lerp(soilA, soilB, Mathf.SmoothStep(0.3f, 0.7f, n2));
                     bare = Color.Lerp(bare, clay, Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.42f, 0.72f, n1)) * 0.60f);
                     float bank = 1f - Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.45f, 1.6f, r));
-                    _bare[pi] = Color.Lerp(bare, dampBank, bank * (0.50f + 0.30f * n2));
+                    _bare[pi] = Color.Lerp(bare, dampBank, bank * (0.50f + 0.30f * n2)) * (0.93f + 0.14f * fibers);
                     // Life spreads from the water: greening starts by the river and the spring.
                     _greenAt[pi] = MeadowGrowthStart(r, cover);
                     // Earth under the beds as soft organic patches with a wide, noisy edge (never a frame).
@@ -523,8 +523,12 @@ namespace DestinyGarden.Presentation
                     float mid = ProceduralArt.Fbm(x * 1.4f, z * 1.4f, 92, 3);
                     _shade[pi] = (0.95f + 0.10f * n2) * (0.94f + 0.12f * grain) * (0.95f + 0.10f * mid);
                     float inland = DistanceInland(x, z, out float rockiness);
-                    float pioneer = PioneerCover(Vector2.Distance(Center, new Vector2(x, z)), inland, r, cover);
-                    _bare[pi] = Color.Lerp(_bare[pi], Color.Lerp(moss, meadow, 0.35f) * (0.86f + 0.20f * fibers), pioneer * 0.86f);
+                    float radius = Vector2.Distance(Center, new Vector2(x, z));
+                    float pioneer = PioneerCover(radius, inland, r, cover);
+                    // A soft wash of moss ties the visible tufts into the riverbank and coastal grass.
+                    float bankWash = Ramp(3.7f, 7.8f, radius) * (1f - Ramp(1.4f, 3.5f, r));
+                    var mossWash = Color.Lerp(moss, meadow, 0.35f) * (0.86f + 0.20f * fibers);
+                    _bare[pi] = Color.Lerp(_bare[pi], mossWash, Mathf.Max(pioneer * 0.94f, bankWash * (0.26f + 0.32f * cover)));
                     float boundary = inland + (mid - 0.5f) * 0.9f + (n1 - 0.5f) * 1.35f;
                     _shoreF[pi] = 1f - Ramp(0.40f, Mathf.Lerp(2.05f, 2.58f, rockiness), boundary);
                     if (_shoreF[pi] > 0f)

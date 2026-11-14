@@ -31,7 +31,7 @@ namespace DestinyGarden.Presentation
         private Texture2D _cloudNoise, _starlight, _coastMap, _wakeTexture;
         private Mesh _starMesh, _seaMesh, _bottleMesh;
         private float _motionTime;
-        private static readonly Color Warmth = new Color(0.48f, 0.19f, 0.092f);
+        private static readonly Color Warmth = new Color(0.42f, 0.16f, 0.12f);
         private static readonly int HorizonId = Shader.PropertyToID("_DGSkyHorizon");
         private static readonly int ZenithId = Shader.PropertyToID("_DGSkyZenith");
         private static readonly int WarmthId = Shader.PropertyToID("_DGSkyWarmth");
@@ -52,12 +52,12 @@ namespace DestinyGarden.Presentation
             Shader.SetGlobalVector(SunId, new Vector4(sky.SunDirection.x, sky.SunDirection.y, sky.SunDirection.z, sky.SunVisibility));
             Shader.SetGlobalVector(MoonId, new Vector4(sky.MoonDirection.x, sky.MoonDirection.y, sky.MoonDirection.z, sky.MoonVisibility));
 
-            _orbMat.SetColor("_EmissionColor", new Color(1.85f, 1.22f, 0.60f) * Mathf.Lerp(0.72f, 1.32f, sky.Night));
-            _haloMat.color = new Color(1f, 0.76f, 0.38f, Mathf.Lerp(0.24f, 0.54f, sky.Night));
-            _wakeMat.color = new Color(0.93f, 0.71f, 0.42f, Mathf.Lerp(0.10f, 0.31f, sky.Night));
-            _ringMat.color = new Color(0.85f, 0.67f, 0.35f, Mathf.Lerp(0.21f, 0.32f, sky.Night));
+            _orbMat.SetColor("_EmissionColor", new Color(1.88f, 1.19f, 0.54f) * Mathf.Lerp(0.77f, 1.31f, sky.Night));
+            _haloMat.color = new Color(1f, 0.69f, 0.39f, Mathf.Lerp(0.27f, 0.55f, sky.Night));
+            _wakeMat.color = new Color(1f, 0.69f, 0.42f, Mathf.Lerp(0.14f, 0.32f, sky.Night));
+            _ringMat.color = new Color(0.89f, 0.68f, 0.43f, Mathf.Lerp(0.21f, 0.32f, sky.Night));
             var emission = _motes.emission;
-            emission.rateOverTime = reducedMotion ? 0f : Mathf.Lerp(1.4f, 4.5f, sky.Night);
+            emission.rateOverTime = reducedMotion ? 0f : Mathf.Lerp(1.1f, 3.0f, sky.Night);
             float dark = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.49f, 0.96f, sky.Night));
             _starsMat.color = new Color(1f, 1f, 1f, dark * (1f - 0.46f * sky.Moisture));
         }
@@ -73,13 +73,16 @@ namespace DestinyGarden.Presentation
             _cloudNoise = ProceduralArt.CloudNoise();
             _skyMat = new Material(Shader.Find("DestinyGarden/Sky"));
             _skyMat.SetTexture("_CloudNoise", _cloudNoise);
+            var paintedSky = Resources.Load<Texture2D>("StorybookSky");
+            Shader.SetGlobalTexture("_DGPaintedSky", paintedSky != null ? paintedSky : Texture2D.grayTexture);
+            Shader.SetGlobalFloat("_DGPaintedSkyWeight", paintedSky != null ? 1f : 0f);
             var renderer = dome.GetComponent<MeshRenderer>();
             renderer.sharedMaterial = _skyMat;
             renderer.shadowCastingMode = ShadowCastingMode.Off;
             renderer.receiveShadows = false;
 
             // One sparse, static star field extends around the full orbit of the camera.
-            const int count = 248;
+            const int count = 128;
             var vertices = new Vector3[count * 4];
             var colors = new Color[count * 4];
             var uv = new Vector2[count * 4];
@@ -93,7 +96,7 @@ namespace DestinyGarden.Presentation
                 float horizontal = Mathf.Sqrt(1f - y * y);
                 var normal = new Vector3(Mathf.Cos(azimuth) * horizontal, y, Mathf.Sin(azimuth) * horizontal);
                 var point = normal * 72f;
-                float size = i % 16 == 0 ? 0.24f : Mathf.Lerp(0.092f, 0.18f, (float)rng.NextDouble());
+                float size = i % 16 == 0 ? 0.24f : Mathf.Lerp(0.075f, 0.15f, (float)rng.NextDouble());
                 var right = Vector3.Cross(Vector3.up, normal).normalized * size;
                 var up = Vector3.Cross(normal, right);
                 var color = Color.Lerp(new Color(0.63f, 0.78f, 1f), new Color(1f, 0.88f, 0.72f), (float)rng.NextDouble());
@@ -130,7 +133,8 @@ namespace DestinyGarden.Presentation
             _seaMat.SetTexture("_CoastMap", _coastMap);
             _seaMat.SetVector("_CoastParams", new Vector4(Center.x, Center.z,
                 1f / IslandTerrain.CoastMapWidth, IslandTerrain.CoastDistanceRange));
-            var sea = MakeDisc("Sea", 85f, SeaLevel, _seaMat);
+            // Keep water under the frame when a tall opening view pulls the camera back.
+            var sea = MakeDisc("Sea", 270f, SeaLevel, _seaMat);
             sea.GetComponent<MeshRenderer>().receiveShadows = true;
 
             BuildSky();
@@ -332,7 +336,7 @@ namespace DestinyGarden.Presentation
             SetSky(sky, reducedMotion);
             if (!reducedMotion) _motionTime += Time.deltaTime;
             float t = _motionTime;
-            Shader.SetGlobalVector(WeatherId, new Vector4(sky.CloudCover, sky.Night, t, 0f));
+            Shader.SetGlobalVector(WeatherId, new Vector4(sky.CloudCover, sky.Night, t, sky.Moisture));
             var camera = View.ViewCamera;
             if (_bottle != null && camera != null)
             {
