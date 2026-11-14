@@ -47,7 +47,7 @@ namespace DestinyGarden.Presentation
         private GameObject _titleCard;
         private RectTransform _openingCard;
         private float _openingScale;
-        private Text _openingHeading, _openingTagline, _openingDescription;
+        private Text _openingHeading, _openingTagline;
         private GardenUiButton _enterButton;
         private CanvasGroup _gardenControls;
         internal bool IsOpening { get; private set; }
@@ -740,12 +740,8 @@ namespace DestinyGarden.Presentation
             GardenType.MakeDisplay(_openingHeading);
             _openingHeading.color = GardenUiArt.Pigment(0xffedc6);
             _openingTagline = MakeText(opening.transform, topLeft, Vector2.zero, Vector2.zero, 30, TextAnchor.UpperLeft);
-            _openingTagline.text = "ひと振りから、庭の物語がはじまる。";
-            GardenType.MakeStrong(_openingTagline);
-            _openingTagline.color = GardenUiArt.Pigment(0xffedc6);
-            _openingDescription = MakeText(opening.transform, topLeft, Vector2.zero, Vector2.zero, 23, TextAnchor.UpperLeft);
-            _openingDescription.text = "サイコロで恵みを届け、瓶の庭を育てよう。";
-            _openingDescription.color = GardenUiArt.Pigment(0xf1e5ed);
+            _openingTagline.text = "ひと振り、瓶の庭に小さな魔法。";
+            _openingTagline.color = GardenUiArt.Pigment(0xf8e6c7);
             _enterButton = MakeChip(opening.transform, topLeft, Vector2.zero,
                 OpeningEntrySize, StartGardenLabel, 30, () => ShowTitleCard(false));
             DecorateOpeningEntry(_enterButton);
@@ -773,11 +769,10 @@ namespace DestinyGarden.Presentation
             _openingCard.anchoredPosition = Vector2.zero;
             _openingCard.sizeDelta = new Vector2(OpeningWidth, side ? 556f : portrait ? 491f : 403f) * scale;
             _openingHeading.alignment = side ? TextAnchor.MiddleLeft : TextAnchor.MiddleCenter;
-            _openingTagline.alignment = _openingDescription.alignment = side ? TextAnchor.UpperLeft : TextAnchor.UpperCenter;
+            _openingTagline.alignment = side ? TextAnchor.UpperLeft : TextAnchor.UpperCenter;
             float portraitOffset = portrait ? 88f : 0f;
             PlaceOpeningText(_openingHeading, 0f, side ? -104f : -58f, OpeningWidth, 76f, 64, scale);
-            PlaceOpeningText(_openingTagline, 4f, side ? -313f : -191f - portraitOffset, 537f, 40f, 30, scale);
-            PlaceOpeningText(_openingDescription, 4f, side ? -357f : -229f - portraitOffset, 537f, 32f, 23, scale);
+            PlaceOpeningText(_openingTagline, 4f, side ? -326f : -203f - portraitOffset, 537f, 40f, 30, scale);
             var entry = (RectTransform)_enterButton.transform;
             entry.sizeDelta = OpeningEntrySize * scale;
             entry.anchoredPosition = new Vector2(side ? 4f : (OpeningWidth - OpeningEntrySize.x) * 0.5f,

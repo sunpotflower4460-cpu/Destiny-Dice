@@ -12,7 +12,7 @@ namespace DestinyGarden.Presentation
         private static readonly Color WishInk = GardenUiArt.Pigment(0xe2d2ff);
         private Image _openingLettering, _openingRule, _openingSeal, _openingDie, _openingArrow;
         private RectTransform _openingBlessings;
-        private readonly (Image icon, Text label)[] _openingMarks = new (Image, Text)[4];
+        private readonly Image[] _openingMarks = new Image[4];
         private readonly Image[] _faceAccents = new Image[7];
 
         private static Image Decoration(Transform parent, string name, Sprite sprite)
@@ -114,20 +114,19 @@ namespace DestinyGarden.Presentation
 
             _openingBlessings = (RectTransform)new GameObject("Opening blessings", typeof(RectTransform)).transform;
             _openingBlessings.SetParent(parent, false);
-            _openingMarks[0] = OpeningBlessing(Symbol.Water, "水", ElementLine("water"));
-            _openingMarks[1] = OpeningBlessing(Symbol.Wind, "風", ElementLine("wind"));
-            _openingMarks[2] = OpeningBlessing(Symbol.Star, "光", ElementLine("light"));
-            _openingMarks[3] = OpeningBlessing(Symbol.Seed, "種", ElementLine("seed"));
+            _openingMarks[0] = OpeningBlessing(Symbol.Water, "water");
+            _openingMarks[1] = OpeningBlessing(Symbol.Wind, "wind");
+            _openingMarks[2] = OpeningBlessing(Symbol.Star, "light");
+            _openingMarks[3] = OpeningBlessing(Symbol.Seed, "seed");
         }
 
-        private (Image icon, Text text) OpeningBlessing(Symbol symbol, string label, Color pigment)
+        private Image OpeningBlessing(Symbol symbol, string element)
         {
-            var icon = Decoration(_openingBlessings, label + "の印", GardenUiArt.Icon(symbol));
+            var icon = Decoration(_openingBlessings, symbol.ToString(), GardenUiArt.Icon(symbol));
+            var pigment = ElementLine(element);
             pigment.a = 1f;
-            icon.color = pigment;
-            var text = MakeText(_openingBlessings, new Vector2(0f, 0.5f), Vector2.zero, Vector2.zero, 22, TextAnchor.MiddleLeft);
-            text.text = label;
-            return (icon, text);
+            icon.color = Color.Lerp(pigment, PaleGold, 0.22f);
+            return icon;
         }
 
         private void DecorateOpeningEntry(GardenUiButton button)
@@ -170,15 +169,12 @@ namespace DestinyGarden.Presentation
                 new Vector2(Mathf.Min(430f, letteringSize.x), side ? 13f : 10f) * scale);
             _openingBlessings.anchorMin = _openingBlessings.anchorMax = _openingBlessings.pivot = anchor;
             _openingBlessings.anchoredPosition = new Vector2(side ? 4f * scale : 0f,
-                _openingDescription.rectTransform.anchoredPosition.y - 37f * scale);
-            _openingBlessings.sizeDelta = new Vector2(314f, 34f) * scale;
+                _openingTagline.rectTransform.anchoredPosition.y - 56f * scale);
+            const float markSize = 28f, spacing = 46f;
+            _openingBlessings.sizeDelta = new Vector2((_openingMarks.Length - 1) * spacing + markSize, markSize) * scale;
             for (int i = 0; i < _openingMarks.Length; i++)
-            {
-                var (icon, label) = _openingMarks[i];
-                float x = i * 84f;
-                PlaceDecoration(icon, new Vector2(0f, 0.5f), new Vector2(x * scale, 0f), Vector2.one * (30f * scale));
-                PlaceOpeningText(label, x + 34f, 0f, 28f, 34f, 22, scale);
-            }
+                PlaceDecoration(_openingMarks[i], new Vector2(0f, 0.5f),
+                    new Vector2(i * spacing * scale, 0f), Vector2.one * (markSize * scale));
         }
 
         private static void DecoratePanelHeader(Transform panel)
