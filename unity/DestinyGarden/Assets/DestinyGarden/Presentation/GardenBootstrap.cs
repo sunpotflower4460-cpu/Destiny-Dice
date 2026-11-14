@@ -31,7 +31,6 @@ namespace DestinyGarden.Presentation
         private Quaternion _homeRot;
         private static bool s_skipTitle; // set when a new visitor reloads the scene: start straight on the new island
         private float? _qaYaw, _qaPitch, _qaDist;
-        private bool _butterfliesShown;
         private bool _captureNoUi;
         private string _intentKind = "none";
         private string _intentValue;
@@ -121,7 +120,6 @@ namespace DestinyGarden.Presentation
             {
                 _coordinator.SetCareFocus(mode, siteId);
                 _ui.ShowSiteSelection(mode, siteId);
-                _ui.ShowStatus((mode == "habitat" ? siteId + "へ。" : "") + "届け先は、次の準備から適用されます。");
             };
             _ui.OnSwitchVisitor = () =>
             {
@@ -143,7 +141,6 @@ namespace DestinyGarden.Presentation
                 if (_coordinator.AddLuckySeven() == null) return;
                 _audio.PlayLuckySeven();
                 ShowPreparedFaces();
-                _ui.ShowStatus("七つめの面が加わった。");
             };
             _ui.OnHideUi = () => StartCoroutine(HideUiTemporarily());
             _ui.Build();
@@ -152,9 +149,6 @@ namespace DestinyGarden.Presentation
             RefreshAll();
             _view.Flora.Snap();
             _view.SnapClock();
-            _ui.ShowStatus(_coordinator.LuckySevenOffered && !_coordinator.LuckySevenAdded
-                ? "「七つめの面を加える」で、幸運の七を使えます。"
-                : _coordinator.State.WorldRevision == 0 ? "振るたび、水・風・光・種の恵みが庭に届きます。" : null);
             // Begin seeing the whole bottle; glide in to the garden when the visitor begins.
             var cam = _view.ViewCamera;
             var rig = _view.Rig;
@@ -291,7 +285,6 @@ namespace DestinyGarden.Presentation
                     break;
                 }
             _harmonyNow = value;
-            _ui.ShowHarmony(value);
             var blooming = new List<string>();
             foreach (var t in Flora.All)
                 foreach (var p in _coordinator.State.Plants)
@@ -303,40 +296,6 @@ namespace DestinyGarden.Presentation
             _lastStar = star;
         }
 
-        /// <summary>One quiet line about what the garden's residents did; never explains the rules.</summary>
-        private static string EcologyLine(RollOutcome outcome)
-        {
-            var eco = outcome.Ecology;
-            if (eco == null) return null;
-            if (eco.PostState.Ecosystem != null) return EcologyObservations.Highlight(eco.Relations);
-            bool Seeded(string kind) => eco.Effects.Exists(e => e.Seed && e.Kind == kind);
-            bool Fed(string kind) => eco.Effects.Exists(e => !e.Seed && e.Kind == kind && e.Amount > 0);
-            if (Fed(Ecology.Spirit)) return "……かすかな光が、若い芽のほうへ降りていった。";
-            // Relationships of this roll, only as they happened (ecology.v3).
-            foreach (var g in eco.Effects)
-            {
-                if (g.Kind != Ecology.Germinate || g.Species == null) continue;
-                var t = Flora.Get(g.Species);
-                if (t == null) continue;
-                bool carried(string k) => eco.Effects.Exists(e => e.Seed && e.Kind == k && e.CellId == g.CellId);
-                if (g.Softened) return $"やわらいだ土に、{t.LabelJa}が根づいた。";
-                if (carried(Ecology.Butterfly)) return $"蝶の運んだ花粉から、{t.LabelJa}が芽を出した。";
-                if (carried(Ecology.Bird)) return $"小鳥の落とした種から、{t.LabelJa}の芽。";
-                if (carried(Ecology.Fluff)) return $"綿毛の行き着いた先に、{t.LabelJa}。";
-                if (carried(Ecology.Bee)) return $"蜂の通ったあとに、{t.LabelJa}の芽。";
-            }
-            if (Seeded(Ecology.Bird)) return "小鳥が、どこからか種を落としていった。";
-            if (Seeded(Ecology.Butterfly)) return "蝶の運んだ花粉が、離れた土に落ちた。";
-            if (Seeded(Ecology.Bee)) return "蜂の通ったあとに、小さな種がこぼれた。";
-            if (Seeded(Ecology.Fluff)) return "綿毛が風に乗って、東の土へ。";
-            if (Fed(Ecology.Mushroom)) return "岩陰の湿りに、きのこが顔を出した。";
-            if (Fed(Ecology.Firefly)) return "苔の灯りに、蛍が寄ってくる。";
-            if (eco.Has(Ecology.Fish)) return "あふれた水が海へ。魚の影が寄ってくる。";
-            if (Fed(Ecology.Worm)) return "土の下で、何かが静かに働いている。";
-            if (eco.Has(Ecology.Dragonfly)) return "水たまりの上を、トンボが渡る。";
-            return null;
-        }
-
         /// <summary>Residents follow the domain's Ecology.Presence over the saved state and rolled history.</summary>
         private void UpdateButterflies(List<RoundSummary> history)
         {
@@ -345,7 +304,6 @@ namespace DestinyGarden.Presentation
             _life.ShowPresence(presence, _coordinator.State);
             var kinds = new List<string>();
             foreach (var v in presence) kinds.Add(v.Kind);
-            _ui.ShowResidents(kinds);
             _birdsNow = kinds.Contains(Ecology.Bird);
             UpdateHarmony(history, kinds.Count);
             var butterfly = presence.Find(v => v.Kind == Ecology.Butterfly);
@@ -357,8 +315,6 @@ namespace DestinyGarden.Presentation
                     if (plant != null) tops.Add(_view.PlantTip(plant));
                 }
             _wonders.SetButterflies(butterfly != null, tops);
-            if (butterfly != null && !_butterfliesShown && !_busy) _ui.ShowStatus("どこからか、蝶が。");
-            _butterfliesShown = butterfly != null;
         }
 
         private IEnumerator CaptureRoutine(string path, int autoRolls, bool wonders)
@@ -427,10 +383,6 @@ namespace DestinyGarden.Presentation
         private void RefreshAll(int rolledFaceId = 0)
         {
             _view.Show(_coordinator.State, _coordinator.CurrentWeather);
-            string weather = _coordinator.CurrentWeather != null ? _coordinator.CurrentWeather.LabelJa : "";
-            string site = _coordinator.CurrentFaces != null
-                ? CareTargets.Name(_coordinator.CurrentFaces.ResolvedSiteId) : "";
-            _ui.ShowHeader(weather, site, _coordinator.State.WorldRevision);
             ShowPreparedFaces(rolledFaceId);
             var read = _journal.ReadAll();
             var history = HistoryProjector.Project(read.Entries, _coordinator.RunId);
@@ -464,6 +416,7 @@ namespace DestinyGarden.Presentation
             if (_coordinator.Phase != CoordinatorPhase.IntentCommitted) yield break;
             _busy = true;
             _ui.SetRollEnabled(false);
+            _ui.ShowStatus(null); // Clear feedback from the previous roll.
             _sigil.BeginRoll();
 
             RollOutcome outcome;
@@ -537,15 +490,6 @@ namespace DestinyGarden.Presentation
             // Publish the next faces only after the end state is on screen.
             ShowPreparedFaces();
             if (outcome.LuckySeven) _view.SetLuckyDice(true);
-            // Lucky numbers and the rainbow tell themselves (the number, the star, the rainbow, the light on the plants);
-            // the status line keeps only what the moment card does not already say.
-            string luckStatus = moment?.Detail ?? (moment != null ? RecipeCatalog.LabelJa(outcome.RecipeId) + "の一投。" : EcologyLine(outcome));
-            if (luckStatus != null) _ui.ShowStatus(luckStatus);
-            else if (_coordinator.LuckySevenOffered) _ui.ShowStatus("「七つめの面を加える」で、幸運の七を使えます。");
-            else _ui.ShowStatus(null); // a line from an earlier roll never stands for this one
-            string weather = _coordinator.CurrentWeather.LabelJa;
-            string site = CareTargets.Name(_coordinator.CurrentFaces.ResolvedSiteId);
-            _ui.ShowHeader(weather, site, _coordinator.State.WorldRevision);
             _view.Show(_coordinator.State, _coordinator.CurrentWeather);
             _busy = false;
             _ui.SetRollEnabled(true);

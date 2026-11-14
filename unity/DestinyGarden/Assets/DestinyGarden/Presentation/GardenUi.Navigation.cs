@@ -26,22 +26,24 @@ namespace DestinyGarden.Presentation
             strip.transform.SetParent(parent, false);
             _faceStrip = (RectTransform)strip.transform;
             _faceStrip.anchorMin = _faceStrip.anchorMax = new Vector2(0.5f, 0f);
-            _faceStrip.anchoredPosition = new Vector2(0f, 143f);
+            _faceStrip.anchoredPosition = new Vector2(0f, 116f);
             _faceStrip.sizeDelta = new Vector2(986f, 40f);
             var background = strip.GetComponent<Image>();
             SetPlate(background, GardenUiArt.Plaque);
             background.raycastTarget = false;
             for (int i = 0; i < _faceLabels.Length; i++)
             {
+                var wish = Decoration(_faceStrip, "Wished face", GardenUiArt.Button(Surface.Amethyst));
+                wish.type = Image.Type.Sliced;
+                PlaceDecoration(wish, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(FaceSpacing - 6f, 34f));
+                wish.gameObject.SetActive(false);
+                _faceWishBackings[i] = wish;
                 _faceLabels[i] = MakeText(_faceStrip, new Vector2(0.5f, 0.5f), Vector2.zero,
-                    new Vector2(138f, 40f), 18, TextAnchor.MiddleCenter);
+                    new Vector2(FaceSpacing, 40f), 18, TextAnchor.MiddleCenter);
                 var accent = Decoration(_faceLabels[i].transform, "Blessing rule", GardenUiArt.Rule);
                 PlaceDecoration(accent, new Vector2(0.5f, 0f), new Vector2(0f, 2f), new Vector2(72f, 3f));
                 _faceAccents[i] = accent;
             }
-            _facesLabel = MakeText(parent, new Vector2(0.5f, 0f), new Vector2(0f, 100f),
-                new Vector2(550f, 23f), 16, TextAnchor.MiddleCenter);
-
             _rollButton = MakeChip(parent, new Vector2(0.5f, 0f), new Vector2(0f, 23f),
                 new Vector2(350f, 62f), "サイコロを振る", 26, () =>
                 {
@@ -60,6 +62,10 @@ namespace DestinyGarden.Presentation
                 });
             Engrave(_luckyOffer, Symbol.Star, 24f, 12f);
             SetSurface(_luckyOffer, Surface.Light);
+            _luckyOfferGlow = Decoration(_luckyOffer.Cap.transform, "Seventh face glow", GardenUiArt.Focus);
+            _luckyOfferGlow.type = Image.Type.Sliced;
+            Stretch(_luckyOfferGlow.rectTransform);
+            _luckyOfferGlow.color = PaleGold;
             _luckyOffer.gameObject.SetActive(false);
         }
 
@@ -116,11 +122,12 @@ namespace DestinyGarden.Presentation
             AddPanelHeader(_helpPanel, "遊び方");
             var help = MakeText(_helpPanel.transform, new Vector2(0f, 1f), new Vector2(38f, -108f),
                 new Vector2(704f, 260f), 24, TextAnchor.UpperLeft);
-            help.lineSpacing = 1.28f;
-            help.text = "「サイコロを振る」を押すと、水・風・光・種のどれかが庭に届きます。\n\n" +
-                "「願いをかける」は自由です。願う恵みや面を選べます。\n\n" +
-                "庭はドラッグで見回せます。ホイールや二本指で近づけます。\n" +
-                "「庭を観察」では、どこで何が起きたかを振り返れます。";
+            help.lineSpacing = 1.35f;
+            help.text = "「サイコロを振る」で、水・風・光・種が庭に届きます。\n" +
+                "「願いをかける」で、恵みや面を選べます。\n" +
+                "届け先の変更は、次の一投の準備から反映されます。\n" +
+                "ドラッグで見回し、ホイールや二本指で近づけます。\n" +
+                "「庭を観察」で、出来事を振り返れます。";
             _helpPanel.SetActive(false);
             _panelLayer.SetActive(false);
         }
