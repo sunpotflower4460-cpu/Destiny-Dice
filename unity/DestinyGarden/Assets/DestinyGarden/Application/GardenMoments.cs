@@ -110,6 +110,7 @@ namespace DestinyGarden.Application
                         headline = e.FromHabitat + "だった場所が、" + e.ToHabitat + "へ移り変わった。"; rank = 104; break;
                     case "host-leaf-eaten": headline = "蝶の幼虫が、食草の葉を食べた。"; detail = "根はその場所に残った。"; rank = 70; break;
                     case "predation": headline = actor + "が、葉のアブラムシを食べた。"; rank = 64; break;
+                    case LivingEcosystem.RainbowPollinated: headline = "虹の下で、" + plant + "が花粉を受け取った。"; rank = 101; break;
                     case "pollinated": headline = actor + "が" + plant + "に、花粉を届けた。"; rank = 66; break;
                     case "nectar-fed": headline = actor + "が、" + plant + "の蜜を飲んだ。"; rank = 62; break;
                     case "decomposed": headline = actor + "が落ち葉をほどき、養分が土に戻った。"; rank = 65; break;
@@ -258,7 +259,7 @@ namespace DestinyGarden.Application
             switch (link.Kind)
             {
                 case "care-nectar": case "recovered": case "stressed": case "fruited": case "flower-rest":
-                case "pollinated": case "nectar-fed": case "nutrient-shared": case "nitrogen-fixed": return "p:" + plant.PlantId;
+                case "pollinated": case LivingEcosystem.RainbowPollinated: case "nectar-fed": case "nutrient-shared": case "nitrogen-fixed": return "p:" + plant.PlantId;
                 default: return null;
             }
         }

@@ -12,7 +12,7 @@ namespace DestinyGarden.Domain
     /// </summary>
     public static class LuckySeven
     {
-        public const string RulesVersion = "lucky-seven.v2";
+        public const string RulesVersion = "lucky-seven.v3";
         public const int MaxBanked = 2;
 
         /// <summary>
@@ -22,6 +22,12 @@ namespace DestinyGarden.Domain
         /// </summary>
         public static bool WishEarnsSeventh(bool matched, int matchingFaces, int faceCount) =>
             matched && faceCount == 6 && matchingFaces > 0 && matchingFaces * 3 <= faceCount;
+        /// <summary>
+        /// lucky-seven.v3: from prayer-star.v6 on, only a face wish (1/6) earns the seventh face. A family wish is the
+        /// likely prayer; its answer is the spirits and the star, not the seventh face (in long play the family wish
+        /// brought the seventh face to three rolls in ten).
+        /// </summary>
+        public static bool FamilyWishEarns(string prayerStarRulesVersion) => PrayerStar.VersionOf(prayerStarRulesVersion) < 6;
         public const int FaceId = 7;
         public const int Amplification = 2;
         public const string LabelJa = "幸運の七";

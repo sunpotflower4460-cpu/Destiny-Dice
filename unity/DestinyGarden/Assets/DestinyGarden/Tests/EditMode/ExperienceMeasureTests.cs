@@ -45,6 +45,7 @@ namespace DestinyGarden.Tests
             int rainbowGardens = 0;
             double f12 = 0, f24 = 0, f48 = 0, firstBloomSum = 0;
             var headlineKinds = new Dictionary<string, int>();
+            int earnWish = 0, earnSeason = 0, earnSign = 0, rainbowSeven = 0, rainbowWish = 0;
             for (int g = 0; g < gardens; g++)
             {
                 var coord = new GardenCoordinator(new Memory(), new FixedEntropy(seedPrefix + "-" + way + "-" + g), new SequentialIds());
@@ -80,7 +81,10 @@ namespace DestinyGarden.Tests
                     if (events.Count == 0 && !sign) w.Quiet++;
                     if (sign) w.Signs++;
                     if (big) w.Big++;
-                    if (star != null && star.Points >= 8) rainbow = true;
+                    if (star != null && star.Points >= 8) { rainbow = true; if (star.SevenLuckies) rainbowSeven++; else rainbowWish++; }
+                    if (LuckySeven.WishEarnsSeventh(o.IntentMatched, o.MatchingFaces, o.FaceCount)) earnWish++;
+                    if (o.SeasonMetNow) earnSeason++;
+                    if (star != null && star.EarnsSeventh) earnSign++;
                     var moment = GardenMoments.First(GardenMoments.FromOutcome(o, roundId));
                     if (moment != null)
                     {
@@ -119,6 +123,7 @@ namespace DestinyGarden.Tests
             r.Text = $"[{way}] " + string.Join(" | ", parts) +
                      $" || all: answered {r.AnsweredShare:P0} quiet {r.QuietShare:P0} headline-here {r.RelatedShare:P0} signs {r.SignShare:P0} seventh {r.SeventhShare:P0}" +
                      $" big 1/{r.BigPerRolls:0.0} rainbow-gardens {r.RainbowGardens:P0} flowers@12/24/48 {r.Flowers12:0.0}/{r.Flowers24:0.0}/{r.Flowers48:0.0} first-bloom {r.FirstBloom:0.0}" +
+ $" || seventh from wish {earnWish} season {earnSeason} sign {earnSign}; rainbows by seven-luckies {rainbowSeven} by-wish {rainbowWish}" +
                      " || headlines: " + string.Join(", ", headlineKinds.OrderByDescending(kv => kv.Value).Take(8).Select(kv => kv.Key + " " + kv.Value));
             return r;
         }

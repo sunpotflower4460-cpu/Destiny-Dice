@@ -515,6 +515,15 @@ namespace DestinyGarden.Domain
                 r.Harmony = Harmony.Read(ctx.RecentRecipeIds, residents, Flora.BloomingSpecies(s));
             }
             PrayerStar.ApplyGift(r, ctx, (cell, amount) => Feed(PrayerStar.GiftKind, s.PlantAt(cell), amount));
+            // prayer-star.v6: under the rainbow eight every open flower receives pollen (it can set seed in the rolls after).
+            if (r.PrayerStar != null && r.PrayerStar.Points >= 8)
+                foreach (var p in Ordered(s))
+                {
+                    if (p.Stage != PlantStage.Flower || !e.Cycles.TryGetValue(p.PlantId, out var life) || life.Pollen >= RainbowPollen) continue;
+                    int added = RainbowPollen - life.Pollen;
+                    life.Pollen = RainbowPollen;
+                    Link(RainbowPollinated, "rainbow", p.CellId, p.CellId, added, p.Species);
+                }
             if (ctx.ConnectedHabitats)
             {
                 r.FinalPresence = IslandPresence(s, ctx.Weather);
@@ -524,6 +533,9 @@ namespace DestinyGarden.Domain
             r.Events.AddRange(stages.Events);
             return r;
         }
+
+        public const string RainbowPollinated = "rainbow-pollinated";
+        private const int RainbowPollen = 2;   // enough for a flower to fruit (see the flowering step)
 
         private static PlantStage StageAt(int growth) => growth >= 2500 ? PlantStage.Flower : growth >= 1500 ? PlantStage.Bud
             : growth >= 750 ? PlantStage.Leaf : growth >= 250 ? PlantStage.Sprout : PlantStage.Seed;

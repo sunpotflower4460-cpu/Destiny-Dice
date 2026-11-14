@@ -59,6 +59,7 @@ namespace DestinyGarden.Domain
         public int LuckyStreakBefore;           // lucky.v1: lucky numbers in a row up to the previous roll
         public int SameRunBefore;               // prayer-star.v5: the same face in a row up to the previous roll
         public int FaceTotalBefore;             // prayer-star.v5: the garden's faces summed before this roll
+        public bool NoWish;                     // prayer-star.v6: no wish was made on this roll
     }
 
     /// <summary>
