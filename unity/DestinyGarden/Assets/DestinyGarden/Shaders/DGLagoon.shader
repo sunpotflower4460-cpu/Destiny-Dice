@@ -43,6 +43,13 @@ Shader "DestinyGarden/Lagoon"
                 VertexPositionInputs position = GetVertexPositionInputs(input.positionOS.xyz);
                 Varyings output;
                 output.positionCS = position.positionCS;
+                // A remote vertex may sit beyond the camera's far plane. Keep the
+                // plane continuous to the horizon and leave near water at its true depth.
+                #if UNITY_REVERSED_Z
+                    output.positionCS.z = max(output.positionCS.z, 0.00001 * output.positionCS.w);
+                #else
+                    output.positionCS.z = min(output.positionCS.z, 0.99999 * output.positionCS.w);
+                #endif
                 output.positionWS = position.positionWS;
                 return output;
             }
