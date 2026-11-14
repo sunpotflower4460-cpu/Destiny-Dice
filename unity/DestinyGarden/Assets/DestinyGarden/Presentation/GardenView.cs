@@ -372,6 +372,7 @@ namespace DestinyGarden.Presentation
 
             var camObj = new GameObject("Main Camera") { tag = "MainCamera" };
             var cam = camObj.AddComponent<Camera>();
+            camObj.AddComponent<AudioListener>();
             ViewCamera = cam;
             Rig = camObj.AddComponent<CameraRig>();
             Rig.Cam = cam;
