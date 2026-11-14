@@ -19,6 +19,7 @@ namespace DestinyGarden.Tests
             foreach (var k in new[] { "return", "fruit", "wither" }) d["cycle-" + k] = AudioSynth.CycleTone(k);
             d["lucky-scale7"] = AudioSynth.LuckyScale(7);
             d["lucky-scale8"] = AudioSynth.LuckyScale(8);
+            d["prayer"] = AudioSynth.Prayer();
             return d;
         }
 
@@ -177,16 +178,15 @@ namespace DestinyGarden.Tests
             StringAssert.Contains("いま 2/7", hint, "nine lucky numbers: two toward the next seven");
             Assert.IsNull(PrayerStarSigil.HintLine(7, 3), "nothing makes seven after a seven");
 
+            // The label is the event itself: the number, its name, and the two faces that made it — no explanation.
             var seventh = DestinyGarden.Domain.PrayerStar.Read(4, 3, "water_drop", "seed_single", false, 0, -1, 6, 0);
             var lines = PrayerStarSigil.LuckyLabelLines(seventh, seventh.Points, 4, 3, 6);
-            Assert.AreEqual("8", lines[0]);
-            Assert.AreEqual("七つの幸運　・　八の虹", lines[1]);
+            CollectionAssert.AreEqual(new[] { "8", "七つの幸運", "3 ＋ 4", "" }, lines);
             var dbl = DestinyGarden.Domain.PrayerStar.Read(4, 3, "water_drop", "seed_single", false, 0, -1, 2, 1);
             lines = PrayerStarSigil.LuckyLabelLines(dbl, dbl.Points, 4, 3, 7);
-            Assert.AreEqual("7", lines[0]);
-            Assert.AreEqual("ダブル　ラッキーナンバー", lines[1]);
-            StringAssert.Contains("2/7", lines[2], "honest odds in a seven-face round (the 4 and the 7)");
-            StringAssert.StartsWith("ラッキーナンバー 3/7", lines[3]);
+            CollectionAssert.AreEqual(new[] { "7", "ダブル　ラッキーナンバー", "3 ＋ 4", "" }, lines);
+            var sevenFace = DestinyGarden.Domain.PrayerStar.Read(7, 2, "water_drop", "seed_single", false, 0);
+            Assert.AreEqual("七の目", PrayerStarSigil.LuckyLabelLines(sevenFace, sevenFace.Points, 7, 2, 7)[2]);
         }
 
         [Test]

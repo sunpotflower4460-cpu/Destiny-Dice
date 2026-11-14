@@ -15,6 +15,35 @@ namespace DestinyGarden.Tests
     public class PresentationTests
     {
         [Test]
+        public void LuckyDots_ShowTheCountWithoutWords()
+        {
+            string dots = PrayerStarSigil.LuckyDots(3);
+            StringAssert.Contains("●●●</color>", dots);
+            Assert.AreEqual(7, dots.Split('●').Length - 1, "always seven dots");
+            string visible = System.Text.RegularExpressions.Regex.Replace(dots, "<[^>]+>", "");
+            Assert.AreEqual(new string('●', 7), visible, "no words, no numbers: only the dots are seen");
+            Assert.AreEqual(7, PrayerStarSigil.LuckyDots(9).Split('●').Length - 1);
+        }
+
+        [Test]
+        public void GardenName_FollowsWhatTheGardenBecame()
+        {
+            var s = new WorldState();
+            Assert.AreEqual("まだ名前のない庭", GardenKeepsake.Name(s, null, 0, 0));
+            s.Plants.Add(new PlantState { PlantId = "a", CellId = 40, Species = "cosmos", Stage = PlantStage.Flower });
+            s.Plants.Add(new PlantState { PlantId = "b", CellId = 41, Species = "daisy", Stage = PlantStage.Leaf });
+            string flower = Flora.Get("cosmos").LabelJa;
+            Assert.AreEqual(flower + "の庭", GardenKeepsake.Name(s, new HashSet<string>(), 0, 0), "a flower counts double");
+            string withButterfly = GardenKeepsake.Name(s, new HashSet<string> { Ecology.Bee, Ecology.Butterfly }, 0, 0);
+            Assert.AreEqual(flower + "と" + EcologyObservations.ResidentLabel(Ecology.Butterfly) + "の庭", withButterfly, "the most telling creature");
+            StringAssert.StartsWith("虹のかかる", GardenKeepsake.Name(s, null, 3, 0));
+            StringAssert.StartsWith("幸運の灯る", GardenKeepsake.Name(s, null, 0, 7));
+            StringAssert.StartsWith("虹を見た", GardenKeepsake.Name(s, null, 1, 0));
+            string keepsake = GardenKeepsake.SeasonKeepsake("コスモスの庭", 24, 5, 3, 1, 2);
+            Assert.AreEqual("〈コスモスの庭〉 24投・ラッキーナンバー 5・幸運の株 3・八の虹 1・叶った季節 2", keepsake);
+        }
+
+        [Test]
         public void GardenStartsWithThreeActions_AndPanelsDoNotSendARoll()
         {
             var root = new GameObject("Garden UI test");

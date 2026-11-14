@@ -561,6 +561,19 @@ namespace DestinyGarden.Presentation
         /// "fruit" it leaves its seed (sol -> do, then the upper do: the line goes on), "wither" a seedling ends
         /// (a low open fifth, do-sol). Soft attacks and a long tail, meant to sit under everything else.
         /// </summary>
+        /// <summary>
+        /// The prayer: a wish is made. Re and la rise slowly together (an open fifth, the garden's key), with the upper
+        /// re above them — a held breath rather than an event, quieter than the die's own note.
+        /// </summary>
+        public static float[] Prayer()
+        {
+            var d = new double[(int)(3.6 * Rate)];
+            Glass(d, 0.00, SolfegeNote(1, -1), 0.55, 1.6, 0.35);
+            Glass(d, 0.08, SolfegeNote(5, -1), 0.45, 1.5, 0.35);
+            Glass(d, 0.42, SolfegeNote(1), 0.35, 1.4, 0.25);
+            return Finish(Reverb(d, 0.7, 3.0), 0.32, 0.6);
+        }
+
         public static float[] CycleTone(string kind)
         {
             var d = new double[(int)(3.4 * Rate)];
