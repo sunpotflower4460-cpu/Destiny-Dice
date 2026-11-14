@@ -734,7 +734,7 @@ namespace DestinyGarden.Presentation
         /// <summary>Whether the title card is up (overlays of other components stay hidden under it).</summary>
         public bool TitleCardOpen => _titleCard != null && _titleCard.activeSelf;
 
-        internal void ShowOpeningProgress(int revision)
+        public void ShowOpeningProgress(int revision)
         {
             _enterButton.Label.text = revision >= 2 ? "庭のつづきへ" : StartGardenLabel;
         }

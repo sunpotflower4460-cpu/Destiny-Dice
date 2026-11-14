@@ -306,7 +306,7 @@ namespace DestinyGarden.Presentation
             var kinds = new List<string>();
             foreach (var v in presence) kinds.Add(v.Kind);
             _birdsNow = kinds.Contains(Ecology.Bird);
-            UpdateHarmony(history, kinds.Count);
+            UpdateHarmony(history, _coordinator.UsesConnectedHabitats ? CommunityRules.ResidentKinds(presence) : kinds.Count);
             var butterfly = presence.Find(v => v.Kind == Ecology.Butterfly);
             var tops = new List<Vector3>();
             if (butterfly != null)

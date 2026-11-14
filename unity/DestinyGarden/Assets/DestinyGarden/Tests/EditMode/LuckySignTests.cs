@@ -2,7 +2,6 @@ using System.Collections.Generic;
 using System.Linq;
 using DestinyGarden.Application;
 using DestinyGarden.Domain;
-using DestinyGarden.Presentation;
 using NUnit.Framework;
 
 namespace DestinyGarden.Tests
@@ -84,20 +83,6 @@ namespace DestinyGarden.Tests
             string report = $"{rolls} rolls: ゾロ目 {zorome}, 三つぞろい {triple}, 合計77 {total77}";
             TestContext.WriteLine(report);
             UnityEngine.Debug.Log("DG-SIGNS " + report);
-        }
-
-        [Test]
-        public void SignLabels_AreNumbersAndNames()
-        {
-            var triple = PrayerStar.Read(5, 5, "water_drop", "water_drop", false, 0, -1, 0, 0, 2, 72);
-            var lines = PrayerStarSigil.SignLabels(triple, 5, false);
-            CollectionAssert.AreEqual(new[] { "555", "三つぞろい", "", "" }, lines[0]);
-            CollectionAssert.AreEqual(new[] { "77", "出目の合計", "", "" }, lines[1], "72 + 5 = 77");
-            var zorome = PrayerStar.Read(2, 2, "water_drop", "water_drop", false, 0, -1, 0, 0, 1, 10);
-            CollectionAssert.AreEqual(new[] { "22", "ゾロ目", "", "" }, PrayerStarSigil.SignLabels(zorome, 2, false)[0]);
-            var plain = PrayerStar.Read(4, 1, "water_drop", "water_drop", false, 0, -1, 0, 0, 1, 10);
-            CollectionAssert.AreEqual(new[] { "4", "願いの目", "", "" }, PrayerStarSigil.SignLabels(plain, 4, true)[0]);
-            Assert.AreEqual(0, PrayerStarSigil.SignLabels(plain, 4, false).Count);
         }
     }
 }

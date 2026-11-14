@@ -954,11 +954,11 @@ namespace DestinyGarden.Presentation
                 else
                 {
                     var recent = new List<string>(c.RolledRecipes);
-                    var presence = Ecology.Presence(c.State, c.CurrentWeather, recent, null);
-                    var kinds = new HashSet<string>();
-                    foreach (var v in presence) kinds.Add(v.Kind);
-                    int harmony = Harmony.Read(recent, kinds.Count, Flora.BloomingSpecies(c.State)).Value;
-                    var (have, need) = Seasons.Progress(goalId, c.State, harmony, kinds.Contains(Ecology.Butterfly));
+                    var presence = c.UsesConnectedHabitats ? LivingEcosystem.IslandPresence(c.State, c.CurrentWeather)
+                        : Ecology.Presence(c.State, c.CurrentWeather, recent, null);
+                    int kinds = c.UsesConnectedHabitats ? CommunityRules.ResidentKinds(presence) : presence.Count;
+                    int harmony = Harmony.Read(recent, kinds, Flora.BloomingSpecies(c.State)).Value;
+                    var (have, need) = Seasons.Progress(goalId, c.State, harmony, presence.Exists(v => v.Kind == Ecology.Butterfly));
                     rows.Add($"<color=#cfe6dc>願い</color>　{g.LabelJa}　{Math.Min(have, need)}/{need}");
                 }
             }
