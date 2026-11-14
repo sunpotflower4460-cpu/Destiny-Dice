@@ -23,9 +23,10 @@ namespace DestinyGarden.Presentation
                 new Vector2(neck - 0.02f, Bottom + 0.16f),
                 new Vector2(neck + 0.09f, BottleMesh.MouthHeight + 0.11f),
                 new Vector2(3.22f, BottleMesh.MouthHeight + 0.37f),
-                new Vector2(3.46f, Top - 0.46f),
-                new Vector2(3.45f, Top - 0.20f),
-                new Vector2(3.39f, Top - 0.07f),
+                new Vector2(3.44f, Top - 0.49f),
+                new Vector2(3.47f, Top - 0.29f),
+                new Vector2(3.44f, Top - 0.15f),
+                new Vector2(3.37f, Top - 0.05f),
                 new Vector2(TopRadius, Top),
                 new Vector2(0f, Top)
             });
@@ -78,15 +79,19 @@ namespace DestinyGarden.Presentation
             var wine = new Color(0.48f, 0.13f, 0.28f) * (0.80f + 0.26f * grain.r);
             var gold = new Color(1f, 0.78f, 0.43f);
             float hem = 1f - SmoothRange(0.010f, 0.030f, Mathf.Abs(offset - 0.114f));
-            var color = Color.Lerp(grain * compression, Color.Lerp(wine, gold, hem * 0.83f), ribbon);
+            float ribbonEdge = SmoothRange(0.11f, 0.16f, offset);
+            var cloth = Color.Lerp(wine * (1.04f - ribbonEdge * 0.22f), gold, hem * 0.86f);
+            var color = Color.Lerp(grain * compression, cloth, ribbon);
             // The stamped seal faces the garden's opening view.
             var sealPoint = new Vector2((u - 0.75f) / 0.036f, (height - ribbonHeight) / 0.27f);
             float sealEdge = sealPoint.magnitude;
             float seal = 1f - SmoothRange(0.92f, 1.06f, sealEdge);
             float stamp = Mathf.Sqrt(Mathf.Abs(sealPoint.x)) + Mathf.Sqrt(Mathf.Abs(sealPoint.y));
             float impression = 1f - SmoothRange(0.88f, 1.02f, stamp);
-            var wax = Color.Lerp(new Color(0.59f, 0.22f, 0.30f), gold, impression * 0.87f);
-            return Color.Lerp(color, wax * (1f - sealEdge * seal * 0.20f), seal);
+            float bead = (1f - SmoothRange(0.04f, 0.12f, Mathf.Abs(sealEdge - 0.77f)))
+                * Mathf.Clamp01(0.53f + sealPoint.y * 0.53f - sealPoint.x * 0.20f);
+            var wax = Color.Lerp(new Color(0.46f, 0.14f, 0.22f), new Color(0.70f, 0.29f, 0.32f), bead * 0.72f);
+            return Color.Lerp(color, Color.Lerp(wax, gold, impression * 0.90f), seal);
         }
 
         private static Color Cap(float u, float v)

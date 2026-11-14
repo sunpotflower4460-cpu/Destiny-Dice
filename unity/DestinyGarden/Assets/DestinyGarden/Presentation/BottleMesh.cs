@@ -14,16 +14,17 @@ namespace DestinyGarden.Presentation
         internal static Mesh Create()
         {
             var profile = new List<(Vector2 point, Vector2 tangent)>();
-            Curve(13.82f, -0.52f, 13.86f, -0.22f, 14.12f, -0.18f, WaterlineRadius, 0f, 6);
-            Curve(WaterlineRadius, 0f, 14.52f, 0.27f, 14.56f, 0.70f, 14.61f, 1.70f, 9);
+            Curve(13.77f, -0.62f, 13.82f, -0.26f, 14.07f, -0.22f, WaterlineRadius, 0f, 7);
+            Curve(WaterlineRadius, 0f, 14.50f, 0.22f, 14.72f, 0.38f, 14.73f, 0.65f, 8);
+            Curve(14.73f, 0.65f, 14.74f, 0.94f, 14.56f, 1.20f, 14.61f, 1.70f, 8);
             Curve(14.61f, 1.70f, 14.66f, 2.70f, 14.66f, 3.54f, 14.48f, 4.78f, 9);
             Curve(14.48f, 4.78f, 14.26f, 6.30f, 13.79f, 7.97f, 11.98f, 9.53f, 12);
             Curve(11.98f, 9.53f, 10.17f, 11.09f, 7.86f, 12.18f, 5.76f, 13.28f, 12);
             Curve(5.76f, 13.28f, 4.38f, 14.00f, 3.30f, 14.52f, 3.28f, 15.68f, 10);
             Curve(3.28f, 15.68f, 3.27f, 16.26f, 3.29f, 16.49f, 3.34f, 16.60f, 6);
             int lipStart = profile.Count - 1;
-            Curve(3.34f, 16.60f, 3.40f, 16.73f, 3.63f, 16.62f, 3.66f, 16.93f, 8);
-            Curve(3.66f, 16.93f, 3.69f, 17.24f, 3.30f, 17.32f, 3.08f, MouthHeight, 8);
+            Curve(3.34f, 16.60f, 3.45f, 16.77f, 3.75f, 16.60f, 3.78f, 16.91f, 9);
+            Curve(3.78f, 16.91f, 3.81f, 17.25f, 3.30f, 17.32f, 3.08f, MouthHeight, 10);
             Curve(3.08f, MouthHeight, 2.94f, 17.01f, NeckInnerRadius, 16.80f, NeckInnerRadius, 16.57f, 10);
 
             const int sides = 120;
