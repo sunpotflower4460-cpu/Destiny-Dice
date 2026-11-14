@@ -17,7 +17,6 @@ Shader "DestinyGarden/Lagoon"
             HLSLPROGRAM
             #pragma vertex vert
             #pragma fragment frag
-            #pragma multi_compile_fog
             #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE
             #pragma multi_compile_fragment _ _SHADOWS_SOFT _SHADOWS_SOFT_LOW _SHADOWS_SOFT_MEDIUM _SHADOWS_SOFT_HIGH
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
@@ -54,6 +53,14 @@ Shader "DestinyGarden/Lagoon"
                 float radius = length(p);
                 float time = _DGSkyWeather.z;
                 float range = distance(_WorldSpaceCameraPos, input.positionWS);
+                float3 view = GetWorldSpaceNormalizeViewDir(input.positionWS);
+                float3 toward = SafeNormalize(float3(-view.x, 0.0, -view.z));
+                half3 horizon = GardenSkyGradient(toward);
+                // Distant water blends into the horizon. Nearby water keeps the lagoon's color
+                // even when the tall title camera is farther from the island.
+                float haze = smoothstep(41.0, 89.0, range);
+                if (haze >= 1.0)
+                    return half4(horizon, 1.0);
                 float detailFade = 1.0 - smoothstep(22.0, 52.0, range);
                 float warp = sin(dot(p, float2(0.40, -0.27)) + time * 0.31);
                 float swell = dot(p, float2(1.14, 1.77)) - time * 0.86 + warp * 1.83;
@@ -64,7 +71,6 @@ Shader "DestinyGarden/Lagoon"
                     + float2(0.019, -0.015) * cos(ripples);
                 slope *= lerp(0.14, 1.0, detailFade);
                 float3 normal = normalize(float3(slope.x, 1.0, slope.y));
-                float3 view = GetWorldSpaceNormalizeViewDir(input.positionWS);
                 Light sun = GetMainLight(TransformWorldToShadowCoord(input.positionWS));
 
                 float2 coastUV = p * _CoastParams.z + 0.5;
@@ -119,14 +125,7 @@ Shader "DestinyGarden/Lagoon"
                 water *= 1.0 - contact * _BottleWaterline.y * 0.19;
                 water += (reflectedSky * 0.13 + half3(0.031, 0.027, 0.049))
                     * glint * (0.28 + broken * 0.72) * _BottleWaterline.y;
-                // The outer sea fades to the same horizontal sky seen through the dome.
-                float viewDepth = -TransformWorldToView(input.positionWS).z;
-                half fog = ComputeFogFactorZ0ToFar(max(viewDepth - _ProjectionParams.y, 0.0));
-                float3 toward = -view;
-                toward.y = 0.0;
-                half3 horizon = GardenSkyGradient(SafeNormalize(toward));
-                half3 fogged = MixFogColor(water, horizon, fog);
-                return half4(lerp(fogged, horizon, smoothstep(41.0, 76.0, radius)), 1);
+                return half4(lerp(water, horizon, haze), 1);
             }
             ENDHLSL
         }
