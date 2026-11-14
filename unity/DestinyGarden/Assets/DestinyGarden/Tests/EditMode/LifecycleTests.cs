@@ -45,8 +45,7 @@ namespace DestinyGarden.Tests
         [Test]
         public void LongPlay_KeepsTheGardenOpen_AndTheDiceMeaningful()
         {
-            var coord = new GardenCoordinator(new MemoryJournalForLifecycle(), new FixedEntropy("cycle"), new SequentialIds());
-            coord.CreateRun();
+            var coord = LegacyPrayerGarden("cycle");
             coord.Prepare();
             int returned = 0, lateGerminations = 0, lateSeedFaces = 0;
             for (int i = 0; i < 160; i++)
@@ -85,14 +84,12 @@ namespace DestinyGarden.Tests
         [Test]
         public void OnlyPollinatedFlowers_LeaveASeedInTheirPlace()
         {
-            var coord = new GardenCoordinator(new MemoryJournalForLifecycle(), new FixedEntropy("fruit"), new SequentialIds());
-            coord.CreateRun();
+            var coord = LegacyPrayerGarden("fruit");
             coord.Prepare();
             int fruits = 0, plainReturns = 0, inherited = 0;
             for (int i = 0; i < 200; i++)
             {
                 coord.CommitIntent("none", null);
-                var before = coord.State.Clone();
                 var o = coord.Roll();
                 coord.Prepare();
                 var eco = o.Ecology;
@@ -123,8 +120,7 @@ namespace DestinyGarden.Tests
         [Test]
         public void IdlePlants_RootWhereTheyFit_AndWitherWhereTheyDoNot()
         {
-            var coord = new GardenCoordinator(new MemoryJournalForLifecycle(), new FixedEntropy("idle"), new SequentialIds());
-            coord.CreateRun();
+            var coord = LegacyPrayerGarden("idle");
             coord.Prepare();
             int withered = 0, rooted = 0;
             for (int i = 0; i < 200; i++)
@@ -158,8 +154,7 @@ namespace DestinyGarden.Tests
         [Test]
         public void RarerWishes_CallMoreSpirits()
         {
-            var coord = new GardenCoordinator(new MemoryJournalForLifecycle(), new FixedEntropy("spirits"), new SequentialIds());
-            coord.CreateRun();
+            var coord = LegacyPrayerGarden("spirits");
             coord.Prepare();
             int faceWishSpiritsMax = 0, familySpiritsMax = 0;
             for (int i = 0; i < 300; i++)
@@ -185,6 +180,29 @@ namespace DestinyGarden.Tests
             }
             Assert.Greater(faceWishSpiritsMax, 3, "a one-face wish can call more than three spirits");
             TestContext.WriteLine($"faceWishSpiritsMax={faceWishSpiritsMax} familySpiritsMax={familySpiritsMax}");
+        }
+
+        private static GardenCoordinator LegacyPrayerGarden(string seed)
+        {
+            var ids = new SequentialIds();
+            var coordinator = new GardenCoordinator(new MemoryJournalForLifecycle(), new FixedEntropy(seed), ids);
+            coordinator.Restore(new JournalReadResult
+            {
+                ChainValid = true,
+                Entries = new List<JournalEntry>
+                {
+                    new JournalEntry
+                    {
+                        Kind = "RunStarted", RunId = ids.NewId("run"),
+                        Payload = new Dictionary<string, object>
+                        {
+                            ["initialState"] = WorldStateSerializer.ToPayload(WorldState.CreateInitial()),
+                            ["prayerStarPolicyVersion"] = PrayerStar.RulesVersion
+                        }
+                    }
+                }
+            });
+            return coordinator;
         }
 
         private sealed class MemoryJournalForLifecycle : IJournalWriter

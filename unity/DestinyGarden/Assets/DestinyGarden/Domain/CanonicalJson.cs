@@ -138,7 +138,7 @@ namespace DestinyGarden.Domain
                 if (p.IdleRolls > 0) plant["idleRolls"] = p.IdleRolls;     // lifecycle.v3, same rule
                 plants.Add(plant);
             }
-            return new Dictionary<string, object>
+            var payload = new Dictionary<string, object>
             {
                 ["worldRevision"] = s.WorldRevision,
                 ["soilWater"] = ToObjList(s.SoilWater),
@@ -146,6 +146,8 @@ namespace DestinyGarden.Domain
                 ["evaporationRemainder"] = ToObjList(s.EvaporationRemainder),
                 ["plants"] = plants
             };
+            if (s.Ecosystem != null) payload["ecosystem"] = EcosystemSerializer.ToPayload(s.Ecosystem);
+            return payload;
         }
 
         public static WorldState FromPayload(Dictionary<string, object> p)
@@ -172,6 +174,8 @@ namespace DestinyGarden.Domain
                     IdleRolls = d.TryGetValue("idleRolls", out object ir) ? ToInt(ir) : 0
                 });
             }
+            if (p.TryGetValue("ecosystem", out object eco) && eco is IDictionary<string, object> ed)
+                s.Ecosystem = EcosystemSerializer.FromPayload(ed);
             return s;
         }
 

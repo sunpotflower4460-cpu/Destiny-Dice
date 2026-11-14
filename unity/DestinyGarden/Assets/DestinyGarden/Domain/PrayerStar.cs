@@ -183,13 +183,27 @@ namespace DestinyGarden.Domain
             return cells;
         }
 
+        internal static void ApplyGift(EcologyResult result, EcologyContext context, Action<int, int> nourish)
+        {
+            if (context.FaceId <= 0) return;
+            var recent = context.RecentRecipeIds;
+            string previous = recent != null && recent.Count >= 2 ? recent[recent.Count - 2] : null;
+            // prayer-star.v3: the anchor (the site the blessing reached) and the garden's lucky count and streak.
+            var star = Read(context.FaceId, context.PreviousFaceId, context.CurrentRecipeId,
+                previous, context.PrayerAnswered, result.Harmony.Value, context.AnchorCellId,
+                context.LuckyCountBefore, context.LuckyStreakBefore);
+            result.PrayerStar = star;
+            foreach (int cell in Recipients(result.PostState, star))
+                nourish(cell, GiftFor(star, result.PostState.PlantAt(cell).Growth));
+        }
+
         /// <summary>
         /// rainbow.v3: the rainbow eight rises exactly when the prayer star becomes eight-pointed. (rainbow.v2,
         /// the Lucky Seven rolled while the garden answered, fired once in fifteen rolls in long play once the
         /// garden kept budding; the Lucky Seven now always makes the lucky number, and the eight from there.)
         /// </summary>
         public static bool IsRainbow(bool luckySevenRolled, SimulationResult sim, EcologyResult eco) =>
-            eco != null && eco.PrayerStar != null && eco.PrayerStar.Points >= 8;
+            eco?.PrayerStar != null ? eco.PrayerStar.Points >= 8 : LuckySeven.IsRainbow(luckySevenRolled, sim, eco);
 
         public static Dictionary<string, object> ToPayload(PrayerStarReading r) => new Dictionary<string, object>
         {

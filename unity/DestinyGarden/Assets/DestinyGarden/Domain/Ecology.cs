@@ -26,6 +26,8 @@ namespace DestinyGarden.Domain
         public List<EcologyVisit> Visits = new List<EcologyVisit>();
         public List<EcologyEffect> Effects = new List<EcologyEffect>();
         public List<GardenEvent> Events = new List<GardenEvent>();
+        public List<EcologicalLink> Relations = new List<EcologicalLink>(); // ecology.v4: observed causes
+        public CareReport Care; // v8: measured local dice effects; absent from earlier records
         public bool Exhausted;
         public HarmonyReading Harmony;                              // ecology.v2
         public List<List<int>> Networks = new List<List<int>>();    // mycorrhizal networks (cells), ecology.v2
@@ -45,7 +47,9 @@ namespace DestinyGarden.Domain
         public bool PrayerAnswered;
         public SimulationResult Sim;            // this roll's natural simulation
         public WeatherDefinition Weather;
-        public int FaceId;                      // face rolled this time (1..7); 0 skips the prayer star (ecology.v4)
+        public ResolvedRecipe Dice;
+        public CareMeasure Care;
+        public int FaceId;                      // face rolled this time (1..7); 0 skips the prayer-star rules
         public int PreviousFaceId;              // face of the previous resolved roll in this run; 0 for none
         public int AnchorCellId = -1;           // the blessing's site centre (resolved site); -1 when unknown
         public int SpiritCount = 3;             // spirits of an answered wish: rarer wishes call more (max 7)
@@ -60,7 +64,8 @@ namespace DestinyGarden.Domain
     /// </summary>
     public static class Ecology
     {
-        public const string RulesVersion = "ecology.v4";
+        public const string RulesVersion = "ecology.v3";
+        private const string LegacyPrayerRulesVersion = "ecology.v4";
         public const string Germinate = "germinate", Thrive = "thrive";
         public const string Mycorrhiza = "mycorrhiza";
         public const int MycorrhizaReach = 2;        // manhattan distance that links two plants
@@ -95,7 +100,7 @@ namespace DestinyGarden.Domain
         /// <summary>Flowers with affinity >= 1 for a visitor, most loved first. Equally loved flowers take turns
         /// from roll to roll (lifecycle.v2: the order turns with the world revision), so every flower can be visited.
         /// Plants without a species yet count as liked (1).</summary>
-        private static List<int> Favoured(WorldState s, List<int> flowers, Func<SpeciesTraits, int> affinity)
+        private static List<int> Favoured(WorldState s, List<int> flowers, Func<SpeciesTraits, int> affinity, bool rotate)
         {
             var scored = new List<KeyValuePair<int, int>>();
             foreach (int c in flowers)
@@ -107,8 +112,12 @@ namespace DestinyGarden.Domain
             }
             int turn = s.WorldRevision * 7;
             int Turn(int c) => (c * 37 + turn) & 255;
-            scored.Sort((a, b) => a.Value != b.Value ? b.Value.CompareTo(a.Value)
-                : Turn(a.Key) != Turn(b.Key) ? Turn(a.Key).CompareTo(Turn(b.Key)) : a.Key.CompareTo(b.Key));
+            scored.Sort((a, b) =>
+            {
+                int affinityOrder = b.Value.CompareTo(a.Value);
+                if (affinityOrder != 0) return affinityOrder;
+                return rotate ? Turn(a.Key).CompareTo(Turn(b.Key)) : a.Key.CompareTo(b.Key);
+            });
             var list = new List<int>();
             foreach (var kv in scored) list.Add(kv.Key);
             return list;
@@ -127,18 +136,24 @@ namespace DestinyGarden.Domain
         /// Used by the ecology step and by the view between rolls.
         /// </summary>
         public static List<EcologyVisit> Presence(WorldState s, WeatherDefinition weather,
-            IList<string> recentRecipeIds, string currentRecipeId)
+            IList<string> recentRecipeIds, string currentRecipeId) =>
+            Presence(s, weather, recentRecipeIds, currentRecipeId, false, true);
+
+        private static List<EcologyVisit> Presence(WorldState s, WeatherDefinition weather,
+            IList<string> recentRecipeIds, string currentRecipeId, bool rotateFlowers, bool communityCreatures)
         {
+            if (s.Ecosystem != null) return LivingEcosystem.Presence(s, weather, currentRecipeId);
             var visits = new List<EcologyVisit>();
             var flowers = Flowers(s);
 
             // Bees go to flowers they favour, butterflies only to flowers they like (ecology.v3).
-            var beeFlowers = Favoured(s, flowers, t => t.Bee);
-            var butterflyFlowers = Favoured(s, flowers, t => t.Butterfly);
+            var beeFlowers = Favoured(s, flowers, t => t.Bee, rotateFlowers);
+            var butterflyFlowers = Favoured(s, flowers, t => t.Butterfly, rotateFlowers);
             if (beeFlowers.Count > 0)
                 visits.Add(new EcologyVisit { Kind = Bee, Cells = beeFlowers.GetRange(0, Math.Min(3, beeFlowers.Count)) });
             // community.v1: a nectar patch also calls butterflies (a restored habitat brings its creatures).
-            var communities = DestinyGarden.Domain.Communities.Find(s);
+            // (Only in prayer gardens: a garden begun before the prayer star keeps its original residents.)
+            var communities = communityCreatures ? DestinyGarden.Domain.Communities.Find(s) : new List<Community>();
             bool nectar = communities.Exists(c => c.Element == ElementId.Wind && c.Cells.Count >= DestinyGarden.Domain.Communities.CallsCreaturesAt);
             if (butterflyFlowers.Count > 0 && (nectar || NatureBalance.AllElementsWithinWindow(recentRecipeIds ?? new string[0])))
                 visits.Add(new EcologyVisit { Kind = Butterfly, Cells = butterflyFlowers.GetRange(0, Math.Min(3, butterflyFlowers.Count)) });
@@ -189,6 +204,7 @@ namespace DestinyGarden.Domain
         public static EcologyResult Apply(WorldState afterSim, EcologyContext ctx, byte[] ecologyBytes,
             Func<int, string> newPlantId)
         {
+            if (afterSim.Ecosystem != null) return LivingEcosystem.Apply(afterSim, ctx, ecologyBytes, newPlantId);
             var s = afterSim.Clone();
             var r = new EcologyResult { PostState = s };
             var buf = new EntropyBuffer(ecologyBytes ?? new byte[0]);
@@ -261,7 +277,9 @@ namespace DestinyGarden.Domain
             }
 
             // Residents are judged on the state the natural simulation produced.
-            var presence = Presence(afterSim, ctx.Weather, ctx.RecentRecipeIds, ctx.CurrentRecipeId);
+            bool prayerGarden = ctx.FaceId > 0;
+            var recentBlessings = prayerGarden ? ctx.RecentRecipeIds ?? Array.Empty<string>() : null;
+            var presence = Presence(afterSim, ctx.Weather, ctx.RecentRecipeIds, ctx.CurrentRecipeId, prayerGarden, prayerGarden);
             EcologyVisit Get(string kind) => presence.Find(v => v.Kind == kind);
 
             // 1. Bees: each visited flower, 1/3 to drop a seed next to it (bees: at most one).
@@ -284,22 +302,25 @@ namespace DestinyGarden.Domain
                 if (Chance(2)) PlantSeed(Butterfly, EmptyWithin(butterfly.Cells, 2, 4), butterfly.Cells);
             }
             // 2b. Pollination (lifecycle.v2): flowers the bees and butterflies visited will bear seed when they return.
-            foreach (var v in new[] { bee, butterfly })
-                if (v != null)
-                    foreach (int c in v.Cells)
-                    {
-                        var fl = s.PlantAt(c);
-                        if (fl != null && fl.Stage == PlantStage.Flower) fl.Pollinated = true;
-                    }
+            if (prayerGarden)
+                foreach (var v in new[] { bee, butterfly })
+                    if (v != null)
+                        foreach (int c in v.Cells)
+                        {
+                            var fl = s.PlantAt(c);
+                            if (fl != null && fl.Stage == PlantStage.Flower) fl.Pollinated = true;
+                        }
             // 3. Spirits of an answered prayer: +120 to up to SpiritCount reached plants (not flowers). The rarer the
             // wish (faces on the die / faces that answer it), the more spirits come; the die's odds never change.
             if (ctx.PrayerAnswered && ctx.Sim != null)
             {
                 var cells = new List<int>();
-                foreach (int c in PrayerSpirits.ReachedPlantCells(ctx.Sim, int.MaxValue))
+                // Outside prayer gardens the original rule stands (the first reached plants, at most three).
+                int spirits = prayerGarden ? Math.Min(PrayerSpirits.MaxSpirits, ctx.SpiritCount) : 3;
+                foreach (int c in prayerGarden ? PrayerSpirits.ReachedPlantCells(ctx.Sim, int.MaxValue) : PrayerSpirits.ReachedPlantCells(ctx.Sim))
                 {
                     var p = s.PlantAt(c);
-                    if (p != null && p.Stage != PlantStage.Flower && cells.Count < Math.Min(PrayerSpirits.MaxSpirits, ctx.SpiritCount)) cells.Add(c);
+                    if (p != null && p.Stage != PlantStage.Flower && cells.Count < spirits) cells.Add(c);
                 }
                 r.Visits.Add(new EcologyVisit { Kind = Spirit, Cells = cells });
                 foreach (int c in cells) Nourish(Spirit, c, 120);
@@ -394,10 +415,10 @@ namespace DestinyGarden.Domain
                 string carrier = carriedBy.TryGetValue(p.CellId, out string ck) ? ck
                     : p.OriginKind == "seedInput" ? "die" : p.OriginKind;
                 string parentSpecies = parentOf.TryGetValue(p.CellId, out int pc) ? s.PlantAt(pc)?.Species : null;
-                p.Species = Flora.ChooseSpecies(s, p, carrier, parentSpecies, n => Pick(n), ctx.RecentRecipeIds,
+                p.Species = Flora.ChooseSpecies(s, p, carrier, parentSpecies, n => Pick(n), recentBlessings,
                     ctx.PrayerAnswered ? ctx.CurrentRecipeId : null, ctx.AnchorCellId, communitiesBefore);
                 var t = Flora.Get(p.Species);
-                bool softened = t != null && Flora.BaseHardness(p.CellId) > t.MaxHardness;
+                bool softened = t != null && Flora.BaseHardness(p.CellId) > Flora.HardnessLimit(t, prayerGarden);
                 r.Effects.Add(new EcologyEffect { Kind = Germinate, CellId = p.CellId, Species = p.Species, Softened = softened });
             }
             // Did the weather and the die's blessing move this plant in the natural simulation? (lifecycle.v3)
@@ -425,7 +446,7 @@ namespace DestinyGarden.Domain
             {
                 var t = Flora.Get(p.Species);
                 if (t == null || p.Stage == PlantStage.Flower) { p.IdleRolls = 0; continue; }
-                bool fits = Flora.Fits(t, s, p.CellId);
+                bool fits = Flora.Fits(t, s, p.CellId, prayerGarden);
                 bool grew = SimGrew(p);
                 if (fits)
                 {
@@ -467,7 +488,17 @@ namespace DestinyGarden.Domain
                     // lifecycle.v3: the network shares what some of it gained from the weather and the blessing
                     // (the natural simulation only), first with the members that gained nothing.
                     bool grew = false;
-                    foreach (int c in net) if (SimGrew(s.PlantAt(c))) { grew = true; break; }
+                    if (prayerGarden) { foreach (int c in net) if (SimGrew(s.PlantAt(c))) { grew = true; break; } }
+                    else
+                    {
+                        // ecology.v3 (gardens begun before the prayer star): any growth so far this roll.
+                        var before = ctx.Sim.Evidence.GrowthBeforeByPlant;
+                        foreach (int c in net)
+                        {
+                            var p = s.PlantAt(c);
+                            if (p.Growth > (before.TryGetValue(p.PlantId, out int g0) ? g0 : 0)) { grew = true; break; }
+                        }
+                    }
                     if (!grew) continue;
                     var young = new List<PlantState>();
                     foreach (int c in net)
@@ -476,29 +507,19 @@ namespace DestinyGarden.Domain
                         if (p.Stage != PlantStage.Flower) young.Add(p);
                     }
                     var stuck = new Dictionary<PlantState, bool>();
-                    foreach (var p in young) stuck[p] = !SimGrew(p);
+                    foreach (var p in young) stuck[p] = prayerGarden && !SimGrew(p);
                     young.Sort((a, b) => stuck[a] != stuck[b] ? (stuck[a] ? -1 : 1)
                         : a.Growth != b.Growth ? a.Growth.CompareTo(b.Growth) : a.CellId.CompareTo(b.CellId));
-                    int take = MycorrhizaRecipientsFor(net.Count);
+                    int take = prayerGarden ? MycorrhizaRecipientsFor(net.Count) : MycorrhizaRecipients;
                     for (int i = 0; i < young.Count && i < take; i++) Nourish(Mycorrhiza, young[i].CellId, share);
                 }
             }
 
             // 18. The prayer star beneath the die (ecology.v4, prayer-star.v1). No chance involved.
-            if (ctx.FaceId > 0)
-            {
-                var recent = ctx.RecentRecipeIds;
-                string previousRecipe = recent != null && recent.Count >= 2 ? recent[recent.Count - 2] : null;
-                r.PrayerStar = DestinyGarden.Domain.PrayerStar.Read(ctx.FaceId, ctx.PreviousFaceId,
-                    ctx.CurrentRecipeId, previousRecipe, ctx.PrayerAnswered, r.Harmony.Value, ctx.AnchorCellId,
-                    ctx.LuckyCountBefore, ctx.LuckyStreakBefore);
-                foreach (int c in DestinyGarden.Domain.PrayerStar.Recipients(s, r.PrayerStar))
-                    Nourish(DestinyGarden.Domain.PrayerStar.GiftKind, c,
-                        DestinyGarden.Domain.PrayerStar.GiftFor(r.PrayerStar, s.PlantAt(c).Growth));
-                // Under the rainbow eight every flower in bloom sets seed (abundance carried to the next generation).
-                if (r.PrayerStar.Points >= 8)
-                    foreach (var p in s.Plants) if (p.Stage == PlantStage.Flower) p.Pollinated = true;
-            }
+            PrayerStar.ApplyGift(r, ctx, (cell, amount) => Nourish(PrayerStar.GiftKind, cell, amount));
+            // Under the rainbow eight every flower in bloom sets seed (abundance carried to the next generation).
+            if (r.PrayerStar != null && r.PrayerStar.Points >= 8)
+                foreach (var p in s.Plants) if (p.Stage == PlantStage.Flower) p.Pollinated = true;
 
             // 18b. community.v1: the communities of this roll's blessing answer: the plants in and next to them grow.
             if (ctx.FaceId > 0 && ctx.CurrentRecipeId != null)
@@ -514,7 +535,7 @@ namespace DestinyGarden.Domain
             }
 
             // 19. The cycle (lifecycle.v1): flowers past their span return to the soil and feed their neighbours.
-            if (ctx.FaceId > 0)
+            if (prayerGarden)
             {
                 foreach (var gone in Lifecycle.Advance(s))
                 {
@@ -535,11 +556,11 @@ namespace DestinyGarden.Domain
                                 OriginKind = "ecology", SeedSourceRoundId = ctx.RoundId
                             };
                             s.Plants.Add(seedling);
-                            seedling.Species = Flora.ChooseSpecies(s, seedling, Lifecycle.FruitKind, gone.Species, n => Pick(n), ctx.RecentRecipeIds,
+                            seedling.Species = Flora.ChooseSpecies(s, seedling, Lifecycle.FruitKind, gone.Species, n => Pick(n), recentBlessings,
                                 ctx.PrayerAnswered ? ctx.CurrentRecipeId : null, ctx.AnchorCellId, communitiesBefore);
                             r.Effects.Add(new EcologyEffect { Kind = Lifecycle.FruitKind, CellId = cell, Seed = true, Species = seedling.Species });
                             var ft = Flora.Get(seedling.Species);
-                            bool fsoft = ft != null && Flora.BaseHardness(cell) > ft.MaxHardness;
+                            bool fsoft = ft != null && Flora.BaseHardness(cell) > Flora.HardnessLimit(ft, prayerGarden);
                             r.Effects.Add(new EcologyEffect { Kind = Germinate, CellId = cell, Species = seedling.Species, Softened = fsoft });
                             r.Events.Add(new GardenEvent { Kind = "SeedCarried", PlantId = seedling.PlantId, CellId = cell, Tick = 40 });
                         }
@@ -561,6 +582,7 @@ namespace DestinyGarden.Domain
         /// <summary>Mycorrhizal networks: plants linked within MycorrhizaReach, as connected components (cellId order).</summary>
         public static List<List<int>> Networks(WorldState s)
         {
+            if (s.Ecosystem != null) return LivingEcosystem.Networks(s);
             var cells = new List<int>();
             foreach (var p in s.Plants) cells.Add(p.CellId);
             cells.Sort();
@@ -588,6 +610,7 @@ namespace DestinyGarden.Domain
         /// <summary>Journal payload for Resolved.ecology.</summary>
         public static Dictionary<string, object> ToPayload(EcologyResult r)
         {
+            bool living = r.PostState != null && r.PostState.Ecosystem != null;
             var visits = new List<object>();
             foreach (var v in r.Visits)
             {
@@ -608,7 +631,9 @@ namespace DestinyGarden.Domain
             }
             var payload = new Dictionary<string, object>
             {
-                ["rulesVersion"] = RulesVersion,
+                ["rulesVersion"] = CareRules.Enabled(r.PostState) ? CareRules.RulesVersion : living && r.PostState.Ecosystem.Habitat != null ? HabitatRules.RulesVersion : living ? (r.PostState.Ecosystem.Succession != null ?
+                    (r.PostState.Ecosystem.Succession.Community != null ? CommunityRules.RulesVersion : SuccessionRules.RulesVersion) : LivingEcosystem.RulesVersion)
+                    : r.PrayerStar != null ? LegacyPrayerRulesVersion : RulesVersion,
                 ["harmony"] = r.Harmony != null ? (long)r.Harmony.Value : 0L,
                 ["star"] = r.Harmony != null ? (long)r.Harmony.Star : 0L,
                 ["yin"] = r.Harmony != null ? (long)r.Harmony.Yin : 0L,
@@ -617,6 +642,24 @@ namespace DestinyGarden.Domain
                 ["effects"] = effects,
                 ["exhausted"] = r.Exhausted
             };
+            if (r.Care != null) payload["care"] = r.Care.ToPayload();
+            if (living)
+            {
+                var relations = new List<object>();
+                foreach (var e in r.Relations)
+                {
+                    var relation = new Dictionary<string, object>
+                    {
+                        ["kind"] = e.Kind, ["actor"] = e.Actor, ["species"] = e.Species,
+                        ["fromCell"] = e.FromCell, ["toCell"] = e.ToCell, ["amount"] = e.Amount
+                    };
+                    if (e.FromHabitat != null) relation["fromHabitat"] = e.FromHabitat;
+                    if (e.ToHabitat != null) relation["toHabitat"] = e.ToHabitat;
+                    relations.Add(relation);
+                }
+                payload["relations"] = relations;
+                payload["season"] = PlantStrategies.SeasonAt(r.PostState);
+            }
             if (r.PrayerStar != null) payload["prayerStar"] = DestinyGarden.Domain.PrayerStar.ToPayload(r.PrayerStar);
             if (r.Communities.Count > 0 || r.Answered.Count > 0)
             {

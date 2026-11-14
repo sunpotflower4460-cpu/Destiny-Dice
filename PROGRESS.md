@@ -2068,6 +2068,460 @@ Git diff whitespace check: pass
 - Tests: PresentationTests.cs
 - docs/jam-submission/、PROGRESS.md
 
+## Ecology v4: 生態系の循環と多様性を深める（2026-11-12）
+### 完了したこと
+- 本人の依頼「ひとつひとつの生態系や自然の関係性の深みや種類を可能な限りブラッシュアップ」を、生態系v4の一つの改修として実装。仕様は `docs/unity-garden/ECOSYSTEM_V4.md`。
+- 花を15→24種に。シロツメクサ・カラスノエンドウ・ノコギリソウ・タイム・ハッカ・サクラソウ・スミレ・ミソハギ・アキノキリンソウを追加。硬さ・排水・湿り・光・蜜源の好みと、根粒菌・地表の覆い・背の高い株の陰・結実の得意な時期を共通データから扱う。
+- 岩陰・草木の陰・水辺・乾いた草地・花の草地。湿りと葉の覆いを履歴として保存し、成熟した住み場所を一投の水だけで作らない。高い株が育つと新しい陰が生まれ、株が退場すると居場所も変わる。
+- 蜂・蝶が直接種を作る旧v3を、新規庭では受粉→数歩後の結実→有限の種の散布に変更。小鳥は実、風は風散布の種、他は自然落下。親と厳密に同種、親種が育つ空き地にだけ散布。各投2粒を上限に経路を巡回する。
+- 落ち葉→きのこ・ミミズ・トビムシ・カタツムリ→養分→成長の循環。分解は落ち葉から同量を引き、菌根は豊かな根から乏しい根へ同量を移す。根粒菌と雨の養分は外部供給として分ける。水収支と元の `Simulation.Resolve` は変更しない。
+- アブラムシの局所的な群れと、テントウムシ・ハナアブ・クモ・カエル・小鳥の捕食。餌・葉の隠れ場所・花・持続した湿りを組み合わせ、存在する獲物だけを減らす。新しい住人7種。
+- 株ごとの負担と回復、花後の休息と再成長、寿命と土への還元。混雑・養分不足・小虫・不適合な居場所が負担になり、解消すれば回復。96投で巡る四つの時期が種の実りに作用する。
+- 関係を `Resolved.ecology.relations` に保存し、現在の一行と履歴を同じ投影で表示。図鑑には今の環境、土の循環、出会った住人と植物の役割を表示。図鑑と全投の履歴をスクロール可能に。隠れたパネル更新でもScrollRectを取得する。
+- 新種の形・色、ハナアブの飛行、地表の住人と落ち葉を追加。地表の住人は1メッシュで描画し、所有メッシュ・マテリアルを解放。衰弱は色に、実際の菌根の養分移動は根元の光に反映。
+- `RunStarted` でv4を記録し、新しい庭だけ適用。古い庭はv3で続け、初期状態・24投後の旧ハッシュを改修前 `ac12b67` の実行から採取して照合する。
+- 実際のUnity C# Domain / Application / Infrastructureと既存テストを直接動かす .NET 8 検証プロジェクト、CIを追加。表示・ゲームコードの写経はしない。
+### 完了基準の結果（実行出力）
+```text
+dotnet test tools/ecology-check/Ecology.Check.csproj --configuration Release
+Passed! - Failed: 0, Passed: 50, Skipped: 0, Total: 50
+```
+- 内訳: 既存のエンジン非依存テスト36＋生態v4の14。`PresentationTests.cs` の5テストはUnityが必要なので、この実行には含めない。
+- 4庭×240投（計960投）: 24/24種、追加した7住人を含む全ての自然住人と11種の関係イベントが発生。240投後の株数36・36・42・37、最初の120投の散布25・26・28・16粒。水の不変、2粒上限、個体・資源・履歴の範囲、保存復帰を検証。
+- 旧初期状態 `c27986226e09f89eca6906985d1f65739ee8e9a369dec7cc3df958a2658513b1`、旧24投後 `b7448dd6b371601884ca452f99b9956fd115ab8ae75f374c3a500ff856999d60` と一致。
+```text
+pnpm typecheck
+$ tsc -b --noEmit                 (exit 0)
+pnpm test
+Test Files 41 passed (41)
+Tests      183 passed (183)
+pnpm build
+vite v8.1.4 building client environment for production...
+✓ 102 modules transformed.
+✓ built in 278ms
+```
+- 既存アプリ365日・願い120件の `pnpm simulate` は `ok: true, networkRequests: 0`。レポートの既存golden `ef9462dd6dbf7e4852f66f3527d1c33c59b5ffcb8017ebac9b004284cb6cc24e` と一致。`verify-export` 成功、再生成レポートを `cmp` で一致確認。
+- C#9構文検査: Unity内の50ファイル、構文エラー0（Unityの型解決・ビルドを意味しない）。`git diff --check` 成功。
+- 既存実験の `src/`、凍結プロトコル、台帳の計算・書き込み経路は変更していない。生態の偶然は保存済みbytesのみ。過去の状態の再解釈・ジャーナルの削除・編集は追加していない。
+### 未確認・申し送り
+- **この環境にはUnityエディタ／実行可能なWebGLビルドがないため、Unityコンパイル・全EditModeテスト・WebGL書き出し・3D表示・操作・音・fpsは未検証。** 上記50件は.NETでの実C#ドメイン検証であり、Unityテスト実行済みとは扱わない。
+- Unity 6000.3.23f1で全EditMode実行後、WebGLで新しい来場者→複数投→図鑑と全履歴のホイール/タッチスクロール→再読込を確認する。旧ジャーナルを開いた際はv3のまま、次の来場者ではv4になることも確認する。地表の住人のサイズ、遅いGPUの負荷、花の再開花、長文の折返しは画面確認が必要。
+- 実ストア・itch.io提出用ビルドや画像は更新していない。新しい規則の実プレイでの心地よさは、上記の960投による規則検証に加えてUnityで確認が必要。
+### 触ったファイル
+- Domain: EcosystemState.cs、EcosystemSerializer.cs、LivingEcosystem.cs、EcologyObservations.cs（新規）、Ecology.cs、Flora.cs、GardenTypes.cs、CanonicalJson.cs
+- Application: GardenCoordinator.cs、HistoryProjector.cs
+- Presentation: EcosystemResidents.cs（新規）、GardenLife.cs、GardenUi.cs、GardenBootstrap.cs、GardenView.cs、PlantForms.cs、IslandHarmony.cs
+- Tests: LivingEcosystemTests.cs（新規）、HarmonyTests.cs（旧版のテストを旧状態から起動）
+- tools/ecology-check/、.github/workflows/garden-ecology.yml、.gitignore、docs/unity-garden/ECOLOGY.md・ECOSYSTEM_V4.md、PROGRESS.md
+
+## Ecology v5: 土の記憶・花蜜・庭を観察（2026-11-13）
+### 完了したこと
+- 本人の継続依頼「さらにブラッシュアップ」に対し、前回のPR #30の生態系を一つの目的で深化。24種の数は維持し、過去の植物・居場所・花を訪れる命の関係を深めた。仕様は `docs/unity-garden/ECOSYSTEM_V5.md`。
+- 休眠する種を保存。散布は即座に株を作らず、土へ同種の種を残す。親のID・場所・投・運び手を保ち、2歩以上と空き地・水/光/土・養分2を待って芽吹く。親の退場後も子が生まれる。
+- 土の種は全体96粒、セルごと3粒、種を届けるのは一投2粒まで。古い種は土へ還り、期限や個体メモリは有限。休息の頃を経験してから芽吹くサクラソウ・スミレ・アネモネなど、種ごとの戦略を導入。
+- 花蜜（0〜6）と訪花の記憶を保存。晴れ2/薄曇り1/小雨0で補い、訪花で1を消費。受粉が必要・長く訪れていない・好みの花を巡り、毎回最初の3セルだけが訪問される偏りを解消。蜂が食べた後、蝶は残る蜜から経路を選び直す。ハナアブは開いた花に限定。
+- 分解者・捕食者は実在する資源が豊かな場所へ。得点が同じなら投数で巡り、地図の前方だけが常に作用する偏りを抑えた。
+- 右メニューに「庭を観察」。全体と5つの居場所で、今の株・花・土の資源・眠る種を読む。株ごとに由来、花蜜、乾湿・光・硬さ・排水・養分・小虫・混雑を根拠つきで表示。種が今何を待つか、条件が戻ってもまだ回復に時間が必要な株も区別する。
+- 種の着地と後の芽吹きを、関係イベント・履歴の集計・演出で区別。履歴は保存済みの原因、観察は現在の状態を共通のドメイン投影から読む。
+- 新規庭だけ `ecology.v5`。保存済みv3/v4は規則を変えず復帰。`succession` を持たないv4のペイロードでは新しいキーを省略し、初期状態・48投後の既知ハッシュとの一致を検証。
+### 完了基準の結果（実行出力）
+```text
+dotnet test tools/ecology-check/Ecology.Check.csproj --configuration Release
+Test Run Successful.
+Total tests: 65
+     Passed: 65
+```
+- 前回の50件＋今回15件。実際のDomain/Application/Infrastructureを.NET 8でコンパイル・実行。Unity依存のPresentationTests 5件は含めない。
+- v5の384投×2庭を、継続と96投後の復帰それぞれで走らせ、計1536投の全状態ハッシュを照合。途中復帰による分岐なし。水の不変、種の供給2粒と芽吹き2株、貯蔵96粒・セル3粒、蜜の範囲、現在の個体メモリの掃除、セル重複なしを確認。
+- v5の2庭で23/24種。384投後の株数36・42、土へ残った種379・390粒、そこからの芽吹き104・111株、土の種の最大96粒。受粉・花蜜・休眠種の着地/目覚め/還元を含む14種類の関係イベントが発生。
+- v3の初期/24投の既知ハッシュと、v4（改修前 `578f711`）の初期 `e0a4eabc212de46929090ca4cdbcef2d8b51936ddc7647a4f599b34b310b5ace` /48投 `bc0bb990d677452a3baf62eb910b15908c8e1f4f6e41de888ba58c5cd61170f2` を照合。
+```text
+npx --yes pnpm@10 typecheck
+> tsc -b --noEmit                         (exit 0)
+npx --yes pnpm@10 test
+Test Files 41 passed (41)
+Tests      183 passed (183)
+npx --yes pnpm@10 build
+✓ 102 modules transformed.
+✓ built in 355ms
+```
+- C#9構文検査はUnity内55ファイル、エラー0。`git diff --check` 成功。既存実験の `src/`・凍結プロトコル・水のシミュレーションには触れていない。乱数の取得・保存順序を変えず、過去のジャーナルを書き換える経路は追加していない。
+- 前回PR #30のGitHub側 `CI` と `Garden ecology` は本着手前にsuccessを確認。本追記時点で今回の変更のリモートCIは未実行。
+### 未確認・申し送り
+- この環境にUnityエディタと実行可能なWebGLプレイヤーがないため、Unityでの型解決・全EditMode実行・3D表示・観察パネルの選択/スクロール・音・fpsは未検証。.NETとC#構文検査をUnityの実行確認とは扱わない。
+- Unity 6000.3.23f1で、新規の来場者→複数投→観察の6フィルタ→種が残る投と後の芽吹き→再読み込み→旧v3/v4の復帰を確認する。特に観察の長文、狭いWebGL枠での右メニュー、タッチスクロールと住人の実際の飛行を確認する。
+- 今回も実配布ビルド・提出画像・ストア公開は更新しない。ルールと新UIを含めてPR #30を更新し、Unity確認前のドラフトを維持する。
+### 触ったファイル
+- Domain: SuccessionState.cs、SuccessionSerializer.cs、SuccessionRules.cs、EcologyInspection.cs（新規とmeta）、EcosystemState.cs、EcosystemSerializer.cs、LivingEcosystem.cs、Ecology.cs、EcologyObservations.cs
+- Application: GardenCoordinator.cs、HistoryProjector.cs
+- Presentation: GardenUi.cs、GardenBootstrap.cs、GardenLife.cs
+- Tests: SuccessionTests.cs（新規とmeta）、LivingEcosystemTests.cs（v4の長期試験をv4で固定）
+- docs/unity-garden/ECOSYSTEM_V5.md（新規）、ECOLOGY.md、tools/ecology-check/README.md、PROGRESS.md
+
+## Ecology v6: 定着・子育て・水辺の食物網（2026-11-13）
+### 完了したこと
+- 本人の継続依頼「さらにブラッシュアップ」に対し、住人が庭で暮らし、次の世代につながる一つの改修を実装。仕様は `docs/unity-garden/ECOSYSTEM_V6.md`。
+- 蝶・テントウムシ・ハナアブ・トンボ・カエルが、食草/葉の覆い/持続する水辺と食べものの条件が3投続いた場所へ定着。種類ごと2組、各組の成体3・幼い命2、候補地6まで。成体の活動は住み場所からの範囲と実在する数で制限する。
+- 卵→幼生→（対象種のさなぎ）→成体を保存。蝶の幼虫は食草、テントウムシとハナアブの幼虫はアブラムシ、オタマジャクシは藻、ヤゴは水生の餌を実際に消費。幼生は食べ足りない時には成長しない。卵とさなぎの蓄えを使う期間も区別する。
+- 蝶の幼虫は食草の根と葉の基礎を残して食べる。ハナアブは成体の花蜜と幼虫の捕食を分離。テントウムシの成体は開いた花の実在する蜜でも暮らせる。成体が食べられても幼生の食べものがない場所で産卵を続けない。
+- 成体の食事は保存される実活動の消費量から割り当て、同じ量を2組へ二重計上しない。水辺には養分→藻、落ち葉/藻→小さな餌を追加し、消費量と上限を守る。乾いた時の還元も記録する。水収支は変えない。
+- 一時的な餌不足/住み場所の喪失には猶予。子育て中でない成体は近くの合う場所へ移り、幼生や卵は池の間を瞬間移動しない。成体への成長、外への旅立ち、移動、還元を別の原因イベントとして保存する。
+- 観察に住人の成体数、卵/幼虫/さなぎ/オタマジャクシ/ヤゴの段階、餌不足と居場所の変化、水辺の食物網を追加。新しい段階は既存の地表メッシュにまとめて描く。育った場所や定着/移動の場所に小さな光を出す。
+- 調和の多様性で同じ住人の卵・幼虫・さなぎを別種として数えない。旧規則の調和は変更しない。
+- 新規庭だけ `ecology.v6`。v3/v4/v5の保存済み庭は旧規則で復帰。新しいメモリを推定・追加しない。住人の順序・植物の選択順序を固定し、実JSONを経た復帰でも同じ結果にする。
+### 完了基準の結果（実行出力）
+```text
+dotnet test tools/ecology-check/Ecology.Check.csproj --configuration Release
+Test Run Successful.
+Total tests: 85
+     Passed: 85
+```
+- 前回の65件＋今回20件。実際のDomain/Application/Infrastructureを.NET 8で実行。Unity依存のPresentationTests 5件は含めない。
+- v6の384投×2庭×継続/JSON定期復帰＝1536投で、48投ごとにコーディネーターが生成した全記録のペイロードをJSONへ往復させた後も、全状態ハッシュが一致。
+- v6の2庭で5種類すべての住人が定着。定着69/99件、成体への成長イベント10/37件、組の最大数9/10、384投後の植物31/40株。食事・移動・乾燥・還元などを含む28種類の関係イベントを確認。
+- 水の不変、各種の組/個体数、候補地、藻/小さな餌の上限、二重に食事を使わないこと、食草の根を残すこと、餌不足時に育たないこと、卵や幼生の移動制約を確認。
+- v3初期/24投、v4初期/48投の既知ハッシュを維持。v5の改修前 `0171418` で採取した初期 `16ccb702f7f652d45a96f64b40f5ecda03687a306d8e4755db7e408b83c4c967` /96投 `9d88938fac694561e4850779ba321d1a8737498c7d31a87a8f28603e9b5def47` と一致。
+```text
+npx --yes pnpm@10 typecheck
+> tsc -b --noEmit                         (exit 0)
+npx --yes pnpm@10 test
+Test Files 41 passed (41)
+Tests      183 passed (183)
+npx --yes pnpm@10 build
+✓ 102 modules transformed.
+✓ built in 345ms
+```
+- Unity内の60ファイルをC#9構文検査し、エラー0。`git diff --check` 成功。
+- 既存実験の `src/` と凍結プロトコル、自然シミュレーション、台帳の書き込み経路は変更していない。新しい乱数取得・時刻依存・過去のジャーナルの編集を加えていない。
+### 未確認・申し送り
+- この環境にはUnityエディタ/実行可能なWebGLプレイヤーがなく、Unityの型解決・全EditMode・新しい姿の描画・操作・音・fpsは未検証。85件は実C#の.NET実行であり、Unity検証済みとは扱わない。
+- Unity 6000.3.23f1で、新しい来場者→湿った場所と食草/蜜源を育てる→観察→卵/幼生/さなぎ/羽化→乾いた場所の移動を確認する。小さい幼生の見え方、観察の長文、WebGLの狭い枠とタッチ操作、描画負荷の確認が必要。
+- 旧v3/v4/v5ジャーナルを開く際に旧規則を維持し、次の来場者からv6になることをUnity側でも確認する。配布ビルド・提出画像・ストア公開は更新せず、PR #30をUnity確認前のドラフトとして更新する。
+### 触ったファイル
+- Domain: CommunityState.cs、CommunitySerializer.cs、CommunityRules.cs、CommunityInspection.cs（新規とmeta）、SuccessionState.cs、SuccessionSerializer.cs、EcosystemState.cs、LivingEcosystem.cs、Ecology.cs、EcologyObservations.cs、EcologyInspection.cs
+- Application: GardenCoordinator.cs
+- Presentation: EcosystemResidents.cs、GardenLife.cs、GardenUi.cs
+- Tests: CommunityTests.cs（新規とmeta）、SuccessionTests.cs（v5で固定）
+- docs/unity-garden/ECOLOGY.md・ECOSYSTEM_V6.md、tools/ecology-check/README.md、PROGRESS.md
+
+## Ecology v7: 土の育ち・根の広がり・生態系の境目（2026-11-13）
+### 完了したこと
+- 「さらにブラッシュアップ」の依頼を受け、先に生きた株の働きが次の植物の居場所へ続く改修を、同じPR #30へ追加した。
+- 落ち葉を即時の養分と持続する腐植へ分配する。両方の保存上限を見て実在する落ち葉だけを分解し、二重に資源を作らない。腐植は硬さを下げ、適度な湿りで4投に1回、養分へ戻る。植物が去った後にも土の働きを残す。
+- 種類ごとの生育限界は維持し、その内側の湿り・水捌け・硬さ・光との相性を段階化した。生態による生長と花蜜の補充、サイコロ由来の種の種類選びへ反映する。
+- 野イチゴ・タイムのつる、ハッカ・スミレの地下茎を追加。同種の子株だけを作り、親の蓄え6・養分2・成長100を使う。合う隣の空き地がない時は待機し、根から1株まで、種の目覚めと合計して生態の出生2までを共有する。
+- 腐植、根の蓄え、各区画の居場所と継続時間を保存。6投以上続いた居場所が変わった時や、子株が実際の境目を越えた時は、その時の両側の環境を記録する。後の庭の状態から昔の環境を推測しない。
+- 「庭を観察」に腐植、環境が続いた区画、隣り合う異なる居場所の接点、株と土地の相性、根が広がるために待つ条件を追加。由来と図鑑では種・つる・地下茎を区別する。土の色へ腐植を反映し、根からの子株には親から隣への低い光を追加した。
+- 新規庭を `ecology.v7 / flora.v2` とした。保存済みv3〜v6には `habitat` を追加せず、各旧規則で続く。「次の来場者」から新版になる。
+### 検証結果（実際の出力）
+- `.NET SDK 8.0.428` でUnity内の実際のDomain / Application / InfrastructureとEditModeテストを直接実行した。Unity依存のPresentationTests 5件を除く既存85件＋新規16件。
+
+```text
+$ dotnet test tools/ecology-check/Ecology.Check.csproj --configuration Release --no-restore --nologo --logger 'console;verbosity=normal'
+Test Run Successful.
+Total tests: 101
+     Passed: 101
+ Total time: 43.7298 Seconds
+```
+
+- 分解の収支、保存上限、腐植の養分化、先駆けの株がいなくなった後の硬さ、相性と既存限界の整合、親の負担、待機、出生上限の共有、深い複製、観察の非破壊性、実際の草地/陰の境目を越えた履歴を確認した。
+- v7は384投×2庭×継続/64投ごとのJSON復帰の1536投。coordinatorが生成したメモリジャーナルのpayloadを正規JSONへ往復して復帰し、全投の状態ハッシュを照合した。実ファイルの384投復帰テストとは区別する（ファイルジャーナル自体のテストは既存テストに含まれる）。水量、腐植・根の蓄え・継続時間、出生数、同一セルの重複が上限内であることも確認。
+
+```text
+garden 0, restore=False: plants=36, clones=3, habitat-changes=218, humified=1254, retained-humus=663
+garden 0, restore=True:  plants=36, clones=3, habitat-changes=218, humified=1254, retained-humus=663
+garden 1, restore=False: plants=38, clones=4, habitat-changes=261, humified=1355, retained-humus=694
+garden 1, restore=True:  plants=38, clones=4, habitat-changes=261, humified=1355, retained-humus=694
+```
+
+- `clones` は実際の根からの出生数、`habitat-changes` は6投以上続いた居場所の変化数、`humified` は累計の腐植生成量、`retained-humus` は最終時点の量。同じ庭の継続/復帰は全ハッシュが一致し、異なる庭の最終ハッシュは異なる。
+- v6の1536投（定着69/99、成長10/37、最大9/10組、最後31/40株）、v5の1536投、v4の960投も従来通り通過。v3初期/24投、v4初期/48投、v5初期/96投の既知ハッシュを維持した。
+- v6改修前 `0523e33` で採取した初期/96投のハッシュを今回から固定し、v7で変わらないことを確認した。
+
+```text
+v6 initial: 9fa9c77ef7aa922143e84873086c10ca0a05304773950b3fed2289b9c6529aaf
+v6 96 rolls (v6-golden): 2963c9a052d431e2a321286ef846fa2e57fd742407a2a6fcde0da25c390c5f00
+C# 9 syntax: 65 files, 0 errors (syntax only; Unity type checking requires the editor).
+```
+
+- リポジトリ指定のpnpm 11はこの環境で依存ビルドの許可規則により起動できないため、前回同様pnpm 10で同じスクリプトを実行した。
+
+```text
+$ npx --yes pnpm@10 typecheck
+> tsc -b --noEmit
+$ npx --yes pnpm@10 test
+ Test Files  41 passed (41)
+      Tests  183 passed (183)
+$ npx --yes pnpm@10 build
+> tsc -b && vite build
+✓ 102 modules transformed.
+✓ built in 463ms
+```
+
+- Webビルドの `jeep-sqlite` による既存の `crypto` browser externalization警告は残る。VSTestは `VSTEST_ARTIFACTS_DIRECTORY` 未設定の案内を出したが、101件は正常終了した。
+- `git diff --check`: 成功。既存実験の `src/`、凍結プロトコル、`Simulation`、台帳の書き込み経路は変更していない。外部乱数API呼び出し、時刻依存、保存済みジャーナルの編集経路は追加していない。
+### 未確認・申し送り
+- Unityエディタ/実行可能なWebGLプレイヤーがこの環境にない。Unityの型解決・全EditMode・土の色と子株の光の描画・フィルタ/スクロール/タッチ入力・音・fpsは未検証。101件は実C#の.NET実行であり、Unity検証済みとは扱わない。
+- Unity 6000.3.23f1で、新しい来場者→庭の成長→腐植・相性・根の待機理由→子株の由来と境目を越えた履歴を確認する。幼生を含む既存の姿、狭いWebGL枠での観察の長文と操作、描画負荷も確認が必要。
+- 旧v3〜v6のジャーナル復帰で同じ規則が続くことをUnity側でも確認する。値は投数で進むゲームの調整値であり現実の土壌/生物の推定値ではない。配布ビルド・提出画像・ストア公開は更新せず、PR #30はUnity確認前のドラフトで継続する。
+### 触ったファイル
+- Domain: HabitatState.cs、HabitatSerializer.cs、HabitatRules.cs、HabitatInspection.cs（新規とmeta）、EcosystemState.cs、EcosystemSerializer.cs、Flora.cs、GardenTypes.cs、LivingEcosystem.cs、SuccessionRules.cs、Ecology.cs、EcologyInspection.cs、EcologyObservations.cs
+- Application: GardenCoordinator.cs、HistoryProjector.cs
+- Presentation: IslandTerrain.cs、GardenLife.cs、GardenUi.cs
+- Tests: HabitatTests.cs（新規とmeta）、CommunityTests.cs（v6で固定）
+- docs/unity-garden/ECOLOGY.md・ECOSYSTEM_V7.md、tools/ecology-check/README.md、PROGRESS.md
+
+## Ecology v8: ダイスと各環境の働きかけをつなぐ（2026-11-13）
+### 完了したこと
+- 各環境・生態系をダイスなどのユーザーの働きかけに対応させる依頼に対し、同じ生態系深化のPR #30へ追加した。
+- 「庭を観察」で水辺・岩陰・草木の陰・乾いた草地・花の草地を次の届け先に選べるようにした。株の負担、眠る種、住人と餌不足、落ち葉と養分を見てその環境内の区画を決める。環境がまだない時は元の場所抽選へ明示的にフォールバックする。
+- 実際の中心を準備時に保存し、面を公開した後の届け先変更で動かさない。七の目も保存済みの中心を使う。復帰で確定済みの意図も引き継ぐようにし、以前の `LastIntentKind/Value` が初期値のままになる経路を修正した。
+- 追加の光・風を自然シミュレーションと同じ上限・距離減衰・地形遮蔽から求める。風の面だけで庭全体の綿毛の親を対象にせず、実効風が届く親と、その強さによる東への距離で散布する。
+- 追加の光が届いた適合する元気な花は、実在する養分1を蜜1へ使う。湿りの履歴・養分・藻の空きがある水辺では、追加の光が藻の生産へつながる。蜜はその後の訪花、藻は既存の水辺の食物網で実際に消費される。
+- 面の候補の必要度にも、範囲内の株の湿りの好み・水辺の住人・実り・蜜や藻の空き・眠る種を反映した。6面の構成と重みの下限は維持し、意図で出目を調整する経路は追加していない。願いが的中した時の既存の成長の贈り物も、今回の実際の到達範囲内の株に限定した。
+- 同じ開始状態・天候でダイスの寄与がなかった40tickも読み取り用に計算し、水量と既存株の自然成長の差を保存する。水が下流へ届く場合、強い風で乾いて生長が減る場合、天候だけでダイスの接触がない場合も区別する。
+- 結果と履歴に、開始時点の環境・届いた区画・水差・生長差・実際の播種や追加の蜜/藻/綿毛の種を表示する。後の庭から過去の環境を推測し直さない。
+- 観察に環境ごとの4系統の働き、今回の中心、各面が直接届く土の数と環境を追加し、庭へ中心の四角い輪郭を表示した。種まきは距離2〜3の周囲に届くため、中心と別の環境が播種先になる場合もその通り表示する。七の目の範囲も増幅済みの入力で表示する。
+- 新規庭だけ `ecology.v8 / habitat-focus.v8 / ecological-faces.v8`。`habitat.linkedCare` を保存し、旧v3〜v7の庭は従来の配面・生態を維持する。自然シミュレーションの式は変更していない。
+### 検証結果（実際の出力）
+- `.NET SDK 8.0.428` でUnity内の実際のDomain / Application / InfrastructureとEditModeテストを直接実行した。Unity依存のPresentationTests 5件を除き、既存101件＋新規36ケース。
+
+```text
+$ dotnet test tools/ecology-check/Ecology.Check.csproj --configuration Release --no-restore --nologo --logger 'console;verbosity=normal'
+Test Run Successful.
+Total tests: 137
+     Passed: 137
+ Total time: 1.1896 Minutes
+```
+
+- 5環境の届け先と全ての適格な入力を通し、種の実際の播種先、光と風の遮蔽と上限、蜜の消費、水辺の必要条件、下流の水への作用、乾燥時の生長減少、意図による出目不変、天候だけの接触0を確認した。
+- v8は192投×2庭×継続/24投ごとの準備・意図確定後のJSON復帰の768投。coordinatorが生成したメモリジャーナルのpayloadを正規JSONへ往復し、全投の状態ハッシュと一投の反応記録が一致した。ファイルに書いた768投の復帰試験とは区別する。実ファイルの検証は既存のジャーナルテストに含まれる。
+
+```text
+care garden 0, restore=False: plants=36, recipes=8, fallback=4, nectar=22, algae=4
+care garden 0, restore=True:  plants=36, recipes=8, fallback=4, nectar=22, algae=4
+care garden 1, restore=False: plants=29, recipes=8, fallback=16, nectar=9, algae=1
+care garden 1, restore=True:  plants=29, recipes=8, fallback=16, nectar=9, algae=1
+```
+
+- `recipes` は実際に出た入力の種類数、`fallback` は選んだ環境が不在だった準備数。`nectar/algae` は追加の光による実際の生成量。状態と一投の反応を通じ、水量・養分・腐植・土の種・住人の上限と、開始時点の環境への対応を確認した。
+- v7の1536投（子株3/4、環境変化218/261、最終腐植663/694）、v6/v5それぞれの1536投、v4の960投も従来通り通過。v3〜v6の既知ハッシュを維持し、v7改修前 `c84fa6f` で採取した初期/96投のハッシュも今回から固定した。
+
+```text
+v7 initial: fb35c4d8310fb9f7fd49b6f2db0bbf10bfff142a8cdd5f841d385e4e863e11fc
+v7 96 rolls (v7-golden): 4c849755daac0320dd5c2da45f9419a5fb2c8b182326b817572f60eed60b07e6
+C# 9 syntax: 69 files, 0 errors (syntax only; Unity type checking requires the editor).
+```
+
+- 前回同様、この環境のpnpm 11の依存ビルド許可規則を避け、pnpm 10で同じ既存スクリプトを実行した。
+
+```text
+$ npx --yes pnpm@10 typecheck
+> tsc -b --noEmit
+$ npx --yes pnpm@10 test
+ Test Files  41 passed (41)
+      Tests  183 passed (183)
+$ npx --yes pnpm@10 build
+> tsc -b && vite build
+✓ 102 modules transformed.
+✓ built in 298ms
+```
+
+- `jeep-sqlite` の既存の `crypto` browser externalization警告と、VSTestの `VSTEST_ARTIFACTS_DIRECTORY` 未設定の案内は残る。各コマンドは正常終了。
+- `git diff --check`: 成功。追加C#のUnityメタデータを作成し、GUIDの重複と欠落を確認した。既存実験の `src/`、凍結プロトコル、`Simulation`、台帳の書き込み経路は変更していない。外部乱数API、時刻依存、過去のジャーナルの編集経路は追加していない。
+### 未確認・申し送り
+- この環境にはUnityエディタ/実行可能なWebGLプレイヤーがなく、Unityの型解決・全EditMode・描画・入力・音・fpsは未検証。137件は実C#の.NET実行であり、Unity検証済みとは扱わない。
+- Unity 6000.3.23f1で各環境を選ぶ→現在の一投は維持→次の準備で中心が切り替わること、不在時の説明、中心の輪郭と区画、各面/七の目の範囲、実際の光と風の弱まり、水や生長の差、保存復帰を確認する。観察の長文、結果の2行表示、狭い画面とタッチ操作も確認対象。
+- 比較計算は自然計算部分の差であり、全ての分解・定着・芽吹きの因果がそのダイスに帰属すると扱わない。値はゲームの調整値。旧v3〜v7の復帰と新規庭だけの採用もUnity側で確認する。
+- 配布ビルド・提出画像・ストア公開は更新せず、PR #30はUnity確認前のドラフトで継続する。
+### 触ったファイル
+- Domain: CareRules.cs、CareTargets.cs、CareReport.cs（新規とmeta）、HabitatState.cs、HabitatSerializer.cs、EcosystemState.cs、FaceGenerator.cs、LuckySeven.cs、LivingEcosystem.cs、CommunityRules.cs、Ecology.cs、EcologyObservations.cs
+- Application: GardenCoordinator.cs、HistoryProjector.cs
+- Presentation: GardenBootstrap.cs、GardenUi.cs、GardenView.cs
+- Tests: CareTests.cs（新規とmeta）、HabitatTests.cs（v7で固定）
+- docs/unity-garden/ECOLOGY.md・ECOSYSTEM_V8.md、tools/ecology-check/README.md、PROGRESS.md
+
+## Care guidance: お世話の見通しと、届いた土のその後（2026-11-13）
+### 完了したこと
+- 継続して磨く依頼を受け、ダイスと環境の対応を読む表示を同じPR #30へ追加した。生態・配面・自然シミュレーション・保存形式はv8のまま維持し、新しい庭の規則版は作らない。
+- 保存済みの株・眠る種・水辺の家族から、補いたい条件と待つ条件を読む。元気な株にも保ちたい湿りを示す。各環境3件・最大15件へ絞り、画面では選んだ環境の上位3件を表示する。
+- 公開中の各面が出た場合を、保存された中心・天候と実際の自然シミュレーションで計算する。天候だけの場合と分けて、湿りの範囲へ近づく面と外れを生む/広げる面を表示する。重複面は別の枠として数え、七の目は実際の増幅済み入力を使う。
+- 土の薄い入口で、乾きから過湿へ振れるケースを確認した。反対側へ飛び越す場合を改善とは表示しない。休眠・空き地・養分不足などは、湿りの変化だけで解決したと扱わない。
+- 花蜜や綿毛の種には、必要な追加の光や風が届く面を示す。到達と芽吹き・回復・繁殖の成立を区別する。見通し用の種には一時IDだけを使い、外部乱数・ID発行・台帳の書き込みを呼ばない。
+- 「恵みが届いた土、その後」を観察と記録へ追加。同じ区画へ届いた最も新しい前の投と、12投以内の実際の芽吹き・回復・負担・結実・定着・子育て・喪失・乾燥・還元・環境の変化を結ぶ。隣の区画、同じ投、未解決の投、接触記録のない庭へ補わない。
+- 当時の居場所で振り返りを絞り、後の庭から過去を作り直さない。同じ投や関係の重複を除き、最近24件を保持する。同じ場所の後の出来事として表示し、他の投や天候も関わることを明記する。
+- 見通しの自然計算は観察画面を開いた時に行い、開始状態・公開面・天候が同じ間は再利用する。フィルタや願いの選択だけで再計算しない。画面を閉じている時は見通し用の自然計算を行わず、準備や七の目が変われば更新する。
+### 検証結果（実際の出力）
+- `.NET SDK 8.0.428` でUnity内の実際のDomain / Application / InfrastructureとEditModeテストを直接実行した。Unity依存のPresentationTests 5件を除く、既存137件＋新規28ケース。
+
+```text
+$ dotnet test tools/ecology-check/Ecology.Check.csproj --configuration Release --no-restore --nologo --logger 'console;verbosity=normal'
+Test Run Successful.
+Total tests: 165
+     Passed: 165
+ Total time: 53.3119 Seconds
+```
+
+- 公開された各面と実際の自然計算の一致、天候だけでの回復、正常な湿りからの悪化、乾きから過湿への行き過ぎ、七の目・重複面、休眠・空き地・養分不足、水辺の幼生の優先、到達の機会、件数と列挙順の安定性を確認した。
+- 4投で育てた実際の庭を準備済みJSONから復帰し、観察対象を含む同じ見通しが再構築されることを確認した。その後の観察はJSONの実記録形式から、同じセル・前の投・12/13投の境界・重複・負の出来事・run分離・当時の分類を検証した。
+- 見通しと振り返りを読む/読まない2通りで、実coordinatorの96投を実行。全投の状態ハッシュと反応記録が一致し、観察で台帳の件数や準備状態が変わらないことを確認した。
+
+```text
+guidance inspect=False: rolls=96, final-plants=26
+guidance inspect=True: rolls=96, final-plants=26
+v8 initial: 668ca78cd1c4d4153e0b7ad093ac0475dd8a800e2d3f1d6e263209442996e8ae
+v8 96 rolls (v8-golden): 4e19b9158377f916864048584c6eb45b08700076a0842a61be4c90d7cb3ca297
+```
+
+- v8の既知ハッシュは改修前 `94b3cc7` の実行から採取した。v8の768投、v7/v6/v5それぞれ1536投、v4の960投、v3〜v7の既知ハッシュのテストも維持して通過した。
+- 前回と同じ環境でpnpm 10を使い、既存のスクリプトを実行した。
+
+```text
+$ npx --yes pnpm@10 typecheck
+> tsc -b --noEmit
+$ npx --yes pnpm@10 test
+ Test Files  41 passed (41)
+      Tests  183 passed (183)
+$ npx --yes pnpm@10 build
+> tsc -b && vite build
+✓ 102 modules transformed.
+✓ built in 446ms
+C# 9 syntax: 72 files, 0 errors (syntax only; Unity type checking requires the editor).
+```
+
+- `jeep-sqlite` の既存の `crypto` browser externalization警告、VSTestの `VSTEST_ARTIFACTS_DIRECTORY` 未設定の案内は残るが、各コマンドは正常終了した。`git diff --check`、Unityメタデータの存在とGUIDの重複チェックも成功した。
+- この追記でDomain、既存実験の `src/`、凍結プロトコル、台帳の書き込み経路は変更していない。表示用の投影から状態・配面・抽選・過去のジャーナルを書き換える経路を追加していない。
+### 未確認・申し送り
+- Unityエディタ/実行可能なWebGLプレイヤーがないため、Unityの型解決・全EditMode・描画・操作・音・fpsは未検証。165件は実C#の.NET実行であり、Unity検証済みとは扱わない。
+- Unity 6000.3.23f1で、観察を開く/閉じる、フィルタ、通常面と七の目、次の準備、準備済み復帰、当時の分類での振り返りを確認する。初回表示の応答時間、長文と小画面・タッチ/ホイール、閉じたままの連続プレイも確認が必要。
+- 湿りの見通しは自然計算部分であり、生態全体の結果や成功確率ではない。その後の記録は同じ場所の観察で、特定の一投だけが原因だとは扱わない。配布ビルド・提出画像・ストア公開は更新せず、PR #30はUnity確認前のドラフトで継続する。
+### 触ったファイル
+- Application: CareOutlook.cs、CareAftercare.cs（新規とmeta）
+- Presentation: GardenUi.cs
+- Tests: CareGuidanceTests.cs（新規とmeta）
+- docs/unity-garden/CARE_GUIDANCE.md・ECOLOGY.md、tools/ecology-check/README.md、PROGRESS.md
+
+## Event expression: 起きたことで伝わる庭へ（2026-11-13）
+### 完了したこと
+- 「基本説明よりは起きたことで説明・表現する」という指定に合わせ、普段の結果・観察・記録・図鑑を出来事が先に出る形へ変更した。同じPR #30の生態系深化の範囲として実装し、生態・配面・保存形式はv8のまま維持する。
+- `GardenMoments` を追加。解決済みの関係・成長イベントと、その投の終了状態から短い場面を作る。同じセル・種類の蜜の補充と訪花、藻の生長と食事、小虫の捕食と株の回復など、記録がそろった組み合わせだけを結ぶ。
+- 「蜜を補ったデイジーに、花蜂が訪れた」「ミミズがほどいた落ち葉の一部が、腐植になった」など、関わった命と実際の変化を伝える。居場所の境目を越えた根、土の種の目覚め、結実、成長や定着も扱う。
+- いるだけの住人数から誕生を作らず、0量の資源から食事や散布の成功を作らない。喪失・弱り・乾燥・還元も残し、花を閉じた株や入れ替わった株に咲いている花として焦点を当てない。
+- 一投の大きな文と光の輪郭を、同じ出来事のセルへ合わせた。観察から出来事を選ぶ場合も、文を大きく表示してパネルを閉じ、実際の場所を示す。投擲再生中はこの操作を無効にし、過去の植物を現在の庭へ作り直さない。
+- 観察の初期表示は最近の出来事とその後の記録にした。見通し・比較値・条件・仕組みは任意の詳細へ移し、その詳細を開くまで見通し用の自然計算を行わない。記録の通常表示も出来事を中心にし、元のカードの言葉と比較値は詳細表示に残す。
+- 図鑑の冒頭にあった長い一般説明を、その庭の最近の出来事へ置き換えた。種類ごとの条件と役割は参照として残す。保存復帰後の大きな文も最後の解決済みの場面から戻す。
+- ライブと履歴は同じ投影を使用。履歴の復元は最近12投に限定し、当時の終了状態・種類・居場所を使う。現在の庭から過去を推測せず、未解決の投・他run・記録にない訪問や感情を補わない。
+### 検証結果（実際の出力）
+- `.NET SDK 8.0.428` でUnity内の実際のDomain / Application / InfrastructureとEditModeテストを直接実行。Unity依存のPresentationTests 5件を除く既存165件＋新規30ケース。
+
+```text
+$ dotnet test tools/ecology-check/Ecology.Check.csproj --configuration Release --no-restore --nologo --logger 'console;verbosity=normal'
+Test Run Successful.
+Total tests: 195
+     Passed: 195
+ Total time: 54.3952 Seconds
+actual scenes: 32 live rounds; latest 3 rounds match JSON history
+```
+
+- 同じセル・種類・株IDの組み合わせ、離れた出来事や0量を結ばないこと、存在と誕生の区別、喪失、5つの居場所、閉じた花・入れ替わった株、種まきと芽の由来、表示順の安定性を検証した。
+- 実coordinatorで32投を解決し、ライブの文と場所を保存。JSON復帰後の最新3投について、文・詳細・場所・種類・順序が一致した。投影の前後で状態ハッシュ・台帳の件数・元のカードの焦点が変わらないことも確認した。
+- v8の768投、v7/v6/v5それぞれ1536投、v4の960投、v3〜v8の既知ハッシュ、見通しと振り返りの有無を比較する96投も維持して通過した。
+- 前回と同じ環境でpnpm 10を用い、既存スクリプトを実行した。
+
+```text
+$ npx --yes pnpm@10 typecheck
+> tsc -b --noEmit
+$ npx --yes pnpm@10 test
+ Test Files  41 passed (41)
+      Tests  183 passed (183)
+$ npx --yes pnpm@10 build
+> tsc -b && vite build
+✓ 102 modules transformed.
+✓ built in 455ms
+C# 9 syntax: 74 files, 0 errors (syntax only; Unity type checking requires the editor).
+```
+
+- `jeep-sqlite` の既存の `crypto` browser externalization警告、VSTestの `VSTEST_ARTIFACTS_DIRECTORY` 未設定の案内は残るが、各コマンドは正常終了した。`git diff --check`、追加C#のメタデータとGUID重複チェックも成功した。
+- Domain、既存実験の `src/`、凍結プロトコル、台帳の書き込み経路は変更していない。元の `selectedMessage`、抽選、保存済みの状態や台帳の編集経路を追加していない。光の焦点は表示用の位置指定で、保存したカードの焦点へ書き戻さない。
+### 未確認・申し送り
+- Unityエディタ/実行可能なWebGLプレイヤーがない。Unityの型解決・全EditMode・描画・操作・音・fpsは未検証。195件は実C#の.NET実行であり、Unity検証済みとは扱わない。
+- Unity 6000.3.23f1で、出来事の文と輪郭の一致、観察の初期表示、場所を見る時のパネル閉鎖、詳細との往復、低刺激表示、図鑑、過去の場所、保存復帰後の最後の文を確認する。文字の収まり・小画面のスクロールとタッチ・初回表示の応答時間も要確認。
+- 文はゲーム内の実記録の抜粋であり、特定の蜜一単位を誰が飲んだかや、その一投だけが原因かまでは断定しない。普段は出来事を先に伝える方針を今後も維持する。
+- 配布ビルド・提出画像・ストア公開は更新せず、PR #30はUnity確認前のドラフトで継続する。
+### 触ったファイル
+- Application: GardenMoments.cs（新規とmeta）
+- Presentation: GardenBootstrap.cs、GardenUi.cs、GardenView.cs
+- Tests: GardenMomentsTests.cs（新規とmeta）
+- docs/unity-garden/EVENT_EXPRESSION.md（新規）・EXPERIENCE.md・CARE_GUIDANCE.md・ECOLOGY.md、tools/ecology-check/README.md、PROGRESS.md
+
+## Garden memory: 一株と一粒の続きから、世代を読む（2026-11-13）
+### 完了したこと
+- 継続の依頼に対し、同じPR #30の生態系を深める範囲で、出来事から株・種の歩みへ移る入口を追加した。「基本説明よりは起きたことで説明・表現する」方針を維持し、生態・配面・保存形式はv8のままにする。
+- 観察で最近12投の出来事を一件ずつ送り/戻しでき、選んだ文と場所の対象を切り替えられる。居場所で絞り、株・種が特定できた場面だけ「この株の歩み」「この種の歩み」を出す。過去の出来事へ現在の振り返りを混ぜない。
+- 読み取り用の `GardenMemories` を追加。ダイスの種、初期の株、土の種からの芽、つる・地下茎の子株を区別し、実際の由来と直近8件の節目を読む。成長だけでなく、光を受けた蜜の補充、花粉の到着、結実、回復、花を閉じたこと、土への還元も含める。
+- 保存された株ID・種ID・親株IDで、親株 → 鳥/風が運んだ種 → 子株、または親株 → つる/地下茎の子株をたどる。親が土へ還った後も続きに移れる。記録に存在する対象だけを結び、続きは現在も残るものを優先して最大8件を抜粋。種・子株の総数はIDで重複を除いて併記する。
+- 同じ場所・種類だけから親子を作らない。株IDを持たない関係は、その投の終了状態にいる同種の株へ結び、同じセルの還元/入れ替わりの投では省く。種が落ちた入口には、同じ投・出生投・種類・運び手・出発/到着セルで一粒だけ特定できることを要求する。
+- ない記録から誕生・枯死・種の失効を作らず、最初/最後に確認できた投を示す。各節目の面と居場所は当時の記録から読み、生まれた投のスナップショットがなければ現在で補わない。過去の命を今の庭へ作り直さない。
+- 歩みを開いた時だけ同じrunの保存記録を走査し、表示する節目に必要な状態だけ復元する。自然の再計算は行わない。観察を閉じた連続投擲では歩みを再走査せず、次に表示する時に更新する。返す表示データにジャーナルの参照を残さない。
+- 追加した操作列の下に本文が重ならないよう、アンカーとpivotから余白を確認して本文領域を調整した。上端基準の操作列はy=178〜212、本文はy=-168〜170で8pxの間隔を取り、下の操作列との間隔も8pxを保つ。実描画は引き続きUnity確認対象とする。
+### 検証結果（実際の出力）
+- `.NET SDK 8.0.428` で実際のUnity内Domain / Application / InfrastructureとEditModeテストを直接実行。既存195件に18ケースを追加した。Unity依存のPresentationTests 5件は除外している。
+
+```text
+$ dotnet test tools/ecology-check/Ecology.Check.csproj --configuration Release --no-restore --nologo --logger 'console;verbosity=normal'
+Test Run Successful.
+Total tests: 213
+     Passed: 213
+ Total time: 55.5369 Seconds
+life histories: 96 real rounds; 27 exact identities and 45 lineage links match JSON history without mutation
+actual scenes: 32 live rounds; latest 3 rounds match JSON history
+```
+
+- 親の死後の種/子株、鳥・風・つる・地下茎、同じセルの別株、種IDや場所が食い違う候補、休息、光・受粉・結実、0量、欠けた記録、居場所の変化、抜粋と総数、run分離、読み取り前後の不変性を検証した。
+- 実coordinatorの96投から、最近12投の入口27個体と45本の由来/続きリンクをJSON復帰後と照合した。どのリンクも実在する記録へ移れること、文と親の一致、状態ハッシュと台帳内容が変わらないことを確認した。32投の既存照合も、文・場所・順序に加えて歩みの入口IDを含む。
+- 旧v3〜v8の既知ハッシュ、長期継続と復帰、各生態の資源収支・出生上限、ダイスの作用と意図による出目不変のテストも維持して通過した。
+
+```text
+$ npx --yes pnpm@10 typecheck
+> tsc -b --noEmit
+$ npx --yes pnpm@10 test
+ Test Files  41 passed (41)
+      Tests  183 passed (183)
+$ npx --yes pnpm@10 build
+> tsc -b && vite build
+✓ 102 modules transformed.
+✓ built in 253ms
+C# 9 syntax: 76 files, 0 errors (syntax only; Unity type checking requires the editor).
+Unity metadata: 76 C# files have meta; 103 unique GUIDs
+```
+
+- 前回と同様にpnpm 10で既存スクリプトを実行した。既存の `jeep-sqlite` による `crypto` browser externalization警告とVSTestの環境変数案内は残るが、各コマンドは正常終了した。`git diff --check` も成功した。
+- Domain、既存実験の `src/`、凍結プロトコル、台帳の書き込み経路は変更していない。表示用のIDを保存形式へ追加せず、元のカード・状態・抽選へ書き戻す経路を追加していない。
+### 未確認・申し送り
+- Unityエディタ/実行可能なWebGLプレイヤーがないため、Unityの型解決・全EditMode・ビルド・描画・入力・音・fpsは未確認。213件は実C#の.NET実行であり、Unity検証済みとは扱わない。PR #30はドラフトで継続し、配布ビルドや公開は更新しない。
+- Unity 6000.3.23f1で、出来事の送り/戻しと居場所切替、親株/種/子株/出来事への往復、複数の続き、見通し詳細との往復、過去の場所の輪郭、閉じたままの連続投擲後の再表示、保存復帰を確認する。追加行の文字と操作、小画面・タッチ/ホイールの収まり、長い履歴で歩みを初めて開く時の応答時間も確認が必要。
+- 歩みは全保存記録からの抜粋である。IDのない住人個体の系譜や、特定の一投だけが原因だったという断定は追加しない。普段は実際の出来事を先に伝える方針を維持する。
+### 触ったファイル
+- Application: GardenMemories.cs（新規とmeta）、GardenMoments.cs
+- Presentation: GardenUi.cs、GardenBootstrap.cs
+- Tests: GardenMemoriesTests.cs（新規とmeta）、GardenMomentsTests.cs
+- docs/unity-garden/GARDEN_MEMORY.md（新規）・EVENT_EXPRESSION.md・EXPERIENCE.md・ECOLOGY.md、tools/ecology-check/README.md、PROGRESS.md
+
+## Parallel work: 最新の統合と、仕組み/見かけの分担（2026-11-13）
+### 完了したこと
+- ユーザーから「一度最新までマージ」「Codexは仕組み側、Claude Codeは見かけ側で並行してぶつからないように」と明示された。PR #30のゲーム変更と分担の準備を今回の統合対象にする。
+- `AGENTS.md` とClaude Codeが読む `CLAUDE.md` に分担の入口を追加した。具体的な担当・接続・Git運用は `docs/unity-garden/PARALLEL_WORK.md` へ記録した。
+- CodexはDomain / Application / Infrastructureと仕組みのテスト、Claude CodeはPresentation全体・GardenBootstrapの表示接続・素材・シーン・PresentationTestsとUnity確認を担当する。既存の公開APIを保ち、担当外に必要な変更は具体的な引き継ぎとして記録する。
+- ブランチとcheckout/worktreeを分離する。進捗は担当別の作業ファイルへ分け、共有のPROGRESS.mdやプロジェクト設定を同時編集しない。過去の進捗や相手の変更を上書きしない。
+### 検証結果
+- 統合対象のゲームcommit `ccd7a970916f4d4d795c7294649ab8839602c5e6` について、GitHub Actionsの `CI`（run 448）と `Garden ecology`（run 9）が両方 `success` であることを再確認した。C#213件・Web183件の実行結果は直前の項目に記載済み。
+- 今回追加するのは分担用Markdownのみ。ゲーム実装、テスト、保存形式、既存実験、凍結プロトコルを変更しない。既存の同名CLAUDE.mdや担当指示がないことを確認して追加した。
+### 未確認・申し送り
+- Unityのコンパイル・描画・入力・音・性能は引き続き未確認。ユーザーの明示的な指示によりmainへ統合するが、検証済みや配布済みという意味へ変えない。
+- Claude Codeは最新mainを取得し、CLAUDE.mdと分担文書を読んで見かけ用ブランチを開始する。担当境界を越える修正は必要な接続を記録して順番に扱う。
+### 触ったファイル
+- AGENTS.md、CLAUDE.md、docs/unity-garden/PARALLEL_WORK.md、PROGRESS.md
+
 ## Jam 祈りの星 — 出目で変わる祭壇の星・ラッキーナンバー・八の虹・ドレミの音（2026-11-13）
 
 ### 完了したこと
@@ -2284,6 +2738,293 @@ Git diff whitespace check: pass
 - Domain: GardenTypes.cs・CanonicalJson.cs（Pollinated）、Ecology.cs（受粉・実り・訪れの順番）、Lifecycle.cs、PrayerStar.cs。Presentation: PrayerStarSigil.cs。
 - Tests: LifecycleTests.cs、EcologyTests.cs、PrayerStarTests.cs、SacredTonesTests.cs、LongPlayTests.cs。docs/unity-garden/ECOLOGY.md §9.4・§9.5、PROGRESS.md。
 
+## Jam: 水辺と島の構図の磨き込み（2026-11-13）
+
+### 完了したこと
+
+- 島ごとの水際に沿って浅瀬の色と細かな波を描き、沖の深い青緑へつないだ。川の面は地形の細かな起伏に沿わせ、河口は海に溶け込むようにした。
+- タイトルから庭へ入るカメラと通常の視点を引き、瓶の輪郭、島の岸、手前の川を画面に収めた。岩の根元を地面に接地させ、サイコロに丸い面取りと発光する象嵌を加えた。
+- 地面の土と濡れた砂の色、霧と発光の強さ、操作ボタンと背景の明暗差を調整した。結果欄は表示する内容があるときに出す。
+
+### 完了基準の結果
+
+- Unity 6000.3.23f1 の macOS と WebGL ビルドは成功し、ビルドエラーは 0 件。EditMode は 41 件すべて成功。
+- macOS で初期の庭と 12 投後の庭を同じ島と保存記録から比較した。タイトルからの開始、一投と結果表示、ドラッグによる回転、視点リセットを確認した。WebGL は Chrome で起動と一投を確認し、ゲームのコンソールエラーは 0 件だった。
+- 既存アプリの型検査、テスト 183 件、Vite ビルドは成功。pnpm の依存確認は警告モードで実行し、インストール済みの依存関係を使用した。
+- ゲームの抽選・庭の計算・台帳の実装に差分はなく、検証前後の既存の庭の保存ファイルは SHA-256 が一致した。
+
+### 確認範囲
+
+- macOS とデスクトップ版 Chrome で確認。スマートフォン実機での表示とタッチ操作は未確認。
+
+### 触ったファイル
+
+- Unity の Presentation、ラグーンのシェーダーとそのビルド設定、本進捗記録。
+
+## Jam: 草地と岸辺の植生の磨き込み（2026-11-13）
+
+### 完了したこと
+
+- 草の配置と地面の色に共通の模様を使い、細い葉が同じ風に沿って揺れる草地にした。土の見える範囲と岸辺の緑は、境界をゆるやかにつないだ。
+- 岸の花と川辺の葦を、環境に合った場所にまとまって生えるように配置した。庭の種を小さな細長い形にし、開花した花の形と色が俯瞰でも見えるようにした。
+- 岩の苔を岩肌の質感に重ねた。地面で光る苔は、近くの生息地の光を重ねて濃くせず、地形に沿うひとつの面にした。木の葉の輪郭と俯瞰時のガラスの反射もやわらげた。
+
+### 完了基準の結果
+
+- Unity 6000.3.23f1 の macOS・WebGL ビルドはエラー 0 件で成功。EditMode は 41 件すべて成功。
+- 同じ島と保存記録で、12 投後と 22 投後の変更前後を比較した。初期の庭と別の島も描画し、俯瞰、通常、近距離を確認した。macOS とデスクトップ Chrome の WebGL で、一投後の結果表示を確認した。
+- 既存アプリの型検査、テスト 183 件、Vite ビルドが成功。pnpm は依存確認を警告モードで実行した。
+- 抽選・庭の計算・保存処理に差分はなく、検証前後で既存の庭と前回プレビューの保存ファイルの SHA-256 は一致した。
+
+### 確認範囲
+
+- スマートフォン実機での表示とタッチ操作は未確認。
+
+### 触ったファイル
+
+- Unity の植生、地面、岩、発光の描画と、植生・ガラスのシェーダー、本進捗記録。
+
+## Jam 海岸線と水際の磨き込み（2026-11-13）
+
+### 完了したこと
+
+- 岸の形と標高を島ごとに作り、張り出した岬、岩棚、河口の入り江、傾斜の緩い砂浜を配置した。岩棚には地層と苔を重ね、岬の先に一部が水面から出る岩を置いた。
+- 浜と岩場の水深に応じて浅瀬の色と白波の幅を変えた。川の幅と岸の濡れ方を調整し、海に向かって水面がなじむようにした。
+- 初回の庭にも岸辺と川沿いに草と苔を生やし、中央には植え付け用の土を残した。七つの灯を結ぶ線を細くした。
+
+### 完了基準の結果
+
+- Unity 6000.3.23f1 の macOS と WebGL ビルドは `Succeeded (0 errors)`。EditMode は `total="44" passed="44" failed="0"`。3 種の島で海岸線の起伏、川の始点と終点、栽培区画の高さを確認した。
+- macOS で 22 投後の同じ庭を斜めと俯瞰から比較し、初回の庭、低い視点、別の島も確認した。macOS とデスクトップ版 Chrome の WebGL で、一投後の結果表示と保存を確認した。
+- `pnpm typecheck` は終了コード 0、`pnpm test` は `183 passed (183)`、`pnpm build` は `✓ built`。pnpm は依存確認を警告モードで実行した。
+- 抽選・庭の計算・保存処理に差分はなく、既存の庭と前回までのプレビューの保存ファイルの SHA-256 は検証前後で一致した。
+
+### 確認範囲
+
+- スマートフォン実機での表示とタッチ操作は未確認。
+
+### 触ったファイル
+
+- Unity の地形、川、植生、岩、周辺演出の描画とラグーンのシェーダー、EditMode テスト、本進捗記録。
+
+## Jam 木の枝ぶりと葉の磨き込み（2026-11-13）
+
+### 完了したこと
+
+- 広葉樹、花木、柳、針葉樹、低木の5種類を作り直した。幹は根元を広げて枝を曲げ、広葉樹は枝ごとに葉を重ねた。柳には弧を描く細枝と細長い葉、針葉樹には先端へ向かって短くなる枝を配置した。
+- 花木には枝先に五弁の花を咲かせ、花びらが回りながら落ちるようにした。葉を透かす光と木漏れ日の影を追加し、風で動く葉と影が一緒に動くようにした。動きを抑える設定では、揺れと落花を止めた。
+- ダイスの台座に近い木の位置を調整した。macOS のプレビューは、育った木をすぐに見られるよう専用の保存先に22投後のサンプルを入れた。
+
+### 完了基準の結果
+
+- Unity 6000.3.23f1 の macOS と WebGL ビルドは `Succeeded (0 errors)`。EditMode は `total="46" passed="46" failed="0"`。各樹種の面の向きと花びらの透過を確認した。
+- 22投後の庭を複数の島で、斜め、低い視点、俯瞰から確認した。macOS と Chrome の WebGL で一投と保存を確認し、Chrome では22投後の庭も再読込して表示した。
+- `pnpm typecheck` は終了コード 0、`pnpm test` は `183 passed (183)`、`pnpm build` は `✓ built`。pnpm は依存確認を警告モードで実行した。
+- 抽選・庭の計算・保存処理に差分はなく、既存の庭の保存ファイルは検証前後で SHA-256 が一致した。
+
+### 確認範囲
+
+- スマートフォン実機での表示とタッチ操作は未確認。
+
+### 触ったファイル
+
+- Unity の樹木メッシュと配置、植生シェーダー、花びらの描画、EditMode テスト、本進捗記録。
+
+## Jam 庭の草花と成長段階の磨き込み（2026-11-13）
+
+### 完了したこと
+
+- 庭で育つ草花15種の立体形状を作り直した。デイジーには細い花びら、アイリスには立ち上がる花びらと垂れる花びら、野イチゴには三つに分かれた葉と小さな実を作った。コスモスの細かく分かれた葉、ホタルブクロの下向きの筒、ジギタリスの片側に並ぶ花は、NC State Extension と RHS の資料を参考にした。[コスモス](https://plants.ces.ncsu.edu/plants/cosmos-bipinnatus/)、[ホタルブクロ](https://plants.ces.ncsu.edu/plants/campanula-punctata/)、[ジギタリス](https://www.rhs.org.uk/plants/5862/digitalis-purpurea/details/)
+- 種、双葉、本葉、つぼみ、開花の形を分け、種類に応じて茎の曲がり方や葉のつき方を変えた。花と葉に透過光と影を付け、開花の光と蝶が寄る位置を花の高さに合わせた。
+- macOS のプレビュー専用の保存先に22投後の庭を用意した。同じ庭の斜めと俯瞰の比較画像、15種の開花一覧を作成した。
+
+### 完了基準の結果（コマンド出力の要約）
+
+- Unity 6000.3.23f1 の macOS と WebGL ビルドは `Succeeded (0 errors)`。EditMode は `total="47" passed="47" failed="0"`。15種の5段階すべてで面積のある三角形と表示範囲を確認した。
+- macOS で初回と22投後の庭を描画し、別の新しい庭で8投して種から開花まで確認した。デスクトップ版 Chrome では起動、一投後の保存、22投後の庭の再読込を確認し、ブラウザとシェーダーのエラーは0件だった。
+- `pnpm typecheck` は終了コード 0、`pnpm test` は `183 passed (183)`、`pnpm build` は `✓ built`。pnpm は依存確認を警告モードにして既存の依存関係で実行した。
+- 差分は Unity の表示と検証に収まり、既存の庭と以前のプレビューの保存ファイルは検証前後で SHA-256 が一致した。
+
+### 確認範囲
+
+- スマートフォン実機での表示とタッチ操作は未確認。
+
+### 触ったファイル
+
+- Unity の草花メッシュと描画、蝶と成長の演出、EditMode テスト、本進捗記録。
+
+## Jam 庭の生き物と妖精・天使の磨き込み（2026-11-13）
+
+### 完了したこと
+
+- 花蜂の縞と花粉、蝶の翅の模様と翅脈、トンボの細長い胴と四枚の翅、蛍の淡く点滅する腹部を作った。花蜂と蝶は訪れた花の高さに寄り、トンボは水たまりの上、蛍は光る苔の近くを飛ぶ。虫の形と発光の位置は博物館や公園局の資料を参考にした。[NPS の花蜂の形](https://www.nps.gov/articles/000/upload/Bees-of-Alaska.pdf)、[Smithsonian のトンボの飛翔](https://howthingsfly.si.edu/ask-an-explainer/how-do-dragonflies-fly)、[AMNH の蛍](https://www.amnh.org/explore/ology/ology-cards/345-common-eastern-firefly)
+- 小鳥は岩に足を置いて羽をたたみ、種を運んだときは羽ばたいてくちばしから種を落とす。ミミズは湿った土の表面で伸び縮みし、魚影は水が流れ出たときに岸沿いを尾でかいて進む。
+- 願いの精霊を、花びらの衣と透ける翅を持つ妖精として描き、恵みが届いた植物に舞い降りるようにした。虹の場面では、羽根を重ねた翼と光輪を持つ三体の天使がゆっくり昇る。虹の間は遠方のぼけを抑え、演出後に元のカメラと設定へ戻す。
+- macOS のプレビュー専用の保存先に22投後の庭を用意した。同じ庭と虹の変更前後、妖精・蛍・小鳥・魚影の拡大画像を作成した。
+
+### 完了基準の結果（コマンド出力の要約）
+
+- Unity 6000.3.23f1 の macOS と WebGL ビルドは `Succeeded (0 errors)`。EditMode は `total="48" passed="48" failed="0"`。保存状態に対応する住人の表示と、いなくなったときの非表示を確認した。
+- macOS で22投後の庭、虹、最初の一投と保存を確認した。隔離した Unity 検証で、固定の乱数を使った一投の結果から、種を運ぶ小鳥の離陸と帰着、植物に降りる妖精、虹の天使の退場とカメラ復帰を確認した。水が539単位流れ出るテストで魚影を表示し、夜の蛍と動きを抑える設定での蝶・妖精の停止も確認した。
+- デスクトップ版 Chrome の WebGL では、起動、一投後の保存、22投後の庭の再読込を確認した。ブラウザとシェーダーのエラーは0件だった。
+- `pnpm typecheck` は終了コード 0、`pnpm test` は `183 passed (183)`、`pnpm build` は `✓ built`。pnpm は依存確認を警告モードにして既存の依存関係で実行した。
+- 差分は Unity の表示と検証に収まり、既存の庭と以前のプレビューの保存ファイル5件で、検証前後の SHA-256 が一致した。
+
+### 確認範囲
+
+- 妖精、小鳥の種運び、魚影と虹の演出は macOS で確認した。スマートフォン実機での表示とタッチ操作は未確認。
+
+### 触ったファイル
+
+- Unity の生き物と精霊の模型、翅のテクスチャ、庭と虹の演出、EditMode テスト、本進捗記録。
+
+## Jam 島の光と空気感の磨き込み（2026-11-13）
+
+### 完了したこと
+
+- 前回までのローカル差分を別の Git worktree とブランチ `codex/garden-atmosphere` に引き継いだ。Unity のキャッシュ、ビルド出力、プレビューの保存先は専用の場所を使った。
+- 保存済みの天気と投数から、雲の量、水平線の色、太陽と月の見え方を変えた。空と海が同じ空の色を参照し、遠くの海面は水平線へ溶け込み、近くでは夕日や月の光が波に沿って揺れる。描画座標の変換には URP の関数を用いた。[Unity の URP シェーダー資料](https://docs.unity3d.com/6000.0/Documentation/Manual/urp/use-built-in-shader-methods-transformations.html)
+- 夜には小さな星と七つの灯の水面への映り込みを加えた。瓶の反射と島を照らす光を和らげた。動きを抑える設定では、雲、水面、七つの灯の動きがその場で止まる。
+- macOS のプレビュー専用の保存先に22投後の庭を用意した。同じ庭の昼・夕暮れ・夜の変更前後と、晴れ・薄曇り・小雨の画像を作成した。
+
+### 完了基準の結果（コマンド出力の要約）
+
+- Unity 6000.3.23f1 の macOS と WebGL のビルドは `Succeeded (0 errors)`。EditMode は `total="49" passed="49" failed="0"`。天気と雲量の対応、時刻が一周する際の空と月のつながりをテストした。
+- macOS で22投後の庭を斜め・俯瞰・反対側から描画した。虹と天使の表示、動きを抑える設定での雲と水面の停止・再開、23投目の保存ファイルへの追記を確認した。
+- デスクトップ版 Chrome で WebGL の起動、一投後の保存、22投後の庭の再読込を確認した。ブラウザとシェーダーのエラーは0件だった。
+- `pnpm typecheck` は終了コード 0、`pnpm test` は `183 passed (183)`、`pnpm build` は `✓ built`。pnpm は依存確認を警告モードにして既存の依存関係で実行した。
+- 元の作業フォルダの差分と従来の保存ファイル2件を照合し、作業開始時点と一致した。
+
+### 確認範囲
+
+- スマートフォン実機での表示とタッチ操作は未確認。
+
+### 触ったファイル
+
+- Unity の空と海の描画、照明、シェーダーのビルド設定、EditMode テスト、本進捗記録。
+
+## Jam 瓶と庭の外観の磨き込み（2026-11-13）
+
+### 完了したこと
+
+- 滑らかな肩、厚みのある口、丸い底を持つガラス瓶を作った。空の色、太陽と月を映す反射と、水際に広がる淡い光を加えた。ガラスの手前と奥の面には別々のカリングを使った。[Unity の ShaderLab 資料](https://docs.unity3d.com/6000.0/Documentation/Manual/SL-Cull.html)
+- ホイールで瓶全体まで引けるようにした。近景と俯瞰では反射が薄くなり、花と生き物が見やすくなる。引いた画角でも庭にピントと木陰が残るよう調整した。昼の直射光を和らげて、葉や砂浜の明暗を残した。
+- 起動画面で瓶の全体を見せ、クリックまたは Enter で庭へ入れる構図にした。従来の説明は「遊び方」から読める。
+- 作業は専用 worktree の `codex/garden-atmosphere` で実施した。Claude Code の `claude/prayer-star` と共通する `GardenBootstrap.cs` は一時コピーで三方向比較を行い、競合マーカーが生じないことを確認した。macOS プレビューは専用の保存先に、撮影に使った22投後の庭を用意した。元の worktree の差分と既存の保存ファイル3件を作業前後で照合した。
+
+### 完了基準の結果（コマンド出力の要約）
+
+- Unity 6000.3.23f1 の EditMode は `total="49" passed="49" failed="0"`。macOS と WebGL のビルドはそれぞれ `Succeeded (0 errors)`。
+- macOS で16:9と4:3の起動画面、晴れ・夕暮れ・夜・小雨の遠景、近景、俯瞰、虹と天使を描画した。22投後の保存を読み込み、23投目が追記され、元のバイト列と全フレームのハッシュが有効であることを確認した。
+- Chrome の WebGL プレイヤーで起動、一投目の保存、22投後の庭の再読込、「遊び方」の開閉、視点の回転・ズーム・復帰を確認した。
+- `pnpm typecheck` は終了コード 0、`pnpm test` は `183 passed (183)`、`pnpm build` は `✓ built in 287ms`。pnpm は既存の依存関係で実行した。
+- 変更は Jam の表示と撮影範囲。台帳と実験の不変ルールに反する経路を追加していない。
+
+### 確認範囲
+
+- スマートフォン実機での表示とタッチ操作は未確認。
+
+### 触ったファイル
+
+- Unity の瓶メッシュ、ガラスと海のシェーダー、照明と影、視点、起動画面、本進捗記録。
+
+## Jam 庭と一緒に育つ家（2026-11-13）
+
+### 完了したこと
+
+- 庭を始めた時点から、玄関灯と飛び石のある小さな家を置いた。島ごとに川、岸、花壇、祭壇との距離を調べて敷地を取り、土台と階段を傾斜に合わせた。
+- 4投目でベンチと屋根のある縁側が加わる。10投目には、それまでの成立した投で最も多かった恵みから、水辺のテラス、風を聴くロフト、光の温室、花の工房のいずれかが建つ。同数なら先に出た恵みを使う。18投目で花箱や風鈴などが加わる。
+- 右側の「家を見る」で近づき、「視点を戻す」で庭に戻れる。暗くなると窓と玄関灯が暖かく光る。同じ材質の部材は結合して描画する。[Unity の Mesh.CombineMeshes 資料](https://docs.unity3d.com/6000.0/Documentation/ScriptReference/Mesh.CombineMeshes.html)
+- 家の段階と増築は既存の投の記録から復元する。表示側で完結し、抽選・生態・台帳の不変ルールに反する経路を追加していない。専用 worktree とプレビュー用の保存先を使用した。
+
+### 完了基準の結果（コマンド出力の要約）
+
+- Unity 6000.3.23f1 の EditMode は `total="62" passed="62" failed="0"`。段階の境目、4種類の分岐、同数の場合、後続の出目による建て替わりの防止、保存復元をテストした。
+- macOS と WebGL のビルドは `Succeeded (0 errors)`。macOS では0投目、4投目、4種類の完成例を複数の島で撮影した。22投済みの庭では実際の保存から温室を復元し、昼夜を描画した。23投目の追記後にフレームのハッシュと既存のバイト列を照合した。
+- デスクトップ版 Chrome で「家を見る」、新しい庭から4投、22投後の庭の再読込、視点復帰、来場者の切り替えを確認した。ブラウザとシェーダーのエラーは0件だった。
+- `pnpm typecheck` は終了コード 0、`pnpm test` は `183 passed (183)`、`pnpm build` は `✓ built in 309ms`。pnpm は既存の依存関係で実行した。
+
+### 確認範囲
+
+- 家と増築部分の外観、縁側、温室内の鉢植えを描画した。屋内への移動とスマートフォン実機での操作は確認範囲外。
+
+### 触ったファイル
+
+- Unity の家の進行、敷地、建物メッシュ、材質、カメラ、表示、植生配置、EditMode テスト、本進捗記録。
+
+## Jam 家と玄関先の磨き込み（2026-11-13）
+
+### 完了したこと
+
+- 木の扉に板の継ぎ目と真鍮の取っ手、窓に鎧戸、縁側の屋根に瓦の重なりを加えた。玄関先の飛び石に沿って地面を砂利色になじませ、道の脇に鉢植えと草花を置いた。敷地に合わせて岸、川、花壇の近くでは鉢と石の配置を控えた。
+- 水辺のテラスに石の水鉢と銅の水栓、風を聴くロフトに風見と風鈴、光の温室に植え替え用の作業台、花の工房に縞の布の日よけを作った。雨で瓦に艶が出て、夜は玄関と温室が灯る。動きを抑える設定では水鉢の水面模様、風見、風鈴が止まる。
+- 家の外観は投の記録から復元される。差分は Unity の表示に収まり、台帳と実験の不変ルールに反する経路を追加していない。専用 worktree の `codex/garden-atmosphere` とプレビュー用の保存先を使用した。
+
+### 完了基準の結果（コマンド出力の要約）
+
+- Unity 6000.3.23f1 の EditMode は `total="62" passed="62" failed="0"`。macOS と WebGL のビルドは `Succeeded (0 errors)`。
+- macOS で最初の家、実際に4投した縁側、4種類の増築を撮影した。増築一覧の撮影用の出目はメモリに設定した。別に既存の22投後の保存を復元し、温室を昼・夕暮れ・小雨・夜に描画した。水鉢、風見、風鈴を動かす時間が、動きを抑える設定で止まることを確認した。macOS のローカルプレビューで23投目を追記し、フレームのチェックサムと元の保存のバイト列を照合した。
+- デスクトップ版 Chrome の WebGL で「家を見る」、新しい庭から4投して縁側を表示、22投後の庭の復元、視点復帰、来場者の切り替えを確認した。ブラウザとシェーダーのエラーは0件だった。
+- `pnpm typecheck` は終了コード 0、`pnpm test` は `183 passed (183)`、`pnpm build` は `✓ built in 363ms`。pnpm は依存確認を警告モードにして既存の依存関係で実行した。
+- 元の worktree の差分と従来の保存ファイル3件を作業前後で照合し、一致を確認した。
+
+### 確認範囲
+
+- スマートフォン実機での表示とタッチ操作は未確認。
+- `claude/prayer-star` と統合する際は、双方が末尾に追記した本進捗記録の調整が必要。
+
+### 触ったファイル
+
+- Unity の家のメッシュ、敷地、材質、草の配置、地面の色、本進捗記録。
+
+## Jam 24投目から育つ4種類の家（2026-11-13）
+
+### 完了したこと
+
+- 4投目の縁側、10投目の増築、18投目の飾り付けに続き、24投目に母屋の屋根が変わる段階を加えた。19〜24投目の成立した投で最も多かった恵みを採用し、同数ならこの区間で先に出た恵みを使う。10投目に決まった増築と組み合わさる。
+- 水は丸い銅屋根と鎖樋の「雨音の家」、風は布張りの羽根が回る「風車の家」、光は藍色のドームと望遠鏡を持つ「星見の家」、種は草花と小窓のある「草屋根の家」になる。「家を見る」で家の名前と姿を確認できる。
+- 家は保存済みの投の記録から描画する。変更は Unity の表示に収まり、台帳と実験の不変ルールに反する経路を追加していない。作業は `codex/garden-atmosphere` の worktree と専用のプレビュー保存先で行った。
+
+### 完了基準の結果（コマンド出力の要約）
+
+- Unity 6000.3.23f1 の EditMode は `total="69" passed="69" failed="0"`。4種類の分岐、23投目と24投目の境目、同数時の判定、後続の投による変化の防止、保存復元を確認した。macOS と WebGL のビルドは `Succeeded (0 errors)`。
+- 固定乱数を使い通常の投の処理を24回通した庭から4種類を復元し、macOS で撮影した。別に、23投後の庭で「サイコロを振る」を押し、縁側と増築が残ったまま風車が建つこと、動きを抑える設定で羽根が止まることを確認した。星見の家を入れた macOS プレビューで25投目を追記し、既存の保存のバイト列と各フレームのチェックサムを照合した。
+- デスクトップ版 Chrome の WebGL では、新しい庭の起動、23投後の庭の復元、24投目の保存、再読込後に同じ家を表示することを確認した。ブラウザとシェーダーのエラーは0件。
+- `pnpm typecheck` は終了コード 0、`pnpm test` は `183 passed (183)`、`pnpm build` は `✓ built in 267ms`。pnpm は依存確認を警告モードにして既存の依存関係で実行した。
+- 元の worktree の差分と従来の保存ファイル3件が作業前後で一致した。
+
+### 確認範囲
+
+- スマートフォン実機での表示とタッチ操作は未確認。Claude Code 側との統合時には、双方が末尾に追記した本進捗記録の調整が必要。
+
+### 触ったファイル
+
+- Unity の家の成長判定、母屋の形状と演出、家の EditMode テスト、本進捗記録。
+
+## Jam 祈りの星・生態系・家の統合（2026-11-13）
+
+### 完了したこと
+
+- `origin/main` の生態系・お世話・庭の歩みを土台に、Claude Code の祈りの星と実り（`a960489`）、Codex の瓶・島・生き物・家（`41a2894`）をマージした。双方のコミットと進捗記録を引き継いだ。
+- 新規の庭では `ecology.v8` の受粉・結実・種の来歴を使う。その投の調和が決まった後に `prayer-star.v2` の恵みが届き、`flora.v3` はその場所との相性と恵みの履歴を種の候補に反映する。画面の星は実際に恵みが届いたセルを照らす。
+- 既存の庭は記録された規則で再開する。星や家の分岐が参照する履歴は解決済みの投から復元する。既存実験の `src/`、設計、凍結プロトコルの差分は0件。台帳と実験の不変ルールに反する経路を追加していない。
+- 統合は専用の worktree で行い、元の3作業先の差分と保存ファイル20件が作業前後で一致した。
+
+### 完了基準の結果（コマンド出力の要約）
+
+- Unity 6000.3.23f1 の EditMode は `total=270 passed=270 failed=0`。.NET 8 の生態・保存テストは `230/230` 件成功。
+- Unity の macOS と WebGL のビルドは `Succeeded (0 errors)`。macOS で Claude Code の80投後と Codex の24投後の庭をそれぞれ復元し、次の一投を追記した。元のバイト列と全フレームのチェックサムを照合した。
+- デスクトップ版 Chrome で新しい庭の一投と、24投後の庭で「家を見る」「庭を観察」「見通し・しくみを読む」を確認した。25投目を保存して再読込し、家と投の履歴が戻ることを確認した。ブラウザとシェーダーのエラーは0件。
+- `pnpm typecheck` は終了コード0、`pnpm test` は `183 passed (183)`、`pnpm build` は `✓ built in 620ms`。
+
+### 確認範囲
+
+- スマートフォン実機の表示・タッチ操作と、統合後の音の聞こえ方は未確認。
+
+### 触ったファイル
+
+- Unity の生態と保存復帰、観察と星の表示、瓶・島・植生・住人・家の描画、テスト、生態の仕様、本進捗記録。
+
 ## Jam 仕組みの総点検 — 独立レビュー・再開の正しさ・止まる株・見える星の恵み・届け先・願いの重み（2026-11-14）
 
 ### 完了したこと
@@ -2464,3 +3205,29 @@ Git diff whitespace check: pass
 - Domain: Ecology.cs、Lifecycle.cs、LuckySeven.cs、Season.cs、Community.cs、Flora.cs、PrayerStar.cs、SimpleJson.cs。Application: GardenCoordinator.cs、HistoryProjector.cs。Infrastructure/FileJournal.cs。
 - Presentation: PrayerStarSigil.cs、GardenBootstrap.cs（起動時の回復の報告・再開の例外・振るときの保存失敗・UI を隠す/撮影の対象・星の言葉の接続のみ）、GardenUi.cs（履歴の虹の印1行のみ）。
 - Tests: JournalRecoveryTests.cs・SoakTests.cs（新規）、ResumeTests.cs、SacredTonesTests.cs、SeasonTests.cs、LuckySevenTests.cs。docs/unity-garden/ECOLOGY.md §15、PROGRESS.md。
+
+## Jam main への統合 — 祈りの星の5回分と生態系（ecology.v5〜v8）（2026-11-14）
+
+### 完了したこと
+
+- `claude/prayer-star` の5回分（総点検・二度目のレビュー・群落と季節の願い・ラッキーナンバー・商品化に向けた総点検）を main（PR #31 以降）へ統合した。
+- 衝突の解き方: main の設計（新しい庭は生態系 `LivingEcosystem`、記録した版で古い庭の決まりを固定）をそのまま採り、
+  祈りの星 v3（届け先・段階の恵み・ラッキーナンバーの数え上げ・七つの幸運・ダブル）は main の `PrayerStar.ApplyGift` を通して新しい庭にも届くようにした。
+  めぐり・実り・止まる株・群落の応え（§17〜§20）は従来の祈りの星の庭（生態系なし）で働く。
+- 古い庭を変えない: 株の名前の新方式は `plantIdPolicyVersion = plant-ids.v1` で始めた run だけ。精霊の数・群落の生き物・菌根の新しい分け方は祈りの星の庭だけ。
+  main の各版（v4〜v8・従来）の96投の固定ハッシュはすべて一致。
+- 祈りの星の版が上がっても、祈りの星で始めた庭は星を持ち続ける（以前は版の文字列が一致しないと星が消える作りだった）。
+- 季節の願いの群落の判定は、どちらの庭でも `Communities.Find` で行う。テストの同名クラスは `PrayerCommunityTests` に改名。
+- ECOLOGY.md の節番号を main に合わせ（§18〜§23）、統合の対応表を §23.6 に置いた。
+
+### 完了基準の結果（コマンド出力の要約）
+
+- Unity EditMode: `total="310" passed="310" failed="0"`（main の固定ハッシュのテストを含む）。
+- `pnpm typecheck` 0、`pnpm test` 183 passed、`pnpm build` built。
+- WebGL を統合後にビルドしてブラウザで確認: 統合前の保存（祈りの星の庭・13投）がそのまま続き星と因果の一行が出る。次の来場者の新しい庭（生態系）でも振れて、左上の2行が進む。コンソールのエラー 0。
+
+### 要確定・申し送り
+
+- 生態系の庭では記録が1投あたり約 40 KiB（300投で約 12 MiB）、起動時の全検証は約 2 秒、1投の処理は平均 11.6 ms（最悪 199 ms）。記録の分割・差分化は優先度を上げて検討する。
+- 生態系の庭では調和が高く出やすく、八芒星（八の虹）が約12投に1回（従来の庭の調整値は約19投に1回）。虹の特別さを保つなら八芒星の条件を生態系の庭向けに見直す。
+- §23.5 の申し送り（縦長画面の文字、履歴の「0投目」）は継続。

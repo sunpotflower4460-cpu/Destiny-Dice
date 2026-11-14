@@ -36,7 +36,8 @@ namespace DestinyGarden.EditorTools
             var alwaysIncluded = serialized.FindProperty("m_AlwaysIncludedShaders");
             foreach (string shaderName in new[]
             {
-                "Universal Render Pipeline/Lit", "DestinyGarden/Foliage", "DestinyGarden/Glow", "DestinyGarden/Glass"
+                "Universal Render Pipeline/Lit", "DestinyGarden/Foliage", "DestinyGarden/Glow",
+                "DestinyGarden/Glass", "DestinyGarden/Lagoon", "DestinyGarden/Sky"
             })
             {
                 var shader = Shader.Find(shaderName);

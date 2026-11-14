@@ -235,24 +235,61 @@ namespace DestinyGarden.Tests
             }
 
             var read = new FileJournal(path, clock).ReadAll();
+            var genesis = read.Entries.First(e => e.Kind == "RunStarted");
+            Assert.AreEqual(PrayerStar.RulesVersion, genesis.Payload["prayerStarPolicyVersion"]);
+            Assert.AreEqual(Flora.BlessingRulesVersion, genesis.Payload["floraPolicyVersion"]);
             var resolved = read.Entries.Last(e => e.Kind == "Resolved");
             var eco = (Dictionary<string, object>)resolved.Payload["ecology"];
-            Assert.AreEqual("ecology.v4", eco["rulesVersion"]);
+            Assert.AreEqual(CareRules.RulesVersion, eco["rulesVersion"]);
+            Assert.IsTrue(eco.ContainsKey("care"));
+            Assert.IsTrue(eco.ContainsKey("relations"));
+            Assert.IsTrue(coord.State.Ecosystem.BlessingFlora);
             var ps = (Dictionary<string, object>)eco["prayerStar"];
             Assert.AreEqual((long)last.Ecology.PrayerStar.Points, ps["points"]);
             var history = HistoryProjector.Project(read.Entries, coord.RunId);
             Assert.AreEqual(last.Ecology.PrayerStar.Points, history.Last(h => h.Resolved && h.WorldRevision > 0).PrayerStar);
+            Assert.IsNotNull(history.Last(h => h.Resolved && h.WorldRevision > 0).Care);
 
             // A restored coordinator remembers the previous face, so the next star reads the same way.
             var restored = new GardenCoordinator(new FileJournal(path, clock), entropy, new SequentialIds());
             restored.Restore(new FileJournal(path, clock).ReadAll());
             Assert.AreEqual(CoordinatorPhase.Prepared, restored.Phase);
+            Assert.AreEqual(Hashing.StateHash(coord.State), Hashing.StateHash(restored.State));
+            Assert.IsTrue(restored.State.Ecosystem.BlessingFlora);
             restored.CommitIntent("none", null);
             var next = restored.Roll();
             var expect = PrayerStar.Read(next.FaceId, last.FaceId, next.RecipeId, last.RecipeId, false, next.Ecology.Harmony.Value);
             Assert.AreEqual(expect.Points, next.Ecology.PrayerStar.Points);
             Assert.AreEqual(expect.LuckyNumber, next.Ecology.PrayerStar.LuckyNumber);
             Directory.Delete(dir, true);
+        }
+
+        [Test]
+        public void Restore_OnlyUsesFacesFromCompletedRollsForTheStar()
+        {
+            var journal = new Memory();
+            var ids = new SequentialIds();
+            var coord = new GardenCoordinator(journal, new FixedEntropy("star-interrupted"), ids);
+            coord.CreateRun();
+            coord.Prepare();
+            coord.CommitIntent("none", null);
+            var complete = coord.Roll();
+            coord.Prepare();
+            coord.CommitIntent("none", null);
+            journal.Append("OutcomeCommitted", coord.RunId, coord.CurrentRoundId, new Dictionary<string, object>
+            {
+                ["recipeId"] = "light_soft",
+                ["faceId"] = complete.FaceId == 1 ? 2 : 1
+            });
+            journal.Append("InterruptedUnresolved", coord.RunId, coord.CurrentRoundId, new Dictionary<string, object>());
+
+            var restored = new GardenCoordinator(new Memory(), new FixedEntropy("after-interruption"), ids);
+            restored.Restore(new JournalReadResult { ChainValid = true, Entries = journal.Entries });
+            CollectionAssert.AreEqual(new[] { complete.RecipeId }, restored.RolledRecipes);
+            restored.Prepare();
+            restored.CommitIntent("none", null);
+            var next = restored.Roll();
+            Assert.AreEqual(complete.FaceId + next.FaceId, next.Ecology.PrayerStar.FaceSum);
         }
 
         /// <summary>How often each star appears for a player who wishes for the commonest element. Report only.</summary>

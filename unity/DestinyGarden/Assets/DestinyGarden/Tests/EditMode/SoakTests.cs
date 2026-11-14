@@ -89,7 +89,7 @@ namespace DestinyGarden.Tests
                 var faces = new List<int>();
                 for (int i = 0; i < rolls; i++)
                 {
-                    if (rng.Next(10) == 0) coord.SetCareFocus(rng.Next(2) == 0 ? "auto" : "fixed", Sites[rng.Next(3)]);
+                    if (rng.Next(10) == 0) { if (rng.Next(2) == 0) coord.SetCareFocus("auto", null); else coord.SetCareFocus("fixed", Sites[rng.Next(3)]); }
                     Decide(coord, rng);
                     var sw = Stopwatch.StartNew();
                     var o = coord.Roll();

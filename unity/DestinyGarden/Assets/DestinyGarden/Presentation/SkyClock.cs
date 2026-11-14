@@ -1,3 +1,4 @@
+using DestinyGarden.Domain;
 using UnityEngine;
 
 namespace DestinyGarden.Presentation
@@ -6,6 +7,9 @@ namespace DestinyGarden.Presentation
     {
         public Color Sun, Fill, Ambient, Haze, SeaTint;
         public float SunIntensity, FillIntensity, Elevation, Azimuth, Night, Bloom;
+        public Color Horizon, Zenith;
+        public Vector3 SunDirection, MoonDirection;
+        public float SunVisibility, MoonVisibility, Twilight, CloudCover, Moisture;
     }
 
     /// <summary>
@@ -56,14 +60,14 @@ namespace DestinyGarden.Presentation
                 new Color(0.62f, 0.57f, 0.68f), new Color(0.56f, 0.46f, 0.54f), new Color(0.80f, 0.70f, 0.78f), 0.15f, 0.95f),
         };
 
-        public static SkyState Evaluate(float phase)
+        public static SkyState Evaluate(float phase, WeatherId weather = WeatherId.Clear)
         {
             phase = Mathf.Repeat(phase, 1f);
             int i = 0;
             while (i < Keys.Length - 2 && phase > Keys[i + 1].At) i++;
             var a = Keys[i]; var b = Keys[i + 1];
             float t = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(a.At, b.At, phase));
-            return new SkyState
+            var sky = new SkyState
             {
                 Sun = Color.Lerp(a.Sun, b.Sun, t), Fill = Color.Lerp(a.Fill, b.Fill, t),
                 Ambient = Color.Lerp(a.Ambient, b.Ambient, t), Haze = Color.Lerp(a.Haze, b.Haze, t),
@@ -72,19 +76,32 @@ namespace DestinyGarden.Presentation
                 Elevation = Mathf.Lerp(a.Elev, b.Elev, t), Azimuth = Mathf.Lerp(a.Az, b.Az, t),
                 Night = Mathf.Lerp(a.Night, b.Night, t), Bloom = Mathf.Lerp(a.Bloom, b.Bloom, t)
             };
+            float wet = weather == WeatherId.Drizzle ? 1f : weather == WeatherId.Cloudy ? 0.55f : 0f;
+            sky.Moisture = wet;
+            sky.CloudCover = Mathf.Lerp(0.12f, 0.86f, wet);
+            sky.Twilight = Mathf.Pow(Mathf.Max(0f, Mathf.Cos((phase - 0.75f) * Mathf.PI * 2f)), 13f)
+                * (1f - sky.Night) * (1f - 0.46f * wet);
+            float daylight = Mathf.InverseLerp(0.02f, 0.81f, phase);
+            sky.SunDirection = Direction(Mathf.Lerp(-29f, 17f, daylight), 0.5f + 10f * Mathf.Sin(daylight * Mathf.PI));
+            float moonPhase = Mathf.InverseLerp(0.78f, 1.03f, phase < 0.5f ? phase + 1f : phase);
+            sky.MoonDirection = Direction(Mathf.Lerp(-22f, -9f, moonPhase), 1.1f + 2.8f * Mathf.Sin(moonPhase * Mathf.PI));
+            sky.SunVisibility = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.02f, 0.09f, phase))
+                * Mathf.SmoothStep(1f, 0f, Mathf.InverseLerp(0.77f, 0.84f, phase)) * (1f - wet * 0.63f);
+            sky.MoonVisibility = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.27f, 0.95f, sky.Night)) * (1f - wet * 0.56f);
+
+            var dayHorizon = Color.Lerp(new Color(0.24f, 0.41f, 0.56f), new Color(0.17f, 0.265f, 0.38f), wet);
+            var dayZenith = Color.Lerp(new Color(0.037f, 0.135f, 0.33f), new Color(0.065f, 0.112f, 0.23f), wet);
+            sky.Horizon = Color.Lerp(dayHorizon, new Color(0.022f, 0.045f, 0.103f), sky.Night);
+            sky.Zenith = Color.Lerp(dayZenith, new Color(0.005f, 0.013f, 0.037f), sky.Night);
+            sky.Horizon = Color.Lerp(sky.Horizon, new Color(0.35f, 0.14f, 0.13f), sky.Twilight * 0.84f);
+            sky.Zenith = Color.Lerp(sky.Zenith, new Color(0.061f, 0.037f, 0.100f), sky.Twilight * 0.63f);
+            return sky;
         }
 
-        /// <summary>Where the decorative sun (0) or moon (1) hangs in the sky behind the island; y below 0 = below the horizon.</summary>
-        public static Vector3 BodyPosition(float phase, bool moon)
+        private static Vector3 Direction(float azimuth, float elevation)
         {
-            // The sun is up from 0.02 to 0.80; the moon from 0.78 to 1.04 (wrapping past dawn).
-            float p = Mathf.Repeat(phase, 1f);
-            float frac;
-            if (!moon) frac = Mathf.InverseLerp(0.02f, 0.80f, p);
-            else frac = Mathf.InverseLerp(0.78f, 1.04f, p < 0.5f ? p + 1f : p);
-            float ang = Mathf.PI * (1f - frac);
-            // Inside the sky dome (radius 45 around the island), behind the island as seen from the camera.
-            return new Vector3(7.5f + Mathf.Cos(ang) * 28f, 2.5f + Mathf.Sin(ang) * 10.5f, 7.5f + 26f);
+            float a = azimuth * Mathf.Deg2Rad, e = elevation * Mathf.Deg2Rad;
+            return new Vector3(Mathf.Sin(a) * Mathf.Cos(e), Mathf.Sin(e), Mathf.Cos(a) * Mathf.Cos(e));
         }
     }
 

@@ -26,10 +26,13 @@ namespace DestinyGarden.Application
         public bool LuckySeven;   // the published 7th face was rolled
         public bool Bloomed;      // at least one flower opened in this round
         public List<string> EcologyKinds = new List<string>(); // residents present after this roll
+        public int SeedBankDeposits, SeedBankSprouts; // v5 separates seed arrival from a later emergence
         public int EcologySeeds;  // seeds carried by residents
         public int EcologyGrowth; // growth added by residents
         public int Harmony = -1;  // 0..8 (ecology.v2); -1 for older records
         public int Star;          // 0, 5, 7 or 8
+        public List<EcologicalLink> Relations = new List<EcologicalLink>(); // ecology.v4; absent in old records
+        public CareReport Care;
         public int PrayerStar;    // 5..8, the star beneath the die (prayer-star.v1); 0 for older records
         public bool LuckyNumber;  // the prayer star reached the lucky number seven
         /// <summary>The rainbow eight rose this roll: an eight-pointed star (rainbow.v3); older records keep their old rule.</summary>
@@ -106,6 +109,7 @@ namespace DestinyGarden.Application
                             Totals((Dictionary<string, object>)e.Payload["postState"], s);
                             if (e.Payload.TryGetValue("ecology", out object eco) && eco is IDictionary<string, object> ecod)
                             {
+                                if (ecod.TryGetValue("care", out object cr) && cr is IDictionary<string, object> care) s.Care = CareReport.FromPayload(care);
                                 if (ecod.TryGetValue("harmony", out object hv)) s.Harmony = WorldStateSerializer.ToInt(hv);
                                 if (ecod.TryGetValue("star", out object sv)) s.Star = WorldStateSerializer.ToInt(sv);
                                 if (ecod.TryGetValue("prayerStar", out object ps) && ps is IDictionary<string, object> psd)
@@ -113,6 +117,20 @@ namespace DestinyGarden.Application
                                     s.PrayerStar = WorldStateSerializer.ToInt(psd["points"]);
                                     s.LuckyNumber = psd["luckyNumber"] is bool ln && ln;
                                 }
+                                if (ecod.TryGetValue("relations", out object rl) && rl is IEnumerable links)
+                                    foreach (IDictionary<string, object> link in links)
+                                    {
+                                        if (link["kind"] as string == "seed-buried") s.SeedBankDeposits += WorldStateSerializer.ToInt(link["amount"]);
+                                        if (link["kind"] as string == "seed-awakened") s.SeedBankSprouts += WorldStateSerializer.ToInt(link["amount"]);
+                                        s.Relations.Add(new EcologicalLink
+                                        {
+                                            Kind = link["kind"] as string, Actor = link["actor"] as string, Species = link["species"] as string,
+                                            FromCell = WorldStateSerializer.ToInt(link["fromCell"]), ToCell = WorldStateSerializer.ToInt(link["toCell"]),
+                                            Amount = WorldStateSerializer.ToInt(link["amount"]),
+                                            FromHabitat = link.TryGetValue("fromHabitat", out object fh) ? fh as string : null,
+                                            ToHabitat = link.TryGetValue("toHabitat", out object th) ? th as string : null
+                                        });
+                                    }
                                 foreach (var v in (IEnumerable)ecod["visits"])
                                     if (v is IDictionary<string, object> vd && vd["kind"] is string vk) s.EcologyKinds.Add(vk);
                                 foreach (var ef in (IEnumerable)ecod["effects"])

@@ -219,6 +219,8 @@ namespace DestinyGarden.Presentation
             // Underground and unseen: only a soft glint where the network actually fed a plant.
             var fedOnly = new List<int>();
             foreach (var e in o.Ecology.Effects) if (e.Kind == Ecology.Mycorrhiza && e.Amount > 0) fedOnly.Add(e.CellId);
+            foreach (var link in o.Ecology.Relations)
+                if (link.Kind == "nutrient-shared" && !fedOnly.Contains(link.ToCell)) fedOnly.Add(link.ToCell);
             for (int i = 0; i < fedOnly.Count; i++)
             {
                 yield return new WaitForSeconds(0.18f);

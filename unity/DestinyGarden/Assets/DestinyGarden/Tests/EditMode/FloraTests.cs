@@ -155,7 +155,8 @@ namespace DestinyGarden.Tests
         private static string ChooseAt(WorldState s, PlantState seed, int draw, out int total)
         {
             int t = 0;
-            string chosen = Flora.ChooseSpecies(s, seed, "die", null, n => { t = n; return Math.Min(draw, n - 1); });
+            string chosen = Flora.ChooseSpecies(s, seed, "die", null, n => { t = n; return Math.Min(draw, n - 1); },
+                Array.Empty<string>());
             total = t;
             return chosen;
         }
@@ -211,8 +212,9 @@ namespace DestinyGarden.Tests
             Assert.GreaterOrEqual(cell, 0);
             var seed = new PlantState { PlantId = "seed", CellId = cell, OriginKind = "ecology" };
             int plain = 0, answered = 0;
-            Flora.ChooseSpecies(s, seed, "die", null, n => { plain = n; return 0; });
-            Flora.ChooseSpecies(s, seed, "die", null, n => { answered = n; return 0; }, null, "light_soft");
+            // Under the blessing rules (recent blessings given, here none yet).
+            Flora.ChooseSpecies(s, seed, "die", null, n => { plain = n; return 0; }, new string[0]);
+            Flora.ChooseSpecies(s, seed, "die", null, n => { answered = n; return 0; }, new string[0], "light_soft");
             int suited = Flora.FittingAt(s, cell).Count(t => Flora.Suits(t, ElementId.Light));
             Assert.AreEqual(plain + suited * Flora.AnsweredWishLeaning, answered, "each sun-loving fitting species gains the answered wish's weight");
         }

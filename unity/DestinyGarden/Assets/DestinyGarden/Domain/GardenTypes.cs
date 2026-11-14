@@ -27,7 +27,7 @@ namespace DestinyGarden.Domain
         public int Growth;
         public int GrowthRemainder;
         public PlantStage Stage;
-        public string OriginKind = "initialMap"; // initialMap | seedInput
+        public string OriginKind = "initialMap"; // initialMap | seedInput | ecology | vegetative
         public string SeedSourceRoundId;         // set only for seedInput plants
         public string Species;                   // ecology.v3 (Flora); null until the first ecology step sees it
         public int BloomRolls;                   // lifecycle.v1: rolls spent in flower (saved only when > 0)
@@ -47,6 +47,7 @@ namespace DestinyGarden.Domain
     public sealed class WorldState
     {
         public int WorldRevision;
+        public EcosystemState Ecosystem; // ecology.v4; absent in older gardens
         public int[] SoilWater = new int[GardenMapData.CellCount];
         public int[] SurfaceWater = new int[GardenMapData.CellCount];
         public int[] EvaporationRemainder = new int[GardenMapData.CellCount];
@@ -66,7 +67,7 @@ namespace DestinyGarden.Domain
 
         public WorldState Clone()
         {
-            var c = new WorldState { WorldRevision = WorldRevision };
+            var c = new WorldState { WorldRevision = WorldRevision, Ecosystem = Ecosystem?.Clone() };
             Array.Copy(SoilWater, c.SoilWater, SoilWater.Length);
             Array.Copy(SurfaceWater, c.SurfaceWater, SurfaceWater.Length);
             Array.Copy(EvaporationRemainder, c.EvaporationRemainder, EvaporationRemainder.Length);

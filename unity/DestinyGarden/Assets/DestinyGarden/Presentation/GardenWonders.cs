@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
+using DestinyGarden.Domain;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -23,21 +24,31 @@ namespace DestinyGarden.Presentation
 
         public GardenView View;
         public bool ReducedMotion;
-        private Shader _lit, _sprite;
+        private Shader _lit;
+        private LifeModels _models;
+        private SpiritModels _spirits;
+        private Material _trailPaint;
+        private MaterialPropertyBlock _figureTint;
+        private static readonly int TintId = Shader.PropertyToID("_Color");
         private readonly List<Butterfly> _butterflies = new List<Butterfly>();
         private readonly List<Vector3> _flowerSpots = new List<Vector3>();
         private bool _butterfliesActive;
-        private ParticleSystem _angels;
+        private SpiritModels.Figure[] _angels, _fairies;
+        private bool _rainbowPlaying;
+        private bool _wasReducedMotion;
         private ParticleSystem _sparkles;
         private Transform _diceHalo;
         private readonly List<Transform> _diceHaloOrbs = new List<Transform>();
 
         public void Build()
         {
+            _figureTint = new MaterialPropertyBlock();
             _lit = Shader.Find("Universal Render Pipeline/Lit");
-            _sprite = Shader.Find("Sprites/Default");
+            _models = new LifeModels();
+            _spirits = new SpiritModels(_models);
             BuildButterflies();
-            BuildAngels();
+            BuildFigures();
+            BuildSparkles();
             BuildDiceHalo();
         }
 
@@ -45,7 +56,8 @@ namespace DestinyGarden.Presentation
 
         private sealed class Butterfly
         {
-            public Transform Root, LeftWing, RightWing;
+            public LifeModels.Winged Rig;
+            public Transform Root => Rig.Root;
             public Vector3 Target, Velocity;
             public float Phase, Retarget, RestUntil;
             public bool Leaving;
@@ -61,57 +73,13 @@ namespace DestinyGarden.Presentation
                 (new Color(0.92f, 1.00f, 0.96f), new Color(0.35f, 0.85f, 0.70f)),
                 (new Color(1.00f, 0.82f, 0.60f), new Color(0.85f, 0.25f, 0.35f))
             };
-            var wingMesh = WingMesh();
-            var bodyMat = new Material(_lit) { color = new Color(0.10f, 0.07f, 0.12f) };
             for (int i = 0; i < palettes.Length; i++)
             {
-                var mat = new Material(_sprite);
-                mat.SetTexture("_MainTex", ProceduralArt.ButterflyWing(palettes[i].Item1, palettes[i].Item2));
-                mat.renderQueue = 3150;
-                var root = new GameObject("Butterfly" + i).transform;
-                root.SetParent(transform);
-                var body = GameObject.CreatePrimitive(PrimitiveType.Capsule);
-                body.transform.SetParent(root, false);
-                body.transform.localScale = new Vector3(0.035f, 0.07f, 0.035f);
-                body.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
-                body.GetComponent<MeshRenderer>().material = bodyMat;
-                body.GetComponent<MeshRenderer>().shadowCastingMode = ShadowCastingMode.Off;
-                Destroy(body.GetComponent<Collider>());
-                var b = new Butterfly
-                {
-                    Root = root,
-                    LeftWing = Wing(root, wingMesh, mat, -1),
-                    RightWing = Wing(root, wingMesh, mat, 1),
-                    Phase = i * 1.3f
-                };
-                root.localScale = Vector3.one * 1.25f;
-                root.gameObject.SetActive(false);
-                _butterflies.Add(b);
+                var rig = _models.MakeInsect(transform, LifeModels.Insect.Butterfly, i, palettes[i].Item1, palettes[i].Item2);
+                rig.Root.localScale = Vector3.one * (0.86f + i % 3 * 0.10f);
+                rig.Flap(16f, 12f);
+                _butterflies.Add(new Butterfly { Rig = rig, Phase = i * 1.3f });
             }
-        }
-
-        private static Transform Wing(Transform root, Mesh mesh, Material mat, int side)
-        {
-            var w = new GameObject(side < 0 ? "WingL" : "WingR");
-            w.transform.SetParent(root, false);
-            w.transform.localScale = new Vector3(side * 0.30f, 1f, 0.30f);
-            w.AddComponent<MeshFilter>().sharedMesh = mesh;
-            var r = w.AddComponent<MeshRenderer>();
-            r.material = mat;
-            r.shadowCastingMode = ShadowCastingMode.Off;
-            return w.transform;
-        }
-
-        /// <summary>Unit wing quad hinged at x=0 (the body), spanning x 0..1, z -0.5..0.5.</summary>
-        private static Mesh WingMesh()
-        {
-            var m = new Mesh { name = "Wing" };
-            m.vertices = new[] { new Vector3(0, 0, -0.5f), new Vector3(1, 0, -0.5f), new Vector3(1, 0, 0.5f), new Vector3(0, 0, 0.5f) };
-            m.uv = new[] { new Vector2(0, 0), new Vector2(1, 0), new Vector2(1, 1), new Vector2(0, 1) };
-            m.triangles = new[] { 0, 2, 1, 0, 3, 2 };
-            m.RecalculateNormals();
-            m.RecalculateBounds();
-            return m;
         }
 
         /// <summary>Called after every refresh with the domain's NatureBalance verdict.</summary>
@@ -119,7 +87,11 @@ namespace DestinyGarden.Presentation
         {
             _flowerSpots.Clear();
             if (flowerTops != null) _flowerSpots.AddRange(flowerTops);
-            if (active == _butterfliesActive) return;
+            if (active == _butterfliesActive)
+            {
+                if (active && ReducedMotion) PoseButterflies();
+                return;
+            }
             _butterfliesActive = active;
             for (int i = 0; i < _butterflies.Count; i++)
             {
@@ -134,10 +106,29 @@ namespace DestinyGarden.Presentation
                     b.RestUntil = 0f;
                     b.Root.gameObject.SetActive(true);
                 }
-                else
+                else if (ReducedMotion) b.Root.gameObject.SetActive(false);
+                else b.Leaving = true;
+            }
+            if (active && ReducedMotion) PoseButterflies();
+        }
+
+        private void PoseButterflies()
+        {
+            for (int i = 0; i < _butterflies.Count; i++)
+            {
+                var butterfly = _butterflies[i];
+                if (!_butterfliesActive)
                 {
-                    b.Leaving = true;
+                    butterfly.Root.gameObject.SetActive(false);
+                    continue;
                 }
+                if (_flowerSpots.Count == 0) continue;
+                float angle = i * 2.39996f;
+                butterfly.Root.SetPositionAndRotation(_flowerSpots[i % _flowerSpots.Count] +
+                    new Vector3(Mathf.Cos(angle) * 0.34f, 0.14f, Mathf.Sin(angle) * 0.34f), Quaternion.Euler(0f, angle * Mathf.Rad2Deg, 0f));
+                butterfly.Rig.Flap(29f, 22f, 8f);
+                butterfly.Velocity = Vector3.zero;
+                butterfly.Retarget = 0f;
             }
         }
 
@@ -157,11 +148,12 @@ namespace DestinyGarden.Presentation
                 }
                 else if (t > b.Retarget)
                 {
-                    b.Retarget = t + Random.Range(2.5f, 5f);
+                    b.Retarget = t + Random.Range(4.0f, 6.5f);
                     if (_flowerSpots.Count > 0 && Random.value < 0.7f)
                     {
-                        b.Target = _flowerSpots[Random.Range(0, _flowerSpots.Count)] + Vector3.up * 0.12f;
-                        b.RestUntil = t + Random.Range(1.5f, 3f);
+                        b.Target = _flowerSpots[Random.Range(0, _flowerSpots.Count)] +
+                            new Vector3(Mathf.Cos(b.Phase) * 0.20f, 0.10f, Mathf.Sin(b.Phase) * 0.20f);
+                        b.RestUntil = b.Retarget - 0.25f;
                     }
                     else
                     {
@@ -170,60 +162,39 @@ namespace DestinyGarden.Presentation
                     }
                 }
                 Vector3 to = b.Target - b.Root.position;
-                bool resting = !b.Leaving && to.magnitude < 0.15f && t < b.RestUntil;
+                bool resting = !b.Leaving && to.sqrMagnitude < 0.075f && t < b.RestUntil;
                 Vector3 wobble = new Vector3(Mathf.Sin(t * 3.1f + b.Phase), Mathf.Sin(t * 4.3f + b.Phase * 2f) * 0.6f,
-                    Mathf.Cos(t * 2.7f + b.Phase)) * (resting ? 0f : 0.9f);
+                    Mathf.Cos(t * 2.7f + b.Phase)) * (resting ? 0f : 0.42f + Mathf.Clamp01(to.magnitude * 0.4f) * 0.32f);
                 Vector3 desired = to.normalized * Mathf.Min(1.6f, to.magnitude * 1.4f) + wobble;
                 b.Velocity = Vector3.Lerp(b.Velocity, resting ? Vector3.zero : desired, dt * 2.2f);
                 b.Root.position += b.Velocity * dt;
                 Vector3 flat = new Vector3(b.Velocity.x, 0f, b.Velocity.z);
                 if (flat.sqrMagnitude > 0.0004f)
                     b.Root.rotation = Quaternion.Slerp(b.Root.rotation, Quaternion.LookRotation(flat), dt * 5f);
-                float flap = resting ? 18f + Mathf.Sin(t * 2.2f + b.Phase) * 14f
-                                     : Mathf.Sin(t * 17f + b.Phase) * 62f;
-                b.LeftWing.localRotation = Quaternion.Euler(0f, 0f, flap);
-                b.RightWing.localRotation = Quaternion.Euler(0f, 0f, -flap);
+                float beat = t * 19f + b.Phase;
+                float flap = resting ? 29f + Mathf.Sin(t * 2.2f + b.Phase) * 19f : 15f + Mathf.Sin(beat) * 58f;
+                float hind = resting ? flap * 0.88f : 12f + Mathf.Sin(beat - 0.35f) * 49f;
+                b.Rig.Flap(flap, hind, resting ? 8f : Mathf.Sin(beat * 0.5f) * 7f);
             }
         }
 
         // ---------------- Rainbow figure-eight and angels ----------------
 
-        private void BuildAngels()
+        private void BuildFigures()
         {
-            var obj = new GameObject("Angels");
-            obj.transform.SetParent(transform);
-            _angels = obj.AddComponent<ParticleSystem>();
-            var main = _angels.main;
-            main.playOnAwake = false;
-            main.maxParticles = 80;
-            main.startLifetime = new ParticleSystem.MinMaxCurve(5.0f, 7.0f);
-            main.startSpeed = 0f;
-            main.startSize = new ParticleSystem.MinMaxCurve(0.30f, 0.52f);
-            main.gravityModifier = -0.035f;
-            main.simulationSpace = ParticleSystemSimulationSpace.World;
-            main.startColor = new Color(1f, 0.97f, 0.90f, 0.42f);
-            var emission = _angels.emission;
-            emission.rateOverTime = 0f;
-            var sheet = _angels.textureSheetAnimation;
-            sheet.enabled = true;
-            sheet.numTilesX = 2;
-            sheet.numTilesY = 1;
-            sheet.cycleCount = 14;
-            var fade = _angels.colorOverLifetime;
-            fade.enabled = true;
-            var g = new Gradient();
-            g.SetKeys(new[] { new GradientColorKey(Color.white, 0f), new GradientColorKey(new Color(1f, 0.9f, 0.7f), 1f) },
-                new[] { new GradientAlphaKey(0f, 0f), new GradientAlphaKey(1f, 0.12f), new GradientAlphaKey(1f, 0.7f), new GradientAlphaKey(0f, 1f) });
-            fade.color = g;
-            var noise = _angels.noise;
-            noise.enabled = true;
-            noise.strength = 0.25f;
-            noise.frequency = 0.35f;
-            var mat = new Material(_sprite);
-            mat.SetTexture("_MainTex", ProceduralArt.AngelSheet());
-            mat.renderQueue = 3300;
-            obj.GetComponent<ParticleSystemRenderer>().material = mat;
+            _angels = new SpiritModels.Figure[3];
+            _fairies = new SpiritModels.Figure[PrayerSpirits.MaxSpirits * 2];
+            for (int i = 0; i < _angels.Length; i++)
+            {
+                _angels[i] = _spirits.Make(transform, false);
+                _angels[i].Root.gameObject.SetActive(false);
+            }
+            // Fairy objects are created only as a prayer needs them, then returned to the pool.
+            _trailPaint = _models.Keep(IslandHarmony.GlowMaterial(_models.Keep(ProceduralArt.GlowSprite()), Color.white, 3318));
+        }
 
+        private void BuildSparkles()
+        {
             var sObj = new GameObject("RainbowSparkles");
             sObj.transform.SetParent(transform);
             _sparkles = sObj.AddComponent<ParticleSystem>();
@@ -236,10 +207,13 @@ namespace DestinyGarden.Presentation
             sMain.simulationSpace = ParticleSystemSimulationSpace.World;
             var sEmission = _sparkles.emission;
             sEmission.rateOverTime = 0f;
-            var sMat = new Material(_sprite);
-            sMat.SetTexture("_MainTex", ProceduralArt.GlowSprite());
-            sMat.renderQueue = 3250;
-            sObj.GetComponent<ParticleSystemRenderer>().material = sMat;
+            var fade = _sparkles.colorOverLifetime;
+            fade.enabled = true;
+            var opacity = new Gradient();
+            opacity.SetKeys(new[] { new GradientColorKey(Color.white, 0f), new GradientColorKey(Color.white, 1f) },
+                new[] { new GradientAlphaKey(0f, 0f), new GradientAlphaKey(1f, 0.2f), new GradientAlphaKey(0f, 1f) });
+            fade.color = opacity;
+            sObj.GetComponent<ParticleSystemRenderer>().sharedMaterial = _models.Paint(_models.Keep(ProceduralArt.GlowSprite()), 3250);
         }
 
         /// <summary>Upright lemniscate (an "8"): t in [0, 2pi).</summary>
@@ -282,7 +256,11 @@ namespace DestinyGarden.Presentation
         public IEnumerator PlayRainbowEight()
         {
             var cam = View != null ? View.ViewCamera : Camera.main;
-            // High in the air behind the garden, about as wide as the island.
+            if (cam == null) yield break;
+            while (_rainbowPlaying) yield return null;
+            _rainbowPlaying = true;
+            bool motion = !ReducedMotion;
+            // Frame the figures against open sky beside the rainbow.
             Vector3 center = new Vector3(7.5f, 7.6f, 12.0f);
             var root = new GameObject("RainbowEight").transform;
             root.SetParent(transform);
@@ -293,13 +271,15 @@ namespace DestinyGarden.Presentation
             Vector3 camPos1 = new Vector3(7.5f, 13.2f, -12.5f);
             Quaternion camRot1 = Quaternion.LookRotation(new Vector3(7.5f, 6.4f, 9.0f) - camPos1, Vector3.up);
             if (View != null && View.Rig != null) View.Rig.Lock();
-            if (!ReducedMotion) StartCoroutine(MoveCamera(cam, camPos0, camRot0, camPos1, camRot1, 2.6f));
+            if (View != null) View.SetRainbowFocus(true);
+            if (motion) StartCoroutine(MoveCamera(cam, camPos0, camRot0, camPos1, camRot1, 2.6f));
             root.rotation = Quaternion.LookRotation((center - camPos1).normalized, Vector3.up);
 
             const int points = 180;
             const float baseA = 4.6f;
             var tex = BandTexture();
             var lines = new List<LineRenderer>();
+            var materials = new List<Material>();
             LineRenderer Band(string name, float width, int queue, float z)
             {
                 var obj = new GameObject(name);
@@ -307,7 +287,8 @@ namespace DestinyGarden.Presentation
                 obj.transform.localPosition = new Vector3(0f, 0f, z);
                 var line = obj.AddComponent<LineRenderer>();
                 var m = IslandHarmony.GlowMaterial(tex, Color.white, queue);
-                line.material = m;
+                line.sharedMaterial = m;
+                materials.Add(m);
                 line.textureMode = LineTextureMode.Tile;
                 line.useWorldSpace = false;
                 line.loop = true;
@@ -338,72 +319,86 @@ namespace DestinyGarden.Presentation
                 veil.startColor = veil.endColor = new Color(1f, 0.97f, 0.92f, 0.09f * k);
                 for (int band = 0; band < lines.Count; band++)
                 {
-                    float breathe = 0.85f + 0.15f * Mathf.Sin(time * 1.4f + band * 0.7f);
+                    float breathe = motion && !ReducedMotion ? 0.90f + 0.10f * Mathf.Sin(time * 1.4f + band * 0.7f) : 0.95f;
                     lines[band].startColor = lines[band].endColor = Pale(Rainbow[band], 0.30f * k * breathe);
                 }
             }
 
-            // Condense out of the air.
-            float appear = ReducedMotion ? 0.01f : 3.2f;
-            for (float time = 0f; time < appear; time += Time.deltaTime)
+            // Leave breathing room around the eight so the silhouettes and the two loops stay legible.
+            float appear = motion ? 2.65f : 0.55f;
+            float hold = motion ? 5.6f : 2.6f;
+            float fade = motion ? 2.9f : 0.9f;
+            float nextSparkle = 0.2f;
+            for (float time = 0f; time < appear + hold + fade; time += Time.deltaTime)
             {
-                float k = Mathf.SmoothStep(0f, 1f, time / appear);
-                SetAlpha(k, time);
-                root.localScale = Vector3.one * Mathf.Lerp(0.92f, 1f, k);
-                if (Random.value < 0.5f)
+                bool animate = motion && !ReducedMotion;
+                float inFade = Mathf.SmoothStep(0f, 1f, time / appear);
+                float outFade = Mathf.SmoothStep(0f, 1f, (time - appear - hold) / fade);
+                SetAlpha(inFade * (1f - outFade), time);
+                root.localScale = Vector3.one * (animate ? Mathf.Lerp(0.94f, 1f, inFade) : 1f);
+                root.position = center + Vector3.up * (animate ? outFade * 0.68f : 0f);
+                for (int i = 0; i < _angels.Length; i++)
                 {
+                    float life = time - (motion ? 1.75f + i * 0.56f : 0.23f);
+                    float alpha = Mathf.SmoothStep(0f, 1f, life / 0.78f) * (1f - outFade);
+                    var angel = _angels[i];
+                    if (!angel.Root.gameObject.activeSelf && alpha > 0f) angel.Root.gameObject.SetActive(true);
+                    if (!angel.Root.gameObject.activeSelf) continue;
+                    float rise = animate ? Mathf.Clamp01(life / (hold + 1.4f)) : 0.42f;
+                    float x = i == 1 ? 2.96f + rise * 0.62f : (i == 0 ? -3.35f + rise * 0.24f : -2.54f - rise * 0.53f);
+                    float y = (i == 0 ? -1.15f : i == 1 ? 0.32f : 1.86f) + rise * (i == 2 ? 0.68f : 1.52f);
+                    var at = root.TransformPoint(new Vector3(x, y, -0.28f));
+                    angel.Root.position = at;
+                    angel.Root.rotation = FacingCamera(cam, at) * Quaternion.Euler(0f, i == 1 ? 13f : -15f,
+                        animate ? Mathf.Sin(life * 1.32f + i) * 5.5f : 0f);
+                    angel.Root.localScale = Vector3.one * (i == 0 ? 0.97f : i == 1 ? 0.84f : 0.73f);
+                    float stroke = animate ? 10f + Mathf.Sin(life * 2.8f + i * 1.37f) * 20f : 12f;
+                    angel.Wings.Flap(stroke, 0f, animate ? Mathf.Sin(life * 2.8f) * 9f : 6f);
+                    SetFigureOpacity(angel, alpha * (i == 2 ? 0.80f : 0.94f), 0.19f);
+                }
+                if (animate && time > nextSparkle)
+                {
+                    nextSparkle = time + 0.22f;
                     _sparkles.transform.position = root.TransformPoint(PointOn(baseA, Random.Range(0, points)));
-                    _sparkles.Emit(new ParticleSystem.EmitParams { startColor = Pale(Rainbow[Random.Range(0, 7)], 0.8f) }, 1);
+                    _sparkles.Emit(new ParticleSystem.EmitParams { startColor = Pale(Rainbow[Random.Range(0, Rainbow.Length)], 0.60f) }, 1);
                 }
                 yield return null;
             }
-
-            // Angels are glimpsed within the light, a few at a time.
-            for (int n = 0; n < 24; n++)
-            {
-                float t = Random.Range(0f, Mathf.PI * 2f);
-                var local = Eight(t, baseA);
-                var pos = root.TransformPoint(new Vector3(local.x, local.y, 0f));
-                var vel = (root.TransformDirection(new Vector3(local.x, 0f, 0f)).normalized * Random.Range(0.12f, 0.35f))
-                          + Vector3.up * Random.Range(0.25f, 0.5f);
-                _angels.Emit(new ParticleSystem.EmitParams { position = pos, velocity = vel, applyShapeToPosition = false }, 1);
-                yield return new WaitForSeconds(0.14f);
-            }
-
-            // Breathe, then rise and dissolve.
-            float hold = ReducedMotion ? 2f : 3.5f;
-            float elapsed = appear;
-            for (float time = 0f; time < hold; time += Time.deltaTime)
-            {
-                elapsed += Time.deltaTime;
-                SetAlpha(1f, elapsed);
-                yield return null;
-            }
-            float fade = 3.0f;
-            Vector3 start = root.position;
-            for (float time = 0f; time < fade; time += Time.deltaTime)
-            {
-                elapsed += Time.deltaTime;
-                float k = 1f - Mathf.SmoothStep(0f, 1f, time / fade);
-                SetAlpha(k, elapsed);
-                root.position = start + Vector3.up * (time / fade) * 0.8f;
-                if (Random.value < 0.7f)
-                {
-                    _sparkles.transform.position = root.TransformPoint(PointOn(baseA, Random.Range(0, points)));
-                    _sparkles.Emit(new ParticleSystem.EmitParams { startColor = new Color(1f, 0.96f, 0.88f, 0.7f) }, 1);
-                }
-                yield return null;
-            }
+            foreach (var angel in _angels) angel.Root.gameObject.SetActive(false);
+            foreach (var material in materials) Destroy(material);
             Destroy(root.gameObject);
-            if (!ReducedMotion) yield return MoveCamera(cam, cam.transform.position, cam.transform.rotation, camPos0, camRot0, 2.4f);
+            if (motion) yield return MoveCamera(cam, cam.transform.position, cam.transform.rotation, camPos0, camRot0, 2.4f);
             cam.transform.SetPositionAndRotation(camPos0, camRot0);
+            if (View != null) View.SetRainbowFocus(false);
             if (View != null && View.Rig != null) View.Rig.Unlock();
+            _rainbowPlaying = false;
         }
 
-        private static IEnumerator MoveCamera(Camera cam, Vector3 p0, Quaternion r0, Vector3 p1, Quaternion r1, float seconds)
+        private static Quaternion FacingCamera(Camera cam, Vector3 at) =>
+            cam != null ? Quaternion.LookRotation(cam.transform.position - at, Vector3.up) : Quaternion.identity;
+
+        private void SetFigureOpacity(SpiritModels.Figure figure, float alpha, float glow)
+        {
+            void Tint(Renderer renderer, float opacity)
+            {
+                if (renderer == null) return;
+                _figureTint.SetColor(TintId, new Color(1f, 1f, 1f, opacity));
+                renderer.SetPropertyBlock(_figureTint);
+            }
+            Tint(figure.Body, alpha);
+            Tint(figure.Aura, alpha * glow);
+            Tint(figure.Wings.Left, alpha);
+            Tint(figure.Wings.Right, alpha);
+            if (figure.Wings.LeftHind == null) return;
+            Tint(figure.Wings.LeftHind, alpha);
+            Tint(figure.Wings.RightHind, alpha);
+        }
+
+        private IEnumerator MoveCamera(Camera cam, Vector3 p0, Quaternion r0, Vector3 p1, Quaternion r1, float seconds)
         {
             for (float t = 0f; t < seconds; t += Time.deltaTime)
             {
+                if (ReducedMotion) yield break;
                 float k = Mathf.SmoothStep(0f, 1f, t / seconds);
                 cam.transform.SetPositionAndRotation(Vector3.Lerp(p0, p1, k), Quaternion.Slerp(r0, r1, k));
                 yield return null;
@@ -413,75 +408,98 @@ namespace DestinyGarden.Presentation
 
         // ---------------- Answered prayer: spirits carry the blessing ----------------
 
-        private Texture2D _angelSheet;
-
-        /// <summary>
-        /// Small winged lights descend and dissolve into the plants this roll's blessing reached.
-        /// Quiet by design: a few at a time, staggered, fading in and out.
-        /// </summary>
+        /// <summary>Fairies carry the light down to the plants reached by the saved blessing.</summary>
         public IEnumerator PlayPrayerSpirits(List<Vector3> plantTops)
         {
             if (plantTops == null || plantTops.Count == 0) yield break;
-            if (_angelSheet == null) _angelSheet = ProceduralArt.AngelSheet();
-            for (int i = 0; i < plantTops.Count; i++)
-            {
-                StartCoroutine(Spirit(plantTops[i], i * 0.45f));
-            }
-            yield return new WaitForSeconds(plantTops.Count * 0.45f + 3.2f);
+            int count = Mathf.Min(PrayerSpirits.MaxSpirits, plantTops.Count);
+            for (int i = 0; i < count; i++)
+                StartCoroutine(Spirit(plantTops[i], i * 0.31f, i));
+            yield return new WaitForSeconds(count * 0.31f + 3.2f);
         }
 
-        private IEnumerator Spirit(Vector3 target, float delay)
+        private (SpiritModels.Figure Figure, TrailRenderer Trail) BorrowFairy()
+        {
+            for (int i = 0; i < _fairies.Length; i++)
+            {
+                var figure = _fairies[i];
+                if (figure != null && figure.Root.gameObject.activeSelf) continue;
+                if (figure == null)
+                {
+                    _fairies[i] = figure = _spirits.Make(transform, true);
+                    var newTrail = figure.Root.gameObject.AddComponent<TrailRenderer>();
+                    newTrail.time = 0.46f;
+                    newTrail.widthMultiplier = 0.042f;
+                    newTrail.sharedMaterial = _trailPaint;
+                    newTrail.minVertexDistance = 0.075f;
+                    newTrail.numCapVertices = 3;
+                    newTrail.shadowCastingMode = ShadowCastingMode.Off;
+                    var tint = new Gradient();
+                    tint.SetKeys(new[] { new GradientColorKey(new Color(0.81f, 0.94f, 0.83f), 0f), new GradientColorKey(new Color(0.75f, 0.67f, 0.92f), 1f) },
+                        new[] { new GradientAlphaKey(0.51f, 0f), new GradientAlphaKey(0f, 1f) });
+                    newTrail.colorGradient = tint;
+                }
+                var trail = figure.Root.GetComponent<TrailRenderer>();
+                trail.emitting = false;
+                trail.Clear();
+                figure.Root.gameObject.SetActive(true);
+                return (figure, trail);
+            }
+            return (null, null);
+        }
+
+        private IEnumerator Spirit(Vector3 target, float delay, int index)
         {
             if (delay > 0f) yield return new WaitForSeconds(delay);
-            var root = new GameObject("PrayerSpirit").transform;
-            root.SetParent(transform);
-            var quad = GameObject.CreatePrimitive(PrimitiveType.Quad);
-            Destroy(quad.GetComponent<Collider>());
-            quad.transform.SetParent(root, false);
-            quad.transform.localScale = Vector3.one * 0.38f;
-            quad.AddComponent<Billboard>();
-            var mat = new Material(_sprite);
-            mat.SetTexture("_MainTex", _angelSheet);
-            mat.mainTextureScale = new Vector2(0.5f, 1f);
-            mat.renderQueue = 3320;
-            var qr = quad.GetComponent<MeshRenderer>();
-            qr.material = mat;
-            qr.shadowCastingMode = ShadowCastingMode.Off;
-
-            var trail = root.gameObject.AddComponent<TrailRenderer>();
-            trail.time = 0.9f;
-            trail.widthMultiplier = 0.06f;
-            trail.material = new Material(_sprite);
-            var tg = new Gradient();
-            tg.SetKeys(new[] { new GradientColorKey(new Color(1f, 0.88f, 0.55f), 0f), new GradientColorKey(new Color(0.7f, 0.9f, 1f), 1f) },
-                new[] { new GradientAlphaKey(0.8f, 0f), new GradientAlphaKey(0f, 1f) });
-            trail.colorGradient = tg;
-            trail.shadowCastingMode = ShadowCastingMode.Off;
-
-            Vector3 start = target + new Vector3(Random.Range(-1.6f, 1.6f), 6.0f + Random.Range(0f, 1.2f), Random.Range(-2.2f, -0.6f));
-            Vector3 control = Vector3.Lerp(start, target, 0.5f) + new Vector3(Random.Range(-1.5f, 1.5f), 1.2f, Random.Range(-1f, 1f));
-            float flight = ReducedMotion ? 0.6f : Random.Range(2.0f, 2.6f);
+            var (fairy, trail) = BorrowFairy();
+            if (fairy == null) yield break;
+            var root = fairy.Root;
+            var cam = View != null ? View.ViewCamera : Camera.main;
+            bool motion = !ReducedMotion;
+            float side = index % 2 == 0 ? -1f : 1f;
+            Vector3 start = target + new Vector3(side * (0.80f + index * 0.13f), 3.20f + index % 3 * 0.21f, -0.94f);
+            Vector3 control = target + new Vector3(-side * 0.99f, 1.35f, -0.58f);
+            root.position = motion ? start : target + Vector3.up * 0.27f;
+            root.localScale = Vector3.one * (0.88f + index % 3 * 0.065f);
+            SetFigureOpacity(fairy, 0f, 0.30f);
+            trail.Clear();
+            trail.emitting = motion;
+            float flight = motion ? 2.18f + index % 3 * 0.11f : 1.45f;
             for (float t = 0f; t < flight; t += Time.deltaTime)
             {
+                if (motion && ReducedMotion)
+                {
+                    motion = false;
+                    trail.emitting = false;
+                    trail.Clear();
+                    root.position = target + Vector3.up * 0.27f;
+                }
                 float k = Mathf.SmoothStep(0f, 1f, t / flight);
-                Vector3 a = Vector3.Lerp(start, control, k), b = Vector3.Lerp(control, target, k);
-                root.position = Vector3.Lerp(a, b, k);
-                float alpha = Mathf.Clamp01(t / 0.5f) * (k > 0.85f ? Mathf.Clamp01((1f - k) / 0.15f) * 0.6f + 0.4f : 1f);
-                mat.color = new Color(1f, 1f, 1f, alpha * 0.9f);
-                mat.mainTextureOffset = new Vector2(Mathf.Repeat(t * 6f, 1f) < 0.5f ? 0f : 0.5f, 0f);
+                if (motion)
+                {
+                    var a = Vector3.Lerp(start, control, k);
+                    var b = Vector3.Lerp(control, target, k);
+                    root.position = Vector3.Lerp(a, b, k) + Vector3.up * Mathf.Sin(k * Mathf.PI) * 0.19f;
+                }
+                root.rotation = FacingCamera(cam, root.position) * Quaternion.Euler(0f, 17f * side, motion ? -side * Mathf.Sin(k * Mathf.PI) * 15f : 0f);
+                float beat = t * 24f + index * 1.71f;
+                fairy.Wings.Flap(motion ? 12f + Mathf.Sin(beat) * 31f : 20f,
+                    motion ? 8f + Mathf.Sin(beat - 0.68f) * 27f : 11f, 13f);
+                SetFigureOpacity(fairy, Mathf.SmoothStep(0f, 1f, t / 0.42f) * 0.96f, 0.32f);
                 yield return null;
             }
-            root.position = target;
+            trail.emitting = false;
             _sparkles.transform.position = target;
-            _sparkles.Emit(new ParticleSystem.EmitParams { startColor = new Color(1f, 0.92f, 0.65f, 0.9f) }, 14);
-            for (float t = 0f; t < 0.6f; t += Time.deltaTime)
+            if (motion) _sparkles.Emit(new ParticleSystem.EmitParams { startColor = new Color(0.92f, 0.94f, 0.73f, 0.75f) }, 4);
+            for (float t = 0f; t < 0.55f; t += Time.deltaTime)
             {
-                mat.color = new Color(1f, 1f, 1f, (1f - t / 0.6f) * 0.9f);
-                quad.transform.localScale = Vector3.one * 0.38f * (1f - t / 0.6f * 0.6f);
+                float k = Mathf.SmoothStep(0f, 1f, t / 0.55f);
+                SetFigureOpacity(fairy, (1f - k) * 0.96f, 0.32f);
+                if (motion) root.localScale = Vector3.one * Mathf.Lerp(0.92f, 0.55f, k);
                 yield return null;
             }
-            Destroy(root.gameObject, trail.time);
-            quad.SetActive(false);
+            trail.Clear();
+            root.gameObject.SetActive(false);
         }
 
         // ---------------- Lucky Seven halo around the die ----------------
@@ -490,17 +508,16 @@ namespace DestinyGarden.Presentation
         {
             _diceHalo = new GameObject("LuckyHalo").transform;
             _diceHalo.SetParent(transform);
-            var glow = ProceduralArt.GlowSprite();
             for (int i = 0; i < 7; i++)
             {
                 var orb = GameObject.CreatePrimitive(PrimitiveType.Sphere);
                 orb.transform.SetParent(_diceHalo, false);
                 orb.transform.localScale = Vector3.one * 0.12f;
                 Destroy(orb.GetComponent<Collider>());
-                var m = new Material(_lit) { color = Rainbow[i] };
+                var m = _models.Keep(new Material(_lit) { color = Rainbow[i] });
                 m.EnableKeyword("_EMISSION");
                 m.SetColor("_EmissionColor", Rainbow[i] * 3.2f);
-                orb.GetComponent<MeshRenderer>().material = m;
+                orb.GetComponent<MeshRenderer>().sharedMaterial = m;
                 orb.GetComponent<MeshRenderer>().shadowCastingMode = ShadowCastingMode.Off;
                 _diceHaloOrbs.Add(orb.transform);
             }
@@ -512,10 +529,15 @@ namespace DestinyGarden.Presentation
             if (_diceHalo != null) _diceHalo.gameObject.SetActive(on);
         }
 
+        private void OnDestroy() => _models?.Dispose();
+
         private void Update()
         {
-            float t = Time.time, dt = Time.deltaTime;
+            if (_models == null) return;
+            float t = ReducedMotion ? 0f : Time.time, dt = Time.deltaTime;
+            if (ReducedMotion && !_wasReducedMotion) PoseButterflies();
             if (!ReducedMotion) UpdateButterflies(t, dt);
+            _wasReducedMotion = ReducedMotion;
             if (_diceHalo != null && _diceHalo.gameObject.activeSelf && View != null && View.DiceTransform != null)
             {
                 _diceHalo.position = View.DiceTransform.position;

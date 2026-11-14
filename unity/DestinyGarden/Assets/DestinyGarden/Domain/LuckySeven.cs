@@ -28,8 +28,10 @@ namespace DestinyGarden.Domain
 
         /// <summary>Most-needed eligible recipe at the site. Null only if nothing is eligible.</summary>
         public static string PickRecipe(WorldState state, WeatherDefinition weather, string resolvedSiteId)
+            => PickRecipe(state, weather, Sites.ById(resolvedSiteId).CenterCellId);
+
+        public static string PickRecipe(WorldState state, WeatherDefinition weather, int anchor)
         {
-            int anchor = Sites.ById(resolvedSiteId).CenterCellId;
             string best = null;
             int bestNeed = int.MinValue;
             foreach (string recipeId in RecipeCatalog.Order)

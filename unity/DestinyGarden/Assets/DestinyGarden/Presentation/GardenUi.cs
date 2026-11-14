@@ -20,12 +20,18 @@ namespace DestinyGarden.Presentation
         public Action OnHideUi;
         public Action OnAddLuckySeven;
         public Action OnResetView;
+        public Action<int> OnObserveCell;
+        public Func<string, GardenMemory> OnReadMemory;
+        public Action OnViewHouse;
 
         private Font _font;
         private Text _header;
         private Text _messageCard;
+        private Image _messageBacking;
         private Text _status;
         private Button _rollButton;
+        private bool _rollEnabled = true;
+        private Text _houseViewLabel;
         private readonly Button[] _faceChips = new Button[7];
         private string _luckyChipMode = "hidden"; // hidden | offer | face
         private Button _wishToggle;
@@ -51,8 +57,41 @@ namespace DestinyGarden.Presentation
         }
         private Text _facesLabel;
         private GameObject _titleCard;
+        private RectTransform _openingCard;
+        private Text _openingHeading, _openingTagline;
+        private Button _enterButton;
+        private GameObject _guideCard;
+        private Image _titleDim;
+        private CanvasGroup _gardenControls;
+        internal bool IsOpening { get; private set; }
         private readonly Dictionary<string, Button> _intentChips = new Dictionary<string, Button>();
         private readonly Dictionary<string, Button> _siteChips = new Dictionary<string, Button>();
+        private GameObject _observationPanel;
+        private Text _observationText;
+        private Button _careTargetButton;
+        private Text _careSelection;
+        private string _carePlan;
+        private CareOutlook _careOutlook;
+        private WorldState _outlookState;
+        private string[] _outlookFaces;
+        private PreparedFaces _outlookPrepared;
+        private WeatherDefinition _outlookWeather;
+        private List<CareAftercareNote> _aftercareNotes = new List<CareAftercareNote>();
+        private List<GardenMoment> _recentMoments = new List<GardenMoment>();
+        private List<RoundSummary> _historyData = new List<RoundSummary>();
+        private bool _observationDetails;
+        private Button _observationModeButton, _momentFocusButton;
+        private Button _momentPrevious, _momentNext, _memoryButton;
+        private Text _momentCounter;
+        private int _momentIndex;
+        private GardenMoment _selectedMoment;
+        private GardenMemory _memoryView;
+        private bool _memoryDirty;
+        private readonly Dictionary<string, int> _memoryNext = new Dictionary<string, int>();
+        private GardenMoment _focusedMoment;
+        private WorldState _observationState;
+        private string _observationHabitat;
+        private readonly Dictionary<string, Button> _observationChips = new Dictionary<string, Button>();
         private GameObject _historyPanel;
         private Text _historyText;
         private GameObject _graphPanel;
@@ -63,8 +102,8 @@ namespace DestinyGarden.Presentation
         public GardenView View;
 
         // Glass palette: translucent deep water, pale gold for what is chosen.
-        private static readonly Color PanelColor = new Color(0.012f, 0.035f, 0.055f, 0.66f);
-        private static readonly Color ChipColor = new Color(0.02f, 0.05f, 0.075f, 0.46f);
+        private static readonly Color PanelColor = new Color(0.025f, 0.060f, 0.078f, 0.88f);
+        private static readonly Color ChipColor = new Color(0.040f, 0.087f, 0.105f, 0.82f);
         private static readonly Color ChipActive = new Color(0.86f, 0.70f, 0.40f, 0.92f);
         private static readonly Color GoldText = new Color(0.07f, 0.045f, 0.01f);
         private static readonly Color Hairline = new Color(1f, 0.93f, 0.78f, 0.16f);
@@ -78,10 +117,10 @@ namespace DestinyGarden.Presentation
         {
             switch (element)
             {
-                case "water": return new Color(0.05f, 0.16f, 0.29f, 0.72f);
-                case "wind": return new Color(0.05f, 0.19f, 0.16f, 0.72f);
-                case "light": return new Color(0.26f, 0.21f, 0.07f, 0.72f);
-                case "seed": return new Color(0.21f, 0.13f, 0.06f, 0.72f);
+                case "water": return new Color(0.045f, 0.14f, 0.24f, 0.90f);
+                case "wind": return new Color(0.045f, 0.15f, 0.13f, 0.90f);
+                case "light": return new Color(0.20f, 0.15f, 0.055f, 0.90f);
+                case "seed": return new Color(0.17f, 0.105f, 0.05f, 0.90f);
                 default: return ChipColor;
             }
         }
@@ -137,17 +176,16 @@ namespace DestinyGarden.Presentation
             var scaler = canvasObj.AddComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(1600, 900);
+            scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.Expand;
             canvasObj.AddComponent<GraphicRaycaster>();
 
-            // Glass vessel edge: drawn first so every control sits above it; never takes clicks.
-            var glass = new GameObject("GlassEdge");
-            glass.transform.SetParent(canvasObj.transform, false);
-            var glassImg = glass.AddComponent<RawImage>();
-            glassImg.texture = ProceduralArt.GlassEdge();
-            glassImg.raycastTarget = false;
-            var glassRect = glass.GetComponent<RectTransform>();
-            glassRect.anchorMin = Vector2.zero; glassRect.anchorMax = Vector2.one;
-            glassRect.offsetMin = Vector2.zero; glassRect.offsetMax = Vector2.zero;
+            var controls = new GameObject("GardenControls", typeof(RectTransform));
+            controls.transform.SetParent(canvasObj.transform, false);
+            var controlsRect = controls.GetComponent<RectTransform>();
+            controlsRect.anchorMin = Vector2.zero;
+            controlsRect.anchorMax = Vector2.one;
+            controlsRect.offsetMin = controlsRect.offsetMax = Vector2.zero;
+            _gardenControls = controls.AddComponent<CanvasGroup>();
             if (FindFirstObjectByType<UnityEngine.EventSystems.EventSystem>() == null)
             {
                 var es = new GameObject("EventSystem");
@@ -155,14 +193,16 @@ namespace DestinyGarden.Presentation
                 es.AddComponent<UnityEngine.InputSystem.UI.InputSystemUIInputModule>();
             }
 
-            _header = MakeText(canvasObj.transform, new Vector2(0f, 1f), new Vector2(36f, -42f),
+            var parent = controls.transform;
+            _header = MakeText(parent, new Vector2(0f, 1f), new Vector2(36f, -42f),
                 new Vector2(640f, 44f), 25, TextAnchor.UpperLeft);
             AddBacking(_header, new Vector2(10f, 5f));
-            _messageCard = MakeText(canvasObj.transform, new Vector2(0.5f, 1f), new Vector2(0f, -104f),
-                new Vector2(940f, 76f), 27, TextAnchor.MiddleCenter);
-            AddBacking(_messageCard, new Vector2(18f, 6f));
-            _status = MakeText(canvasObj.transform, new Vector2(0.5f, 0f), new Vector2(0f, 214f),
-                new Vector2(720f, 30f), 18, TextAnchor.MiddleCenter);
+            _messageCard = MakeText(parent, new Vector2(0.5f, 1f), new Vector2(0f, -122f),
+                new Vector2(940f, 94f), 27, TextAnchor.MiddleCenter);
+            _messageBacking = AddBacking(_messageCard, new Vector2(18f, 6f));
+            ShowMessage(null, null);
+            _status = MakeText(parent, new Vector2(0.5f, 0f), new Vector2(0f, 214f),
+                new Vector2(900f, 48f), 17, TextAnchor.MiddleCenter);
             AddBacking(_status, new Vector2(12f, 4f));
 
             // Published faces: a slim centred row (tap = wish for that face). Laid out in ShowFaces.
@@ -175,35 +215,37 @@ namespace DestinyGarden.Presentation
                     if (_luckyChipMode == "offer") OnAddLuckySeven?.Invoke();
                     else if (_luckyChipMode == "face") OnIntentSelected?.Invoke("face", "7");
                 };
-                _faceChips[i] = MakeChip(canvasObj.transform, new Vector2(0.5f, 0f),
+                _faceChips[i] = MakeChip(parent, new Vector2(0.5f, 0f),
                     new Vector2(0f, 148f), new Vector2(FaceWidth(i), 46f), "", 16, click);
             }
             _faceChips[6].gameObject.SetActive(false);
-            _facesLabel = MakeText(canvasObj.transform, new Vector2(0.5f, 0f), new Vector2(0f, 118f),
+            _facesLabel = MakeText(parent, new Vector2(0.5f, 0f), new Vector2(0f, 118f),
                 new Vector2(900f, 24f), 14, TextAnchor.MiddleCenter);
             _facesLabel.color = new Color(0.86f, 0.92f, 0.90f, 0.85f);
 
-            _rollButton = MakeChip(canvasObj.transform, new Vector2(0.5f, 0f),
+            _rollButton = MakeChip(parent, new Vector2(0.5f, 0f),
                 new Vector2(0f, 36f), new Vector2(300f, 72f), "サイコロを振る", 26,
                 () => OnRoll?.Invoke());
-            _rollButton.GetComponent<Image>().color = new Color(0.035f, 0.06f, 0.08f, 0.62f);
-            _rollButton.GetComponentInChildren<Text>().color = new Color(1f, 0.89f, 0.64f);
-            SetLine(_rollButton, GoldLine, 2f);
+            _rollButton.GetComponent<Image>().color = new Color(0.88f, 0.72f, 0.45f, 0.98f);
+            var rollLabel = _rollButton.GetComponentInChildren<Text>();
+            rollLabel.color = GoldText;
+            rollLabel.GetComponent<Shadow>().enabled = false;
+            SetLine(_rollButton, GoldLine, 1f);
 
             // Wishes and destination live in a drawer, out of sight until wanted.
-            _wishToggle = MakeChip(canvasObj.transform, new Vector2(0.5f, 0f), new Vector2(-268f, 50f),
+            _wishToggle = MakeChip(parent, new Vector2(0.5f, 0f), new Vector2(-268f, 50f),
                 new Vector2(196f, 44f), "願いをかける", 17, () => _drawer.SetActive(!_drawer.activeSelf));
             _drawer = new GameObject("WishDrawer");
-            _drawer.transform.SetParent(canvasObj.transform, false);
+            _drawer.transform.SetParent(parent, false);
             var drawerImg = _drawer.AddComponent<Image>();
             drawerImg.sprite = Rounded;
             drawerImg.type = Image.Type.Sliced;
-            drawerImg.color = new Color(PanelColor.r, PanelColor.g, PanelColor.b, 0.66f);
+            drawerImg.color = PanelColor;
             var drawerRect = _drawer.GetComponent<RectTransform>();
             drawerRect.anchorMin = drawerRect.anchorMax = new Vector2(0f, 0f);
             drawerRect.pivot = new Vector2(0f, 0f);
             drawerRect.anchoredPosition = new Vector2(20f, 236f);
-            drawerRect.sizeDelta = new Vector2(660f, 208f);
+            drawerRect.sizeDelta = new Vector2(660f, 244f);
             var drawer = _drawer.transform;
 
             string[] intentKeys = { "none", "water", "wind", "light", "seed" };
@@ -227,32 +269,40 @@ namespace DestinyGarden.Presentation
                     () => OnSiteSelected?.Invoke(key == "auto" ? "auto" : "fixed", key == "auto" ? null : key));
             }
             MakeLabel(drawer, new Vector2(16f, 66f), "次からの届け先", 16);
+            _careSelection = MakeText(drawer, Vector2.zero, new Vector2(16f, 208f), new Vector2(620f, 28f), 16, TextAnchor.MiddleLeft);
             _drawer.SetActive(false);
 
             // Right-side menu.
-            MakeChip(canvasObj.transform, new Vector2(1f, 1f), new Vector2(-96f, -60f), new Vector2(150f, 48f),
+            MakeChip(parent, new Vector2(1f, 1f), new Vector2(-96f, -60f), new Vector2(150f, 48f),
                 "記録", 20, () => TogglePanel(_historyPanel));
-            MakeChip(canvasObj.transform, new Vector2(1f, 1f), new Vector2(-96f, -118f), new Vector2(150f, 48f),
+            MakeChip(parent, new Vector2(1f, 1f), new Vector2(-96f, -118f), new Vector2(150f, 48f),
                 "庭の歩み", 20, () => TogglePanel(_graphPanel));
-            MakeChip(canvasObj.transform, new Vector2(1f, 1f), new Vector2(-96f, -176f), new Vector2(150f, 48f),
+            MakeChip(parent, new Vector2(1f, 1f), new Vector2(-96f, -176f), new Vector2(150f, 48f),
                 "書き出し", 20, () => OnExport?.Invoke());
-            MakeChip(canvasObj.transform, new Vector2(1f, 1f), new Vector2(-96f, -234f), new Vector2(150f, 48f),
+            MakeChip(parent, new Vector2(1f, 1f), new Vector2(-96f, -234f), new Vector2(150f, 48f),
                 "次の来場者", 20, () => OnSwitchVisitor?.Invoke());
-            MakeChip(canvasObj.transform, new Vector2(1f, 1f), new Vector2(-96f, -292f), new Vector2(150f, 48f),
+            MakeChip(parent, new Vector2(1f, 1f), new Vector2(-96f, -292f), new Vector2(150f, 48f),
                 "設定", 20, () => TogglePanel(_settingsPanel));
-            MakeChip(canvasObj.transform, new Vector2(1f, 1f), new Vector2(-96f, -350f), new Vector2(150f, 48f),
+            MakeChip(parent, new Vector2(1f, 1f), new Vector2(-96f, -350f), new Vector2(150f, 48f),
                 "遊び方", 20, () => ShowTitleCard(true));
-            MakeChip(canvasObj.transform, new Vector2(1f, 1f), new Vector2(-96f, -408f), new Vector2(150f, 48f),
+            MakeChip(parent, new Vector2(1f, 1f), new Vector2(-96f, -408f), new Vector2(150f, 48f),
                 "図鑑", 20, () => TogglePanel(_guidePanel));
-            MakeChip(canvasObj.transform, new Vector2(1f, 1f), new Vector2(-96f, -466f), new Vector2(150f, 48f),
+            MakeChip(parent, new Vector2(1f, 1f), new Vector2(-96f, -466f), new Vector2(150f, 48f),
+                "庭を観察", 18, () => { TogglePanel(_observationPanel); RenderObservation(); });
+            MakeChip(parent, new Vector2(1f, 1f), new Vector2(-96f, -524f), new Vector2(150f, 48f),
                 "視点を戻す", 18, () => OnResetView?.Invoke());
+            var houseView = MakeChip(parent, new Vector2(1f, 1f), new Vector2(-96f, -588f), new Vector2(150f, 56f),
+                "家を見る", 18, () => OnViewHouse?.Invoke());
+            SetLine(houseView, new Color(0.78f, 0.62f, 0.36f, 0.65f), 1f);
+            _houseViewLabel = houseView.GetComponentInChildren<Text>();
+            _houseViewLabel.supportRichText = true;
 
-            BuildGoals(canvasObj.transform);
-            BuildPanels(canvasObj.transform);
+            BuildGoals(parent);
+            BuildPanels(parent);
             BuildTitleCard(canvasObj.transform);
         }
 
-        private void AddBacking(Text text, Vector2 pad)
+        private Image AddBacking(Text text, Vector2 pad)
         {
             var bg = new GameObject("Backing");
             var parent = text.transform.parent;
@@ -262,14 +312,15 @@ namespace DestinyGarden.Presentation
             var img = bg.AddComponent<Image>();
             img.sprite = Rounded;
             img.type = Image.Type.Sliced;
-            img.color = new Color(PanelColor.r, PanelColor.g, PanelColor.b, 0.34f);
+            img.color = new Color(PanelColor.r, PanelColor.g, PanelColor.b, 0.68f);
+            img.raycastTarget = false;
             var src = text.GetComponent<RectTransform>();
             var rect = bg.GetComponent<RectTransform>();
             rect.anchorMin = src.anchorMin; rect.anchorMax = src.anchorMax;
             rect.pivot = src.pivot;
-            rect.anchoredPosition = src.anchoredPosition + new Vector2(
-                (0.5f - src.pivot.x) * pad.x, (0.5f - src.pivot.y) * pad.y);
+            rect.anchoredPosition = src.anchoredPosition + Vector2.Scale(src.pivot * 2f - Vector2.one, pad);
             rect.sizeDelta = src.sizeDelta + pad * 2f;
+            return img;
         }
 
         /// <summary>Hides all UI except a small restore chip (photo moment).</summary>
@@ -281,8 +332,7 @@ namespace DestinyGarden.Presentation
         private void BuildPanels(Transform canvas)
         {
             _historyPanel = MakePanel(canvas, new Vector2(880f, 560f));
-            _historyText = MakeText(_historyPanel.transform, new Vector2(0.5f, 0.5f), Vector2.zero,
-                new Vector2(820f, 500f), 19, TextAnchor.UpperLeft);
+            _historyText = MakeScrollableText(_historyPanel.transform, new Vector2(820f, 500f), 19);
             _historyPanel.SetActive(false);
 
             _graphPanel = MakePanel(canvas, new Vector2(920f, 480f));
@@ -300,10 +350,54 @@ namespace DestinyGarden.Presentation
             _graphPanel.SetActive(false);
 
             _guidePanel = MakePanel(canvas, new Vector2(1000f, 600f));
-            _guideText = MakeText(_guidePanel.transform, new Vector2(0.5f, 0.5f), Vector2.zero,
-                new Vector2(940f, 560f), 16, TextAnchor.UpperLeft);
+            _guideText = MakeScrollableText(_guidePanel.transform, new Vector2(940f, 560f), 18);
             _guideText.supportRichText = true;
             _guidePanel.SetActive(false);
+
+            _observationPanel = MakePanel(canvas, new Vector2(1000f, 600f));
+            var labels = new List<string> { "全体" }; labels.AddRange(EcologyInspection.Habitats);
+            for (int i = 0; i < labels.Count; i++)
+            {
+                string label = labels[i];
+                _observationChips[label] = MakeChip(_observationPanel.transform, new Vector2(0.5f, 1f),
+                    new Vector2(-375f + 150f * i, -36f), new Vector2(140f, 40f), label, 17, () =>
+                    { _observationHabitat = label == "全体" ? null : label; _momentIndex = 0; _memoryView = null; RenderObservation(); });
+            }
+            _momentPrevious = MakeChip(_observationPanel.transform, new Vector2(0.5f, 1f), new Vector2(-340f, -88f),
+                new Vector2(180f, 34f), "新しい出来事", 16, () =>
+                { if (_memoryView != null) OpenMemory(_memoryView.ParentKey); else { _momentIndex--; RenderObservation(); } });
+            _momentNext = MakeChip(_observationPanel.transform, new Vector2(0.5f, 1f), new Vector2(-140f, -88f),
+                new Vector2(180f, 34f), "前の出来事", 16, () =>
+                {
+                    if (_memoryView == null) { _momentIndex++; RenderObservation(); return; }
+                    _memoryNext.TryGetValue(_memoryView.Key, out int index);
+                    if (_memoryView.Next.Count == 0) return;
+                    var link = _memoryView.Next[index % _memoryView.Next.Count];
+                    _memoryNext[_memoryView.Key] = index + 1; OpenMemory(link.Key);
+                });
+            _momentCounter = MakeText(_observationPanel.transform, new Vector2(0.5f, 1f), new Vector2(40f, -88f),
+                new Vector2(140f, 34f), 16, TextAnchor.MiddleCenter);
+            _memoryButton = MakeChip(_observationPanel.transform, new Vector2(0.5f, 1f), new Vector2(290f, -88f),
+                new Vector2(300f, 34f), "この株の歩み", 16, () =>
+                { if (_memoryView != null) { _memoryView = null; RenderObservation(); } else OpenMemory(_selectedMoment?.MemoryKey); });
+            _observationText = MakeScrollableText(_observationPanel.transform, new Vector2(940f, 338f), 18);
+            _observationText.transform.parent.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, 1f);
+            _observationModeButton = MakeChip(_observationPanel.transform, new Vector2(0.5f, 0f), new Vector2(-185f, 84f),
+                new Vector2(350f, 40f), "見通し・しくみを読む", 17, () =>
+                { _observationDetails = !_observationDetails; RenderObservation(); RenderHistory(); });
+            _momentFocusButton = MakeChip(_observationPanel.transform, new Vector2(0.5f, 0f), new Vector2(185f, 84f),
+                new Vector2(350f, 40f), "この出来事の場所を見る", 17, () =>
+                {
+                    if (_focusedMoment == null || _focusedMoment.CellId < 0 || !_rollEnabled) return;
+                    ShowMessage(null, null, _focusedMoment);
+                    ShowStatus(_focusedMoment.Detail ?? _focusedMoment.Caption);
+                    _observationPanel.SetActive(false);
+                    OnObserveCell?.Invoke(_focusedMoment.CellId);
+                });
+            _careTargetButton = MakeChip(_observationPanel.transform, new Vector2(0.5f, 0f), new Vector2(0f, 34f),
+                new Vector2(560f, 42f), "この環境を次の届け先にする", 18, () =>
+                { if (_observationHabitat != null) OnSiteSelected?.Invoke("habitat", _observationHabitat); });
+            _observationPanel.SetActive(false);
 
             _settingsPanel = MakePanel(canvas, new Vector2(520f, 340f));
             MakeLabel(_settingsPanel.transform, new Vector2(-220f, 110f), "音量", 20);
@@ -334,6 +428,40 @@ namespace DestinyGarden.Presentation
             _settingsPanel.SetActive(false);
         }
 
+        private Text MakeScrollableText(Transform parent, Vector2 size, int fontSize)
+        {
+            var viewport = new GameObject("ScrollableText", typeof(RectTransform), typeof(Image), typeof(RectMask2D), typeof(ScrollRect));
+            viewport.transform.SetParent(parent, false);
+            var rect = viewport.GetComponent<RectTransform>();
+            rect.sizeDelta = size;
+            viewport.GetComponent<Image>().color = Color.clear;
+            var text = MakeText(viewport.transform, new Vector2(0.5f, 1f), Vector2.zero, size, fontSize, TextAnchor.UpperLeft);
+            text.rectTransform.anchorMin = new Vector2(0f, 1f);
+            text.rectTransform.anchorMax = Vector2.one;
+            text.rectTransform.pivot = new Vector2(0.5f, 1f);
+            text.rectTransform.sizeDelta = new Vector2(0f, size.y);
+            text.raycastTarget = false;
+            text.supportRichText = true;
+            text.horizontalOverflow = HorizontalWrapMode.Wrap;
+            text.verticalOverflow = VerticalWrapMode.Overflow;
+            text.lineSpacing = 1.15f;
+            var scroll = viewport.GetComponent<ScrollRect>();
+            scroll.viewport = rect; scroll.content = text.rectTransform;
+            scroll.horizontal = false; scroll.vertical = true;
+            scroll.movementType = ScrollRect.MovementType.Clamped;
+            scroll.scrollSensitivity = 36f;
+            return text;
+        }
+
+        private static void SetScrollableText(Text text, string value)
+        {
+            text.text = value;
+            var scroll = text.GetComponentInParent<ScrollRect>(true);
+            text.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical,
+                Mathf.Max(scroll.viewport.rect.height, text.preferredHeight + 20f));
+            scroll.verticalNormalizedPosition = 1f;
+        }
+
         private Sprite _rounded;
         private Sprite Rounded => _rounded ?? (_rounded = ProceduralArt.RoundedSprite());
 
@@ -358,10 +486,20 @@ namespace DestinyGarden.Presentation
             _graphPanel.SetActive(false);
             _settingsPanel.SetActive(false);
             if (_guidePanel != null) _guidePanel.SetActive(false);
+            if (_observationPanel != null) _observationPanel.SetActive(false);
             panel.SetActive(show);
         }
 
-        public void SetRollEnabled(bool enabled) => _rollButton.interactable = enabled;
+        public void SetRollEnabled(bool enabled)
+        {
+            _rollEnabled = enabled; _rollButton.interactable = enabled;
+            if (_momentFocusButton != null) _momentFocusButton.interactable = enabled && _focusedMoment != null && _focusedMoment.CellId >= 0;
+        }
+
+        internal void ShowHouse(string label)
+        {
+            _houseViewLabel.text = "家を見る\n<size=13><color=#f0cb91>" + label + "</color></size>";
+        }
 
         private bool _rollPulse = true;
         /// <summary>A gentle breathing of the roll button until the first roll (so a new visitor knows where to begin).</summary>
@@ -432,6 +570,7 @@ namespace DestinyGarden.Presentation
 
         private void Update()
         {
+            if (IsOpening) LayoutOpeningCard();
             if (_rollPulse && _rollButton != null)
                 _rollButton.transform.localScale = Vector3.one * (1f + 0.035f * (0.5f + 0.5f * Mathf.Sin(Time.unscaledTime * 3.2f)));
             if (_luckyChipMode == "offer" && _faceChips[6] != null)
@@ -453,36 +592,37 @@ namespace DestinyGarden.Presentation
             ShowResidents(null);
         }
 
-        public static string ResidentLabelJa(string kind)
-        {
-            switch (kind)
-            {
-                case "bee": return "花蜂";
-                case "butterfly": return "蝶";
-                case "moss": return "光る苔";
-                case "firefly": return "蛍";
-                case "mushroom": return "きのこ";
-                case "worm": return "ミミズ";
-                case "dragonfly": return "トンボ";
-                case "bird": return "小鳥";
-                case "fluff": return "綿毛";
-                case "dew": return "露";
-                default: return null;
-            }
-        }
+        public static string ResidentLabelJa(string kind) => EcologyObservations.ResidentLabel(kind);
 
         private int _harmony = -1;
         private GameObject _guidePanel;
         private Text _guideText;
 
         /// <summary>Field guide: the species this garden has met, described from their rule data.</summary>
-        public void ShowGuide(ICollection<string> discovered)
+        public void ShowGuide(ICollection<string> discovered, WorldState state = null, ICollection<string> residents = null)
         {
             if (_guideText == null) return;
             var sb = new StringBuilder();
-            sb.AppendLine($"<b>図鑑</b>　この庭に現れた花 {discovered.Count}/{Flora.All.Length}　<color=#9aa8a4>（条件と働きは庭の決まりそのもの）</color>");
-            foreach (var t in Flora.All)
+            bool living = state != null && state.Ecosystem != null;
+            int total = living ? Flora.All.Length : Flora.LegacySpeciesCount;
+            sb.AppendLine($"<b>庭の図鑑</b>　この庭に現れた花 {discovered.Count}/{total}　<color=#9aa8a4>上下にスクロール</color>");
+            if (living)
             {
+                if (_recentMoments.Count > 0) sb.AppendLine(GardenMoments.Describe(_recentMoments, max: 2));
+                sb.AppendLine("<b>この庭で出会った小さな命</b>");
+                foreach (string kind in new[] { Ecology.Bee, Ecology.Butterfly, LivingEcosystem.Hoverfly, Ecology.Bird,
+                    Ecology.Mushroom, Ecology.Worm, LivingEcosystem.Springtail, LivingEcosystem.Snail,
+                    LivingEcosystem.Aphid, LivingEcosystem.Ladybird, LivingEcosystem.Spider, LivingEcosystem.Frog,
+                    Ecology.Dragonfly, Ecology.Moss, Ecology.Firefly, CommunityRules.Caterpillar, CommunityRules.Chrysalis,
+                    CommunityRules.LadybirdLarva, CommunityRules.HoverflyLarva, CommunityRules.Nymph, CommunityRules.Tadpole,
+                    CommunityRules.Algae, CommunityRules.PondPrey })
+                    if (residents != null && residents.Contains(kind))
+                        sb.AppendLine("<color=#ffe2a6>" + ResidentLabelJa(kind) + "</color>　" + EcologyObservations.ResidentGuide(kind));
+                sb.AppendLine("\n<b>花の条件と役割</b>　庭の中の決まりを記したもの");
+            }
+            for (int i = 0; i < total; i++)
+            {
+                var t = Flora.All[i];
                 if (!discovered.Contains(t.Id)) { sb.AppendLine("<color=#7d8a87>？？？</color>"); continue; }
                 var parts = new List<string>();
                 parts.Add(t.MaxHardness >= 900 ? "硬い土でも育つ" : t.MaxHardness >= 700 ? "ふつうの土" : t.MaxHardness >= 500 ? "やわらかめの土" : "とてもやわらかい土");
@@ -501,9 +641,89 @@ namespace DestinyGarden.Presentation
                 if (t.WindSeed) works.Add("綿毛で旅する");
                 sb.AppendLine($"<color=#ffe2a6>{t.LabelJa}</color>　{string.Join("・", parts)}" +
                               (works.Count > 0 ? $"　<color=#a8e6c8>→ {string.Join("・", works)}</color>" : ""));
+                if (living)
+                {
+                    string roots = state.Ecosystem.Habitat != null && HabitatRules.RootRoute(t.Id) != null
+                        ? (HabitatRules.RootRoute(t.Id) == "stolon" ? "・つるでも根づく" : "・地下茎でも増える") : "";
+                    string dormancy = state.Ecosystem.Succession != null && SeedStrategies.Get(t.Id).NeedsRestSeason ? "・種は休息の頃を経てから芽吹く" : "";
+                    sb.AppendLine("　<color=#b7cdc3>" + PlantStrategies.Describe(t.Id) + dormancy + roots + "</color>\n");
+                }
             }
-            _guideText.text = sb.ToString();
+            SetScrollableText(_guideText, sb.ToString());
         }
+        public void ShowObservation(WorldState state)
+        {
+            _observationState = state;
+            RenderObservation();
+        }
+        public void ShowCarePlan(WorldState state, PreparedFaces faces, WeatherDefinition weather)
+        {
+            _carePlan = CareTargets.PreparedPlan(state, faces, weather);
+            if (faces == null || !ReferenceEquals(_outlookState, state) || !ReferenceEquals(_outlookFaces, faces.Faces) || !ReferenceEquals(_outlookWeather, weather))
+            {
+                _careOutlook = null;
+                _outlookState = state; _outlookFaces = faces?.Faces; _outlookWeather = weather;
+            }
+            _outlookPrepared = faces;
+            if (faces?.TargetNote != null) _facesLabel.text = faces.TargetNote + "（願いは出目を変えない）";
+            RenderObservation();
+        }
+        private void RenderObservation()
+        {
+            if (_observationText == null || _observationState == null || !_observationPanel.activeSelf) return;
+            if (_memoryDirty && !_observationDetails)
+            {
+                if (_memoryView != null) _memoryView = OnReadMemory?.Invoke(_memoryView.Key);
+                _memoryDirty = false;
+            }
+            var moments = new List<GardenMoment>();
+            foreach (var moment in _recentMoments) if (_observationHabitat == null || moment.Habitat == _observationHabitat) moments.Add(moment);
+            _momentIndex = Math.Max(0, Math.Min(_momentIndex, moments.Count - 1));
+            _selectedMoment = moments.Count == 0 ? null : moments[_momentIndex];
+            _focusedMoment = _memoryView?.Focus ?? _selectedMoment;
+            if (_observationDetails && _careOutlook == null && _outlookPrepared != null)
+                _careOutlook = CareOutlook.Build(_outlookState, _outlookPrepared, _outlookWeather);
+            string text = _observationDetails ? (_careOutlook?.Describe(_observationHabitat) ?? "") + (_carePlan ?? "") +
+                CareAftercare.Describe(_aftercareNotes, _observationHabitat, 3) + "\n" + EcologyInspection.Describe(_observationState, _observationHabitat) +
+                CareTargets.Guidance(_observationState, _observationHabitat)
+                : _memoryView != null ? _memoryView.Describe()
+                : GardenMoments.Describe(_selectedMoment != null ? new[] { _selectedMoment } : new GardenMoment[0], _observationHabitat) +
+                    (_selectedMoment?.Revision == _observationState.WorldRevision ? CareAftercare.Describe(_aftercareNotes, _observationHabitat, 1) : "");
+            SetScrollableText(_observationText, text);
+            _observationModeButton.GetComponentInChildren<Text>().text = _observationDetails ? (_memoryView != null ? "歩みへ戻る" : "出来事へ戻る") : "見通し・しくみを読む";
+            _momentPrevious.gameObject.SetActive(!_observationDetails); _momentNext.gameObject.SetActive(!_observationDetails);
+            _momentCounter.gameObject.SetActive(!_observationDetails);
+            _memoryButton.gameObject.SetActive(!_observationDetails && (_memoryView != null || _selectedMoment?.MemoryKey != null));
+            _momentPrevious.GetComponentInChildren<Text>().text = _memoryView != null ? _memoryView.ParentLabel : "新しい出来事";
+            _momentPrevious.interactable = _memoryView != null ? _memoryView.ParentKey != null : _momentIndex > 0;
+            int paths = _memoryView?.Next.Count ?? 0;
+            _memoryNext.TryGetValue(_memoryView?.Key ?? "", out int next);
+            _momentNext.GetComponentInChildren<Text>().text = _memoryView != null ? (_memoryView.IsSeed ? "芽吹いた株へ" : "残した命へ") + (paths > 1 ? " " + (next % paths + 1) + "/" + paths : "") : "前の出来事";
+            _momentNext.interactable = _memoryView != null ? paths > 0 : _momentIndex + 1 < moments.Count;
+            _momentCounter.text = _memoryView != null ? (_memoryView.IsSeed ? "種の記録" : "株の記録") : (moments.Count == 0 ? "0 / 0" : (_momentIndex + 1) + " / " + moments.Count);
+            _memoryButton.GetComponentInChildren<Text>().text = _memoryView != null ? "出来事へ戻る" : _selectedMoment?.MemoryKey?.StartsWith("s:", StringComparison.Ordinal) == true ? "この種の歩み" : "この株の歩み";
+            _memoryButton.interactable = _memoryView != null || _selectedMoment?.MemoryKey != null;
+            _momentFocusButton.gameObject.SetActive(!_observationDetails);
+            _momentFocusButton.GetComponentInChildren<Text>().text = _memoryView != null ? "最後に記録された場所を見る" : "この出来事の場所を見る";
+            _momentFocusButton.interactable = _rollEnabled && _focusedMoment != null && _focusedMoment.CellId >= 0;
+            _careTargetButton.gameObject.SetActive(CareRules.Enabled(_observationState));
+            _careTargetButton.interactable = _observationHabitat != null;
+            _careTargetButton.GetComponentInChildren<Text>().text = _observationHabitat == null ? "上で居場所を選ぶと、次の届け先にできる" : _observationHabitat + "を次の届け先にする";
+            foreach (var pair in _observationChips)
+            {
+                bool active = pair.Key == (_observationHabitat ?? "全体");
+                pair.Value.GetComponent<Image>().color = active ? ChipActive : ChipColor;
+                pair.Value.GetComponentInChildren<Text>().color = active ? GoldText : TextColor;
+            }
+        }
+        private void OpenMemory(string key)
+        {
+            if (key == null) return;
+            var memory = OnReadMemory?.Invoke(key);
+            if (memory == null) { ShowStatus("この命の記録は、まだ見つからなかった。"); return; }
+            _memoryView = memory; _memoryDirty = false; RenderObservation();
+        }
+
         private Text _composition;
 
         /// <summary>What this garden has become: flowers in bloom now and its harmony.</summary>
@@ -534,24 +754,44 @@ namespace DestinyGarden.Presentation
                 }
             _residents.text = "<color=#cfe6dc>庭の気配</color>" +
                 (_harmony >= 0 ? $"　<color=#ffe2a6>☯ 調和 {_harmony}/8</color>" : "") + "\n" +
-                (names.Count > 0 ? string.Join("・", names) : "<color=#9aa8a4>まだ静か</color>");
+                (names.Count > 0 ? string.Join("・", names.GetRange(0, Math.Min(6, names.Count))) +
+                    (names.Count > 6 ? $" ほか{names.Count - 6}種" : "") : "<color=#9aa8a4>まだ静か</color>");
         }
 
         private void BuildTitleCard(Transform canvas)
         {
             _titleCard = new GameObject("TitleCard");
             _titleCard.transform.SetParent(canvas, false);
-            var dim = _titleCard.AddComponent<Image>();
-            dim.color = new Color(0.01f, 0.02f, 0.05f, 0.62f);
+            _titleDim = _titleCard.AddComponent<Image>();
             var dimRect = _titleCard.GetComponent<RectTransform>();
             dimRect.anchorMin = Vector2.zero; dimRect.anchorMax = Vector2.one;
             dimRect.offsetMin = Vector2.zero; dimRect.offsetMax = Vector2.zero;
             var close = _titleCard.AddComponent<Button>();
-            close.targetGraphic = dim;
+            close.targetGraphic = _titleDim;
             close.onClick.AddListener(() => ShowTitleCard(false));
 
-            var panel = MakePanel(_titleCard.transform, new Vector2(1060f, 500f));
-            panel.SetActive(true);
+            var opening = new GameObject("Opening", typeof(RectTransform));
+            opening.transform.SetParent(_titleCard.transform, false);
+            _openingCard = opening.GetComponent<RectTransform>();
+            _openingHeading = MakeText(opening.transform, new Vector2(0f, 1f), Vector2.zero, new Vector2(545f, 76f),
+                60, TextAnchor.MiddleLeft);
+            _openingHeading.text = "Destiny Garden";
+            _openingHeading.color = new Color(1f, 0.94f, 0.79f);
+            _openingTagline = MakeText(opening.transform, new Vector2(0f, 1f), new Vector2(4f, -85f), new Vector2(537f, 76f),
+                24, TextAnchor.UpperLeft);
+            _openingTagline.text = "瓶の中の土と水から、\nあなただけの庭が育つ。";
+            _openingTagline.color = new Color(0.86f, 0.94f, 0.95f);
+            var enter = MakeChip(opening.transform, new Vector2(0f, 1f), new Vector2(4f, -164f),
+                new Vector2(308f, 62f), "庭に入る  ·  Enter", 23, () => ShowTitleCard(false));
+            _enterButton = enter;
+            enter.GetComponent<Image>().color = new Color(0.88f, 0.72f, 0.45f, 0.98f);
+            var enterLabel = enter.GetComponentInChildren<Text>();
+            enterLabel.color = GoldText;
+            enterLabel.GetComponent<Shadow>().enabled = false;
+            SetLine(enter, GoldLine, 1f);
+
+            _guideCard = MakePanel(_titleCard.transform, new Vector2(1060f, 500f));
+            var panel = _guideCard;
             var title = MakeText(panel.transform, new Vector2(0.5f, 1f), new Vector2(0f, -36f), new Vector2(980f, 80f), 60,
                 TextAnchor.MiddleCenter);
             title.text = "Destiny Garden";
@@ -572,12 +812,12 @@ namespace DestinyGarden.Presentation
                 "・<color=#ffd36b>ときおり、願いが形になることがあります。</color>";
             var en = MakeText(panel.transform, new Vector2(0.5f, 1f), new Vector2(0f, -352f), new Vector2(940f, 70f), 17,
                 TextAnchor.UpperLeft);
-            en.text = "From earth and water in a sealed bottle, a garden of your own grows. Each roll is a prayer:\n" +
+            en.text = "From earth and water in a glass bottle, a garden of your own grows. Each roll is a prayer:\n" +
                       "plants take root only where they can live, small lives carry seeds, and the island grows as one.";
             en.color = new Color(0.78f, 0.84f, 0.86f);
             var tap = MakeText(panel.transform, new Vector2(0.5f, 0f), new Vector2(0f, 26f), new Vector2(600f, 36f), 20,
                 TextAnchor.MiddleCenter);
-            tap.text = "クリック／タップで始める　·　Click to begin";
+            tap.text = "庭に戻る  ·  Back to the garden";
             tap.color = new Color(1f, 0.82f, 0.45f);
             // Clicks on the panel also close the card.
             var panelButton = panel.AddComponent<Button>();
@@ -587,11 +827,40 @@ namespace DestinyGarden.Presentation
 
         public Action OnTitleClosed;
 
-        public void ShowTitleCard(bool show)
+        internal static bool UseSideTitle(float aspect) => aspect >= 1.70f;
+
+        private void LayoutOpeningCard()
+        {
+            var rect = _titleCard.GetComponent<RectTransform>();
+            bool side = UseSideTitle(rect.rect.width / Mathf.Max(1f, rect.rect.height));
+            var anchor = new Vector2(side ? 0.07f : 0.5f, side ? 0.50f : 0.075f);
+            if (_openingCard.anchorMin == anchor) return;
+            _openingCard.anchorMin = _openingCard.anchorMax = anchor;
+            _openingCard.pivot = new Vector2(side ? 0f : 0.5f, side ? 0.5f : 0f);
+            _openingCard.anchoredPosition = Vector2.zero;
+            _openingCard.sizeDelta = side ? new Vector2(545f, 280f) : new Vector2(545f, 230f);
+            _openingHeading.alignment = side ? TextAnchor.MiddleLeft : TextAnchor.MiddleCenter;
+            _openingTagline.alignment = side ? TextAnchor.UpperLeft : TextAnchor.UpperCenter;
+            ((RectTransform)_enterButton.transform).anchoredPosition = new Vector2(side ? 4f : 118.5f, -164f);
+        }
+
+        public void ShowTitleCard(bool show, bool opening = false)
         {
             if (_titleCard == null) return;
             bool wasOpen = _titleCard.activeSelf;
+            IsOpening = show && opening;
+            _openingCard.gameObject.SetActive(opening);
+            _guideCard.SetActive(!opening);
+            _titleDim.color = new Color(0.01f, 0.02f, 0.05f, opening ? 0.10f : 0.62f);
+            _gardenControls.alpha = opening ? 0f : 1f;
+            _gardenControls.interactable = !show;
+            _gardenControls.blocksRaycasts = !show;
             _titleCard.SetActive(show);
+            if (IsOpening)
+            {
+                LayoutOpeningCard();
+                _enterButton.Select();
+            }
             if (wasOpen && !show) OnTitleClosed?.Invoke();
         }
 
@@ -617,6 +886,7 @@ namespace DestinyGarden.Presentation
 
         public void ShowSiteSelection(string mode, string siteId)
         {
+            if (_careSelection != null) _careSelection.text = "次の準備から：" + (mode == "auto" ? "おまかせ" : CareTargets.Name(mode == "habitat" ? "habitat:" + Array.IndexOf(HabitatRules.Labels, siteId) : siteId));
             foreach (var kv in _siteChips)
             {
                 bool active = (mode == "auto" && kv.Key == "auto") || (mode == "fixed" && kv.Key == siteId);
@@ -626,9 +896,18 @@ namespace DestinyGarden.Presentation
             }
         }
 
-        public void ShowMessage(SelectedMessage message, RollOutcome outcome)
+        public void ShowMessage(SelectedMessage message, RollOutcome outcome, GardenMoment moment = null)
         {
-            if (message == null) { _messageCard.text = ""; return; }
+            if (moment == null && outcome != null) moment = GardenMoments.First(GardenMoments.FromOutcome(outcome));
+            bool hasMessage = moment != null || message != null;
+            _messageCard.gameObject.SetActive(hasMessage);
+            _messageBacking.gameObject.SetActive(hasMessage);
+            if (moment != null)
+            {
+                _messageCard.text = moment.Headline + "\n<size=16>" + moment.Caption + "</size>";
+                return;
+            }
+            if (message == null) return;
             string card = "";
             if (message.CardId != null)
             {
@@ -643,11 +922,35 @@ namespace DestinyGarden.Presentation
 
         public void ShowStatus(string text) => _status.text = text ?? "";
 
-        public void RefreshHistory(List<RoundSummary> history)
+        public void RefreshHistory(List<RoundSummary> history, IList<GardenMoment> moments = null)
         {
+            _historyData = history;
+            if (moments != null)
+            {
+                _recentMoments = new List<GardenMoment>(moments);
+                if (_momentIndex > 0 && _selectedMoment != null)
+                {
+                    int index = 0; _momentIndex = 0;
+                    foreach (var moment in _recentMoments)
+                    {
+                        if (_observationHabitat != null && moment.Habitat != _observationHabitat) continue;
+                        if (moment.RoundId == _selectedMoment.RoundId && moment.CellId == _selectedMoment.CellId && moment.Kind == _selectedMoment.Kind) { _momentIndex = index; break; }
+                        index++;
+                    }
+                }
+                if (_memoryView != null) _memoryDirty = true;
+            }
+            _aftercareNotes = CareAftercare.Project(history);
+            RenderHistory();
+            RefreshGraph(history);
+        }
+        private void RenderHistory()
+        {
+            var history = _historyData;
             var sb = new StringBuilder();
-            sb.AppendLine("記録（新しい順）");
-            for (int i = history.Count - 1; i >= 1 && i > history.Count - 7; i--) // last 6 rolls fit the panel
+            sb.AppendLine("記録（新しい順・上下にスクロール）");
+            sb.Append(CareAftercare.Describe(_aftercareNotes));
+            for (int i = history.Count - 1; i >= 1; i--) // scroll through every saved roll
             {
                 var r = history[i];
                 sb.AppendLine($"{r.WorldRevision}投目 {WeatherLabel(r.WeatherId)} {SiteLabel(r.SiteId)} " +
@@ -656,14 +959,22 @@ namespace DestinyGarden.Presentation
                     (r.Rainbow ? " ∞虹" : ""));
                 var lives = new List<string>();
                 foreach (var k in r.EcologyKinds) { string n = ResidentLabelJa(k); if (n != null && !lives.Contains(n)) lives.Add(n); }
-                if (lives.Count > 0 || r.EcologySeeds > 0 || r.Harmony >= 0)
-                    sb.AppendLine("　〔" + string.Join("・", lives) + "〕" + (r.EcologySeeds > 0 ? $" 種がこぼれた ×{r.EcologySeeds}" : "") +
+                if (_observationDetails && (lives.Count > 0 || r.EcologySeeds > 0 || r.SeedBankDeposits > 0 || r.Harmony >= 0))
+                    sb.AppendLine("　〔" + string.Join("・", lives) + "〕" +
+                                  (r.SeedBankDeposits > 0 ? $" 土に残った種 ×{r.SeedBankDeposits}" : "") +
+                                  (r.SeedBankSprouts > 0 ? $" 眠った種が芽吹いた ×{r.SeedBankSprouts}" : r.EcologySeeds > 0 ? $" 種がこぼれた ×{r.EcologySeeds}" : "") +
                                   (r.Harmony >= 0 ? $"　☯{r.Harmony}" : ""));
-                if (!string.IsNullOrEmpty(r.MessageText)) sb.AppendLine("　" + r.MessageText);
+                string relationship = EcologyObservations.Highlight(r.Relations);
+                int shown = 0;
+                foreach (var moment in _recentMoments)
+                    if (moment.RoundId == r.RoundId && shown++ < 2)
+                    { sb.AppendLine("　" + moment.Headline); if (moment.Detail != null) sb.AppendLine("　" + moment.Detail); }
+                if (_observationDetails && r.Care != null) sb.Append(r.Care.Describe());
+                if (shown == 0 && relationship != null) sb.AppendLine("　<color=#a8e6c8>" + relationship + "</color>");
+                if ((_observationDetails || shown == 0) && !string.IsNullOrEmpty(r.MessageText)) sb.AppendLine("　" + r.MessageText);
             }
             if (history.Count <= 1) sb.AppendLine("まだ記録がありません。");
-            _historyText.text = sb.ToString();
-            RefreshGraph(history);
+            SetScrollableText(_historyText, sb.ToString());
         }
 
         private void RefreshGraph(List<RoundSummary> history)
@@ -718,8 +1029,7 @@ namespace DestinyGarden.Presentation
         private static string WeatherLabel(string id) =>
             id == "Cloudy" ? "薄曇り" : id == "Drizzle" ? "小雨" : "晴れ";
 
-        private static string SiteLabel(string id) =>
-            id == "shade" ? "岩陰" : id == "meadow" ? "ひらけた土" : "入口";
+        private static string SiteLabel(string id) => CareTargets.Name(id);
 
         private static string RecipeLabel(string id) => id == null ? "" : RecipeCatalog.LabelJa(id);
 
