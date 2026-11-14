@@ -120,6 +120,8 @@ namespace DestinyGarden.Presentation
     {
         public const float Window = 3f, Warmup = 5f, Cooldown = 4f, MinFps = 30f;
         public int Level { get; private set; }
+        /// <summary>The frame rate below which a step is taken (phones accept a little less before giving up detail).</summary>
+        public float MinimumFps = MinFps;
         public const int MaxLevel = 3;
         private float _time, _acc, _wait; private int _frames;
 
@@ -133,7 +135,7 @@ namespace DestinyGarden.Presentation
             if (_acc < Window) return false;
             float fps = _frames / _acc;
             _acc = 0f; _frames = 0;
-            if (fps < MinFps && Level < MaxLevel)
+            if (fps < MinimumFps && Level < MaxLevel)
             {
                 Level++;
                 _wait = Cooldown;

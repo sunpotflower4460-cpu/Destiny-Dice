@@ -157,21 +157,32 @@ namespace DestinyGarden.Presentation
         // ---- quality steps for slow GPUs (QualityMonitor decides; see GardenBootstrap)
         private int _qualityLevel;
 
+        /// <summary>
+        /// Phones and tablets (set once at start): no depth of field and hard shadows from the beginning, so the
+        /// frame rate holds and the picture keeps its full resolution and smooth edges instead of stepping down.
+        /// </summary>
+        public bool Mobile;
+
         public void ApplyQuality(int level)
         {
             _qualityLevel = level;
-            if (_dof != null) _dof.active = level < 1 && !_rainbowFocus;
-            if (_camData != null) _camData.antialiasing = level < 1 ? AntialiasingMode.SubpixelMorphologicalAntiAliasing : AntialiasingMode.None;
-            if (_sun != null) _sun.shadows = level < 2 ? LightShadows.Soft : LightShadows.None;
+            if (_dof != null) _dof.active = level < 1 && !Mobile && !_rainbowFocus;
+            // Edges stay smooth at every step: the costly SMAA first, then the light FXAA (never none, which looked rough).
+            if (_camData != null)
+            {
+                bool full = level < 1 && !Mobile;
+                _camData.antialiasing = full ? AntialiasingMode.SubpixelMorphologicalAntiAliasing : AntialiasingMode.FastApproximateAntialiasing;
+            }
+            if (_sun != null) _sun.shadows = level >= 2 ? LightShadows.None : Mobile ? LightShadows.Hard : LightShadows.Soft;
             if (_bloom != null) _bloom.active = level < 3;
             var asset = UniversalRenderPipeline.asset;
-            if (asset != null) asset.renderScale = level >= 3 ? 0.7f : 1f;
+            if (asset != null) asset.renderScale = level >= 3 ? 0.85f : 1f;
         }
 
         internal void SetRainbowFocus(bool active)
         {
             _rainbowFocus = active;
-            if (_dof != null) _dof.active = _qualityLevel < 1 && !active;
+            if (_dof != null) _dof.active = _qualityLevel < 1 && !Mobile && !active;
         }
 
         /// <summary>Yin and yang of the recent rolls tint the light: yin cooler, yang warmer (subtle).</summary>
