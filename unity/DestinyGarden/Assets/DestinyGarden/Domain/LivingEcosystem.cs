@@ -466,7 +466,7 @@ namespace DestinyGarden.Domain
                     s.Plants.Remove(p); e.Cycles.Remove(p.PlantId);
                     r.Events.Add(new GardenEvent { Kind = "ReturnedToSoil", PlantId = p.PlantId, CellId = p.CellId, Tick = 40 });
                 }
-                else if (p.Stage == PlantStage.Flower && life.BloomAge >= strategy.BloomRounds)
+                else if (p.Stage == PlantStage.Flower && life.BloomAge >= strategy.BloomRounds + LuckyBloom(p))
                 {
                     p.Growth = 900; p.GrowthRemainder = 0; p.Stage = PlantStage.Leaf;
                     int returned = Math.Min(6, ResourceCap - e.Litter[p.CellId]);
@@ -535,6 +535,13 @@ namespace DestinyGarden.Domain
         }
 
         public const string RainbowPollinated = "rainbow-pollinated";
+
+        /// <summary>
+        /// prayer-star.v6: a lucky plant (marked by lucky numbers, only in prayer-star gardens) keeps its flowers four
+        /// rolls longer for each mark, at most twelve. Gardens without the prayer star have no marks, so nothing changes.
+        /// </summary>
+        public static int LuckyBloom(PlantState p) => p == null ? 0 : Math.Min(LuckyBloomMax, p.LuckyMarks * LuckyBloomPerMark);
+        public const int LuckyBloomPerMark = 4, LuckyBloomMax = 12;
         private const int RainbowPollen = 2;   // enough for a flower to fruit (see the flowering step)
 
         private static PlantStage StageAt(int growth) => growth >= 2500 ? PlantStage.Flower : growth >= 1500 ? PlantStage.Bud
