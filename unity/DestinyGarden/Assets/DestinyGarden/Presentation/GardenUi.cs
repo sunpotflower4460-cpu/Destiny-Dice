@@ -765,7 +765,11 @@ namespace DestinyGarden.Presentation
             float aspect = rect.rect.width / Mathf.Max(1f, rect.rect.height);
             bool side = UseSideTitle(aspect);
             bool portrait = aspect < 0.90f;
-            var anchor = new Vector2(side ? 0.084f : 0.5f, side ? 0.47f : portrait ? 0.25f : 0.059f);
+            var anchor = new Vector2(side ? 0.084f : 0.5f, side ? 0.47f : portrait ? 0.19f : 0.059f);
+            // CanvasScaler scales by width on tall screens. Bring the copy back up to a readable size.
+            float scale = portrait ? Mathf.Min(2.1f, 1.08f / Mathf.Max(0.01f, aspect)) : 1f;
+            if (!Mathf.Approximately(_openingCard.localScale.x, scale))
+                _openingCard.localScale = Vector3.one * scale;
             if (_openingCard.anchorMin == anchor) return;
             _openingCard.anchorMin = _openingCard.anchorMax = anchor;
             _openingCard.pivot = new Vector2(side ? 0f : 0.5f, side ? 0.5f : 0f);
