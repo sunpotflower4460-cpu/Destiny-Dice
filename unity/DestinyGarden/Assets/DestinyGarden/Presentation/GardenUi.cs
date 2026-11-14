@@ -28,8 +28,6 @@ namespace DestinyGarden.Presentation
 
         private Font _font;
         private Text _header;
-        private Text _messageCard;
-        private Image _messageBacking;
         private Text _status;
         private Image _statusBacking;
         private GardenUiButton _rollButton;
@@ -45,7 +43,7 @@ namespace DestinyGarden.Presentation
         private Text _facesLabel;
         private GameObject _titleCard;
         private RectTransform _openingCard;
-        private Text _openingHeading, _openingTagline;
+        private Text _openingHeading, _openingTagline, _openingDescription;
         private GardenUiButton _enterButton;
         private CanvasGroup _gardenControls;
         internal bool IsOpening { get; private set; }
@@ -170,14 +168,7 @@ namespace DestinyGarden.Presentation
             var compass = Decoration(headerPlate.transform, "Garden compass", GardenUiArt.Icon(Symbol.Compass));
             compass.color = PaleGold;
             PlaceDecoration(compass, new Vector2(0f, 0.5f), new Vector2(11f, 0f), Vector2.one * 30f);
-            _messageCard = MakeText(parent, new Vector2(0.5f, 1f), new Vector2(0f, -106f),
-                new Vector2(760f, 86f), 28, TextAnchor.MiddleCenter);
-            _messageCard.color = PaleGold;
-            _messageBacking = AddBacking(_messageCard, new Vector2(63f, 6f));
-            var momentStar = Decoration(_messageBacking.transform, "Garden moment", GardenUiArt.Icon(Symbol.Star));
-            momentStar.color = PaleGold;
-            PlaceDecoration(momentStar, new Vector2(0f, 0.5f), new Vector2(22f, 0f), Vector2.one * 32f);
-            ShowMessage(null, null);
+            BuildMomentCard(parent);
             _status = MakeText(parent, new Vector2(0.5f, 0f), new Vector2(0f, 169f),
                 new Vector2(820f, 40f), 17, TextAnchor.MiddleCenter);
             _statusBacking = AddBacking(_status, new Vector2(12f, 4f));
@@ -462,6 +453,7 @@ namespace DestinyGarden.Presentation
             _menuButton.interactable = enabled;
             _wishButton.interactable = enabled;
             _luckyOffer.interactable = enabled;
+            if (!enabled) ShowMessage(null, null);
             _rollButton.Label.text = enabled ? "サイコロを振る" : "庭が変わっています…";
             _rollButton.Label.fontSize = enabled ? 26 : 21;
             if (enabled && _activePanel == null && !_titleCard.activeSelf) _rollButton.Select();
@@ -534,6 +526,7 @@ namespace DestinyGarden.Presentation
         private void Update()
         {
             if (IsOpening) LayoutOpeningCard();
+            if (_momentCard != null && !float.IsNegativeInfinity(_momentShownAt)) UpdateMomentCard();
             if (_rollButton != null)
             {
                 bool pulse = _rollPulse && _rollEnabled && _activePanel == null && !IsOpening && View?.ReducedMotion != true;
@@ -747,11 +740,15 @@ namespace DestinyGarden.Presentation
             _openingHeading.text = "Destiny Garden";
             _openingHeading.fontStyle = FontStyle.Bold;
             _openingHeading.color = GardenUiArt.Pigment(0xffedc6);
-            _openingTagline = MakeText(opening.transform, new Vector2(0f, 1f), new Vector2(4f, -167f), new Vector2(537f, 68f),
-                24, TextAnchor.UpperLeft);
-            _openingTagline.text = "サイコロを振るたび、\n瓶の中の庭が育ちます。";
-            _openingTagline.color = new Color(0.86f, 0.94f, 0.95f);
-            _enterButton = MakeChip(opening.transform, new Vector2(0f, 1f), new Vector2(4f, -234f),
+            _openingTagline = MakeText(opening.transform, new Vector2(0f, 1f), new Vector2(4f, -169f), new Vector2(537f, 34f),
+                27, TextAnchor.UpperLeft);
+            _openingTagline.text = "瓶の中で、あなただけの庭を育てよう。";
+            _openingTagline.color = GardenUiArt.Pigment(0xffedc6);
+            _openingDescription = MakeText(opening.transform, new Vector2(0f, 1f), new Vector2(4f, -212f), new Vector2(537f, 52f),
+                21, TextAnchor.UpperLeft);
+            _openingDescription.text = "サイコロを振ると、水・風・光・種が庭に届きます。";
+            _openingDescription.color = GardenUiArt.Pigment(0xdcecf2);
+            _enterButton = MakeChip(opening.transform, new Vector2(0f, 1f), new Vector2(4f, -260f),
                 new Vector2(290f, 62f), "庭に入る", 24, () => ShowTitleCard(false));
             Engrave(_enterButton, Symbol.Bottle, 39f, 19f);
             StylePrimary(_enterButton);
@@ -770,10 +767,10 @@ namespace DestinyGarden.Presentation
             _openingCard.anchorMin = _openingCard.anchorMax = anchor;
             _openingCard.pivot = new Vector2(side ? 0f : 0.5f, side ? 0.5f : 0f);
             _openingCard.anchoredPosition = Vector2.zero;
-            _openingCard.sizeDelta = new Vector2(545f, side ? 370f : 310f);
+            _openingCard.sizeDelta = new Vector2(545f, side ? 400f : 330f);
             _openingHeading.alignment = side ? TextAnchor.MiddleLeft : TextAnchor.MiddleCenter;
-            _openingTagline.alignment = side ? TextAnchor.UpperLeft : TextAnchor.UpperCenter;
-            ((RectTransform)_enterButton.transform).anchoredPosition = new Vector2(side ? 4f : 127.5f, -234f);
+            _openingTagline.alignment = _openingDescription.alignment = side ? TextAnchor.UpperLeft : TextAnchor.UpperCenter;
+            ((RectTransform)_enterButton.transform).anchoredPosition = new Vector2(side ? 4f : 127.5f, -260f);
             LayoutOpeningDecorations(side);
         }
 
@@ -830,24 +827,28 @@ namespace DestinyGarden.Presentation
         {
             if (moment == null && outcome != null) moment = GardenMoments.First(GardenMoments.FromOutcome(outcome));
             bool hasMessage = moment != null || message != null;
-            _messageCard.gameObject.SetActive(hasMessage);
-            _messageBacking.gameObject.SetActive(hasMessage);
-            if (moment != null)
+            _momentCard.gameObject.SetActive(hasMessage);
+            if (!hasMessage)
             {
-                _messageCard.text = "<b>" + moment.Headline + "</b>\n<size=17><color=#d2e8df>" + moment.Caption + "</color></size>";
+                _momentShownAt = float.NegativeInfinity;
                 return;
             }
-            if (message == null) return;
+            if (moment != null)
+            {
+                PaintMoment(outcome?.RecipeId ?? moment.RecipeId, outcome?.LuckySeven == true, outcome != null,
+                    moment.Headline, MomentCaption(moment, outcome));
+                return;
+            }
             string card = "";
             if (message.CardId != null)
             {
                 int idx = Array.IndexOf(OracleCatalogData.CardOrder, message.CardId);
                 if (idx >= 0) card = "【" + OracleCatalogData.CardLabelsJa[idx] + "】";
             }
-            _messageCard.text = outcome == null ? card + message.Text
-                : outcome.LuckySeven
-                    ? $"★幸運の七「{RecipeCatalog.LabelJa(outcome.RecipeId)}×2」　{card}{message.Text}"
-                    : $"{outcome.FaceId}の目「{RecipeCatalog.LabelJa(outcome.RecipeId)}」　{card}{message.Text}";
+            string result = outcome == null ? null : outcome.LuckySeven
+                ? $"幸運の七「{RecipeCatalog.LabelJa(outcome.RecipeId)}×2」"
+                : $"{outcome.FaceId}の目「{RecipeCatalog.LabelJa(outcome.RecipeId)}」";
+            PaintMoment(outcome?.RecipeId, outcome?.LuckySeven == true, outcome != null, card + message.Text, result);
         }
 
         public void ShowStatus(string text)

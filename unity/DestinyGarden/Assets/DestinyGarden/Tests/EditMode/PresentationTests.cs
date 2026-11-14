@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using DestinyGarden.Application;
 using DestinyGarden.Domain;
 using DestinyGarden.Presentation;
 using UnityEngine;
@@ -107,6 +108,50 @@ namespace DestinyGarden.Tests
                 roll.OnPointerUp(pointer);
                 ui.SetRollEnabled(true);
                 Assert.AreEqual(rest, cap.offsetMin);
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(root);
+                if (existingEventSystem == null && EventSystem.current != null)
+                    UnityEngine.Object.DestroyImmediate(EventSystem.current.gameObject);
+            }
+        }
+
+        [Test]
+        public void MomentCardKeepsTheCommittedBlessingAcrossPreparationAndClearsOnNextRoll()
+        {
+            var root = new GameObject("Garden UI test");
+            var existingEventSystem = EventSystem.current;
+            try
+            {
+                var ui = root.AddComponent<GardenUi>();
+                ui.View = root.AddComponent<GardenView>();
+                ui.View.ReducedMotion = true;
+                ui.Build();
+                ui.ShowTitleCard(false);
+                var card = root.transform.Find("Canvas/GardenControls/Garden moment");
+                Assert.IsFalse(card.gameObject.activeSelf);
+
+                var outcome = new RollOutcome { FaceId = 2, RecipeId = "water_drop" };
+                var moment = new GardenMoment
+                {
+                    Revision = 1, RecipeId = outcome.RecipeId, Headline = "小さな芽が、土から顔を出しました。",
+                    Habitat = "水辺"
+                };
+                ui.ShowMessage(null, outcome, moment);
+                var caption = card.Find("Moment caption").GetComponent<Text>();
+                var mark = card.Find("Blessing seal/Blessing mark").GetComponent<Image>();
+                Assert.AreEqual("1投目　·　2の目「しずく」　/　水辺", caption.text);
+                Assert.AreEqual("Water", mark.sprite.name);
+                Assert.AreEqual(1f, card.GetComponent<CanvasGroup>().alpha);
+                Assert.IsFalse(card.GetComponent<CanvasGroup>().blocksRaycasts);
+
+                ui.ShowFaces(RecipeCatalog.Order.Skip(2).Take(6).ToArray(), 0);
+                Assert.AreEqual("Water", mark.sprite.name);
+                ui.SetRollEnabled(false);
+                Assert.IsFalse(card.gameObject.activeSelf);
+                ui.ShowMessage(null, null, moment);
+                Assert.AreEqual(moment.Caption, caption.text);
             }
             finally
             {
