@@ -133,7 +133,8 @@ namespace DestinyGarden.Presentation
             _seaMat.SetTexture("_CoastMap", _coastMap);
             _seaMat.SetVector("_CoastParams", new Vector4(Center.x, Center.z,
                 1f / IslandTerrain.CoastMapWidth, IslandTerrain.CoastDistanceRange));
-            var sea = MakeDisc("Sea", 85f, SeaLevel, _seaMat);
+            // Keep water under the frame when a tall opening view pulls the camera back.
+            var sea = MakeDisc("Sea", 270f, SeaLevel, _seaMat);
             sea.GetComponent<MeshRenderer>().receiveShadows = true;
 
             BuildSky();
