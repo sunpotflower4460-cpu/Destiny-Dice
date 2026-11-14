@@ -62,6 +62,18 @@ namespace DestinyGarden.Tests
             var moment = Read(Soil(), Link("algae-eaten", actor: CommunityRules.Tadpole, species: null), Link("algae-grew", 86, CommunityRules.Algae, null)).Single(m => m.CellId == 85);
             Assert.That(moment.Headline, Does.Not.Contain("育った水辺")); Assert.IsNull(moment.Detail);
         }
+
+        [TestCase("algae-eaten", CommunityRules.Tadpole, "オタマジャクシ")]
+        [TestCase("pond-prey-eaten", CommunityRules.Nymph, "ヤゴ")]
+        public void AYoungMealFromTheNextPool_UsesTheRecordedPlace(string kind, string actor, string animal)
+        {
+            var meal = Link(kind, actor: actor, species: null);
+            meal.FromCell = 84;
+            var moment = Read(Soil(800), meal, Link("care-algae", 84, "light_beam", null)).Single(m => m.CellId == 85);
+            Assert.That(moment.Headline, Does.Contain(animal).And.Contain("隣の水辺"));
+            Assert.AreEqual(84, moment.FromCell);
+            Assert.IsNull(moment.Detail);
+        }
         [Test]
         public void RecoveryCanBeJoinedToActualPredationOnTheSameLeaf()
         {

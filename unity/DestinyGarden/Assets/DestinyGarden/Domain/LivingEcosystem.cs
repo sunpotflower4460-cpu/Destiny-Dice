@@ -11,9 +11,11 @@ namespace DestinyGarden.Domain
     public static class LivingEcosystem
     {
         public const string RulesVersion = "ecology.v4";
+        public const string ConnectedHabitatsVersion = "ecology.v9";
         public const string Aphid = "aphid", Ladybird = "ladybird", Hoverfly = "hoverfly", Spider = "spider",
             Springtail = "springtail", Snail = "snail", Frog = "frog", SeedFall = "seedfall";
         public const int ResourceCap = 100, StressLimit = 24;
+        private const int AphidStressThreshold = 6;
         public static int Distance(int a, int b) => Math.Abs(a % 16 - b % 16) + Math.Abs(a / 16 - b / 16);
         private static bool Soil(int c) => GardenMapData.SoilCapacity[c] > 0;
         private static bool Living(WorldState s, PlantState p) =>
@@ -138,6 +140,17 @@ namespace DestinyGarden.Domain
             return visits;
         }
 
+        /// <summary>Current life on the island, including settled adults resting at their homes.</summary>
+        public static List<EcologyVisit> IslandPresence(WorldState s, WeatherDefinition weather)
+        {
+            if (s?.Ecosystem == null) return new List<EcologyVisit>();
+            var presence = Presence(s, weather, null);
+            CommunityRules.AddResidentHomes(s, presence);
+            presence.Sort((a, b) => string.CompareOrdinal(a.Kind, b.Kind));
+            foreach (var visit in presence) visit.Cells.Sort();
+            return presence;
+        }
+
         public static EcologyResult Apply(WorldState afterSim, EcologyContext ctx, byte[] bytes, Func<int, string> newPlantId)
         {
             var s = afterSim.Clone();
@@ -214,11 +227,8 @@ namespace DestinyGarden.Domain
                 {
                     var p = s.PlantAt(c);
                     if (p == null || p.Stage != PlantStage.Flower) continue;
-                    var life = e.Cycles[p.PlantId];
                     if (e.Succession != null && !SuccessionRules.Forage(s, p, actor, r)) continue;
-                    if (life.Pollen >= 6) continue;
-                    life.Pollen++;
-                    Link("pollinated", actor, c, c, 1, p.Species);
+                    SuccessionRules.DepositPollen(s, p, actor, r);
                 }
             }
             foreach (string actor in new[] { Ecology.Bee, Ecology.Butterfly })
@@ -237,14 +247,21 @@ namespace DestinyGarden.Domain
                     }
                     Pollinate(actor, pollinator.Cells);
                 }
-            if (Visit(Hoverfly) != null)
+            var hoverflies = Visit(Hoverfly);
+            if (hoverflies != null)
             {
                 var nearbyFlowers = new List<int>();
                 foreach (var p in Ordered(s))
-                    if (p.Stage == PlantStage.Flower && Near(Visit(Hoverfly).Cells, p.CellId, 2) && Flora.Get(p.Species).Bee > 0 &&
+                    if (p.Stage == PlantStage.Flower && Near(hoverflies.Cells, p.CellId, 2) && Flora.Get(p.Species).Bee > 0 &&
                         (e.Succession == null || p.Species == "daisy" || p.Species == "yarrow" || p.Species == "goldenrod" || p.Species == "buttercup"))
                         nearbyFlowers.Add(p.CellId);
-                Pollinate(Hoverfly, e.Succession != null ? SuccessionRules.SelectFlowers(s, Hoverfly, nearbyFlowers, 3)
+                int hoverflyCap = ctx.ConnectedHabitats ? CommunityRules.VisitLimit(s, Hoverfly, 3) : 3;
+                if (ctx.ConnectedHabitats)
+                {
+                    nearbyFlowers.RemoveAll(cell => !Living(s, s.PlantAt(cell)));
+                    nearbyFlowers = CommunityRules.RestrictVisits(s, Hoverfly, nearbyFlowers);
+                }
+                Pollinate(Hoverfly, e.Succession != null ? SuccessionRules.SelectFlowers(s, Hoverfly, nearbyFlowers, hoverflyCap)
                     : nearbyFlowers.GetRange(0, Math.Min(3, nearbyFlowers.Count)));
             }
 
@@ -296,7 +313,14 @@ namespace DestinyGarden.Domain
                                 (preyCell < 0 || e.Aphids[target] > e.Aphids[preyCell])) preyCell = target;
                     }
                     if (preyCell < 0) continue;
-                    int amount = Math.Min(e.Aphids[preyCell], actor == Ladybird ? 4 : 2);
+                    int maximum = actor == Ladybird ? 4 : 2;
+                    if (ctx.ConnectedHabitats)
+                    {
+                        // Keep light colonies available to larvae and still bring infestations down.
+                        if (actor == Ladybird) maximum = e.Aphids[preyCell] >= AphidStressThreshold ? 3 : 1;
+                        else if (actor == Frog) maximum = 1;
+                    }
+                    int amount = Math.Min(e.Aphids[preyCell], maximum);
                     if (amount <= 0) continue;
                     e.Aphids[preyCell] -= amount;
                     Link("predation", actor, c, preyCell, amount);
@@ -335,10 +359,10 @@ namespace DestinyGarden.Domain
                 foreach (var other in s.Plants)
                     if (other != p && other.Stage >= PlantStage.Leaf && Distance(other.CellId, c) <= 1 &&
                         PlantStrategies.Get(other.Species).Height >= strategy.Height) crowd++;
-                int pressure = (!fits ? 2 : 0) + (e.Nutrients[c] == 0 ? 1 : 0) + (e.Aphids[c] >= 6 ? 1 : 0) + (crowd >= 3 ? 1 : 0);
+                int pressure = (!fits ? 2 : 0) + (e.Nutrients[c] == 0 ? 1 : 0) + (e.Aphids[c] >= AphidStressThreshold ? 1 : 0) + (crowd >= 3 ? 1 : 0);
                 int previousStress = life.Stress;
                 life.Stress = Math.Max(0, Math.Min(StressLimit, life.Stress + (pressure == 0 ? -3 : pressure)));
-                if (previousStress < 12 && life.Stress >= 12) Link("stressed", !fits ? "habitat" : e.Aphids[c] >= 6 ? Aphid : crowd >= 3 ? "competition" : "nutrients", c, c, life.Stress, p.Species);
+                if (previousStress < 12 && life.Stress >= 12) Link("stressed", !fits ? "habitat" : e.Aphids[c] >= AphidStressThreshold ? Aphid : crowd >= 3 ? "competition" : "nutrients", c, c, life.Stress, p.Species);
                 if (previousStress >= 12 && life.Stress < 12) Link("recovered", "habitat", c, c, previousStress - life.Stress, p.Species);
                 if (ctx.Sim != null && ctx.Sim.Evidence.GrowthBeforeByPlant.TryGetValue(p.PlantId, out int beforeGrowth) && p.Growth > beforeGrowth && e.Nutrients[c] > 0)
                     e.Nutrients[c]--; // natural growth uses fertility, flowering plants do not keep consuming
@@ -476,16 +500,26 @@ namespace DestinyGarden.Domain
             {
                 SuccessionRules.Awaken(s, afterSim, r, newPlantId);
                 SuccessionRules.CleanMemory(s);
-                if (e.Succession.Community != null) CommunityRules.AfterActivity(s, r);
+                if (e.Succession.Community != null) CommunityRules.AfterActivity(s, r, ctx.ConnectedHabitats, ctx.Weather);
             }
             if (e.Habitat != null) HabitatRules.End(s, r, newPlantId);
             if (CareRules.Enabled(s)) r.Care = CareReport.Build(ctx, r);
-            int residents = 0;
-            foreach (var visit in r.Visits)
-                if (visit.Kind != Ecology.Spirit && visit.Kind != Ecology.Fish && visit.Kind != Ecology.Petals) residents++;
-            if (e.Succession?.Community != null) residents = CommunityRules.ResidentKinds(r.Visits);
-            r.Harmony = Harmony.Read(ctx.RecentRecipeIds, residents, Flora.BloomingSpecies(s));
+            if (ctx.ConnectedHabitats)
+                r.Harmony = Harmony.ReadIsland(s, ctx.Weather, ctx.RecentRecipeIds);
+            else
+            {
+                int residents = 0;
+                foreach (var visit in r.Visits)
+                    if (visit.Kind != Ecology.Spirit && visit.Kind != Ecology.Fish && visit.Kind != Ecology.Petals) residents++;
+                if (e.Succession?.Community != null) residents = CommunityRules.ResidentKinds(r.Visits);
+                r.Harmony = Harmony.Read(ctx.RecentRecipeIds, residents, Flora.BloomingSpecies(s));
+            }
             PrayerStar.ApplyGift(r, ctx, (cell, amount) => Feed(PrayerStar.GiftKind, s.PlantAt(cell), amount));
+            if (ctx.ConnectedHabitats)
+            {
+                r.FinalPresence = IslandPresence(s, ctx.Weather);
+                r.Harmony = Harmony.ReadIsland(s, ctx.RecentRecipeIds, r.FinalPresence);
+            }
             r.Networks = Networks(s);
             r.Events.AddRange(stages.Events);
             return r;

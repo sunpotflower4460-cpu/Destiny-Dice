@@ -69,8 +69,9 @@ namespace DestinyGarden.Application
         // A round whose preparation started but was never published (process ended): DATA_CONTRACT §3.
         private string _openRoundId, _openCareMode, _openCareSite;
         private int _openPeriod;
+        private bool _openConnectedHabitats;
         private byte[] _openMapping;
-        private void ClearOpenRound() { _openRoundId = null; _openMapping = null; _openCareMode = null; _openCareSite = null; }
+        private void ClearOpenRound() { _openRoundId = null; _openMapping = null; _openCareMode = null; _openCareSite = null; _openConnectedHabitats = false; }
         private bool _pendingWishEarn;
         public int SeasonsMetCount { get; private set; }   // season.v2: seasons whose wish came true, this run
         public int RainbowCount { get; private set; }      // eight-pointed stars (rainbows) this run
@@ -82,6 +83,7 @@ namespace DestinyGarden.Application
         // before it keep the id source, so their gardens continue exactly as they were (golden hashes).
         public const string PlantIdPolicyVersion = "plant-ids.v1";
         private bool _roundScopedIds;
+        private bool _useConnectedHabitats;
         public IReadOnlyList<string> RolledRecipes => _rolledRecipes;
         public IReadOnlyList<int> RolledFaces => _rolledFaces;
         public int MatchingFaces { get; private set; }  // faces that would answer the committed wish
@@ -126,13 +128,19 @@ namespace DestinyGarden.Application
             if (State == null) return (0, null);
             int idx = Seasons.IndexOf(State.WorldRevision + 1);
             if (idx == _seasonIndex && SeasonGoalId != null) return (idx, SeasonGoalId);
-            return (idx, Seasons.Pick(idx, State, _rolledRecipes, CurrentWeather).Id);
+            return (idx, Seasons.Pick(idx, State, _rolledRecipes, CurrentWeather, UsesConnectedHabitats).Id);
         }
 
         /// <summary>Whether the upcoming season's goal is already met in this season.</summary>
         public bool UpcomingSeasonMet => State != null && Seasons.IndexOf(State.WorldRevision + 1) == _seasonIndex && SeasonMet;
         public bool LuckySevenOffered { get; private set; }
         public bool LuckySevenAdded => CurrentFaces != null && CurrentFaces.Faces.Length == LuckySeven.FaceId;
+        public bool UsesConnectedHabitats => CurrentFaces?.ConnectedHabitats ??
+            (_openRoundId != null ? _openConnectedHabitats : _useConnectedHabitats);
+
+        private static bool HasConnectedHabitats(IDictionary<string, object> payload) =>
+            payload.TryGetValue("ecologyPolicyVersion", out object version) &&
+            version as string == LivingEcosystem.ConnectedHabitatsVersion;
 
         public GardenCoordinator(IJournalWriter writer, IEntropyProvider entropy, IIdSource ids)
         {
@@ -145,6 +153,7 @@ namespace DestinyGarden.Application
             State = WorldState.CreateInitial();
             State.Ecosystem = EcosystemState.CreateCurrent();
             State.Ecosystem.BlessingFlora = true;
+            _useConnectedHabitats = true;
             _prayerStarEnabled = true;
             _roundScopedIds = true;
             PreferenceMode = "auto"; PreferenceSiteId = null;
@@ -159,7 +168,7 @@ namespace DestinyGarden.Application
             _writer.Append("RunStarted", RunId, null, new Dictionary<string, object>
             {
                 ["gameId"] = "destiny-garden",
-                ["ecologyPolicyVersion"] = CareRules.RulesVersion,
+                ["ecologyPolicyVersion"] = LivingEcosystem.ConnectedHabitatsVersion,
                 ["floraPolicyVersion"] = Flora.BlessingRulesVersion,
                 ["prayerStarPolicyVersion"] = PrayerStar.RulesVersion,
                 ["plantIdPolicyVersion"] = PlantIdPolicyVersion,
@@ -210,13 +219,14 @@ namespace DestinyGarden.Application
                 // one without it is closed as interrupted and a new round begins (DATA_CONTRACT §3).
                 string open = _openRoundId, openMode = _openCareMode, openSite = _openCareSite;
                 int openPeriod = _openPeriod;
+                bool openConnectedHabitats = _openConnectedHabitats;
                 byte[] openMapping = _openMapping;
                 ClearOpenRound();
                 if (openMapping != null && _weatherEntropyByPeriod.TryGetValue(openPeriod, out byte[] openWeather))
                 {
                     CurrentRoundId = open;
                     CurrentWeather = Weathers.All[(int)WeatherSelection.Select(openWeather, openPeriod)];
-                    return PublishFaces(open, openPeriod, Hashing.StateHash(State), openMapping, openMode, openSite);
+                    return PublishFaces(open, openPeriod, Hashing.StateHash(State), openMapping, openMode, openSite, openConnectedHabitats);
                 }
                 _writer.Append("PreparationInterrupted", RunId, open, new Dictionary<string, object>
                 {
@@ -227,15 +237,18 @@ namespace DestinyGarden.Application
             CurrentRoundId = roundId;
             int periodIndex = State.WorldRevision / Weathers.RoundsPerEpisode;
             string beforeHash = Hashing.StateHash(State);
+            bool connectedHabitats = _useConnectedHabitats;
 
-            _writer.Append("PreparationStarted", RunId, roundId, new Dictionary<string, object>
+            var preparation = new Dictionary<string, object>
             {
                 ["beforeRevision"] = State.WorldRevision,
                 ["beforeStateHash"] = beforeHash,
                 ["weatherPeriodIndex"] = periodIndex,
                 ["careFocusMode"] = PreferenceMode,
                 ["careFocusSiteId"] = PreferenceSiteId
-            });
+            };
+            if (connectedHabitats) preparation["ecologyPolicyVersion"] = LivingEcosystem.ConnectedHabitatsVersion;
+            _writer.Append("PreparationStarted", RunId, roundId, preparation);
 
             if (!_weatherEntropyByPeriod.TryGetValue(periodIndex, out byte[] weatherBytes))
             {
@@ -257,12 +270,12 @@ namespace DestinyGarden.Application
                 ["bytesBase64"] = Convert.ToBase64String(mappingBytes),
                 ["source"] = _entropy.SourceName
             });
-            return PublishFaces(roundId, periodIndex, beforeHash, mappingBytes, PreferenceMode, PreferenceSiteId);
+            return PublishFaces(roundId, periodIndex, beforeHash, mappingBytes, PreferenceMode, PreferenceSiteId, connectedHabitats);
         }
 
         /// <summary>Generates the faces from saved mapping material and publishes them (Prepared).</summary>
         private PreparedFaces PublishFaces(string roundId, int periodIndex, string beforeHash, byte[] mappingBytes,
-            string careMode, string careSite)
+            string careMode, string careSite, bool connectedHabitats)
         {
             var buffer = new EntropyBuffer(mappingBytes);
             var faces = FaceGenerator.Generate(State, CurrentWeather, careMode, careSite, buffer);
@@ -276,6 +289,7 @@ namespace DestinyGarden.Application
                 Phase = CoordinatorPhase.Ready;
                 return null;
             }
+            faces.ConnectedHabitats = connectedHabitats;
             CurrentFaces = faces;
             LuckySevenOffered = _luckyBank > 0;
             if (LuckySevenOffered) _luckyBank--;
@@ -299,6 +313,7 @@ namespace DestinyGarden.Application
                 preparedPayload["anchorCellId"] = faces.AnchorCellId;
                 if (faces.TargetNote != null) preparedPayload["targetNote"] = faces.TargetNote;
             }
+            if (connectedHabitats) preparedPayload["ecologyPolicyVersion"] = LivingEcosystem.ConnectedHabitatsVersion;
             _writer.Append("Prepared", RunId, roundId, preparedPayload);
             Phase = CoordinatorPhase.Prepared;
             return faces;
@@ -464,6 +479,7 @@ namespace DestinyGarden.Application
                 Sim = sim,
                 Dice = resolvedRecipe,
                 Weather = CurrentWeather,
+                ConnectedHabitats = CurrentFaces.ConnectedHabitats,
                 FaceId = _prayerStarEnabled ? faceId : 0,
                 PreviousFaceId = previousFace,
                 AnchorCellId = anchor,
@@ -481,13 +497,14 @@ namespace DestinyGarden.Application
             int revision = eco.PostState.WorldRevision;
             int season = Seasons.IndexOf(revision);
             bool newSeason = season != _seasonIndex;
-            string seasonGoal = newSeason ? Seasons.Pick(season, State, _rolledRecipes, CurrentWeather).Id : SeasonGoalId;
+            string seasonGoal = newSeason ? Seasons.Pick(season, State, _rolledRecipes, CurrentWeather, UsesConnectedHabitats).Id : SeasonGoalId;
             bool metBefore = !newSeason && SeasonMet;
             // The communities of season.v2's goals are read from the garden itself, so they count in gardens with
             // the living ecosystem too (which has its own community rules and leaves eco.Communities empty).
             var seasonCommunities = DestinyGarden.Domain.Communities.Find(eco.PostState);
+            bool butterflies = (eco.FinalPresence ?? eco.Visits).Exists(visit => visit.Kind == DestinyGarden.Domain.Ecology.Butterfly);
             bool seasonMetNow = !metBefore && Seasons.IsMet(seasonGoal, eco.PostState, seasonCommunities,
-                eco.Harmony != null ? eco.Harmony.Value : 0, eco.Has(DestinyGarden.Domain.Ecology.Butterfly));
+                eco.Harmony != null ? eco.Harmony.Value : 0, butterflies);
             bool seasonMet = metBefore || seasonMetNow;
             var ecologyPayload = DestinyGarden.Domain.Ecology.ToPayload(eco);
             ecologyPayload["season"] = new Dictionary<string, object>
@@ -617,6 +634,7 @@ namespace DestinyGarden.Application
             Phase = CoordinatorPhase.NoRun;
             _prayerStarEnabled = false;
             _roundScopedIds = false;
+            _useConnectedHabitats = false;
             _luckyBank = 0; LuckySevenOffered = false; SeasonsMetCount = 0; RainbowCount = 0;
             _rolledRecipes.Clear();
             _rolledFaces.Clear();
@@ -640,6 +658,11 @@ namespace DestinyGarden.Application
                         RunId = e.RunId;
                         State = WorldStateSerializer.FromPayload(
                             (Dictionary<string, object>)e.Payload["initialState"]);
+                        // v8 gardens adopt the new ecology at their next preparation.
+                        // Restored in-progress rounds read the policy recorded with their own preparation.
+                        _useConnectedHabitats = HasConnectedHabitats(e.Payload) || CareRules.Enabled(State) &&
+                            e.Payload.TryGetValue("ecologyPolicyVersion", out object ecologyPolicy) &&
+                            ecologyPolicy as string == CareRules.RulesVersion;
                         // A run begun with any version of the prayer star keeps it (it continues under the current rules).
                         _prayerStarEnabled = e.Payload.TryGetValue("prayerStarPolicyVersion", out object starPolicy) &&
                             starPolicy is string sp && sp.StartsWith("prayer-star.", StringComparison.Ordinal);
@@ -660,6 +683,7 @@ namespace DestinyGarden.Application
                         _openCareMode = e.Payload.TryGetValue("careFocusMode", out object ocm) ? ocm as string : "auto";
                         _openCareSite = e.Payload.TryGetValue("careFocusSiteId", out object ocs) ? ocs as string : null;
                         _openPeriod = e.Payload.TryGetValue("weatherPeriodIndex", out object opi) ? WorldStateSerializer.ToInt(opi) : 0;
+                        _openConnectedHabitats = HasConnectedHabitats(e.Payload);
                         break;
                     case "MappingEntropyCommitted":
                         if (e.RoundId != null && e.RoundId == _openRoundId)
@@ -670,6 +694,7 @@ namespace DestinyGarden.Application
                         ClearPending(); ClearOpenRound(); ResetIntent(); ResetSeason();
                         lastPost = null;
                         RunId = null; State = null; CurrentFaces = null; CurrentRoundId = null;
+                        _useConnectedHabitats = false;
                         Phase = CoordinatorPhase.NoRun;
                         break;
                     case "CareFocusChanged":
@@ -694,6 +719,7 @@ namespace DestinyGarden.Application
                                 ResolvedSiteId = (string)e.Payload["resolvedSiteId"],
                                 AnchorCellId = e.Payload.TryGetValue("anchorCellId", out object ac) ? WorldStateSerializer.ToInt(ac) : -1,
                                 TargetNote = e.Payload.TryGetValue("targetNote", out object tn) ? tn as string : null,
+                                ConnectedHabitats = HasConnectedHabitats(e.Payload),
                                 Faces = faces.ToArray()
                             };
                             LuckySevenOffered = e.Payload.TryGetValue("luckySevenOffered", out object lo) && lo is bool lb && lb;

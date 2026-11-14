@@ -246,7 +246,7 @@ namespace DestinyGarden.Tests
             Assert.AreEqual(Flora.BlessingRulesVersion, genesis.Payload["floraPolicyVersion"]);
             var resolved = read.Entries.Last(e => e.Kind == "Resolved");
             var eco = (Dictionary<string, object>)resolved.Payload["ecology"];
-            Assert.AreEqual(CareRules.RulesVersion, eco["rulesVersion"]);
+            Assert.AreEqual(LivingEcosystem.ConnectedHabitatsVersion, eco["rulesVersion"]);
             Assert.IsTrue(eco.ContainsKey("care"));
             Assert.IsTrue(eco.ContainsKey("relations"));
             Assert.IsTrue(coord.State.Ecosystem.BlessingFlora);

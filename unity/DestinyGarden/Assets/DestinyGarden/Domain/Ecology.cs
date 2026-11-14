@@ -24,6 +24,7 @@ namespace DestinyGarden.Domain
     {
         public WorldState PostState;
         public List<EcologyVisit> Visits = new List<EcologyVisit>();
+        public List<EcologyVisit> FinalPresence; // v9 snapshot after the recorded activities
         public List<EcologyEffect> Effects = new List<EcologyEffect>();
         public List<GardenEvent> Events = new List<GardenEvent>();
         public List<EcologicalLink> Relations = new List<EcologicalLink>(); // ecology.v4: observed causes
@@ -47,6 +48,7 @@ namespace DestinyGarden.Domain
         public bool PrayerAnswered;
         public SimulationResult Sim;            // this roll's natural simulation
         public WeatherDefinition Weather;
+        public bool ConnectedHabitats;         // ecology.v9, pinned when the round is prepared
         public ResolvedRecipe Dice;
         public CareMeasure Care;
         public int FaceId;                      // face rolled this time (1..7); 0 skips the prayer-star rules
@@ -144,7 +146,12 @@ namespace DestinyGarden.Domain
         private static List<EcologyVisit> Presence(WorldState s, WeatherDefinition weather,
             IList<string> recentRecipeIds, string currentRecipeId, bool rotateFlowers, bool communityCreatures)
         {
-            if (s.Ecosystem != null) return LivingEcosystem.Presence(s, weather, currentRecipeId);
+            if (s.Ecosystem != null)
+            {
+                var visitsNow = LivingEcosystem.Presence(s, weather, currentRecipeId);
+                CommunityRules.AddResidentHomes(s, visitsNow);
+                return visitsNow;
+            }
             var visits = new List<EcologyVisit>();
             var flowers = Flowers(s);
 
@@ -609,17 +616,22 @@ namespace DestinyGarden.Domain
             return result;
         }
 
-        /// <summary>Journal payload for Resolved.ecology.</summary>
-        public static Dictionary<string, object> ToPayload(EcologyResult r)
+        private static List<object> VisitPayload(IEnumerable<EcologyVisit> source)
         {
-            bool living = r.PostState != null && r.PostState.Ecosystem != null;
             var visits = new List<object>();
-            foreach (var v in r.Visits)
+            foreach (var v in source)
             {
                 var cells = new List<object>();
                 foreach (int c in v.Cells) cells.Add((long)c);
                 visits.Add(new Dictionary<string, object> { ["kind"] = v.Kind, ["cells"] = cells });
             }
+            return visits;
+        }
+
+        /// <summary>Journal payload for Resolved.ecology.</summary>
+        public static Dictionary<string, object> ToPayload(EcologyResult r)
+        {
+            bool living = r.PostState != null && r.PostState.Ecosystem != null;
             var effects = new List<object>();
             foreach (var e in r.Effects)
             {
@@ -633,17 +645,19 @@ namespace DestinyGarden.Domain
             }
             var payload = new Dictionary<string, object>
             {
-                ["rulesVersion"] = CareRules.Enabled(r.PostState) ? CareRules.RulesVersion : living && r.PostState.Ecosystem.Habitat != null ? HabitatRules.RulesVersion : living ? (r.PostState.Ecosystem.Succession != null ?
+                ["rulesVersion"] = r.FinalPresence != null ? LivingEcosystem.ConnectedHabitatsVersion :
+                    CareRules.Enabled(r.PostState) ? CareRules.RulesVersion : living && r.PostState.Ecosystem.Habitat != null ? HabitatRules.RulesVersion : living ? (r.PostState.Ecosystem.Succession != null ?
                     (r.PostState.Ecosystem.Succession.Community != null ? CommunityRules.RulesVersion : SuccessionRules.RulesVersion) : LivingEcosystem.RulesVersion)
                     : r.PrayerStar != null ? LegacyPrayerRulesVersion : RulesVersion,
                 ["harmony"] = r.Harmony != null ? (long)r.Harmony.Value : 0L,
                 ["star"] = r.Harmony != null ? (long)r.Harmony.Star : 0L,
                 ["yin"] = r.Harmony != null ? (long)r.Harmony.Yin : 0L,
                 ["yang"] = r.Harmony != null ? (long)r.Harmony.Yang : 0L,
-                ["visits"] = visits,
+                ["visits"] = VisitPayload(r.Visits),
                 ["effects"] = effects,
                 ["exhausted"] = r.Exhausted
             };
+            if (r.FinalPresence != null) payload["presence"] = VisitPayload(r.FinalPresence);
             if (r.Care != null) payload["care"] = r.Care.ToPayload();
             if (living)
             {

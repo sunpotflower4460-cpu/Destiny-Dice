@@ -6,6 +6,9 @@ namespace DestinyGarden.Domain
     /// <summary>ecology.v6: settlement, finite meals, juvenile development and habitat recovery.</summary>
     public static class CommunityRules
     {
+        private const int NurseryMealReserve = 3;
+        private const int WetNurseryMoisture = 650;
+        private const int CaterpillarMeal = 20;
         public const string RulesVersion = "ecology.v6", Algae = "algae", PondPrey = "pond-prey";
         public const string Caterpillar = "caterpillar", Chrysalis = "chrysalis", Tadpole = "tadpole",
             Nymph = "dragonfly-nymph", LadybirdLarva = "ladybird-larva", HoverflyLarva = "hoverfly-larva";
@@ -61,6 +64,63 @@ namespace DestinyGarden.Domain
             var pond = s.Ecosystem.Succession.Community;
             return kind == LivingEcosystem.Frog ? pond.Algae[c] >= 2 && (PreyNear(s, c, 3) || pond.AquaticPrey[c] > 0) : pond.AquaticPrey[c] > 0;
         }
+
+        private static bool Aquatic(string kind) => kind == LivingEcosystem.Frog || kind == Ecology.Dragonfly;
+
+        private static bool WetNursery(WorldState s, int cell) =>
+            GardenMapData.SoilCapacity[cell] > 0 && s.Ecosystem.WetAge[cell] >= 6 &&
+            (s.SurfaceWater[cell] > 0 || Flora.Moisture(s, cell) >= WetNurseryMoisture);
+
+        // A nursery reaches its own cell and adjoining water. Dry soil and diagonal gaps separate pools.
+        private static IEnumerable<int> NurseryWater(WorldState s, int center)
+        {
+            if (!WetNursery(s, center)) yield break;
+            yield return center;
+            const int width = GardenMapData.Width;
+            if (center >= width && WetNursery(s, center - width)) yield return center - width;
+            if (center % width > 0 && WetNursery(s, center - 1)) yield return center - 1;
+            if (center % width < width - 1 && WetNursery(s, center + 1)) yield return center + 1;
+            if (center + width < GardenMapData.CellCount && WetNursery(s, center + width)) yield return center + width;
+        }
+
+        private static int[] NurseryFood(WorldState s, string kind)
+        {
+            var pond = s.Ecosystem.Succession.Community;
+            return kind == LivingEcosystem.Frog ? pond.Algae : pond.AquaticPrey;
+        }
+
+        private static int AquaticBroodSize(WorldState s, string kind, int cell)
+        {
+            var food = NurseryFood(s, kind);
+            int stock = 0, sources = 0;
+            foreach (int c in NurseryWater(s, cell))
+            {
+                stock += food[c];
+                if (Pond(s, c) && (s.Ecosystem.Nutrients[c] > 0 ||
+                    (kind == Ecology.Dragonfly && s.Ecosystem.Litter[c] > 0)))
+                    sources++;
+            }
+            // A connected, replenished nursery can support a second young. Hold several meals before laying.
+            return Math.Min(MaxBrood, Math.Min(sources, stock / NurseryMealReserve));
+        }
+
+        private static int LocalBroodSize(WorldState s, ResidentFamily family)
+        {
+            if (Aquatic(family.Kind)) return AquaticBroodSize(s, family.Kind, family.CellId);
+            if (family.Kind == Ecology.Butterfly)
+            {
+                var host = s.PlantAt(family.CellId);
+                return Math.Min(MaxBrood, Math.Max(0, host.Growth - Simulation.GrowthThreshold(PlantStage.Leaf)) /
+                    (CaterpillarMeal * NurseryMealReserve));
+            }
+            int food = 0;
+            for (int c = 0; c < GardenMapData.CellCount; c++)
+                if (Dist(c, family.CellId) <= NurseryPreyReach(family.Kind, true)) food += s.Ecosystem.Aphids[c];
+            return Math.Min(MaxBrood, food / NurseryMealReserve);
+        }
+
+        private static int NurseryPreyReach(string kind, bool connectedHabitats) =>
+            connectedHabitats && (kind == LivingEcosystem.Ladybird || kind == LivingEcosystem.Hoverfly) ? 2 : 1;
         public static void BeforeActivity(WorldState s, EcologyContext ctx, EcologyResult r)
         {
             GrowPond(s, ctx, r);
@@ -110,6 +170,7 @@ namespace DestinyGarden.Domain
                 for (int c = 0; c < GardenMapData.CellCount; c++)
                 {
                     if (!Attractive(s, kind, c) || m.Families.Exists(f => f.Kind == kind && Dist(f.CellId, c) <= 2)) continue;
+                    if (ctx.ConnectedHabitats && Aquatic(kind) && AquaticBroodSize(s, kind, c) == 0) continue;
                     var old = m.Prospects.Find(p => p.Kind == kind && p.CellId == c);
                     candidates.Add(new SettlementSite { Kind = kind, CellId = c, Streak = Math.Min(SettlementRounds, (old?.Streak ?? 0) + 1) });
                 }
@@ -190,8 +251,25 @@ namespace DestinyGarden.Domain
             return kinds.Count;
         }
 
+        internal static void AddResidentHomes(WorldState s, List<EcologyVisit> presence)
+        {
+            var community = s.Ecosystem.Succession?.Community;
+            if (community == null) return;
+            foreach (var family in community.Families)
+            {
+                if (family.Adults <= 0) continue;
+                var visit = presence.Find(v => v.Kind == family.Kind);
+                if (visit == null)
+                {
+                    visit = new EcologyVisit { Kind = family.Kind };
+                    presence.Add(visit);
+                }
+                if (!visit.Cells.Contains(family.CellId)) visit.Cells.Add(family.CellId);
+            }
+        }
+
         private static int EatArray(int[] resource, int cell, int demand) { int eaten = Math.Min(resource[cell], demand); resource[cell] -= eaten; return eaten; }
-        private static int FeedYoung(WorldState s, ResidentFamily f, EcologyResult r)
+        private static int FeedYoung(WorldState s, ResidentFamily f, EcologyResult r, bool connectedHabitats)
         {
             if (f.BroodAge == 0 || YoungKind(f).Contains("pupa") || YoungKind(f) == Chrysalis) return f.Brood; // egg/yolk and pupal reserves
             var e = s.Ecosystem; var m = e.Succession.Community;
@@ -200,7 +278,9 @@ namespace DestinyGarden.Domain
             {
                 var plant = s.PlantAt(f.CellId);
                 if (!Healthy(s, plant) || !HostPlant(plant.Species)) return 0;
-                int browsed = Math.Min(f.Brood * 20, Math.Max(0, plant.Growth - 750));
+                int available = Math.Max(0, plant.Growth - Simulation.GrowthThreshold(PlantStage.Leaf));
+                if (connectedHabitats) available -= available % CaterpillarMeal;
+                int browsed = Math.Min(f.Brood * CaterpillarMeal, available);
                 plant.Growth -= browsed;
                 if (browsed > 0)
                 {
@@ -213,17 +293,25 @@ namespace DestinyGarden.Domain
                     }
                     Link(r, "host-leaf-eaten", actor, f.CellId, f.CellId, browsed);
                 }
-                return browsed / 20;
+                return browsed / CaterpillarMeal;
             }
-            if (f.Kind == LivingEcosystem.Frog || f.Kind == Ecology.Dragonfly)
+            if (Aquatic(f.Kind))
             {
-                eaten = EatArray(f.Kind == LivingEcosystem.Frog ? m.Algae : m.AquaticPrey, f.CellId, f.Brood);
-                if (eaten > 0) Link(r, f.Kind == LivingEcosystem.Frog ? "algae-eaten" : "pond-prey-eaten", actor, f.CellId, f.CellId, eaten);
+                var food = NurseryFood(s, f.Kind);
+                string meal = f.Kind == LivingEcosystem.Frog ? "algae-eaten" : "pond-prey-eaten";
+                IEnumerable<int> cells = connectedHabitats ? NurseryWater(s, f.CellId) : new[] { f.CellId };
+                foreach (int cell in cells)
+                {
+                    int amount = EatArray(food, cell, f.Brood - eaten);
+                    if (amount > 0) Link(r, meal, actor, f.CellId, cell, amount);
+                    eaten += amount;
+                    if (eaten == f.Brood) break;
+                }
                 return eaten;
             }
             for (int c = 0; c < GardenMapData.CellCount && eaten < f.Brood; c++)
             {
-                if (Dist(c, f.CellId) > 1) continue;
+                if (Dist(c, f.CellId) > NurseryPreyReach(f.Kind, connectedHabitats)) continue;
                 int amount = EatArray(e.Aphids, c, f.Brood - eaten); eaten += amount;
                 if (amount > 0) Link(r, "predation", actor, f.CellId, c, amount);
             }
@@ -233,22 +321,49 @@ namespace DestinyGarden.Domain
         {
             var plants = new List<PlantState>(s.Plants); plants.Sort((a, b) => a.CellId.CompareTo(b.CellId)); return plants;
         }
-        private static bool AlternativeMeal(WorldState s, ResidentFamily f, EcologyResult r)
+        private static bool AlternativeMeal(WorldState s, ResidentFamily f, EcologyResult r, bool connectedHabitats, WeatherDefinition weather)
         {
             if (f.Kind == LivingEcosystem.Ladybird)
                 foreach (var p in OrderedPlants(s))
-                    if (p.Stage == PlantStage.Flower && OpenFlower(p.Species) && Dist(f.CellId, p.CellId) <= Reach(f.Kind) &&
+                    if (p.Stage == PlantStage.Flower && (!connectedHabitats || Healthy(s, p)) &&
+                        OpenFlower(p.Species) && Dist(f.CellId, p.CellId) <= Reach(f.Kind) &&
                         SuccessionRules.Forage(s, p, f.Kind, r)) return true;
-            if (f.Kind != Ecology.Dragonfly && f.Kind != LivingEcosystem.Frog) return false;
+            if (connectedHabitats && weather?.Id != WeatherId.Drizzle &&
+                (f.Kind == Ecology.Butterfly || f.Kind == LivingEcosystem.Hoverfly))
+            {
+                // An adult without a meal can take another reachable flower after the first visits.
+                var flowers = new List<int>();
+                foreach (var p in s.Plants)
+                    if (p.Stage == PlantStage.Flower && Healthy(s, p) && Dist(f.CellId, p.CellId) <= Reach(f.Kind) &&
+                        (f.Kind == Ecology.Butterfly || OpenFlower(p.Species))) flowers.Add(p.CellId);
+                var chosen = SuccessionRules.SelectFlowers(s, f.Kind, flowers, 1);
+                if (chosen.Count == 0) return false;
+                var flower = s.PlantAt(chosen[0]);
+                if (!SuccessionRules.Forage(s, flower, f.Kind, r)) return false;
+                SuccessionRules.DepositPollen(s, flower, f.Kind, r);
+                return true;
+            }
+            if (!Aquatic(f.Kind)) return false;
             var m = s.Ecosystem.Succession.Community;
             for (int c = 0; c < GardenMapData.CellCount; c++)
             {
                 if (Dist(c, f.CellId) > Reach(f.Kind)) continue;
                 if (s.Ecosystem.Aphids[c] > 0)
                 { s.Ecosystem.Aphids[c]--; Link(r, "predation", f.Kind, f.CellId, c, 1); return true; }
+                if (connectedHabitats) continue;
                 if (m.AquaticPrey[c] > 0)
                 { m.AquaticPrey[c]--; Link(r, "pond-prey-eaten", f.Kind, f.CellId, c, 1); return true; }
             }
+            if (connectedHabitats)
+                for (int c = 0; c < GardenMapData.CellCount; c++)
+                {
+                    if (m.AquaticPrey[c] == 0 || Dist(c, f.CellId) > Reach(f.Kind) || !WetNursery(s, c)) continue;
+                    if (m.AquaticPrey[c] <= 2 && m.Families.Exists(other => other.Kind == Ecology.Dragonfly &&
+                        other.Brood > 0 && Dist(other.CellId, c) <= 1 && WetNursery(s, other.CellId))) continue;
+                    m.AquaticPrey[c]--;
+                    Link(r, "pond-prey-eaten", f.Kind, f.CellId, c, 1);
+                    return true;
+                }
             return false;
         }
         private static void ReturnBiomass(WorldState s, ResidentFamily f, EcologyResult r, string eventKind, int count)
@@ -256,7 +371,9 @@ namespace DestinyGarden.Domain
             s.Ecosystem.Litter[f.CellId] = Math.Min(LivingEcosystem.ResourceCap, s.Ecosystem.Litter[f.CellId] + count);
             Link(r, eventKind, f.Kind, f.CellId, f.CellId, count);
         }
-        public static void AfterActivity(WorldState s, EcologyResult r)
+        public static void AfterActivity(WorldState s, EcologyResult r) => AfterActivity(s, r, false);
+
+        public static void AfterActivity(WorldState s, EcologyResult r, bool connectedHabitats, WeatherDefinition weather = null)
         {
             var m = s.Ecosystem.Succession.Community;
             int original = r.Relations.Count; var remaining = new int[original];
@@ -267,8 +384,11 @@ namespace DestinyGarden.Domain
                 : string.CompareOrdinal(a.FamilyId, b.FamilyId));
             foreach (var f in families)
             {
-                bool habitat = HabitatSuitable(s, f.Kind, f.CellId); f.BadHabitat = habitat ? 0 : Math.Min(4, f.BadHabitat + 1);
-                if (!habitat && f.BadHabitat >= 2 && f.Brood == 0)
+                bool habitat = HabitatSuitable(s, f.Kind, f.CellId);
+                bool nurseryHabitat = habitat || (connectedHabitats && Aquatic(f.Kind) &&
+                    WetNursery(s, f.CellId) && CoverNear(s, f.CellId));
+                f.BadHabitat = nurseryHabitat ? 0 : Math.Min(4, f.BadHabitat + 1);
+                if (!nurseryHabitat && f.BadHabitat >= 2 && f.Brood == 0)
                 {
                     for (int c = 0; c < GardenMapData.CellCount; c++)
                         if (Dist(c, f.CellId) <= 4 && HabitatSuitable(s, f.Kind, c) && !m.Families.Exists(other => other != f && other.Kind == f.Kind && other.CellId == c))
@@ -276,7 +396,7 @@ namespace DestinyGarden.Domain
                 }
                 if (f.Brood > 0)
                 {
-                    int fed = habitat ? FeedYoung(s, f, r) : 0;
+                    int fed = nurseryHabitat ? FeedYoung(s, f, r, connectedHabitats) : 0;
                     if (fed == f.Brood) { f.BroodAge++; f.NurseryHunger = 0; }
                     else f.NurseryHunger = Math.Min(3, f.NurseryHunger + 1);
                     if (f.NurseryHunger >= 3)
@@ -295,9 +415,11 @@ namespace DestinyGarden.Domain
                 {
                     bool ate = false;
                     for (int i = 0; i < original; i++)
-                        if (remaining[i] > 0 && r.Relations[i].Actor == f.Kind && Dist(f.CellId, r.Relations[i].ToCell) <= Reach(f.Kind))
+                        if (remaining[i] > 0 && r.Relations[i].Actor == f.Kind &&
+                            Dist(f.CellId, connectedHabitats && r.Relations[i].Kind == "predation"
+                                ? r.Relations[i].FromCell : r.Relations[i].ToCell) <= Reach(f.Kind))
                         { remaining[i]--; ate = true; break; }
-                    if (!ate) ate = AlternativeMeal(s, f, r);
+                    if (!ate) ate = AlternativeMeal(s, f, r, connectedHabitats, weather);
                     if (ate) meals++;
                 }
                 f.AdultHunger = meals == f.Adults ? Math.Max(0, f.AdultHunger - 2) : Math.Min(6, f.AdultHunger + 1);
@@ -313,8 +435,12 @@ namespace DestinyGarden.Domain
                 }
                 if (f.Adults > 0 && habitat && meals >= f.Adults && f.Brood == 0 && f.Cooldown == 0 && Attractive(s, f.Kind, f.CellId))
                 {
-                    f.Brood = MaxBrood; f.BroodAge = 0; f.NurseryHunger = 0;
-                    Link(r, "brood-laid", f.Kind, f.CellId, f.CellId, f.Brood);
+                    int brood = connectedHabitats ? LocalBroodSize(s, f) : MaxBrood;
+                    if (brood > 0)
+                    {
+                        f.Brood = brood; f.BroodAge = 0; f.NurseryHunger = 0;
+                        Link(r, "brood-laid", f.Kind, f.CellId, f.CellId, f.Brood);
+                    }
                 }
                 if (f.Adults == 0 && f.Brood == 0) m.Families.Remove(f);
             }

@@ -117,6 +117,15 @@ namespace DestinyGarden.Domain
             Link(r, "nectar-fed", actor, p.CellId, p.CellId, 1, p.Species);
             return true;
         }
+
+        internal static void DepositPollen(WorldState s, PlantState p, string actor, EcologyResult r)
+        {
+            var life = s.Ecosystem.Cycles[p.PlantId];
+            if (life.Pollen >= 6) return;
+            life.Pollen++;
+            Link(r, "pollinated", actor, p.CellId, p.CellId, 1, p.Species);
+        }
+
         private static int Rotation(WorldState s, int cell) => (cell + s.WorldRevision * 13) % GardenMapData.CellCount;
         public static List<int> SelectVisits(WorldState s, string kind, List<int> candidates, int cap)
         {
