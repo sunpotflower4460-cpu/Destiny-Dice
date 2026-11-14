@@ -71,7 +71,7 @@ namespace DestinyGarden.Presentation
             return (ElementId)leader;
         }
 
-        internal string Label
+        public string Label
         {
             get
             {

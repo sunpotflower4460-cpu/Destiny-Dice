@@ -619,5 +619,96 @@ namespace DestinyGarden.Tests
             for (int i = 0; i < 10; i++) Assert.IsFalse(hitch.Feed(2f), "a hidden tab or loading pause is ignored");
             Assert.AreEqual(0, hitch.Level);
         }
+
+        private sealed class KeepsakeJournal : IJournalWriter
+        {
+            public readonly List<JournalEntry> Entries = new List<JournalEntry>();
+            public string HeadHash => "";
+            public long NextSeq => Entries.Count + 1;
+            public JournalEntry Append(string kind, string runId, string roundId, Dictionary<string, object> payload)
+            {
+                var e = new JournalEntry { Seq = Entries.Count + 1, Kind = kind, RunId = runId, RoundId = roundId, Payload = payload };
+                Entries.Add(e);
+                return e;
+            }
+        }
+
+        [Test]
+        public void KeepsakeCard_TellsTheGardenFromSavedFacts_AndOpensFromTheMenu()
+        {
+            Assert.IsFalse(GardenKeepsake.CardDue(0));
+            Assert.IsFalse(GardenKeepsake.CardDue(47));
+            Assert.IsTrue(GardenKeepsake.CardDue(48));
+            Assert.IsTrue(GardenKeepsake.CardDue(96));
+            Assert.AreEqual("A・B・C・D・E・F・G ほか3", GardenKeepsake.NameList(new[] { "A", "B", "C", "D", "E", "F", "G", "H", "I", "J" }));
+            Assert.IsNull(GardenKeepsake.NameList(new List<string>()));
+
+            var journal = new KeepsakeJournal();
+            var coord = new GardenCoordinator(journal, new FixedEntropy("keepsake"), new SequentialIds());
+            coord.CreateRun();
+            coord.Prepare();
+            for (int i = 0; i < 48; i++)
+            {
+                if (coord.LuckySevenOffered) coord.AddLuckySeven();
+                coord.CommitIntent("family", i % 2 == 0 ? "water" : "light");
+                coord.Roll();
+                coord.Prepare();
+            }
+            var history = HistoryProjector.Project(journal.Entries, coord.RunId);
+            var card = GardenKeepsake.BuildCard(PrayerStarSigil.CurrentName(coord), coord.State, history,
+                CottageGrowth.Project(coord.State.WorldRevision, history).Label, PrayerStarSigil.LuckyPlants(coord.State));
+            Assert.AreEqual(48, card.Rolls);
+            Assert.AreEqual(history.Count(r => r.Resolved && r.LuckyNumber), card.LuckyNumbers);
+            Assert.AreEqual(coord.RainbowCount, card.Rainbows);
+            Assert.AreEqual(history.Count(r => r.Resolved && r.IntentMatched), card.Wishes);
+            Assert.Greater(card.Flowers.Count, 0, "48 rolls bring flowers");
+            Assert.Greater(card.Creatures.Count, 0, "and creatures");
+            Assert.AreEqual(card.Flowers.Count, card.Flowers.Distinct().Count());
+            Assert.IsFalse(card.Creatures.Any(c => c == "露" || c == "綿毛" || c.EndsWith("の卵")));
+            if (card.Creatures.Contains("蝶")) Assert.AreEqual("蝶", card.Creatures[0], "the creatures that mark a garden come first");
+            Assert.IsFalse(string.IsNullOrEmpty(card.House));
+            TestContext.WriteLine($"〈{card.Name}〉 {card.House} | {GardenKeepsake.NameList(card.Flowers)} | {GardenKeepsake.NameList(card.Creatures)}");
+
+            var root = new GameObject("Keepsake UI test");
+            var existingEventSystem = EventSystem.current;
+            try
+            {
+                var ui = root.AddComponent<GardenUi>();
+                int asked = 0, hidden = 0;
+                ui.OnOpenKeepsake = () => { asked++; ui.ShowKeepsake(card); };
+                ui.OnHideUi = () => hidden++;
+                ui.Build();
+                ui.ShowTitleCard(false);
+                ui.ShowFaces(RecipeCatalog.Order.Take(6).ToArray(), 0);
+                Button Find(string name) => root.GetComponentsInChildren<Button>().Single(button => button.name == "Chip_" + name);
+                Find("メニュー").onClick.Invoke();
+                Find("庭のしおり").onClick.Invoke();
+                Assert.AreEqual(1, asked);
+                var panel = root.GetComponentsInChildren<Transform>(true).Single(t => t.name == "Keepsake");
+                Assert.IsTrue(panel.gameObject.activeInHierarchy);
+                var texts = panel.GetComponentsInChildren<Text>().Where(t => !string.IsNullOrEmpty(t.text)).ToList();
+                Assert.IsTrue(texts.Any(t => t.text == $"〈{card.Name}〉"));
+                foreach (var t in texts)
+                    if (t.horizontalOverflow == HorizontalWrapMode.Overflow)
+                        Assert.That(t.preferredWidth, Is.LessThanOrEqualTo(t.rectTransform.rect.width + 1f), t.text);
+                    else
+                        Assert.That(t.preferredHeight, Is.LessThanOrEqualTo(t.rectTransform.rect.height + 1f), t.text);
+                // Back returns to the menu; 続ける closes everything.
+                Find("続ける").onClick.Invoke();
+                Assert.IsFalse(panel.gameObject.activeInHierarchy);
+                Assert.IsTrue(ui.ShowKeepsake(card), "the 48th roll opens it directly");
+                Find("記念に残す").onClick.Invoke();
+                Assert.AreEqual(1, hidden);
+                Assert.IsFalse(panel.gameObject.activeInHierarchy);
+                ui.SetRollEnabled(false);
+                Assert.IsFalse(ui.ShowKeepsake(card), "never while the die is rolling");
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(root);
+                if (existingEventSystem == null && EventSystem.current != null)
+                    UnityEngine.Object.DestroyImmediate(EventSystem.current.gameObject);
+            }
+        }
     }
 }

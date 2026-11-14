@@ -305,6 +305,7 @@ namespace DestinyGarden.Presentation
                 });
             StylePrimary(start);
             _newGardenPanel.SetActive(false);
+            BuildKeepsakePanel(canvas);
         }
 
         private void BuildObservationPanels(Transform parent)

@@ -1053,7 +1053,7 @@ namespace DestinyGarden.Presentation
         private string MomentWord(RollOutcome o)
         {
             if (o == null) return null;
-            if (o.SeasonMetNow) return "季節の願いが叶った";
+            if (o.SeasonMetNow) return "庭の願いが叶った";
             if (o.SeasonRollsLeft == 0 && Coordinator != null) return $"〈{CurrentName(Coordinator)}〉";
             return null;
         }

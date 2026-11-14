@@ -143,6 +143,7 @@ namespace DestinyGarden.Presentation
                 ShowPreparedFaces();
             };
             _ui.OnHideUi = () => StartCoroutine(HideUiTemporarily());
+            _ui.OnOpenKeepsake = () => ShowKeepsakeCard(false);
             _ui.Build();
             _ui.ShowOpeningProgress(_coordinator.State.WorldRevision);
             _ui.ShowIntentSelection(_intentKind, _intentValue);
@@ -394,6 +395,7 @@ namespace DestinyGarden.Presentation
             ShowPreparedFaces(rolledFaceId);
             var read = _journal.ReadAll();
             var history = HistoryProjector.Project(read.Entries, _coordinator.RunId);
+            _history = history;
             var moments = GardenMoments.Recent(read.Entries, _coordinator.RunId);
             _ui.RefreshHistory(history, moments);
             if (rolledFaceId == 0 && moments.Count > 0) _ui.ShowMessage(null, null, moments[0]);
@@ -501,6 +503,37 @@ namespace DestinyGarden.Presentation
             _view.Show(_coordinator.State, _coordinator.CurrentWeather);
             _busy = false;
             _ui.SetRollEnabled(true);
+            if (GardenKeepsake.CardDue(_coordinator.State.WorldRevision)) StartCoroutine(KeepsakeAfterRoll());
+        }
+
+        private List<RoundSummary> _history;
+
+        /// <summary>The 48th roll (and every 48 after): the keepsake card follows once the roll has been seen.</summary>
+        private IEnumerator KeepsakeAfterRoll()
+        {
+            int revision = _coordinator.State.WorldRevision;
+            yield return new WaitForSecondsRealtime(3.4f);
+            if (_busy || _ui.IsPanelOpen || _ui.IsOpening || _coordinator.State.WorldRevision != revision) yield break;
+            ShowKeepsakeCard(true);
+        }
+
+        private void ShowKeepsakeCard(bool milestone)
+        {
+            var state = _coordinator.State;
+            if (state == null) return;
+            var history = _history ?? HistoryProjector.Project(_journal.ReadAll().Entries, _coordinator.RunId);
+            var card = GardenKeepsake.BuildCard(PrayerStarSigil.CurrentName(_coordinator), state, history,
+                CottageGrowth.Project(state.WorldRevision, history).Label, PrayerStarSigil.LuckyPlants(state));
+            if (!_ui.ShowKeepsake(card) || !milestone || _audio == null) return;
+            // The lucky scale, then the eight's chord: both measured sounds at their own levels.
+            _audio.PlayLuckyScale(8);
+            StartCoroutine(Later(0.9f, () => _audio.PlayStarChord(8)));
+        }
+
+        private static IEnumerator Later(float seconds, Action action)
+        {
+            yield return new WaitForSecondsRealtime(seconds);
+            action();
         }
 
         private IEnumerator HideUiTemporarily()
