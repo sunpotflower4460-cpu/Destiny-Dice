@@ -3231,3 +3231,18 @@ Unity metadata: 76 C# files have meta; 103 unique GUIDs
 - 生態系の庭では記録が1投あたり約 40 KiB（300投で約 12 MiB）、起動時の全検証は約 2 秒、1投の処理は平均 11.6 ms（最悪 199 ms）。記録の分割・差分化は優先度を上げて検討する。
 - 生態系の庭では調和が高く出やすく、八芒星（八の虹）が約12投に1回（従来の庭の調整値は約19投に1回）。虹の特別さを保つなら八芒星の条件を生態系の庭向けに見直す。
 - §23.5 の申し送り（縦長画面の文字、履歴の「0投目」）は継続。
+
+## Jam Codex の積み重ねた PR（#32〜#35）を main へ統合（2026-11-14）
+
+### 完了したこと
+
+- `codex/system-star-moments`（#32）→ `system-garden-navigation`（#33）→ `system-garden-style`（#34）→ `system-garden-opening`（#35）の積み重ねを、
+  別の統合ブランチ `claude/merge-codex-stack` で main（PR #36 後）にまとめた。Codex のブランチには書き込んでいない。
+- 衝突は GardenBootstrap.cs の1か所だけ: 七つめの面の案内は Codex の文（「七つめの面を加える」で、幸運の七を使えます。）を採り、前の投の状態の一行を消す処理を残した。
+- 統合で見つけた食い違い: 新しいタイトル（#35）が画面全体を覆わなくなったため、祈りの星の左上の2行がタイトルの上に見えていた。
+  タイトルが出ている間は2行を隠し、庭に入ると現れるようにした（GardenUi に `TitleCardOpen` を読み取り専用で追加）。
+
+### 完了基準の結果（コマンド出力の要約）
+
+- Unity EditMode: `total="324" passed="324" failed="0"`。`pnpm typecheck` 0、`pnpm test` 183 passed、`pnpm build` built。
+- WebGL をブラウザで確認: タイトルに余計な行が出ない／「庭に入る」から振ると因果の一行と左上の2行が出る／コンソールのエラー 0。

@@ -24,6 +24,8 @@ namespace DestinyGarden.Presentation
         public GardenCoordinator Coordinator;   // read only: the standing line (season's wish, lucky count, next lucky face)
         private Text _standingText;
         private Image _standingBacking;
+        private CanvasGroup _standingGroup;
+        private GardenUi _ui;
         private string _standingKey;
         public Font Font;
         public bool ReducedMotion;
@@ -781,6 +783,11 @@ namespace DestinyGarden.Presentation
             var standScaler = standCanvasObj.AddComponent<CanvasScaler>();
             standScaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             standScaler.referenceResolution = new Vector2(1600, 900);
+            // Hidden while the title card is up (the title no longer covers the whole screen).
+            _standingGroup = standCanvasObj.AddComponent<CanvasGroup>();
+            _standingGroup.blocksRaycasts = false;
+            _standingGroup.interactable = false;
+            _standingGroup.alpha = 0f; // fades in once the garden is entered
             var sbObj = new GameObject("SigilStandingBacking");
             sbObj.transform.SetParent(standCanvasObj.transform, false);
             _standingBacking = sbObj.AddComponent<Image>();
@@ -892,6 +899,9 @@ namespace DestinyGarden.Presentation
         private void RefreshStanding()
         {
             if (_standingText == null || Coordinator == null || Coordinator.State == null) return;
+            if (_ui == null) _ui = FindFirstObjectByType<GardenUi>();
+            if (_standingGroup != null)
+                _standingGroup.alpha = Mathf.MoveTowards(_standingGroup.alpha, _ui != null && _ui.TitleCardOpen ? 0f : 1f, Time.deltaTime * 2.5f);
             int rev = Coordinator.State.WorldRevision, count = Coordinator.RolledFaces.Count;
             var phase = Coordinator.Phase;
             if (_standingKey != null && rev == _standingRev && count == _standingCount && phase == _standingPhase) return;

@@ -6,6 +6,8 @@ namespace DestinyGarden.Presentation
     internal static class BottleMesh
     {
         internal const float WaterlineRadius = 14.28f;
+        internal const float MouthHeight = 17.13f;
+        internal const float NeckInnerRadius = 2.98f;
 
         // The profile climbs from below the waterline, rolls over the mouth and finishes inside the neck.
         // Cubic segments share tangents so the outline and reflected light flow around the bends.
@@ -21,8 +23,8 @@ namespace DestinyGarden.Presentation
             Curve(3.28f, 15.68f, 3.27f, 16.26f, 3.29f, 16.49f, 3.34f, 16.60f, 6);
             int lipStart = profile.Count - 1;
             Curve(3.34f, 16.60f, 3.40f, 16.73f, 3.63f, 16.62f, 3.66f, 16.93f, 8);
-            Curve(3.66f, 16.93f, 3.69f, 17.24f, 3.30f, 17.32f, 3.08f, 17.13f, 8);
-            Curve(3.08f, 17.13f, 2.94f, 17.01f, 2.98f, 16.80f, 2.98f, 16.57f, 10);
+            Curve(3.66f, 16.93f, 3.69f, 17.24f, 3.30f, 17.32f, 3.08f, MouthHeight, 8);
+            Curve(3.08f, MouthHeight, 2.94f, 17.01f, NeckInnerRadius, 16.80f, NeckInnerRadius, 16.57f, 10);
 
             const int sides = 120;
             var vertices = new Vector3[profile.Count * sides];
