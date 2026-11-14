@@ -469,6 +469,8 @@ namespace DestinyGarden.Application
                 AnchorCellId = anchor,
                 LuckyCountBefore = PrayerStar.CountLuckies(_rolledFaces),
                 LuckyStreakBefore = PrayerStar.TrailingStreak(_rolledFaces),
+                SameRunBefore = PrayerStar.SameRun(_rolledFaces),
+                FaceTotalBefore = PrayerStar.Total(_rolledFaces),
                 SpiritCount = matched ? Math.Min(PrayerSpirits.MaxSpirits,
                     (faceCount + Math.Max(1, MatchingFaces) - 1) / Math.Max(1, MatchingFaces)) : 0
             }, ecologyBytes, n => _roundScopedIds ? roundId + "-e" + n : _ids.NewId("plant") + "-eco" + n);
@@ -550,6 +552,8 @@ namespace DestinyGarden.Application
             bool wishEarned = LuckySeven.WishEarnsSeventh(matched, MatchingFaces, faceCount);
             if (wishEarned) _luckyBank++;
             if (seasonMetNow) { _luckyBank++; SeasonsMetCount++; }
+            bool signEarned = eco.PrayerStar != null && eco.PrayerStar.EarnsSeventh; // prayer-star.v5: 三つぞろい, total 77
+            if (signEarned) _luckyBank++;
             _luckyBank = Math.Min(LuckySeven.MaxBanked, _luckyBank);
             if (eco.PrayerStar != null && eco.PrayerStar.Points >= 8) RainbowCount++;
             return new RollOutcome
@@ -558,7 +562,7 @@ namespace DestinyGarden.Application
                 SeasonGoalId = SeasonGoalId, SeasonMet = SeasonMet, SeasonMetNow = seasonMetNow,
                 SeasonRollsLeft = Seasons.RollsLeft(revision),
                 IntentKind = LastIntentKind, MatchingFaces = MatchingFaces,
-                EarnedSeventh = wishEarned || seasonMetNow,
+                EarnedSeventh = wishEarned || seasonMetNow || signEarned,
                 SeasonsMetCount = SeasonsMetCount, RainbowCount = RainbowCount,
                 YearEnded = Seasons.RollsLeft(revision) == 0 && (season + 1) % 4 == 0,
                 Ecology = eco,
@@ -757,6 +761,11 @@ namespace DestinyGarden.Application
                             ecoRec2D.TryGetValue("prayerStar", out object psRec) && psRec is IDictionary<string, object> psd &&
                             WorldStateSerializer.ToInt(psd["points"]) >= 8)
                             RainbowCount++;
+                        if (e.Payload.TryGetValue("ecology", out object ecoRec3) && ecoRec3 is IDictionary<string, object> ecoRec3D &&
+                            ecoRec3D.TryGetValue("prayerStar", out object psRec3) && psRec3 is IDictionary<string, object> psd3 &&
+                            ((psd3.TryGetValue("triple", out object tr) && tr is bool trb && trb) ||
+                             (psd3.TryGetValue("total77", out object t77) && t77 is bool t77b && t77b)))
+                            _luckyBank = Math.Min(LuckySeven.MaxBanked, _luckyBank + 1); // prayer-star.v5
                         // The earlier prayer-star branch recorded its policy with each outcome.
                         if (!lastPost.ContainsKey("ecosystem") && e.Payload.TryGetValue("ecology", out object ecology) &&
                             ecology is IDictionary<string, object> observed && observed.ContainsKey("prayerStar"))

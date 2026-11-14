@@ -467,6 +467,7 @@ namespace DestinyGarden.Presentation
             // Told by what happens, not by explanation: words only for what cannot be seen (a season's wish came
             // true; at a season's end, the garden's name).
             Track(StartCoroutine(ShowCauseLater(MomentWord(outcome))));
+            _wishFace = outcome.IntentKind == "face" && outcome.IntentMatched;
             Track(StartCoroutine(CycleToneLater(CycleToneFor(outcome.Ecology))));
             yield return PlayRevealCore(star.Points, outcome.FaceId, previousFaceId, tops, outcome.FaceCount, star);
         }
@@ -518,6 +519,9 @@ namespace DestinyGarden.Presentation
             if (Audio != null) Audio.PlayStarChord(points);
             EmitBurst(points);
             if (points >= 7) ShowLabel(points, LuckyLabelLines(star, points, faceId, previousFaceId, faceCount), false);
+            // prayer-star.v5: the other lucky signs, each with its number, name, sound and light (after the lucky number).
+            var signs = SignLabels(star, faceId, _wishFace);
+            if (signs.Count > 0) Track(StartCoroutine(PlaySigns(signs, points >= 7 ? 2.6f : 0f)));
             LightBeads();
             yield return new WaitForSeconds(0.5f);
             int perPlant = points >= 8 ? 14 : points == 7 ? 10 : points == 6 ? 5 : 3;
@@ -538,6 +542,46 @@ namespace DestinyGarden.Presentation
             }
             yield return new WaitForSeconds(0.4f);
             SetHint(faceId); // lights for the face that would complete seven next time
+        }
+
+        private bool _wishFace;
+
+        /// <summary>
+        /// prayer-star.v5: the lucky signs of a roll besides the lucky number, most special first: 三つぞろい, a total
+        /// of 77 (or 154, 231 ...), ゾロ目, and a face wished for coming up. Each is [number, name, "", ""] and a sound.
+        /// </summary>
+        public static List<string[]> SignLabels(PrayerStarReading star, int faceId, bool wishFace)
+        {
+            var list = new List<string[]>();
+            if (star == null) return list;
+            if (star.Triple) list.Add(new[] { $"{faceId}{faceId}{faceId}", "三つぞろい", "", "" });
+            if (star.Total77)
+            {
+                int total = star.FaceTotal / PrayerStar.LuckyTotal * PrayerStar.LuckyTotal;
+                list.Add(new[] { total.ToString(System.Globalization.CultureInfo.InvariantCulture), "出目の合計", "", "" });
+            }
+            if (star.Zorome && !star.Triple && !star.LuckyNumber) list.Add(new[] { $"{faceId}{faceId}", "ゾロ目", "", "" });
+            if (wishFace && !star.LuckyNumber && list.Count == 0) list.Add(new[] { faceId.ToString(System.Globalization.CultureInfo.InvariantCulture), "願いの目", "", "" });
+            return list;
+        }
+
+        private IEnumerator PlaySigns(List<string[]> signs, float delay)
+        {
+            if (delay > 0f) yield return new WaitForSeconds(delay);
+            foreach (var lines in signs)
+            {
+                bool big = lines[1] == "三つぞろい" || lines[1] == "出目の合計";
+                if (Audio != null)
+                {
+                    if (big) Audio.PlayLuckySeven();
+                    else if (lines[1] == "ゾロ目") { int f; if (int.TryParse(lines[0].Substring(0, 1), out f)) Audio.PlayFaceNote(f); }
+                    else Audio.PlayStarChord(6);
+                }
+                _flash = big ? 1f : 0.6f;
+                EmitBurst(big ? 7 : 6);
+                ShowLabel(7, lines, false);
+                yield return new WaitForSeconds(2.6f);
+            }
         }
 
         /// <summary>QA only: a reading for the filmstrip (-dgLuckyCount N lucky numbers before, -dgLuckyStreak S in a row).</summary>
