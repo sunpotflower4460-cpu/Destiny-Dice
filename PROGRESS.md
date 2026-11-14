@@ -3302,3 +3302,22 @@ Unity metadata: 76 C# files have meta; 103 unique GUIDs
 - Presentation: PrayerStarSigil.cs、GardenKeepsake.cs（新規）、AudioSynth.cs・GardenAudio.cs（祈りの音）、GardenBootstrap.cs（願いの瞬間の音の1か所）。
 - Tests: LuckyPlantTests.cs（新規）、PrayerStarTests.cs、SacredTonesTests.cs。docs/unity-garden/ECOLOGY.md §24、PROGRESS.md。
 
+## Jam 説明を減らし、出来事で伝える（2026-11-14）
+
+### 完了したこと
+
+- 一投ごとの因果の数行・確率・案内・ヒントを出さず、言葉は「季節の願いが叶った」と季節の終わりの〈庭の名前〉だけにした。
+- ラッキーナンバーは「7／ラッキーナンバー／3 ＋ 4」。数え上げは左上の七つの点（星が出た瞬間に灯る）。
+- 左上の札を3行（名前・季節の願い・七つの点）に。ラッキーナンバーや虹の状態行をなくした。
+- 祭壇まわりに置く光の粒も試したが、いつもの視点では小さく草に隠れて見えないため、札の点にした。
+
+### 完了基準の結果（コマンド出力の要約）
+
+- Unity EditMode: `total="328" passed="328" failed="0"`。`pnpm typecheck` 0、`pnpm test` 183 passed、`pnpm build` built。
+- WebGL をブラウザで確認: ラッキーナンバー（3→4）で「7／ラッキーナンバー／3 ＋ 4」だけが出て、左上の点が1つから2つへ灯る。説明の段落は出ない。コンソールのエラー 0。
+
+### 要確定・申し送り
+
+- 出来事の札・下の一行（「しずくの一投。」など）・庭の気配の欄は Codex の画面。さらに減らすなら Codex 側で扱う。
+- 使わなくなった文の関数（CauseLine・WishLine・HintLine など）はテストとともに残している。観察の画面で使うか、消すかは次で決める。
+

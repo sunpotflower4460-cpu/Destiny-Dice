@@ -79,6 +79,17 @@ namespace DestinyGarden.Tests
         }
 
         [Test]
+        public void LuckyDots_ShowTheCountWithoutWords()
+        {
+            string dots = PrayerStarSigil.LuckyDots(3);
+            StringAssert.Contains("●●●</color>", dots);
+            Assert.AreEqual(7, dots.Split('●').Length - 1, "always seven dots");
+            string visible = System.Text.RegularExpressions.Regex.Replace(dots, "<[^>]+>", "");
+            Assert.AreEqual(new string('●', 7), visible, "no words, no numbers: only the dots are seen");
+            Assert.AreEqual(7, PrayerStarSigil.LuckyDots(9).Split('●').Length - 1);
+        }
+
+        [Test]
         public void GardenName_FollowsWhatTheGardenBecame()
         {
             var s = new WorldState();

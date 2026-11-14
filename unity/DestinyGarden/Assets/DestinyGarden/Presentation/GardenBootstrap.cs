@@ -143,7 +143,7 @@ namespace DestinyGarden.Presentation
                 if (_coordinator.AddLuckySeven() == null) return;
                 _audio.PlayLuckySeven();
                 ShowPreparedFaces();
-                _ui.ShowStatus("七つめの面が加わった。どの面も 1/7。");
+                _ui.ShowStatus("七つめの面が加わった。");
             };
             _ui.OnHideUi = () => StartCoroutine(HideUiTemporarily());
             _ui.Build();
@@ -537,11 +537,9 @@ namespace DestinyGarden.Presentation
             // Publish the next faces only after the end state is on screen.
             ShowPreparedFaces();
             if (outcome.LuckySeven) _view.SetLuckyDice(true);
-            string luckStatus = rainbow ? "空に、虹の八がかかった。"
-                : outcome.LuckySeven ? "七の目。恵みが重なって届いた。"
-                : outcome.Ecology?.PrayerStar?.Points == 7
-                    ? $"ラッキーナンバー。星の恵みが {outcome.Ecology.Effects.FindAll(e => e.Kind == PrayerStar.GiftKind && e.Amount > 0).Count} 株に。"
-                : moment?.Detail ?? (moment != null ? RecipeCatalog.LabelJa(outcome.RecipeId) + "の一投。" : EcologyLine(outcome));
+            // Lucky numbers and the rainbow tell themselves (the number, the star, the rainbow, the light on the plants);
+            // the status line keeps only what the moment card does not already say.
+            string luckStatus = moment?.Detail ?? (moment != null ? RecipeCatalog.LabelJa(outcome.RecipeId) + "の一投。" : EcologyLine(outcome));
             if (luckStatus != null) _ui.ShowStatus(luckStatus);
             else if (_coordinator.LuckySevenOffered) _ui.ShowStatus("「七つめの面を加える」で、幸運の七を使えます。");
             else _ui.ShowStatus(null); // a line from an earlier roll never stands for this one

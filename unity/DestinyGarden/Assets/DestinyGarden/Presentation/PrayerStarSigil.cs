@@ -395,6 +395,7 @@ namespace DestinyGarden.Presentation
         /// <summary>A new roll begins: the last roll's words step aside (they never stand for the new roll).</summary>
         public void BeginRoll()
         {
+            _standingFrozenUntil = Time.time + 12f; // at most; the reveal releases it
             if (_causeGroup == null || _causeGroup.alpha <= 0f) return;
             if (_causeRoutine != null) StopCoroutine(_causeRoutine);
             _causeRoutine = StartCoroutine(FadeOutCause());
@@ -463,11 +464,9 @@ namespace DestinyGarden.Presentation
                             startLifetime = UnityEngine.Random.Range(1.4f, 2.4f)
                         }, 1);
                 }
-            var lines = new List<string>();
-            foreach (var l in new[] { CauseLine(outcome.Ecology), WishLine(outcome), HintLine(outcome.FaceId, star.LuckyCount),
-                         SeasonLine(outcome), KeepsakeLine(outcome, star.LuckyCount), YearLine(outcome, star.LuckyCount), FirstTimeTip(outcome) })
-                if (!string.IsNullOrEmpty(l)) lines.Add(l);
-            Track(StartCoroutine(ShowCauseLater(lines.Count > 0 ? string.Join("\n", lines) : null)));
+            // Told by what happens, not by explanation: words only for what cannot be seen (a season's wish came
+            // true; at a season's end, the garden's name).
+            Track(StartCoroutine(ShowCauseLater(MomentWord(outcome))));
             Track(StartCoroutine(CycleToneLater(CycleToneFor(outcome.Ecology))));
             yield return PlayRevealCore(star.Points, outcome.FaceId, previousFaceId, tops, outcome.FaceCount, star);
         }
@@ -519,6 +518,7 @@ namespace DestinyGarden.Presentation
             if (Audio != null) Audio.PlayStarChord(points);
             EmitBurst(points);
             if (points >= 7) ShowLabel(points, LuckyLabelLines(star, points, faceId, previousFaceId, faceCount), false);
+            LightBeads();
             yield return new WaitForSeconds(0.5f);
             int perPlant = points >= 8 ? 14 : points == 7 ? 10 : points == 6 ? 5 : 3;
             // Many plants share a fixed number of glints, so every one of them still shows its light.
@@ -894,39 +894,45 @@ namespace DestinyGarden.Presentation
         /// <summary>The standing line's two rows (season's wish with progress; lucky count and the next lucky face).</summary>
         public static string StandingLines(GardenCoordinator c)
         {
+            // Two lines: the garden's name, and what the garden wishes for this season (its progress, or that it came
+            // true). The lucky count is shown by the beads on the star's ring, the next lucky face by the lights at the die.
             if (c == null || c.State == null) return null;
-            var (index, goalId) = c.UpcomingSeason();
-            var g = Seasons.Get(goalId);
             var rows = new List<string>();
             if (c.State.WorldRevision > 0) rows.Add($"<color=#f5daa1>〈{CurrentName(c)}〉</color>");
+            var (index, goalId) = c.UpcomingSeason();
+            var g = Seasons.Get(goalId);
             if (g != null)
             {
-                var recent = new List<string>(c.RolledRecipes);
-                var presence = Ecology.Presence(c.State, c.CurrentWeather, recent, null);
-                var kinds = new HashSet<string>();
-                foreach (var v in presence) kinds.Add(v.Kind);
-                int harmony = Harmony.Read(recent, kinds.Count, Flora.BloomingSpecies(c.State)).Value;
-                var (have, need) = Seasons.Progress(goalId, c.State, harmony, kinds.Contains(Ecology.Butterfly));
-                int left = Seasons.Length - ((c.State.WorldRevision) % Seasons.Length);
-                // Three short rows (a narrow plaque that stays clear of the event card beside it).
-                rows.Add(c.UpcomingSeasonMet ? "<color=#cfe6dc>季節の願い</color>　叶った" : $"<color=#cfe6dc>季節の願い</color>　あと {left} 投");
-                rows.Add(c.UpcomingSeasonMet ? g.LabelJa : $"{g.LabelJa}　{Math.Min(have, need)}/{need}");
+                if (c.UpcomingSeasonMet) rows.Add($"<color=#cfe6dc>願い</color>　{g.LabelJa}　叶った"); // short: the plaque stays clear of the event card
+                else
+                {
+                    var recent = new List<string>(c.RolledRecipes);
+                    var presence = Ecology.Presence(c.State, c.CurrentWeather, recent, null);
+                    var kinds = new HashSet<string>();
+                    foreach (var v in presence) kinds.Add(v.Kind);
+                    int harmony = Harmony.Read(recent, kinds.Count, Flora.BloomingSpecies(c.State)).Value;
+                    var (have, need) = Seasons.Progress(goalId, c.State, harmony, kinds.Contains(Ecology.Butterfly));
+                    rows.Add($"<color=#cfe6dc>願い</color>　{g.LabelJa}　{Math.Min(have, need)}/{need}");
+                }
             }
-            var faces = c.RolledFaces;
-            int count = PrayerStar.CountLuckies(new List<int>(faces));
-            int last = faces.Count > 0 ? faces[faces.Count - 1] : 0;
-            int k = PrayerStar.FaceCompletingSeven(last);
-            string next = k > 0 ? $"・次は <color={Gold}>{k}</color>" : "";
-            rows.Add($"<color={Gold}>ラッキーナンバー</color> {count % PrayerStar.LuckiesForRainbow}/{PrayerStar.LuckiesForRainbow}{next}");
-            int luckyPlants = LuckyPlants(c.State);
-            if (luckyPlants > 0) rows.Add($"<color={Gold}>幸運の株</color> {luckyPlants}");
+            // The garden's lucky numbers toward the seventh, without words: seven dots, gold for each one so far.
+            int lit = PrayerStar.CountLuckies(new List<int>(c.RolledFaces)) % PrayerStar.LuckiesForRainbow;
+            rows.Add(LuckyDots(lit));
             return string.Join("\n", rows);
+        }
+
+        /// <summary>Seven dots: the first <paramref name="lit"/> in gold, the rest faint.</summary>
+        public static string LuckyDots(int lit)
+        {
+            lit = Math.Max(0, Math.Min(PrayerStar.LuckiesForRainbow, lit));
+            return $"<color={Gold}>{new string('●', lit)}</color><color=#5d6773>{new string('●', PrayerStar.LuckiesForRainbow - lit)}</color>";
         }
 
         /// <summary>Refreshes the standing line when the garden's revision or phase changed (not every frame).</summary>
         private void RefreshStanding()
         {
             if (_standingText == null || Coordinator == null || Coordinator.State == null) return;
+            if (_standingFrozenUntil > 0f && Time.time < _standingFrozenUntil) return;
             if (_ui == null) _ui = FindFirstObjectByType<GardenUi>();
             if (_standingGroup != null)
                 _standingGroup.alpha = Mathf.MoveTowards(_standingGroup.alpha, _ui != null && _ui.TitleCardOpen ? 0f : 1f, Time.deltaTime * 2.5f);
@@ -994,6 +1000,15 @@ namespace DestinyGarden.Presentation
             bool longShot = LuckySeven.WishEarnsSeventh(true, o.MatchingFaces, o.FaceCount);
             return longShot ? $"願い：叶った（{odds}）　・　次の回に七つめの面を足せる"
                 : $"願い：叶った（{odds}）";
+        }
+
+        /// <summary>The one word a roll may need: a season's wish came true, or (at a season's end) the garden's name.</summary>
+        private string MomentWord(RollOutcome o)
+        {
+            if (o == null) return null;
+            if (o.SeasonMetNow) return "季節の願いが叶った";
+            if (o.SeasonRollsLeft == 0 && Coordinator != null) return $"〈{CurrentName(Coordinator)}〉";
+            return null;
         }
 
         /// <summary>At each season's end (every 12 rolls): the garden's name and what its luck has brought so far.</summary>
@@ -1093,22 +1108,13 @@ namespace DestinyGarden.Presentation
         /// </summary>
         public static string[] LuckyLabelLines(PrayerStarReading star, int points, int faceId, int previousFaceId, int faceCount)
         {
-            int count = star != null ? star.LuckyCount : 0;
-            int k = count <= 0 ? 0 : (count % PrayerStar.LuckiesForRainbow == 0 ? PrayerStar.LuckiesForRainbow : count % PrayerStar.LuckiesForRainbow);
-            string progress = $"ラッキーナンバー {k}/{PrayerStar.LuckiesForRainbow}　・　七つそろうと八の虹";
+            // The event itself: the number, its name, and the two faces that made it (no explanation; the beads on the
+            // star's ring keep the count, the light on the plants shows the gift).
+            string faces = faceId == LuckySeven.FaceId ? "七の目" : previousFaceId > 0 ? $"{previousFaceId} ＋ {faceId}" : "";
             if (points >= 8)
-            {
-                if (star != null && star.SevenLuckies)
-                    return new[] { "8", "七つの幸運　・　八の虹", "ラッキーナンバーが七つそろった", $"この庭のラッキーナンバー {count} 回目" };
-                // prayer-star.v4: the eight is a lucky number met by an answered prayer (in a harmonious garden).
-                return new[] { "8", "八芒星　・　八の虹", "ラッキーナンバーに、叶った祈りと島の調和が重なった", progress };
-            }
+                return new[] { "8", star != null && star.SevenLuckies ? "七つの幸運" : "八の虹", faces, "" };
             bool dbl = star != null && star.LuckyStreak >= 2;
-            return new[]
-            {
-                "7", dbl ? "ダブル　ラッキーナンバー" : "ラッキーナンバー", LuckyOddsLine(faceId, previousFaceId, faceCount),
-                dbl ? progress + "　・　ふたつ続いて、七株が一段育つ" : progress
-            };
+            return new[] { "7", dbl ? "ダブル　ラッキーナンバー" : "ラッキーナンバー", faces, "" };
         }
 
         private void ShowLabel(int points, string[] lines, bool hold)
@@ -1123,6 +1129,8 @@ namespace DestinyGarden.Presentation
             if (font != null) foreach (var t in new[] { _labelSub, _labelCounter }) t.font = font;
             GardenType.MakeDisplay(_labelNumeral); // the large 7 / 8 in the display serif
             GardenType.MakeStrong(_labelTitle);    // ラッキーナンバー in the real SemiBold weight
+            GardenType.MakeStrong(_labelSub);      // the two faces that made it: 3 ＋ 4
+            _labelSub.fontSize = 28;
             _labelNumeral.text = lines[0];
             _labelTitle.text = lines[1];
             _labelSub.text = lines[2];
@@ -1131,8 +1139,12 @@ namespace DestinyGarden.Presentation
             _labelSub.color = new Color(0.92f, 0.95f, 0.93f, 0.9f);
             _labelCounter.color = new Color(1f, 0.88f, 0.62f, 0.92f);
             if (_labelBacking != null)
+            {
+                // A plate only when there are small lines to read; the number and the two faces stand on their own.
+                _labelBacking.gameObject.SetActive(!string.IsNullOrEmpty(lines[3]));
                 _labelBacking.rectTransform.sizeDelta = new Vector2(
                     Mathf.Min(1440f, Mathf.Max(_labelSub.preferredWidth, _labelCounter.preferredWidth) + 56f), 66f);
+            }
             if (_labelRoutine != null) StopCoroutine(_labelRoutine);
             _labelRoutine = StartCoroutine(FadeLabel(points, hold));
         }
@@ -1331,7 +1343,13 @@ namespace DestinyGarden.Presentation
         }
 
         private float _luckyGlowTimer;
-        private Vector3? _luckyTop;
+
+        // The standing plaque waits while a roll is under way, so its lucky dots light with the reveal, not before it.
+        private float _standingFrozenUntil = -1f;
+        private Vector3? _luckyTop; // the lucky plant of the roll being revealed
+
+        /// <summary>The reveal has reached the star: the plaque (and its lucky dots) may show this roll now.</summary>
+        private void LightBeads() { _standingFrozenUntil = -1f; _standingKey = null; }
 
         /// <summary>
         /// prayer-star.v4: the lucky plants (marked by a lucky number's gift) keep a soft golden light — the garden's
