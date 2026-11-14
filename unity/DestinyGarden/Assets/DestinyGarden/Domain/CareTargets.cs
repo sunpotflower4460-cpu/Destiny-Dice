@@ -1,21 +1,38 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Text;
 
 namespace DestinyGarden.Domain
 {
     public static class CareTargets
     {
+        private const string CellPrefix = "cell:";
+        public const string CellMode = "cell";
+
+        public static string CellSiteId(int cell) => CellPrefix + cell.ToString(CultureInfo.InvariantCulture);
+
+        public static bool TryCell(string siteId, out int cell)
+        {
+            cell = -1;
+            if (siteId == null || !siteId.StartsWith(CellPrefix, StringComparison.Ordinal) ||
+                !int.TryParse(siteId.Substring(CellPrefix.Length), NumberStyles.None, CultureInfo.InvariantCulture, out int id) ||
+                id >= GardenMapData.CellCount || GardenMapData.Plantable[id] != 1 || siteId != CellSiteId(id)) return false;
+            cell = id;
+            return true;
+        }
+
         public static int Anchor(PreparedFaces faces) => faces.AnchorCellId >= 0 ? faces.AnchorCellId : Sites.ById(faces.ResolvedSiteId).CenterCellId;
         public static string Name(string id)
         {
             if (id == null) return "";
+            if (TryCell(id, out int cell)) return Position(cell);
             if (id.StartsWith("habitat:", StringComparison.Ordinal) && int.TryParse(id.Substring(8), out int n) && n >= 0 && n < HabitatRules.Labels.Length)
                 return HabitatRules.Labels[n];
             foreach (var site in Sites.All) if (site.SiteId == id) return site.LabelJa;
             return id;
         }
-        public static string Position(int cell) => $"区画{cell % 16 + 1}-{cell / 16 + 1}";
+        public static string Position(int cell) => $"区画{cell % GardenMapData.Width + 1}-{cell / GardenMapData.Width + 1}";
         public static void ResolveHabitat(WorldState s, string label, PreparedFaces faces)
         {
             int index = Array.IndexOf(HabitatRules.Labels, label);
@@ -68,7 +85,8 @@ namespace DestinyGarden.Domain
         {
             if (!CareRules.Enabled(s) || faces == null) return "";
             int anchor = Anchor(faces); var sb = new StringBuilder("今回の面と届け先\n");
-            sb.AppendLine(Name(faces.ResolvedSiteId) + " / " + Position(anchor) + "（庭の輪郭が今回の中心）");
+            if (!TryCell(faces.ResolvedSiteId, out _)) sb.Append(Name(faces.ResolvedSiteId)).Append(" / ");
+            sb.AppendLine(Position(anchor) + "（庭の輪郭が今回の中心）");
             if (faces.TargetNote != null) sb.AppendLine(faces.TargetNote);
             var seen = new HashSet<string>();
             for (int face = 0; face < faces.Faces.Length; face++)

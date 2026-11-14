@@ -87,6 +87,7 @@ namespace DestinyGarden.Presentation
             Stretch(_luckyOfferGlow.rectTransform);
             _luckyOfferGlow.color = PaleGold;
             _luckyOffer.gameObject.SetActive(false);
+            BuildMagicDestination(parent);
         }
 
         private Transform BuildNavigation(Transform canvas)
@@ -148,14 +149,16 @@ namespace DestinyGarden.Presentation
 
             BuildWishPanel(panels);
             BuildDestinationPanel(panels);
-            _helpPanel = MakePanel(panels, new Vector2(780f, 415f));
+            BuildMomentReview(parent, panels);
+            _helpPanel = MakePanel(panels, new Vector2(780f, 450f));
             AddPanelHeader(_helpPanel, "遊び方");
             var help = MakeText(_helpPanel.transform, new Vector2(0f, 1f), new Vector2(38f, -108f),
-                new Vector2(704f, 260f), 24, TextAnchor.UpperLeft);
+                new Vector2(704f, 300f), 24, TextAnchor.UpperLeft);
             help.lineSpacing = 1.35f;
             help.text = "「サイコロを振る」で、水・風・光・種が庭に届きます。\n" +
                 "下の面を押すと、その面に願いがかかります。\n" +
-                "金の星は7になる面、二つの点はゾロ目になる面。\n" +
+                "前回と足して7なら金の星。同じ目が続けばゾロ目。\n" +
+                "「魔法の届け先」で庭を選ぶと、次の準備から届きます。\n" +
                 "ドラッグで見回し、ホイールや二本指で近づけます。\n" +
                 "48投ごとに「庭のしおり」が届きます。";
             _helpPanel.SetActive(false);
@@ -340,6 +343,7 @@ namespace DestinyGarden.Presentation
 
         private void ShowPanel(GameObject panel)
         {
+            if (_selectingPlot) SetPlotSelection(false);
             _activePanel = panel;
             _panelLayer.SetActive(panel != null);
             UpdateGardenControls();

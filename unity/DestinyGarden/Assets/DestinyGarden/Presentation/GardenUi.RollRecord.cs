@@ -244,9 +244,10 @@ namespace DestinyGarden.Presentation
             if (round?.FaceId == null) return;
             string headline = round.MomentHeadline ?? moment?.Headline ?? round.MessageText;
             _momentCard.gameObject.SetActive(true);
+            string fortune = round.FortuneReason?.Split('\n')[0];
             LayoutRollResult(round.FaceId.Value, round.RecipeId, round.LuckySeven,
                 RollRecord.WishComparison(round.IntentKind, round.IntentValue, round.IntentMatched),
-                round.PrayerText != null, round.LuckyNumber ? RollRecord.LuckyLabel(round.FaceId.Value, round.LuckySumFace) : null);
+                round.PrayerText != null, fortune);
             PaintMoment(round.RecipeId, round.LuckySeven, false, headline, moment?.Habitat);
         }
     }

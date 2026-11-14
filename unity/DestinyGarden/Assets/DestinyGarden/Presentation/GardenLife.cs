@@ -117,7 +117,7 @@ namespace DestinyGarden.Presentation
             for (int i = 0; i < count; i++)
             {
                 var rig = _models.MakeInsect(transform, insect, i);
-                rig.Root.localScale = Vector3.one * (0.94f + 0.07f * (i % 3));
+                rig.Root.localScale = Vector3.one * (0.72f + 0.05f * (i % 3));
                 if (insect == LifeModels.Insect.Hoverfly) rig.Root.localScale *= 0.64f;
                 var flier = new Flier { Rig = rig, Phase = i * 2.39996f + (int)insect * 0.7f };
                 if (insect == LifeModels.Insect.Firefly)
@@ -273,7 +273,7 @@ namespace DestinyGarden.Presentation
             for (int i = 0; i < fliers.Count; i++)
             {
                 var f = fliers[i];
-                bool present = spots.Count > 0;
+                bool present = i < spots.Count && i < (f.Lamp == null ? 2 : 3);
                 if (present && (!f.Root.gameObject.activeSelf || ReducedMotion))
                 {
                     f.Root.position = spots[i % spots.Count] + new Vector3(Mathf.Cos(f.Phase) * 0.24f, 0.18f, Mathf.Sin(f.Phase) * 0.24f);
@@ -320,38 +320,29 @@ namespace DestinyGarden.Presentation
         /// a few at a time so a busy roll stays quiet.
         /// </summary>
         public IEnumerator PlayGrowthMoments(RollOutcome o, GardenAudio audio)
+            => PlayGrowthMoments(o, audio, GardenMoments.First(GardenMoments.FromOutcome(o)));
+
+        internal IEnumerator PlayGrowthMoments(RollOutcome o, GardenAudio audio, GardenMoment focus)
         {
-            if (o == null || o.Simulation == null) yield break;
-            var events = new List<GardenEvent>(o.Simulation.Events);
-            if (o.Ecology != null) events.AddRange(o.Ecology.Events);
-            var post = o.Ecology != null ? o.Ecology.PostState : o.Simulation.PostState;
-            int blooms = 0, sprouts = 0;
-            foreach (var e in events)
+            if (focus?.Kind != "Bloomed" && focus?.Kind != "Germinated" && focus?.Kind != "seed-awakened") yield break;
+            var plant = (o?.Ecology?.PostState ?? o?.Simulation?.PostState)?.PlantAt(focus.CellId);
+            if (plant == null) yield break;
+            int species = Mathf.Max(0, DestinyGarden.Domain.Flora.IndexOf(plant.Species));
+            var at = View.PlantTip(plant);
+            _seedGlints.transform.position = at;
+            if (focus.Kind == "Bloomed")
             {
-                if (e.Kind == "Bloomed" && blooms < 4)
-                {
-                    blooms++;
-                    var plant = post.PlantAt(e.CellId);
-                    string sp = plant != null ? plant.Species : null;
-                    int idx = Mathf.Max(0, DestinyGarden.Domain.Flora.IndexOf(sp));
-                    var c = PlantForms.BloomColor(sp);
-                    if (audio != null) audio.PlayBloom(idx);
-                    var at = plant != null ? View.PlantTip(plant) : View.CellTop(e.CellId) + Vector3.up * 0.5f;
-                    _seedGlints.transform.position = at;
-                    _seedGlints.Emit(new ParticleSystem.EmitParams { startColor = new Color(c.r, c.g, c.b, 0.87f) }, 12);
-                    _petals.transform.position = at;
-                    _petals.Emit(new ParticleSystem.EmitParams { startColor = new Color(c.r, c.g, c.b, 0.83f) }, 6);
-                    yield return new WaitForSeconds(ReducedMotion ? 0.05f : 0.24f);
-                }
-                else if (e.Kind == "Germinated" && sprouts < 2)
-                {
-                    sprouts++;
-                    var plant = post.PlantAt(e.CellId);
-                    int idx = Mathf.Max(0, DestinyGarden.Domain.Flora.IndexOf(plant != null ? plant.Species : null));
-                    if (audio != null && blooms == 0) audio.PlaySprout(idx);
-                    _seedGlints.transform.position = plant != null ? View.PlantTip(plant) : View.CellTop(e.CellId) + Vector3.up * 0.2f;
-                    _seedGlints.Emit(new ParticleSystem.EmitParams { startColor = new Color(0.8f, 1f, 0.7f, 1f) }, 7);
-                }
+                audio?.PlayBloom(species);
+                if (ReducedMotion) yield break;
+                var c = PlantForms.BloomColor(plant.Species);
+                _seedGlints.Emit(new ParticleSystem.EmitParams { startColor = new Color(c.r, c.g, c.b, 0.87f) }, 12);
+                _petals.transform.position = at;
+                _petals.Emit(new ParticleSystem.EmitParams { startColor = new Color(c.r, c.g, c.b, 0.83f) }, 6);
+            }
+            else
+            {
+                audio?.PlaySprout(species);
+                if (!ReducedMotion) _seedGlints.Emit(new ParticleSystem.EmitParams { startColor = new Color(0.8f, 1f, 0.7f, 1f) }, 7);
             }
         }
 
@@ -589,6 +580,7 @@ namespace DestinyGarden.Presentation
             for (int i = 0; i < fliers.Count; i++)
             {
                 var f = fliers[i];
+                if (!f.Root.gameObject.activeSelf) continue;
                 if (!ReducedMotion)
                 {
                     float cycle = t * (bee ? 0.24f : dragonfly ? 0.37f : 0.13f) + i * 0.61f;

@@ -138,15 +138,14 @@ namespace DestinyGarden.Tests
         [Test]
         public void LuckyWords_AreGold_AndCountTowardSeven()
         {
-            // The label is the event itself: the number, its name, and the two faces that made it — no explanation.
             var seventh = DestinyGarden.Domain.PrayerStar.Read(4, 3, "water_drop", "seed_single", false, 0, -1, 6, 0);
             var lines = PrayerStarSigil.LuckyLabelLines(seventh, seventh.Points, 4, 3, 6);
-            CollectionAssert.AreEqual(new[] { "8", "七つの幸運", "3 ＋ 4", "" }, lines);
+            CollectionAssert.AreEqual(new[] { "8", "七つの幸運", "前回の3 ＋ 今回の4 ＝ 7", "願いをかけた投で、7つめの幸運が灯った" }, lines);
             var dbl = DestinyGarden.Domain.PrayerStar.Read(4, 3, "water_drop", "seed_single", false, 0, -1, 2, 1);
             lines = PrayerStarSigil.LuckyLabelLines(dbl, dbl.Points, 4, 3, 7);
-            CollectionAssert.AreEqual(new[] { "7", "ダブル　ラッキーナンバー", "3 ＋ 4", "" }, lines);
+            CollectionAssert.AreEqual(new[] { "7", "ダブル　ラッキーナンバー", "前回の3 ＋ 今回の4 ＝ 7", "" }, lines);
             var sevenFace = DestinyGarden.Domain.PrayerStar.Read(7, 2, "water_drop", "seed_single", false, 0);
-            Assert.AreEqual("七の目", PrayerStarSigil.LuckyLabelLines(sevenFace, sevenFace.Points, 7, 2, 7)[2]);
+            Assert.AreEqual("今回、七つめの面が出た", PrayerStarSigil.LuckyLabelLines(sevenFace, sevenFace.Points, 7, 2, 7)[2]);
         }
 
         [Test]

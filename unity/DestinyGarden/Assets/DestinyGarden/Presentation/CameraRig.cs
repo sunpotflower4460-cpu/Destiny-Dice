@@ -102,7 +102,7 @@ namespace DestinyGarden.Presentation
             try
             {
                 yield return Move(start, startRotation, near, nearRotation, 0.42f);
-                yield return new WaitForSecondsRealtime(0.72f);
+                yield return new WaitForSecondsRealtime(1.3f);
                 yield return Move(near, nearRotation, start, startRotation, 0.44f);
             }
             finally

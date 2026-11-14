@@ -220,6 +220,45 @@ namespace DestinyGarden.Presentation
             _focusRing.SetActive(false); _observationFocus = null;
         }
         private GameObject _careRing;
+        private MeshCollider _gardenGround;
+        private LineRenderer _queuedPlot;
+
+        internal int PickGardenPlot(Vector2 screenPosition)
+        {
+            if (_gardenGround == null || ViewCamera == null ||
+                !_gardenGround.Raycast(ViewCamera.ScreenPointToRay(screenPosition), out var hit, ViewCamera.farClipPlane)) return -1;
+            int nearest = -1;
+            float best = 0.8f * 0.8f;
+            var point = new Vector2(hit.point.x, hit.point.z);
+            for (int cell = 0; cell < GardenMapData.CellCount; cell++)
+            {
+                float distance = (IslandTerrain.Warp(cell) - point).sqrMagnitude;
+                if (distance >= best) continue;
+                best = distance;
+                nearest = cell;
+            }
+            return nearest >= 0 && GardenMapData.Plantable[nearest] == 1 ? nearest : -1;
+        }
+
+        internal void ShowQueuedPlot(int cell)
+        {
+            if (_queuedPlot == null && cell >= 0 && _focusRing != null)
+            {
+                var marker = new GameObject("Next magic destination");
+                marker.transform.SetParent(transform, false);
+                _queuedPlot = marker.AddComponent<LineRenderer>();
+                _queuedPlot.sharedMaterial = _focusRing.GetComponent<LineRenderer>().sharedMaterial;
+                _queuedPlot.useWorldSpace = false;
+                _queuedPlot.loop = true;
+                _queuedPlot.widthMultiplier = 0.035f;
+                _queuedPlot.startColor = _queuedPlot.endColor = new Color(1f, 0.78f, 0.39f);
+                _queuedPlot.positionCount = 4;
+                _queuedPlot.SetPositions(new[] { Vector3.left * 0.51f, Vector3.forward * 0.51f, Vector3.right * 0.51f, Vector3.back * 0.51f });
+            }
+            if (_queuedPlot == null) return;
+            _queuedPlot.gameObject.SetActive(cell >= 0);
+            if (cell >= 0) _queuedPlot.transform.position = CellTop(cell) + Vector3.up * 0.12f;
+        }
 
         public void ShowCareTarget(int cell)
         {
@@ -428,6 +467,8 @@ namespace DestinyGarden.Presentation
             var islandObj = new GameObject("Island");
             islandObj.transform.SetParent(transform);
             islandObj.AddComponent<MeshFilter>().sharedMesh = IslandTerrain.BuildMesh();
+            _gardenGround = islandObj.AddComponent<MeshCollider>();
+            _gardenGround.sharedMesh = islandObj.GetComponent<MeshFilter>().sharedMesh;
             var islandRenderer = islandObj.AddComponent<MeshRenderer>();
             var islandMat = Lit(shader, IslandTerrain.BakeColor(HousePlot), 0.12f);
             islandRenderer.material = islandMat;
