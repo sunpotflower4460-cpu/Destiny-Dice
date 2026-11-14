@@ -153,16 +153,19 @@ namespace DestinyGarden.Tests
             eco.Effects.Add(new DestinyGarden.Domain.EcologyEffect { Kind = DestinyGarden.Domain.Lifecycle.ReturnKind, CellId = 20 });
             StringAssert.EndsWith("花がひとつ土に還り、となりを養った", PrayerStarSigil.CauseLine(eco));
             eco.Effects.Add(new DestinyGarden.Domain.EcologyEffect { Kind = DestinyGarden.Domain.Lifecycle.FruitKind, CellId = 20, Seed = true });
-            StringAssert.EndsWith("蜂や蝶の訪れた花が土に還り、実りを落とした", PrayerStarSigil.CauseLine(eco));
+            StringAssert.EndsWith("受粉した花が土に還り、実りを落とした", PrayerStarSigil.CauseLine(eco));
             Assert.IsNull(PrayerStarSigil.CauseLine(new DestinyGarden.Domain.EcologyResult()), "no star, no line");
         }
 
         [Test]
         public void LuckyOdds_FollowTheFacesOnTheDie()
         {
-            Assert.AreEqual("前の目 3 と今の目 4 で七　・　偶然なら 1/6", PrayerStarSigil.LuckyOddsLine(4, 3, 6));
-            Assert.AreEqual("前の目 3 と今の目 4 で七　・　偶然なら 1/7", PrayerStarSigil.LuckyOddsLine(4, 3, 7), "a seventh face makes each face 1/7");
-            Assert.AreEqual("七の目　・　偶然なら 1/7", PrayerStarSigil.LuckyOddsLine(7, 2, 7));
+            // The chance of any lucky number this round: the face that makes seven, and the 7 on a seven-face die.
+            Assert.AreEqual("前の目 3 と今の目 4 で七　・　偶然なら 1/6（4 の目）", PrayerStarSigil.LuckyOddsLine(4, 3, 6));
+            Assert.AreEqual("前の目 3 と今の目 4 で七　・　偶然なら 2/7（4 と 7 の目）", PrayerStarSigil.LuckyOddsLine(4, 3, 7),
+                "a seventh face: two of seven faces are lucky");
+            Assert.AreEqual("七の目　・　偶然なら 2/7（5 と 7 の目）", PrayerStarSigil.LuckyOddsLine(7, 2, 7));
+            Assert.AreEqual("七の目　・　偶然なら 1/7（7 の目）", PrayerStarSigil.LuckyOddsLine(7, 7, 7), "after a seven only the 7 is lucky");
         }
 
         [Test]
@@ -182,7 +185,7 @@ namespace DestinyGarden.Tests
             lines = PrayerStarSigil.LuckyLabelLines(dbl, dbl.Points, 4, 3, 7);
             Assert.AreEqual("7", lines[0]);
             Assert.AreEqual("ダブル　ラッキーナンバー", lines[1]);
-            StringAssert.Contains("1/7", lines[2], "honest odds in a seven-face round");
+            StringAssert.Contains("2/7", lines[2], "honest odds in a seven-face round (the 4 and the 7)");
             StringAssert.StartsWith("ラッキーナンバー 3/7", lines[3]);
         }
 

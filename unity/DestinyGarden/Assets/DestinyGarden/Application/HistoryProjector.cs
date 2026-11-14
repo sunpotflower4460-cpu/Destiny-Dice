@@ -32,6 +32,8 @@ namespace DestinyGarden.Application
         public int Star;          // 0, 5, 7 or 8
         public int PrayerStar;    // 5..8, the star beneath the die (prayer-star.v1); 0 for older records
         public bool LuckyNumber;  // the prayer star reached the lucky number seven
+        /// <summary>The rainbow eight rose this roll: an eight-pointed star (rainbow.v3); older records keep their old rule.</summary>
+        public bool Rainbow => PrayerStar > 0 ? PrayerStar >= 8 : LuckySeven && Bloomed;
         public List<string> Germinated = new List<string>(); // species that took root this roll (ecology.v3)
     }
 

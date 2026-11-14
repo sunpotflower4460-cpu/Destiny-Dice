@@ -2415,3 +2415,52 @@ Git diff whitespace check: pass
 
 - Domain: PrayerStar.cs、Ecology.cs、Lifecycle.cs。Application/GardenCoordinator.cs。Presentation: PrayerStarSigil.cs、AudioSynth.cs、GardenAudio.cs。
 - Tests: PrayerStarTests.cs、SacredTonesTests.cs。docs/unity-garden/ECOLOGY.md §14、PROGRESS.md。
+
+## Jam 商品化に向けた総点検 — 記録の回復・再開の正しさ・保存失敗・表示の食い違い（lifecycle.v5）（2026-11-14）
+
+### 完了したこと
+
+- 本人の方向付け「商品化として完成する前提で、仕組みを中心に可能な限り全て見て、デバッグも含めて」（ECOLOGY.md §15）。
+  遊びの決まりは変えず、記録を失わない・二度引かない・見えたことと保存が食い違わないことを直した。
+- 記録（FileJournal）: 書きかけの最後の枠を `.torn-日時` へ、壊れた鎖の記録は全体を `.corrupt-日時` へ残してから、検証できたところまでで続ける
+  （以前は、その後に足した枠がすべて読めなくなった）。書き込み失敗時は自分の枠だけ取り下げる。数の読み取りを言語設定に依存させない。読めない枠で例外を出さない。
+- 再開: 準備の途中で終わった回を、保存済みの面の材料から同じ面で続けるか `PreparationInterrupted` で閉じる。
+  引いた後の保存失敗で庭・季節・数え上げを動かさず、もう一度振ると保存済みの材料から同じ結果（二度引かない）。
+  株の名前を回の名前から決め、再開しても同じ。振らずに交代した回は `AbandonedBeforeAcquisition`、閉じた run は再開しない。
+  七つめの面がない回の「7の目」の願いは叶う面のない願いとして数える。再開で例外が出ても起動できなくならない。
+- 決まりの食い違い（lifecycle.v5）: 同じ一投の生態の一歩で養われた株は「止まっていた」と数えない（光が降りた芽がその場で枯れない）。
+- 報いと季節の願い（lucky-seven.v2・season.v2）: 七つめの面の権利を2つまで貯める（重なると失われていた）。願いが七つめの面を呼ぶのは望みの薄い願い（1/3以下）だけ。
+  季節の願いを本来の調和の値と、始まりかけた群落から選び、進み具合を出す。枯れた理由を保存して一行で伝える。
+- 表示の追加: 画面左上の「季節の願い 2/3（あと 5 投）」「ラッキーナンバー 3/7・次は 4 の目」、願いの結果と確率、一年ごとのふりかえり、初めてのことへの一度だけのヒント。
+- 表示: ラッキーナンバーの「偶然なら」を、その回に当たりになる面の数で（七つめの面がある回は 2/7）。前の見せ方が残っていれば止めてから次を始める。
+  八芒星の虹色の線が薄くなるとき白線に置き換わるのを直した。星の回転を角速度で判定（低フレームレートで止まっていた）。動きを減らす設定で去る星の回転・拡大もしない。
+  星の言葉の画面を本体の UI の下に（タイトルや図鑑の上に出ない）。「UI を隠す」と撮影を本体の画面に正しく向けた（以前は最初に見つかった画面で、星の画面を選ぶことがあった）。
+  因果の一行の折り返し、前の投の状態の一行を残さない、受粉した花がないときの虹の一行を出さない、恵みの光の粒を全体の数で配る、毎フレームの割り当てを減らした。
+
+### 完了基準の結果（コマンド出力の要約）
+
+- Unity EditMode: `total="104" passed="104" failed="0"`（記録の回復4件・再開と保存失敗8件などを追加）。
+- 記録の負担（300投・1回の run）: 起動時の全検証 949 ms、プレイ中の1投ごと 読み取り 2.6 ms ＋ 履歴 13.9 ms。記録 5.6 MiB。
+- 連続1200投の耐久: 未解決 0・生態の偶然切れ 0・再開比較 49 回一致・1投 平均 6.2 ms（最悪 80 ms）。
+- 星（720投）: 五 25.7%、六 58.3%、七 11.0%、八 5.0%、虹の八 約20投に1回。長期プレイの種の面 0.05〜0.25/投。
+- `pnpm typecheck` 0、`pnpm test` 183 passed、`pnpm build` built。
+- 本来の庭の台帳の SHA-256 は d605e4eb… のまま。
+- WebGL ビルドをブラウザで実プレイ（14投・再読み込み1回）: ラッキーナンバー（5→2）の「7」と「偶然なら 1/6（2 の目）」「1/7」、
+  左上の2行、季節の願いが叶った回の七つめの面、再読み込み後の同じ庭と数え上げ、「UI を隠す」が星の言葉も隠すこと、
+  次の投で前の一行が消えることを確認。コンソールのエラー 0。
+
+### 要確定・申し送り
+
+- **main との統合が必要**: main（PR #31）に入っているこのブランチの作業は lifecycle.v2 の回まで。その後の5回（本回を含む）は
+  このブランチだけにあり、main の生態系の拡張（ecology.v5〜v8、約3,300行）と GardenCoordinator・Ecology・Flora・PrayerStarSigil・
+  GardenBootstrap・CommunityTests・ECOLOGY.md・PROGRESS.md で衝突する。統合は担当を決めてから行う。
+- 記録は1投あたり約 18 KiB（保存状態をまるごと持つ）。起動時の全検証は 300投で約 1 秒。run ごとの分割か差分化を、記録の形式の版を上げて検討する。
+- 縦長の画面での文字の大きさ（本体の UI と同じ幅基準の縮尺）。
+- 履歴の一覧（GardenUi.RefreshHistory、Codex 側）は、成立しなかった回を「0投目」と表示する（まれ: 振っている途中で終了した回）。表示の担当側で扱いを決める。
+- 生き物の一歩の「養われたら止まっていない」には専用のテストがない（耐久1200投・長期プレイのテストは通過）。
+
+### 触ったファイル
+
+- Domain: Ecology.cs、Lifecycle.cs、LuckySeven.cs、Season.cs、Community.cs、Flora.cs、PrayerStar.cs、SimpleJson.cs。Application: GardenCoordinator.cs、HistoryProjector.cs。Infrastructure/FileJournal.cs。
+- Presentation: PrayerStarSigil.cs、GardenBootstrap.cs（起動時の回復の報告・再開の例外・振るときの保存失敗・UI を隠す/撮影の対象・星の言葉の接続のみ）、GardenUi.cs（履歴の虹の印1行のみ）。
+- Tests: JournalRecoveryTests.cs・SoakTests.cs（新規）、ResumeTests.cs、SacredTonesTests.cs、SeasonTests.cs、LuckySevenTests.cs。docs/unity-garden/ECOLOGY.md §15、PROGRESS.md。

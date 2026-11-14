@@ -75,5 +75,47 @@ namespace DestinyGarden.Tests
             Assert.AreEqual(coord.SeasonMet, resumed.SeasonMet);
             Assert.AreEqual(coord.LuckySevenOffered, resumed.LuckySevenOffered);
         }
+
+        [Test]
+        public void LongShotWishes_EarnTheSeventhFace_LikelyOnesDoNot()
+        {
+            Assert.IsTrue(LuckySeven.WishEarnsSeventh(true, 1, 6), "a face: 1/6");
+            Assert.IsTrue(LuckySeven.WishEarnsSeventh(true, 2, 6), "a family with two faces: 1/3");
+            Assert.IsFalse(LuckySeven.WishEarnsSeventh(true, 3, 6), "a family with three faces: 1/2 is not a long shot");
+            Assert.IsFalse(LuckySeven.WishEarnsSeventh(true, 1, 7), "no chaining on a seven-face round");
+            Assert.IsFalse(LuckySeven.WishEarnsSeventh(false, 1, 6));
+        }
+
+        [Test]
+        public void UpcomingSeason_IsTheGoalTheNextRollUses_AndProgressCounts()
+        {
+            var coord = new GardenCoordinator(new Memory(), new FixedEntropy("upcoming"), new SequentialIds());
+            coord.CreateRun();
+            coord.Prepare();
+            for (int i = 0; i < 40; i++)
+            {
+                var (index, goal) = coord.UpcomingSeason();
+                coord.CommitIntent("none", null);
+                var o = coord.Roll();
+                coord.Prepare();
+                Assert.AreEqual(index, Seasons.IndexOf(o.Ecology.PostState.WorldRevision));
+                Assert.AreEqual(goal, o.SeasonGoalId, "the goal shown before a roll is the one the roll uses (roll " + i + ")");
+                var (have, need) = Seasons.Progress(o.SeasonGoalId, o.Ecology.PostState, o.Ecology.Harmony.Value, o.Ecology.Has(Ecology.Butterfly));
+                Assert.Greater(need, 0);
+                if (o.SeasonMetNow && o.SeasonGoalId != "butterfly") Assert.GreaterOrEqual(have, need, "met means the progress is full");
+            }
+        }
+
+        [Test]
+        public void MisfitReason_SaysWhyAPlaceNoLongerSuits()
+        {
+            var s = new WorldState();
+            int cell = -1;
+            for (int c = 0; c < GardenMapData.CellCount && cell < 0; c++)
+                if (GardenMapData.Plantable[c] == 1 && GardenMapData.SoilCapacity[c] > 0 && !Flora.IsRockShade(c)) cell = c;
+            Assert.AreEqual("dry", Flora.MisfitReason(Flora.Get("iris"), s, cell), "an iris on dry soil");
+            s.SoilWater[cell] = GardenMapData.SoilCapacity[cell];
+            Assert.AreEqual("wet", Flora.MisfitReason(Flora.Get("cosmos"), s, cell), "a cosmos on soaked soil");
+        }
     }
 }

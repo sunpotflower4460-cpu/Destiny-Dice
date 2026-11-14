@@ -25,6 +25,12 @@ namespace DestinyGarden.Application
         public bool SeasonMet;          // met at some roll of this season
         public bool SeasonMetNow;       // met by this roll (brings the seventh face to the next round)
         public int SeasonRollsLeft;     // rolls left in the season after this one
+        public string IntentKind = "none";   // the wish of this roll (none / face / family)
+        public int MatchingFaces;            // faces that would have answered it (its chance: MatchingFaces / FaceCount)
+        public bool EarnedSeventh;           // lucky-seven.v2: this roll earned the seventh face (a long-shot wish or the season's wish)
+        public int SeasonsMetCount;          // this run so far
+        public int RainbowCount;             // this run so far
+        public bool YearEnded;               // the fourth season ended with this roll (a year of 48 rolls)
     }
 
     /// <summary>
@@ -56,11 +62,23 @@ namespace DestinyGarden.Application
         public string LastIntentValue { get; private set; }
 
         // Lucky Seven: earned by a roll whose wish came true, offered on the next prepared round only.
-        private bool _luckyEarned;
+        // lucky-seven.v2: seventh faces earned (a long-shot wish come true, a season's wish met), one offered per
+        // round, at most two kept, so two earned in the same roll are not lost.
+        private int _luckyBank;
+
+        // A round whose preparation started but was never published (process ended): DATA_CONTRACT §3.
+        private string _openRoundId, _openCareMode, _openCareSite;
+        private int _openPeriod;
+        private byte[] _openMapping;
+        private void ClearOpenRound() { _openRoundId = null; _openMapping = null; _openCareMode = null; _openCareSite = null; }
+        private bool _pendingWishEarn;
+        public int SeasonsMetCount { get; private set; }   // season.v2: seasons whose wish came true, this run
+        public int RainbowCount { get; private set; }      // eight-pointed stars (rainbows) this run
         private string _restoreIntentKind, _restoreIntentValue;
         private readonly List<string> _rolledRecipes = new List<string>(); // oldest first, this run
         private readonly List<int> _rolledFaces = new List<int>();          // oldest first, this run (prayer star)
         public IReadOnlyList<string> RolledRecipes => _rolledRecipes;
+        public IReadOnlyList<int> RolledFaces => _rolledFaces;
         public int MatchingFaces { get; private set; }  // faces that would answer the committed wish
 
         // season.v1: the season's goal, chosen at its first roll and saved with every Resolved.
@@ -91,7 +109,23 @@ namespace DestinyGarden.Application
             _pendingOutcomeBytes = _pendingOracleBytes = _pendingEcologyBytes = null;
             _hasPendingOutcome = false;
             _pendingFaceId = 0; _pendingCardIndex = 0; _pendingRecipeId = null;
+            _pendingWishEarn = false;
         }
+
+        /// <summary>
+        /// season.v2: the season of the next roll and its goal, readable before that roll (the same choice the roll
+        /// will make: the goal of a new season is chosen from the garden as it is now).
+        /// </summary>
+        public (int index, string goalId) UpcomingSeason()
+        {
+            if (State == null) return (0, null);
+            int idx = Seasons.IndexOf(State.WorldRevision + 1);
+            if (idx == _seasonIndex && SeasonGoalId != null) return (idx, SeasonGoalId);
+            return (idx, Seasons.Pick(idx, State, _rolledRecipes, CurrentWeather).Id);
+        }
+
+        /// <summary>Whether the upcoming season's goal is already met in this season.</summary>
+        public bool UpcomingSeasonMet => State != null && Seasons.IndexOf(State.WorldRevision + 1) == _seasonIndex && SeasonMet;
         public bool LuckySevenOffered { get; private set; }
         public bool LuckySevenAdded => CurrentFaces != null && CurrentFaces.Faces.Length == LuckySeven.FaceId;
 
@@ -106,10 +140,11 @@ namespace DestinyGarden.Application
             State = WorldState.CreateInitial();
             PreferenceMode = "auto"; PreferenceSiteId = null;
             _weatherEntropyByPeriod.Clear();
-            _luckyEarned = false; LuckySevenOffered = false;
+            _luckyBank = 0; LuckySevenOffered = false; SeasonsMetCount = 0; RainbowCount = 0;
             _rolledRecipes.Clear();
             _rolledFaces.Clear();
             ClearPending();
+            ClearOpenRound();
             ResetIntent();
             ResetSeason();
             _writer.Append("RunStarted", RunId, null, new Dictionary<string, object>
@@ -150,6 +185,25 @@ namespace DestinyGarden.Application
             if (Phase != CoordinatorPhase.Ready && Phase != CoordinatorPhase.Resolved)
                 throw new InvalidOperationException("Prepare requires Ready/Resolved phase, was " + Phase);
             ClearPending();
+            if (_openRoundId != null)
+            {
+                // Resumed: a preparation whose mapping material was saved continues from it (no new entropy);
+                // one without it is closed as interrupted and a new round begins (DATA_CONTRACT §3).
+                string open = _openRoundId, openMode = _openCareMode, openSite = _openCareSite;
+                int openPeriod = _openPeriod;
+                byte[] openMapping = _openMapping;
+                ClearOpenRound();
+                if (openMapping != null && _weatherEntropyByPeriod.TryGetValue(openPeriod, out byte[] openWeather))
+                {
+                    CurrentRoundId = open;
+                    CurrentWeather = Weathers.All[(int)WeatherSelection.Select(openWeather, openPeriod)];
+                    return PublishFaces(open, openPeriod, Hashing.StateHash(State), openMapping, openMode, openSite);
+                }
+                _writer.Append("PreparationInterrupted", RunId, open, new Dictionary<string, object>
+                {
+                    ["reason"] = "process_ended_before_mapping"
+                });
+            }
             string roundId = _ids.NewId("round");
             CurrentRoundId = roundId;
             int periodIndex = State.WorldRevision / Weathers.RoundsPerEpisode;
@@ -184,9 +238,15 @@ namespace DestinyGarden.Application
                 ["bytesBase64"] = Convert.ToBase64String(mappingBytes),
                 ["source"] = _entropy.SourceName
             });
+            return PublishFaces(roundId, periodIndex, beforeHash, mappingBytes, PreferenceMode, PreferenceSiteId);
+        }
 
+        /// <summary>Generates the faces from saved mapping material and publishes them (Prepared).</summary>
+        private PreparedFaces PublishFaces(string roundId, int periodIndex, string beforeHash, byte[] mappingBytes,
+            string careMode, string careSite)
+        {
             var buffer = new EntropyBuffer(mappingBytes);
-            var faces = FaceGenerator.Generate(State, CurrentWeather, PreferenceMode, PreferenceSiteId, buffer);
+            var faces = FaceGenerator.Generate(State, CurrentWeather, careMode, careSite, buffer);
             if (faces == null)
             {
                 _writer.Append("PreparationInterrupted", RunId, roundId, new Dictionary<string, object>
@@ -198,8 +258,8 @@ namespace DestinyGarden.Application
                 return null;
             }
             CurrentFaces = faces;
-            LuckySevenOffered = _luckyEarned;
-            _luckyEarned = false;
+            LuckySevenOffered = _luckyBank > 0;
+            if (LuckySevenOffered) _luckyBank--;
 
             var faceList = new List<object>();
             foreach (string f in faces.Faces) faceList.Add(f);
@@ -250,7 +310,11 @@ namespace DestinyGarden.Application
             if (LastIntentKind == "family" && value != null)
                 foreach (string f in CurrentFaces.Faces)
                     if (RecipeCatalog.ElementOf(f).ToString().ToLowerInvariant() == value) matchFaces++;
-            if (LastIntentKind == "face" && value != null) matchFaces = 1;
+            // A face wish counts only for a face on this die (a 7 kept from a seven-face round cannot come true now).
+            if (LastIntentKind == "face" && value != null &&
+                int.TryParse(value, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out int wishFace) &&
+                wishFace >= 1 && wishFace <= CurrentFaces.Faces.Length)
+                matchFaces = 1;
             MatchingFaces = matchFaces;
             _writer.Append("IntentCommitted", RunId, CurrentRoundId, new Dictionary<string, object>
             {
@@ -292,6 +356,7 @@ namespace DestinyGarden.Application
                 {
                     ["entropySource"] = _entropy.SourceName
                 });
+                _pendingAcquisition = true;
                 outcomeBytes = _entropy.GetBytes(32);
                 oracleBytes = _entropy.GetBytes(32);
                 ecologyBytes = _entropy.GetBytes(64);
@@ -302,6 +367,8 @@ namespace DestinyGarden.Application
                     ["ecologyBase64"] = Convert.ToBase64String(ecologyBytes),
                     ["source"] = _entropy.SourceName
                 });
+                // Saved: if anything below fails, a retry interprets this material instead of drawing again.
+                _pendingOutcomeBytes = outcomeBytes; _pendingOracleBytes = oracleBytes; _pendingEcologyBytes = ecologyBytes;
             }
 
             int faceCount = CurrentFaces.Faces.Length;
@@ -332,6 +399,7 @@ namespace DestinyGarden.Application
             bool luckyRolled = faceCount == LuckySeven.FaceId && faceId == LuckySeven.FaceId;
 
             if (!_hasPendingOutcome)
+            {
                 _writer.Append("OutcomeCommitted", RunId, roundId, new Dictionary<string, object>
                 {
                     ["faceId"] = faceId,
@@ -341,7 +409,8 @@ namespace DestinyGarden.Application
                     ["faceCount"] = faceCount,
                     ["luckySeven"] = luckyRolled
                 });
-            ClearPending();
+                _hasPendingOutcome = true; _pendingFaceId = faceId; _pendingRecipeId = recipeId; _pendingCardIndex = cardIndex;
+            }
 
             int anchor = Sites.ById(CurrentFaces.ResolvedSiteId).CenterCellId;
             var resolvedRecipe = luckyRolled
@@ -349,7 +418,7 @@ namespace DestinyGarden.Application
                 : RecipeResolver.Resolve(recipeId, anchor, State);
             int seedCounter = 0;
             var sim = Simulation.Resolve(State, resolvedRecipe, CurrentWeather,
-                n => _ids.NewId("plant") + "-" + (seedCounter++), roundId);
+                n => roundId + "-s" + (seedCounter++), roundId);
             if (sim.WaterBalanceResidual != 0)
                 throw new InvalidOperationException("Water balance residual must be 0, was " + sim.WaterBalanceResidual);
 
@@ -376,28 +445,26 @@ namespace DestinyGarden.Application
                 LuckyStreakBefore = PrayerStar.TrailingStreak(_rolledFaces),
                 SpiritCount = matched ? Math.Min(PrayerSpirits.MaxSpirits,
                     (faceCount + Math.Max(1, MatchingFaces) - 1) / Math.Max(1, MatchingFaces)) : 0
-            }, ecologyBytes, n => _ids.NewId("plant") + "-eco" + n);
+            }, ecologyBytes, n => roundId + "-e" + n);
 
             // season.v1: a new season's goal is chosen from the garden before its first roll; meeting it in the
             // season (once) brings the seventh face to the next round.
+            // (Computed here, committed to the coordinator only after Resolved is saved.)
             int revision = eco.PostState.WorldRevision;
             int season = Seasons.IndexOf(revision);
-            if (season != _seasonIndex)
-            {
-                _seasonIndex = season;
-                SeasonGoalId = Seasons.Pick(season, State, _rolledRecipes, CurrentWeather).Id;
-                SeasonMet = false;
-            }
-            bool seasonMetNow = !SeasonMet && Seasons.IsMet(SeasonGoalId, eco.PostState, eco.Communities,
+            bool newSeason = season != _seasonIndex;
+            string seasonGoal = newSeason ? Seasons.Pick(season, State, _rolledRecipes, CurrentWeather).Id : SeasonGoalId;
+            bool metBefore = !newSeason && SeasonMet;
+            bool seasonMetNow = !metBefore && Seasons.IsMet(seasonGoal, eco.PostState, eco.Communities,
                 eco.Harmony != null ? eco.Harmony.Value : 0, eco.Has(DestinyGarden.Domain.Ecology.Butterfly));
-            if (seasonMetNow) SeasonMet = true;
+            bool seasonMet = metBefore || seasonMetNow;
             var ecologyPayload = DestinyGarden.Domain.Ecology.ToPayload(eco);
             ecologyPayload["season"] = new Dictionary<string, object>
             {
                 ["rulesVersion"] = Seasons.RulesVersion,
                 ["index"] = (long)season,
-                ["goal"] = SeasonGoalId,
-                ["met"] = SeasonMet,
+                ["goal"] = seasonGoal,
+                ["met"] = seasonMet,
                 ["metNow"] = seasonMetNow
             };
 
@@ -416,12 +483,12 @@ namespace DestinyGarden.Application
                     ["kind"] = e.Kind, ["plantId"] = e.PlantId, ["cellId"] = e.CellId, ["tick"] = e.Tick
                 });
             }
-            State = eco.PostState;
-            string afterHash = Hashing.StateHash(State);
+            var post = eco.PostState;
+            string afterHash = Hashing.StateHash(post);
             _writer.Append("Resolved", RunId, roundId, new Dictionary<string, object>
             {
-                ["worldRevision"] = State.WorldRevision,
-                ["postState"] = WorldStateSerializer.ToPayload(State),
+                ["worldRevision"] = post.WorldRevision,
+                ["postState"] = WorldStateSerializer.ToPayload(post),
                 ["postStateHash"] = afterHash,
                 ["events"] = events,
                 ["diceWaterInjected"] = sim.DiceWaterInjected,
@@ -442,17 +509,29 @@ namespace DestinyGarden.Application
                 }
             });
 
+            // Saved: only now does the coordinator move on.
+            State = post;
+            ClearPending();
+            _seasonIndex = season; SeasonGoalId = seasonGoal; SeasonMet = seasonMet;
             _rolledRecipes.Add(recipeId);
             _rolledFaces.Add(faceId);
             _recentMessageIds.Add(message.TemplateId);
             while (_recentMessageIds.Count > 3) _recentMessageIds.RemoveAt(0);
             Phase = CoordinatorPhase.Resolved;
-            _luckyEarned = matched || seasonMetNow;
+            bool wishEarned = LuckySeven.WishEarnsSeventh(matched, MatchingFaces, faceCount);
+            if (wishEarned) _luckyBank++;
+            if (seasonMetNow) { _luckyBank++; SeasonsMetCount++; }
+            _luckyBank = Math.Min(LuckySeven.MaxBanked, _luckyBank);
+            if (eco.PrayerStar != null && eco.PrayerStar.Points >= 8) RainbowCount++;
             return new RollOutcome
             {
                 FaceId = faceId, FaceCount = faceCount, LuckySeven = luckyRolled, IntentMatched = matched,
                 SeasonGoalId = SeasonGoalId, SeasonMet = SeasonMet, SeasonMetNow = seasonMetNow,
                 SeasonRollsLeft = Seasons.RollsLeft(revision),
+                IntentKind = LastIntentKind, MatchingFaces = MatchingFaces,
+                EarnedSeventh = wishEarned || seasonMetNow,
+                SeasonsMetCount = SeasonsMetCount, RainbowCount = RainbowCount,
+                YearEnded = Seasons.RollsLeft(revision) == 0 && (season + 1) % 4 == 0,
                 Ecology = eco,
                 RecipeId = recipeId, CardIndex = cardIndex,
                 Simulation = sim, StateHashAfter = afterHash,
@@ -469,6 +548,22 @@ namespace DestinyGarden.Application
             // the saved material, or recorded as unresolved. A known outcome is never dropped for the switch.
             if (Phase == CoordinatorPhase.IntentCommitted && (_pendingOutcomeBytes != null || _pendingAcquisition))
                 Roll();
+            // A preparation resumed from an earlier session but never published is closed as interrupted.
+            if (RunId != null && _openRoundId != null)
+            {
+                _writer.Append("PreparationInterrupted", RunId, _openRoundId, new Dictionary<string, object>
+                {
+                    ["reason"] = "visitor_switch"
+                });
+                ClearOpenRound();
+            }
+            // A published round that never began acquisition is closed as abandoned (DATA_CONTRACT §3).
+            if (RunId != null && CurrentRoundId != null &&
+                (Phase == CoordinatorPhase.Prepared || Phase == CoordinatorPhase.IntentCommitted))
+                _writer.Append("AbandonedBeforeAcquisition", RunId, CurrentRoundId, new Dictionary<string, object>
+                {
+                    ["reason"] = "visitor_switch"
+                });
             if (RunId != null)
             {
                 _writer.Append("RunClosed", RunId, null, new Dictionary<string, object>
@@ -487,10 +582,11 @@ namespace DestinyGarden.Application
             if (!read.ChainValid) throw new InvalidOperationException("Journal chain invalid: " + read.Error);
             RunId = null; State = null; CurrentFaces = null; CurrentRoundId = null;
             Phase = CoordinatorPhase.NoRun;
-            _luckyEarned = false; LuckySevenOffered = false;
+            _luckyBank = 0; LuckySevenOffered = false; SeasonsMetCount = 0; RainbowCount = 0;
             _rolledRecipes.Clear();
             _rolledFaces.Clear();
             ClearPending();
+            ClearOpenRound();
             ResetSeason();
             _weatherEntropyByPeriod.Clear();
             _recentMessageIds.Clear();
@@ -506,13 +602,31 @@ namespace DestinyGarden.Application
                         State = WorldStateSerializer.FromPayload(
                             (Dictionary<string, object>)e.Payload["initialState"]);
                         PreferenceMode = "auto"; PreferenceSiteId = null;
-                        _luckyEarned = false; LuckySevenOffered = false;
+                        _luckyBank = 0; LuckySevenOffered = false; SeasonsMetCount = 0; RainbowCount = 0;
                         _rolledRecipes.Clear();
                         _rolledFaces.Clear();
                         ClearPending();
+                        ClearOpenRound();
                         ResetIntent();
                         ResetSeason();
                         Phase = CoordinatorPhase.Ready;
+                        break;
+                    case "PreparationStarted":
+                        _openRoundId = e.RoundId;
+                        _openMapping = null;
+                        _openCareMode = e.Payload.TryGetValue("careFocusMode", out object ocm) ? ocm as string : "auto";
+                        _openCareSite = e.Payload.TryGetValue("careFocusSiteId", out object ocs) ? ocs as string : null;
+                        _openPeriod = e.Payload.TryGetValue("weatherPeriodIndex", out object opi) ? WorldStateSerializer.ToInt(opi) : 0;
+                        break;
+                    case "MappingEntropyCommitted":
+                        if (e.RoundId != null && e.RoundId == _openRoundId)
+                            _openMapping = Convert.FromBase64String((string)e.Payload["bytesBase64"]);
+                        break;
+                    case "RunClosed":
+                        // The visitor's run is over: nothing of it continues (a new run follows, or will be created).
+                        ClearPending(); ClearOpenRound(); ResetIntent(); ResetSeason();
+                        RunId = null; State = null; CurrentFaces = null; CurrentRoundId = null;
+                        Phase = CoordinatorPhase.NoRun;
                         break;
                     case "CareFocusChanged":
                         PreferenceMode = (string)e.Payload["mode"];
@@ -537,7 +651,8 @@ namespace DestinyGarden.Application
                                 Faces = faces.ToArray()
                             };
                             LuckySevenOffered = e.Payload.TryGetValue("luckySevenOffered", out object lo) && lo is bool lb && lb;
-                            _luckyEarned = false;
+                            if (LuckySevenOffered && _luckyBank > 0) _luckyBank--;
+                            ClearOpenRound();
                             ClearPending();
                             Phase = CoordinatorPhase.Prepared;
                             break;
@@ -572,8 +687,10 @@ namespace DestinyGarden.Application
                         _pendingFaceId = WorldStateSerializer.ToInt(e.Payload["faceId"]);
                         _pendingRecipeId = e.Payload["recipeId"] as string;
                         _pendingCardIndex = e.Payload.TryGetValue("cardIndex", out object ci) ? WorldStateSerializer.ToInt(ci) : -1;
-                        _luckyEarned = LuckySeven.IntentMatched(_restoreIntentKind, _restoreIntentValue,
-                            WorldStateSerializer.ToInt(e.Payload["faceId"]), e.Payload["recipeId"] as string);
+                        _pendingWishEarn = LuckySeven.WishEarnsSeventh(
+                            LuckySeven.IntentMatched(_restoreIntentKind, _restoreIntentValue,
+                                WorldStateSerializer.ToInt(e.Payload["faceId"]), e.Payload["recipeId"] as string),
+                            MatchingFaces, e.Payload.TryGetValue("faceCount", out object fcv) ? WorldStateSerializer.ToInt(fcv) : 6);
                         break;
                     case "Resolved":
                         if (_hasPendingOutcome && _pendingRecipeId != null)
@@ -581,6 +698,8 @@ namespace DestinyGarden.Application
                             _rolledRecipes.Add(_pendingRecipeId);
                             _rolledFaces.Add(_pendingFaceId);
                         }
+                        if (_pendingWishEarn) _luckyBank++;
+                        _pendingWishEarn = false;
                         ClearPending();
                         State = WorldStateSerializer.FromPayload(
                             (Dictionary<string, object>)e.Payload["postState"]);
@@ -590,8 +709,13 @@ namespace DestinyGarden.Application
                             _seasonIndex = WorldStateSerializer.ToInt(sd["index"]);
                             SeasonGoalId = sd["goal"] as string;
                             SeasonMet = sd["met"] is bool smb && smb;
-                            if (sd["metNow"] is bool mnb && mnb) _luckyEarned = true;
+                            if (sd["metNow"] is bool mnb && mnb) { _luckyBank++; SeasonsMetCount++; }
                         }
+                        _luckyBank = Math.Min(LuckySeven.MaxBanked, _luckyBank);
+                        if (e.Payload.TryGetValue("ecology", out object ecoRec2) && ecoRec2 is IDictionary<string, object> ecoRec2D &&
+                            ecoRec2D.TryGetValue("prayerStar", out object psRec) && psRec is IDictionary<string, object> psd &&
+                            WorldStateSerializer.ToInt(psd["points"]) >= 8)
+                            RainbowCount++;
                         if (e.Payload.TryGetValue("selectedMessage", out object sm) &&
                             sm is Dictionary<string, object> smd && smd["templateId"] is string tid)
                         {
@@ -603,7 +727,9 @@ namespace DestinyGarden.Application
                         break;
                     case "PreparationInterrupted":
                     case "InterruptedUnresolved":
+                    case "AbandonedBeforeAcquisition":
                         ClearPending();
+                        if (e.RoundId == _openRoundId) ClearOpenRound();
                         CurrentFaces = null; CurrentRoundId = null;
                         Phase = CoordinatorPhase.Ready;
                         break;

@@ -17,6 +17,7 @@ namespace DestinyGarden.Domain
         public bool Seed;
         public string Species;  // for "germinate": the species the plant became (ecology.v3)
         public bool Softened;   // for "germinate": only possible because softening made room
+        public string Reason;   // for "wither" (lifecycle.v4): why its place no longer suited it (dry, wet, hard, drain, light)
     }
 
     public sealed class EcologyResult
@@ -411,11 +412,15 @@ namespace DestinyGarden.Domain
             }
 
             // 16. Plants in a place that suits them thrive a little (+4). lifecycle.v3: a suited plant the
-            // simulation did not move (too dry for growth) puts down roots and grows slowly (+40), seeds included;
+            // simulation did not move (too dry for growth) puts down roots and grows slowly (+30), seeds included;
             // a plant whose place no longer suits it and that did not grow counts idle rolls toward withering.
             var suited = new List<int>();
             var rooting = new List<int>();
             bool cycle = ctx.FaceId > 0;
+            // A plant fed earlier in this step (spirits, pollinators, seeds' first growth) was not idle this roll:
+            // it never withers in the roll that fed it.
+            var fedEarlier = new HashSet<int>();
+            foreach (var e in r.Effects) if (!e.Seed && e.Amount > 0) fedEarlier.Add(e.CellId);
             foreach (var p in s.Plants)
             {
                 var t = Flora.Get(p.Species);
@@ -428,7 +433,7 @@ namespace DestinyGarden.Domain
                     if (cycle && !grew) rooting.Add(p.CellId);
                     else if (p.Stage != PlantStage.Seed) suited.Add(p.CellId);
                 }
-                else p.IdleRolls = cycle && !grew ? p.IdleRolls + 1 : 0;
+                else p.IdleRolls = cycle && !grew && !fedEarlier.Contains(p.CellId) ? p.IdleRolls + 1 : 0;
             }
             suited.Sort();
             rooting.Sort();
@@ -440,7 +445,11 @@ namespace DestinyGarden.Domain
             if (cycle)
                 foreach (var gone in Lifecycle.Wither(s))
                 {
-                    r.Effects.Add(new EcologyEffect { Kind = Lifecycle.WitherKind, CellId = gone.CellId, Species = gone.Species });
+                    r.Effects.Add(new EcologyEffect
+                    {
+                        Kind = Lifecycle.WitherKind, CellId = gone.CellId, Species = gone.Species,
+                        Reason = Flora.MisfitReason(Flora.Get(gone.Species), s, gone.CellId)
+                    });
                     r.Events.Add(new GardenEvent { Kind = Lifecycle.WitheredEvent, PlantId = gone.PlantId, CellId = gone.CellId, Tick = 40 });
                 }
 
@@ -542,6 +551,8 @@ namespace DestinyGarden.Domain
                 }
             }
 
+            // A plant that opened into a flower this roll no longer counts idle rolls (only non-flowers can wither).
+            foreach (var p in s.Plants) if (p.Stage == PlantStage.Flower) p.IdleRolls = 0;
             r.Communities = DestinyGarden.Domain.Communities.Find(s);
             r.Events.AddRange(stageEvents.Events);
             return r;
@@ -592,6 +603,7 @@ namespace DestinyGarden.Domain
                     ["kind"] = e.Kind, ["cellId"] = (long)e.CellId, ["amount"] = (long)e.Amount, ["seed"] = e.Seed
                 };
                 if (e.Species != null) { d["species"] = e.Species; d["softened"] = e.Softened; }
+                if (e.Reason != null) d["reason"] = e.Reason;
                 effects.Add(d);
             }
             var payload = new Dictionary<string, object>

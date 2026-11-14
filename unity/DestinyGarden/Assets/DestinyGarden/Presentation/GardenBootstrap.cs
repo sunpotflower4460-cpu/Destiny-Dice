@@ -42,14 +42,25 @@ namespace DestinyGarden.Presentation
             string journalPath = Path.Combine(UnityEngine.Application.persistentDataPath,
                 "destiny-garden", "journal.v1.bin");
             _journal = new FileJournal(journalPath, new SystemClock());
+            if (_journal.Recovery != null) Debug.LogWarning("Destiny Garden journal recovered: " + _journal.Recovery);
             _coordinator = new GardenCoordinator(_journal, new LocalEntropy(), new GuidIdSource());
 
             var read = _journal.ReadAll();
             bool restored = false;
             if (read.ChainValid && read.Entries.Count > 0)
             {
-                _coordinator.Restore(read);
-                restored = _coordinator.State != null;
+                try
+                {
+                    _coordinator.Restore(read);
+                    restored = _coordinator.State != null;
+                }
+                catch (Exception ex)
+                {
+                    // A record this version cannot rebuild never stops the game: the journal is kept as it is
+                    // and a new garden begins after it.
+                    Debug.LogException(ex);
+                    _coordinator = new GardenCoordinator(_journal, new LocalEntropy(), new GuidIdSource());
+                }
             }
             if (!restored) _coordinator.CreateRun();
             if (_coordinator.Phase == CoordinatorPhase.Ready || _coordinator.Phase == CoordinatorPhase.Resolved)
@@ -89,6 +100,7 @@ namespace DestinyGarden.Presentation
             _sigil = gameObject.AddComponent<PrayerStarSigil>();
             _sigil.View = _view;
             _sigil.Audio = _audio;
+            _sigil.Coordinator = _coordinator;
             _sigil.Build();
             _sigil.ShowSaved(HistoryProjector.Project(_journal.ReadAll().Entries, _coordinator.RunId));
             _ui = gameObject.AddComponent<GardenUi>();
@@ -267,7 +279,7 @@ namespace DestinyGarden.Presentation
             if (eco == null) return null;
             bool Seeded(string kind) => eco.Effects.Exists(e => e.Seed && e.Kind == kind);
             bool Fed(string kind) => eco.Effects.Exists(e => !e.Seed && e.Kind == kind && e.Amount > 0);
-            if (Fed(Ecology.Spirit)) return "……かすかな光が、花のほうへ降りていった。";
+            if (Fed(Ecology.Spirit)) return "……かすかな光が、若い芽のほうへ降りていった。";
             // Relationships of this roll, only as they happened (ecology.v3).
             foreach (var g in eco.Effects)
             {
@@ -351,7 +363,8 @@ namespace DestinyGarden.Presentation
             yield return new WaitForEndOfFrame();
             // RenderTexture capture works headless where ScreenCapture does not.
             var cam = Camera.main;
-            var canvas = FindFirstObjectByType<UnityEngine.Canvas>();
+            // The main UI's own canvas (the prayer star has canvases of its own; "the first canvas" could be one of them).
+            var canvas = _ui != null ? _ui.GetComponentInChildren<UnityEngine.Canvas>(true) : FindFirstObjectByType<UnityEngine.Canvas>();
             if (canvas != null && _captureNoUi) canvas.enabled = false;
             if (canvas != null)
             {
@@ -407,8 +420,19 @@ namespace DestinyGarden.Presentation
             if (_coordinator.Phase != CoordinatorPhase.IntentCommitted) yield break;
             _busy = true;
             _ui.SetRollEnabled(false);
+            _sigil.BeginRoll();
 
-            var outcome = _coordinator.Roll();
+            RollOutcome outcome;
+            try { outcome = _coordinator.Roll(); }
+            catch (Exception ex)
+            {
+                // Nothing is drawn again: what was saved stays, and the next roll continues from it.
+                Debug.LogException(ex);
+                _ui.ShowStatus("記録を書けませんでした。もう一度振ると、保存済みの結果から続きます。");
+                _busy = false;
+                _ui.SetRollEnabled(true);
+                yield break;
+            }
             if (outcome == null)
             {
                 _ui.ShowStatus("この回は成立しませんでした。記録は欠測のまま残ります。");
@@ -438,7 +462,7 @@ namespace DestinyGarden.Presentation
             _ui.ShowMessage(outcome.Message, outcome);
             RefreshAll(outcome.FaceId);
             _view.SetLuckyDice(outcome.LuckySeven);
-            StartCoroutine(_sigil.PlayReveal(outcome, _coordinator.State));
+            _sigil.Reveal(outcome, _coordinator.State);
             bool rainbow = PrayerStar.IsRainbow(outcome.LuckySeven, outcome.Simulation, outcome.Ecology);
             if (rainbow) { StartCoroutine(_wonders.PlayRainbowEight()); _audio.PlayRainbow(); }
             StartCoroutine(_life.PlayGrowthMoments(outcome, _audio));
@@ -470,6 +494,7 @@ namespace DestinyGarden.Presentation
                 : EcologyLine(outcome);
             if (luckStatus != null) _ui.ShowStatus(luckStatus);
             else if (_coordinator.LuckySevenOffered) _ui.ShowStatus("七つめの面が、そっと現れている。");
+            else _ui.ShowStatus(null); // a line from an earlier roll never stands for this one
             string weather = _coordinator.CurrentWeather.LabelJa;
             string site = Sites.ById(_coordinator.CurrentFaces.ResolvedSiteId).LabelJa;
             _ui.ShowHeader(weather, site, _coordinator.State.WorldRevision);
@@ -480,11 +505,13 @@ namespace DestinyGarden.Presentation
 
         private IEnumerator HideUiTemporarily()
         {
-            var canvas = FindFirstObjectByType<Canvas>();
-            if (canvas == null) yield break;
-            canvas.enabled = false;
+            // Every overlay (the main UI and the prayer star's words), and only those that were showing.
+            var hidden = new List<Canvas>();
+            foreach (var c in FindObjectsByType<Canvas>(FindObjectsSortMode.None))
+                if (c.enabled && c.isRootCanvas) { c.enabled = false; hidden.Add(c); }
+            if (hidden.Count == 0) yield break;
             yield return new WaitForSeconds(4f);
-            canvas.enabled = true;
+            foreach (var c in hidden) if (c != null) c.enabled = true;
         }
 
         private void ExportNow()

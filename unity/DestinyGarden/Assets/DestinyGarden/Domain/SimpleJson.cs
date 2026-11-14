@@ -105,10 +105,12 @@ namespace DestinyGarden.Domain
         {
             int start = _i;
             if (_s[_i] == '-') _i++;
-            while (_i < _s.Length && char.IsDigit(_s[_i])) _i++;
+            // ASCII digits only, parsed the same on every device language (not char.IsDigit / current culture).
+            while (_i < _s.Length && _s[_i] >= '0' && _s[_i] <= '9') _i++;
             string text = _s.Substring(start, _i - start);
             if (text.Length == 0 || text == "-") throw new FormatException("Bad number at " + start);
-            return long.Parse(text);
+            return long.Parse(text, System.Globalization.NumberStyles.AllowLeadingSign,
+                System.Globalization.CultureInfo.InvariantCulture);
         }
 
         private void Expect(string literal)

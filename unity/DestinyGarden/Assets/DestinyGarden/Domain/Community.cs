@@ -94,6 +94,41 @@ namespace DestinyGarden.Domain
             return result;
         }
 
+        /// <summary>The largest group of flowers of this kind joined side by side (0 when none).</summary>
+        public static int LargestCluster(WorldState s, ElementId e)
+        {
+            int best = 0;
+            var cells = new List<int>();
+            foreach (var p in s.Plants) if (IsMember(p, e)) cells.Add(p.CellId);
+            var seen = new HashSet<int>();
+            foreach (int start in cells)
+            {
+                if (seen.Contains(start)) continue;
+                int size = 0;
+                var stack = new Stack<int>();
+                stack.Push(start); seen.Add(start);
+                while (stack.Count > 0)
+                {
+                    int c = stack.Pop(); size++;
+                    foreach (int o in cells) if (!seen.Contains(o) && Dist(c, o) <= Reach) { seen.Add(o); stack.Push(o); }
+                }
+                best = Math.Max(best, size);
+            }
+            return best;
+        }
+
+        /// <summary>Whether a community of this kind can begin soon: two neighbouring plants of its kind in bud or flower.</summary>
+        public static bool CanBegin(WorldState s, ElementId e)
+        {
+            var cells = new List<int>();
+            foreach (var p in s.Plants)
+                if ((p.Stage == PlantStage.Bud || p.Stage == PlantStage.Flower) && Belongs(Flora.Get(p.Species), e)) cells.Add(p.CellId);
+            for (int i = 0; i < cells.Count; i++)
+                for (int j = i + 1; j < cells.Count; j++)
+                    if (Dist(cells[i], cells[j]) <= Reach) return true;
+            return false;
+        }
+
         /// <summary>Plants that grow when a community answers: its members not in flower, and non-flowering plants next to it.</summary>
         public static List<int> AnswerCells(WorldState s, Community c)
         {

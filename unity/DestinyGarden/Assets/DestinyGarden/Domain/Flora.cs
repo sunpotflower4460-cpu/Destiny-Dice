@@ -135,6 +135,21 @@ namespace DestinyGarden.Domain
             return true;
         }
 
+        /// <summary>Why a species no longer suits a place: "dry", "wet", "hard", "drain" or "light" (null when it suits).</summary>
+        public static string MisfitReason(SpeciesTraits t, WorldState s, int c)
+        {
+            if (t == null) return null;
+            int m = Moisture(s, c);
+            if (m < t.MoistMin) return "dry";
+            if (m > t.MoistMax) return "wet";
+            if (Hardness(s, c) > t.MaxHardness) return "hard";
+            int d = Drainage(s, c);
+            if (d < t.DrainMin || d > t.DrainMax) return "drain";
+            bool shade = IsRockShade(c);
+            if ((t.Light == 0 && shade) || (t.Light == 2 && !shade)) return "light";
+            return null;
+        }
+
         public static List<SpeciesTraits> FittingAt(WorldState s, int c)
         {
             var list = new List<SpeciesTraits>();

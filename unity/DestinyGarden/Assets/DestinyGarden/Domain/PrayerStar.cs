@@ -41,7 +41,7 @@ namespace DestinyGarden.Domain
     /// </summary>
     public static class PrayerStar
     {
-        public const string RulesVersion = "prayer-star.v2";
+        public const string RulesVersion = "prayer-star.v3";   // v3 (lucky.v1): seven luckies, double lucky
         public const string GiftKind = "star";          // EcologyEffect.Kind for the star's gift
         public const int LuckySum = 7;
         public const int OctagramHarmony = 7;

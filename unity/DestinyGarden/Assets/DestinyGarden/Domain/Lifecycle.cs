@@ -7,13 +7,14 @@ namespace DestinyGarden.Domain
     /// The cycle of the garden (lifecycle.v1, docs/unity-garden/ECOLOGY.md §9). A flower counts the rolls it
     /// has been in bloom; when it reaches its species' span it bears its seed and returns to the soil, which
     /// frees its place and feeds the plants beside it. At most one returns in a roll, the longest past their
-    /// span first. A flower that bees or butterflies visited while in bloom (lifecycle.v2) lets its seed fall on open
-    /// ground nearby as it returns; an unvisited one leaves only its nourishment. Water is never moved. Without it a garden fills up after about sixty
+    /// span first. A flower that bees or butterflies visited while in bloom (lifecycle.v2) leaves its seed in its own
+    /// place as it returns, one time in two (lifecycle.v4); an unvisited one leaves only its nourishment. Water is never moved. Without it a garden fills up after about sixty
     /// rolls and the dice can no longer change it.
     /// </summary>
     public static class Lifecycle
     {
-        public const string RulesVersion = "lifecycle.v4";
+        // v5 (2026-11-14): a plant fed earlier in the same ecology step is not counted idle (never withers the roll it was fed).
+        public const string RulesVersion = "lifecycle.v5";
         public const int SeedSetOneIn = 2;           // lifecycle.v4: a pollinated flower sets viable seed 1 time in 2
         public const string RootKind = "root";       // EcologyEffect.Kind: a suited plant the weather did not move puts down roots
         public const string WitherKind = "wither";   // EcologyEffect.Kind: a plant that no longer suits its place withered
