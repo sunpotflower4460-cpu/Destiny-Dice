@@ -3321,3 +3321,7 @@ Unity metadata: 76 C# files have meta; 103 unique GUIDs
 - 出来事の札・下の一行（「しずくの一投。」など）・庭の気配の欄は Codex の画面。さらに減らすなら Codex 側で扱う。
 - 使わなくなった文の関数（CauseLine・WishLine・HintLine など）はテストとともに残している。観察の画面で使うか、消すかは次で決める。
 
+## Garden: PR #42 の統合 (2026-11-14)
+
+- ラッキーナンバーの点と庭名の表示テストを Unity 専用の PresentationTests へ移動。幸運の株の記録・復帰と八の成立条件は .NET の生態テストで引き続き検証する。
+- ローカルで .NET の生態・台帳テスト 280 件、Unity EditMode の該当テスト 4 件、TypeScript の型チェック・テスト 183 件・ビルドが成功。

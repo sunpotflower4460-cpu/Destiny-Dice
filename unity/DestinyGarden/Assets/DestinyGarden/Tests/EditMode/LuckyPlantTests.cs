@@ -2,12 +2,11 @@ using System.Collections.Generic;
 using System.Linq;
 using DestinyGarden.Application;
 using DestinyGarden.Domain;
-using DestinyGarden.Presentation;
 using NUnit.Framework;
 
 namespace DestinyGarden.Tests
 {
-    /// <summary>prayer-star.v4: lucky numbers leave their mark (lucky plants); the eight is luck met by prayer; the garden's name.</summary>
+    /// <summary>prayer-star.v4: lucky plants and the rules of the eight.</summary>
     public class LuckyPlantTests
     {
         private sealed class Memory : IJournalWriter
@@ -62,7 +61,7 @@ namespace DestinyGarden.Tests
             restored.Restore(new JournalReadResult { ChainValid = true, Entries = journal.Entries });
             Assert.AreEqual(Hashing.StateHash(coord.State), Hashing.StateHash(restored.State));
             Assert.AreEqual(Marks(coord.State), Marks(restored.State));
-            TestContext.WriteLine($"lucky={lucky} marked={marked} luckyPlantsNow={PrayerStarSigil.LuckyPlants(coord.State)}");
+            TestContext.WriteLine($"lucky={lucky} marked={marked} luckyPlantsNow={coord.State.Plants.Count(p => p.LuckyMarks > 0)}");
         }
 
         [Test]
@@ -76,35 +75,6 @@ namespace DestinyGarden.Tests
             // The seventh lucky number is always the eight.
             Assert.AreEqual(8, PrayerStar.Read(4, 3, "water_drop", "seed_single", false, 0, -1, 6, 0).Points);
             Assert.AreEqual("prayer-star.v4", PrayerStar.RulesVersion);
-        }
-
-        [Test]
-        public void LuckyDots_ShowTheCountWithoutWords()
-        {
-            string dots = PrayerStarSigil.LuckyDots(3);
-            StringAssert.Contains("●●●</color>", dots);
-            Assert.AreEqual(7, dots.Split('●').Length - 1, "always seven dots");
-            string visible = System.Text.RegularExpressions.Regex.Replace(dots, "<[^>]+>", "");
-            Assert.AreEqual(new string('●', 7), visible, "no words, no numbers: only the dots are seen");
-            Assert.AreEqual(7, PrayerStarSigil.LuckyDots(9).Split('●').Length - 1);
-        }
-
-        [Test]
-        public void GardenName_FollowsWhatTheGardenBecame()
-        {
-            var s = new WorldState();
-            Assert.AreEqual("まだ名前のない庭", GardenKeepsake.Name(s, null, 0, 0));
-            s.Plants.Add(new PlantState { PlantId = "a", CellId = 40, Species = "cosmos", Stage = PlantStage.Flower });
-            s.Plants.Add(new PlantState { PlantId = "b", CellId = 41, Species = "daisy", Stage = PlantStage.Leaf });
-            string flower = Flora.Get("cosmos").LabelJa;
-            Assert.AreEqual(flower + "の庭", GardenKeepsake.Name(s, new HashSet<string>(), 0, 0), "a flower counts double");
-            string withButterfly = GardenKeepsake.Name(s, new HashSet<string> { Ecology.Bee, Ecology.Butterfly }, 0, 0);
-            Assert.AreEqual(flower + "と" + EcologyObservations.ResidentLabel(Ecology.Butterfly) + "の庭", withButterfly, "the most telling creature");
-            StringAssert.StartsWith("虹のかかる", GardenKeepsake.Name(s, null, 3, 0));
-            StringAssert.StartsWith("幸運の灯る", GardenKeepsake.Name(s, null, 0, 7));
-            StringAssert.StartsWith("虹を見た", GardenKeepsake.Name(s, null, 1, 0));
-            string keepsake = GardenKeepsake.SeasonKeepsake("コスモスの庭", 24, 5, 3, 1, 2);
-            Assert.AreEqual("〈コスモスの庭〉 24投・ラッキーナンバー 5・幸運の株 3・八の虹 1・叶った季節 2", keepsake);
         }
     }
 }
