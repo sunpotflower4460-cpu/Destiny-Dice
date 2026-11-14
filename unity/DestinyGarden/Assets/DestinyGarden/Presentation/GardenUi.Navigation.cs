@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using DestinyGarden.Domain;
 using UnityEngine;
 using UnityEngine.UI;
+using Surface = DestinyGarden.Presentation.GardenUiArt.Surface;
+using Symbol = DestinyGarden.Presentation.GardenUiArt.Symbol;
 
 namespace DestinyGarden.Presentation
 {
@@ -10,7 +12,8 @@ namespace DestinyGarden.Presentation
     {
         private readonly Stack<GameObject> _panelHistory = new Stack<GameObject>();
         private GameObject _panelLayer, _activePanel, _menuPanel, _wishPanel, _destinationPanel, _habitatPanel, _helpPanel, _newGardenPanel;
-        private Button _menuButton, _wishButton, _resetViewButton, _muteButton, _motionButton;
+        private Button _resetViewButton, _muteButton, _motionButton;
+        private GardenUiButton _menuButton, _wishButton;
         private Text _resetViewLabel;
         private Button _observedDestinationButton;
         private bool _choosingHabitat;
@@ -26,32 +29,37 @@ namespace DestinyGarden.Presentation
             _faceStrip.anchoredPosition = new Vector2(0f, 143f);
             _faceStrip.sizeDelta = new Vector2(986f, 40f);
             var background = strip.GetComponent<Image>();
-            background.sprite = Rounded;
-            background.type = Image.Type.Sliced;
-            background.color = PanelColor;
+            SetPlate(background, GardenUiArt.Plaque);
             background.raycastTarget = false;
             for (int i = 0; i < _faceLabels.Length; i++)
             {
                 _faceLabels[i] = MakeText(_faceStrip, new Vector2(0.5f, 0.5f), Vector2.zero,
-                    new Vector2(134f, 40f), 18, TextAnchor.MiddleCenter);
+                    new Vector2(138f, 40f), 18, TextAnchor.MiddleCenter);
+                var accent = Decoration(_faceLabels[i].transform, "Blessing rule", GardenUiArt.Rule);
+                PlaceDecoration(accent, new Vector2(0.5f, 0f), new Vector2(0f, 2f), new Vector2(72f, 3f));
+                _faceAccents[i] = accent;
             }
             _facesLabel = MakeText(parent, new Vector2(0.5f, 0f), new Vector2(0f, 100f),
                 new Vector2(550f, 23f), 16, TextAnchor.MiddleCenter);
 
             _rollButton = MakeChip(parent, new Vector2(0.5f, 0f), new Vector2(0f, 23f),
-                new Vector2(350f, 58f), "サイコロを振る", 26, () =>
+                new Vector2(350f, 62f), "サイコロを振る", 26, () =>
                 {
                     if (_rollEnabled && _activePanel == null && !_titleCard.activeSelf) OnRoll?.Invoke();
                 });
+            Engrave(_rollButton, Symbol.Die, 43f, 43f);
             StylePrimary(_rollButton);
             _wishButton = MakeChip(parent, new Vector2(0.5f, 0f), new Vector2(-306f, 25f),
-                new Vector2(204f, 54f), "願いをかける", 18, () => OpenPanel(_wishPanel));
+                new Vector2(204f, 54f), "願いをかける", 19, () => OpenPanel(_wishPanel));
+            Engrave(_wishButton, Symbol.Star, 28f, 16f);
+            SetSurface(_wishButton, Surface.Amethyst);
             _luckyOffer = MakeChip(parent, new Vector2(0.5f, 0f), new Vector2(322f, 25f),
                 new Vector2(248f, 54f), "七つめの面を加える", 18, () =>
                 {
                     if (_rollEnabled) OnAddLuckySeven?.Invoke();
                 });
-            SetLine(_luckyOffer, GoldLine, 1.5f);
+            Engrave(_luckyOffer, Symbol.Star, 24f, 12f);
+            SetSurface(_luckyOffer, Surface.Light);
             _luckyOffer.gameObject.SetActive(false);
         }
 
@@ -60,6 +68,7 @@ namespace DestinyGarden.Presentation
             var parent = _gardenControls.transform;
             _menuButton = MakeChip(parent, Vector2.one, new Vector2(-34f, -21f),
                 new Vector2(154f, 54f), "メニュー", 21, () => OpenPanel(_menuPanel));
+            Engrave(_menuButton, Symbol.Menu, 26f, 15f);
             _resetViewButton = MakeChip(parent, Vector2.one, new Vector2(-34f, -88f),
                 new Vector2(176f, 50f), "視点を戻す", 18, () => OnResetView?.Invoke());
             _resetViewLabel = _resetViewButton.GetComponentInChildren<Text>();
@@ -83,21 +92,22 @@ namespace DestinyGarden.Presentation
             _menuPanel = MakePanel(panels, new Vector2(720f, 482f));
             AddPanelHeader(_menuPanel, "メニュー");
             var menu = _menuPanel.transform;
-            MenuChip(menu, 0, 0, "庭を観察", OpenObservation);
-            var house = MenuChip(menu, 1, 0, "家を見る", () =>
+            MenuChip(menu, 0, 0, "庭を観察", Symbol.Observe, OpenObservation);
+            var house = MenuChip(menu, 1, 0, "家を見る", Symbol.House, () =>
             {
                 ClosePanels();
                 OnViewHouse?.Invoke();
             });
-            SetLine(house, GoldLine, 1f);
-            _houseViewLabel = house.GetComponentInChildren<Text>();
+            SetSurface(house, Surface.Light);
+            _houseViewLabel = house.Label;
             _houseViewLabel.supportRichText = true;
-            MenuChip(menu, 0, 1, "庭の記録", () => OpenPanel(_graphPanel));
-            MenuChip(menu, 1, 1, "図鑑", () => OpenPanel(_guidePanel));
-            MenuChip(menu, 0, 2, "届け先を選ぶ", () => OpenPanel(_destinationPanel));
-            MenuChip(menu, 1, 2, "設定", () => OpenPanel(_settingsPanel));
-            MakeChip(menu, new Vector2(0.5f, 0f), new Vector2(0f, 26f), new Vector2(198f, 52f),
+            MenuChip(menu, 0, 1, "庭の記録", Symbol.Journal, () => OpenPanel(_graphPanel));
+            MenuChip(menu, 1, 1, "図鑑", Symbol.Leaf, () => OpenPanel(_guidePanel));
+            MenuChip(menu, 0, 2, "届け先を選ぶ", Symbol.Compass, () => OpenPanel(_destinationPanel));
+            MenuChip(menu, 1, 2, "設定", Symbol.Settings, () => OpenPanel(_settingsPanel));
+            var helpButton = MakeChip(menu, new Vector2(0.5f, 0f), new Vector2(0f, 26f), new Vector2(198f, 52f),
                 "遊び方", 21, () => OpenPanel(_helpPanel));
+            Engrave(helpButton, Symbol.Help, 26f, 24f);
             _menuPanel.SetActive(false);
 
             BuildWishPanel(panels);
@@ -122,9 +132,13 @@ namespace DestinyGarden.Presentation
             rect.offsetMin = rect.offsetMax = Vector2.zero;
         }
 
-        private Button MenuChip(Transform menu, int column, int row, string label, Action onClick) =>
-            MakeChip(menu, new Vector2(0.5f, 1f), new Vector2(-160f + column * 320f, -100f - row * 90f),
+        private GardenUiButton MenuChip(Transform menu, int column, int row, string label, Symbol symbol, Action onClick)
+        {
+            var chip = MakeChip(menu, new Vector2(0.5f, 1f), new Vector2(-160f + column * 320f, -100f - row * 90f),
                 new Vector2(296f, 72f), label, 24, onClick);
+            Engrave(chip, symbol, 37f, 23f, leftAlign: true);
+            return chip;
+        }
 
         private void BuildWishPanel(Transform panels)
         {
@@ -139,12 +153,16 @@ namespace DestinyGarden.Presentation
             PanelText(parent, -149f, "恵みで選ぶ");
             string[] keys = { "water", "wind", "light", "seed" };
             string[] labels = { "水", "風", "光", "種" };
+            Symbol[] symbols = { Symbol.Water, Symbol.Wind, Symbol.Star, Symbol.Seed };
             for (int i = 0; i < keys.Length; i++)
             {
                 string key = keys[i];
-                _intentChips[key] = MakeChip(parent, new Vector2(0.5f, 1f),
+                var blessing = MakeChip(parent, new Vector2(0.5f, 1f),
                     new Vector2(-244f + i * 162f, -182f), new Vector2(148f, 52f), labels[i], 22,
                     () => ChooseWish("family", key));
+                Engrave(blessing, symbols[i], 27f, 21f);
+                SetSurface(blessing, BlessingSurface(key));
+                _intentChips[key] = blessing;
             }
 
             PanelText(parent, -253f, "サイコロの面で選ぶ");
@@ -204,12 +222,15 @@ namespace DestinyGarden.Presentation
 
         private Text AddPanelHeader(GameObject panel, string title)
         {
+            DecoratePanelHeader(panel.transform);
             var heading = MakeText(panel.transform, new Vector2(0f, 1f), new Vector2(36f, -22f),
                 new Vector2(465f, 47f), 29, TextAnchor.MiddleLeft);
             heading.text = title;
-            heading.color = new Color(1f, 0.91f, 0.72f);
+            heading.color = PaleGold;
+            heading.fontStyle = FontStyle.Bold;
             var back = MakeChip(panel.transform, Vector2.one, new Vector2(-23f, -19f),
                 new Vector2(110f, 48f), "戻る", 18, GoBack);
+            Engrave(back, Symbol.Back, 22f, 10f);
             back.gameObject.name = "PanelBack";
             return heading;
         }
@@ -238,8 +259,7 @@ namespace DestinyGarden.Presentation
                     new Vector2(-226f + (position % 3) * 226f, -111f - (position / 3) * 82f);
                 var label = chip.GetComponentInChildren<Text>();
                 bool selected = !chooseDestination && label.text == (_observationHabitat ?? "全体");
-                chip.GetComponent<Image>().color = selected ? ChipActive : ChipColor;
-                label.color = selected ? GoldText : TextColor;
+                SetSurface(chip, selected ? Surface.Brass : Surface.Enamel);
             }
             OpenPanel(_habitatPanel);
         }
@@ -298,15 +318,6 @@ namespace DestinyGarden.Presentation
             if (_activePanel != null) _activePanel.SetActive(false);
             _panelHistory.Clear();
             ShowPanel(null);
-        }
-
-        private static void StylePrimary(Button button)
-        {
-            button.GetComponent<Image>().color = new Color(0.88f, 0.72f, 0.45f, 0.98f);
-            var label = button.GetComponentInChildren<Text>();
-            label.color = GoldText;
-            label.GetComponent<Shadow>().enabled = false;
-            SetLine(button, GoldLine, 1f);
         }
     }
 }

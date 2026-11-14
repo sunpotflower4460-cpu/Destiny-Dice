@@ -5,6 +5,8 @@ using DestinyGarden.Application;
 using DestinyGarden.Domain;
 using UnityEngine;
 using UnityEngine.UI;
+using Surface = DestinyGarden.Presentation.GardenUiArt.Surface;
+using Symbol = DestinyGarden.Presentation.GardenUiArt.Symbol;
 
 namespace DestinyGarden.Presentation
 {
@@ -30,13 +32,13 @@ namespace DestinyGarden.Presentation
         private Image _messageBacking;
         private Text _status;
         private Image _statusBacking;
-        private Button _rollButton;
+        private GardenUiButton _rollButton;
         private bool _rollEnabled = true;
         private Text _houseViewLabel;
-        private readonly Button[] _faceChips = new Button[7];
+        private readonly GardenUiButton[] _faceChips = new GardenUiButton[7];
         private readonly Text[] _faceLabels = new Text[7];
         private RectTransform _faceStrip;
-        private Button _luckyOffer;
+        private GardenUiButton _luckyOffer;
         private string _wishSummary;
         private int _publishedFaceCount;
         private const float FaceSpacing = 138f;
@@ -44,11 +46,11 @@ namespace DestinyGarden.Presentation
         private GameObject _titleCard;
         private RectTransform _openingCard;
         private Text _openingHeading, _openingTagline;
-        private Button _enterButton;
+        private GardenUiButton _enterButton;
         private CanvasGroup _gardenControls;
         internal bool IsOpening { get; private set; }
-        private readonly Dictionary<string, Button> _intentChips = new Dictionary<string, Button>();
-        private readonly Dictionary<string, Button> _siteChips = new Dictionary<string, Button>();
+        private readonly Dictionary<string, GardenUiButton> _intentChips = new Dictionary<string, GardenUiButton>();
+        private readonly Dictionary<string, GardenUiButton> _siteChips = new Dictionary<string, GardenUiButton>();
         private GameObject _observationPanel;
         private Text _observationText;
         private Text _habitatHeading;
@@ -76,7 +78,7 @@ namespace DestinyGarden.Presentation
         private GardenMoment _focusedMoment;
         private WorldState _observationState;
         private string _observationHabitat;
-        private readonly List<Button> _habitatChoices = new List<Button>();
+        private readonly List<GardenUiButton> _habitatChoices = new List<GardenUiButton>();
         private GameObject _historyPanel;
         private Text _historyText;
         private GameObject _graphPanel;
@@ -86,16 +88,10 @@ namespace DestinyGarden.Presentation
         public GardenAudio Audio;
         public GardenView View;
 
-        // Glass palette: translucent deep water, pale gold for what is chosen.
-        private static readonly Color PanelColor = new Color(0.025f, 0.060f, 0.078f, 0.88f);
+        // Glass palette shared by the controls and the garden's information plaques.
         private static readonly Color ChipColor = new Color(0.040f, 0.087f, 0.105f, 0.82f);
-        private static readonly Color ChipActive = new Color(0.86f, 0.70f, 0.40f, 0.92f);
-        private static readonly Color GoldText = new Color(0.07f, 0.045f, 0.01f);
         private static readonly Color Hairline = new Color(1f, 0.93f, 0.78f, 0.16f);
-        private static readonly Color GoldLine = new Color(1f, 0.82f, 0.48f, 0.85f);
-        private static readonly Color TextColor = new Color(0.888f, 0.871f, 0.791f);
-        private static readonly Color WishOutline = new Color(0.45f, 1f, 0.95f, 1f);
-        private static readonly Color LuckyGold = new Color(0.95f, 0.80f, 0.48f, 0.88f);
+        private static readonly Color TextColor = GardenUiArt.Pigment(0xf4eedf);
 
         /// <summary>One colour per blessing, shared by face chips and wish chips.</summary>
         public static Color ElementColor(string element)
@@ -121,14 +117,6 @@ namespace DestinyGarden.Presentation
                 case "seed": return new Color(0.95f, 0.70f, 0.45f, 0.55f);
                 default: return Hairline;
             }
-        }
-
-        private static void SetLine(Button chip, Color color, float width)
-        {
-            var o = chip.GetComponent<Outline>();
-            if (o == null) return;
-            o.effectColor = color;
-            o.effectDistance = new Vector2(width, -width);
         }
 
         private static string ElementOfRecipe(string recipeId) =>
@@ -176,12 +164,19 @@ namespace DestinyGarden.Presentation
             }
 
             var parent = controls.transform;
-            _header = MakeText(parent, new Vector2(0f, 1f), new Vector2(34f, -25f),
-                new Vector2(570f, 44f), 23, TextAnchor.MiddleLeft);
-            AddBacking(_header, new Vector2(10f, 5f));
+            _header = MakeText(parent, new Vector2(0f, 1f), new Vector2(70f, -25f),
+                new Vector2(490f, 44f), 22, TextAnchor.MiddleLeft);
+            var headerPlate = AddBacking(_header, new Vector2(44f, 5f));
+            var compass = Decoration(headerPlate.transform, "Garden compass", GardenUiArt.Icon(Symbol.Compass));
+            compass.color = PaleGold;
+            PlaceDecoration(compass, new Vector2(0f, 0.5f), new Vector2(11f, 0f), Vector2.one * 30f);
             _messageCard = MakeText(parent, new Vector2(0.5f, 1f), new Vector2(0f, -106f),
-                new Vector2(850f, 86f), 27, TextAnchor.MiddleCenter);
-            _messageBacking = AddBacking(_messageCard, new Vector2(18f, 6f));
+                new Vector2(760f, 86f), 28, TextAnchor.MiddleCenter);
+            _messageCard.color = PaleGold;
+            _messageBacking = AddBacking(_messageCard, new Vector2(63f, 6f));
+            var momentStar = Decoration(_messageBacking.transform, "Garden moment", GardenUiArt.Icon(Symbol.Star));
+            momentStar.color = PaleGold;
+            PlaceDecoration(momentStar, new Vector2(0f, 0.5f), new Vector2(22f, 0f), Vector2.one * 32f);
             ShowMessage(null, null);
             _status = MakeText(parent, new Vector2(0.5f, 0f), new Vector2(0f, 169f),
                 new Vector2(820f, 40f), 17, TextAnchor.MiddleCenter);
@@ -203,9 +198,7 @@ namespace DestinyGarden.Presentation
             bg.transform.SetParent(parent, false);
             bg.transform.SetSiblingIndex(siblingIndex);
             var img = bg.AddComponent<Image>();
-            img.sprite = Rounded;
-            img.type = Image.Type.Sliced;
-            img.color = new Color(PanelColor.r, PanelColor.g, PanelColor.b, 0.68f);
+            SetPlate(img, GardenUiArt.Plaque);
             img.raycastTarget = false;
             var src = text.GetComponent<RectTransform>();
             var rect = bg.GetComponent<RectTransform>();
@@ -280,13 +273,13 @@ namespace DestinyGarden.Presentation
             sliderObj.GetComponent<Image>().color = Color.clear;
             var slider = sliderObj.AddComponent<Slider>();
             var bg = new GameObject("Track"); bg.transform.SetParent(sliderObj.transform, false);
-            var bgImg = bg.AddComponent<Image>(); bgImg.color = ChipColor;
+            var bgImg = bg.AddComponent<Image>();
+            SetPlate(bgImg, GardenUiArt.Well);
             bgImg.raycastTarget = false;
             bg.GetComponent<RectTransform>().sizeDelta = new Vector2(370f, 12f);
             var handle = new GameObject("Handle"); handle.transform.SetParent(sliderObj.transform, false);
             var handleImage = handle.AddComponent<Image>();
-            handleImage.sprite = Rounded;
-            handleImage.color = ChipActive;
+            SetPlate(handleImage, GardenUiArt.Button(Surface.Brass));
             handle.GetComponent<RectTransform>().sizeDelta = new Vector2(24f, 38f);
             slider.handleRect = handle.GetComponent<RectTransform>();
             slider.targetGraphic = handleImage;
@@ -450,17 +443,12 @@ namespace DestinyGarden.Presentation
             scroll.verticalNormalizedPosition = 1f;
         }
 
-        private Sprite _rounded;
-        private Sprite Rounded => _rounded ?? (_rounded = ProceduralArt.RoundedSprite());
-
         private GameObject MakePanel(Transform parent, Vector2 size)
         {
             var obj = new GameObject("Panel");
             obj.transform.SetParent(parent, false);
             var img = obj.AddComponent<Image>();
-            img.sprite = Rounded;
-            img.type = Image.Type.Sliced;
-            img.color = PanelColor;
+            SetPlate(img, GardenUiArt.Panel);
             var rect = obj.GetComponent<RectTransform>();
             rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 0.5f);
             rect.sizeDelta = size;
@@ -474,7 +462,8 @@ namespace DestinyGarden.Presentation
             _menuButton.interactable = enabled;
             _wishButton.interactable = enabled;
             _luckyOffer.interactable = enabled;
-            _rollButton.GetComponentInChildren<Text>().text = enabled ? "サイコロを振る" : "庭が変わっています…";
+            _rollButton.Label.text = enabled ? "サイコロを振る" : "庭が変わっています…";
+            _rollButton.Label.fontSize = enabled ? 26 : 21;
             if (enabled && _activePanel == null && !_titleCard.activeSelf) _rollButton.Select();
         }
 
@@ -488,7 +477,7 @@ namespace DestinyGarden.Presentation
         public void SetRollPulse(bool on)
         {
             _rollPulse = on;
-            if (!on && _rollButton != null) _rollButton.transform.localScale = Vector3.one;
+            if (!on && _rollButton != null) _rollButton.Cap.color = Color.white;
         }
 
         public void ShowHeader(string weatherLabel, string siteLabel, int revision)
@@ -505,25 +494,28 @@ namespace DestinyGarden.Presentation
             for (int i = 0; i < _faceLabels.Length; i++)
             {
                 var label = _faceLabels[i];
+                var accent = _faceAccents[i];
                 var chip = _faceChips[i];
+                bool seventh = i == LuckySeven.FaceId - 1;
                 bool present = i < _publishedFaceCount;
                 label.gameObject.SetActive(present);
                 chip.gameObject.SetActive(present);
                 if (!present) continue;
 
-                string title = $"{i + 1}  {RecipeCatalog.LabelJa(faces[i])}" + (i == 6 ? "×2" : "");
+                string title = $"{i + 1}  {RecipeCatalog.LabelJa(faces[i])}" + (seventh ? "×2" : "");
                 label.text = title;
+                label.fontSize = seventh ? 16 : 18;
                 label.rectTransform.anchoredPosition =
-                    new Vector2((i - (_publishedFaceCount - 1) * 0.5f) * FaceSpacing, 0f);
+                    new Vector2((i - (_publishedFaceCount - 1) * 0.5f) * FaceSpacing, 2f);
                 string element = ElementOfRecipe(faces[i]);
                 bool rolled = rolledFaceId == i + 1;
                 bool wished = wishedFaceId == i + 1;
-                label.color = rolled ? new Color(1f, 0.87f, 0.55f) : wished ? WishOutline : TextColor;
-                chip.GetComponent<Image>().color = wished ? ChipActive : ElementColor(element);
-                var choice = chip.GetComponentInChildren<Text>();
-                choice.text = title;
-                choice.color = wished ? GoldText : TextColor;
-                SetLine(chip, wished ? GoldLine : ElementLine(element), 1f);
+                label.color = rolled ? PaleGold : wished ? WishInk : TextColor;
+                label.fontStyle = rolled || wished ? FontStyle.Bold : FontStyle.Normal;
+                accent.color = rolled ? PaleGold : wished ? WishInk : ElementLine(element);
+                SetSurface(chip, wished ? Surface.Brass : BlessingSurface(element));
+                chip.Label.text = title;
+                chip.Label.fontSize = seventh ? 16 : 18;
             }
             UpdateFacesLabel();
         }
@@ -536,15 +528,18 @@ namespace DestinyGarden.Presentation
         private void UpdateFacesLabel()
         {
             _facesLabel.text = _wishSummary ?? (_publishedFaceCount == 7 ? "サイコロの面   ·   各面 1/7" : "サイコロの面");
+            _facesLabel.color = _wishSummary != null ? WishInk : TextColor;
         }
 
         private void Update()
         {
             if (IsOpening) LayoutOpeningCard();
-            if (_rollPulse && _rollEnabled && _activePanel == null && !IsOpening && View?.ReducedMotion != true)
-                _rollButton.transform.localScale = Vector3.one * (1f + 0.023f * (0.5f + 0.5f * Mathf.Sin(Time.unscaledTime * 3.2f)));
-            else if (_rollButton != null)
-                _rollButton.transform.localScale = Vector3.one;
+            if (_rollButton != null)
+            {
+                bool pulse = _rollPulse && _rollEnabled && _activePanel == null && !IsOpening && View?.ReducedMotion != true;
+                float light = pulse ? 0.97f + 0.03f * Mathf.Sin(Time.unscaledTime * 3.2f) : 1f;
+                _rollButton.Cap.color = new Color(light, light, light);
+            }
 
             if (_resetViewButton != null)
             {
@@ -746,16 +741,19 @@ namespace DestinyGarden.Presentation
             var opening = new GameObject("Opening", typeof(RectTransform));
             opening.transform.SetParent(_titleCard.transform, false);
             _openingCard = opening.GetComponent<RectTransform>();
-            _openingHeading = MakeText(opening.transform, new Vector2(0f, 1f), Vector2.zero, new Vector2(545f, 76f),
-                60, TextAnchor.MiddleLeft);
+            DecorateOpening(opening.transform);
+            _openingHeading = MakeText(opening.transform, new Vector2(0f, 1f), new Vector2(0f, -74f), new Vector2(545f, 76f),
+                64, TextAnchor.MiddleLeft);
             _openingHeading.text = "Destiny Garden";
-            _openingHeading.color = new Color(1f, 0.94f, 0.79f);
-            _openingTagline = MakeText(opening.transform, new Vector2(0f, 1f), new Vector2(4f, -85f), new Vector2(537f, 76f),
+            _openingHeading.fontStyle = FontStyle.Bold;
+            _openingHeading.color = GardenUiArt.Pigment(0xffedc6);
+            _openingTagline = MakeText(opening.transform, new Vector2(0f, 1f), new Vector2(4f, -167f), new Vector2(537f, 68f),
                 24, TextAnchor.UpperLeft);
             _openingTagline.text = "サイコロを振るたび、\n瓶の中の庭が育ちます。";
             _openingTagline.color = new Color(0.86f, 0.94f, 0.95f);
-            _enterButton = MakeChip(opening.transform, new Vector2(0f, 1f), new Vector2(4f, -164f),
-                new Vector2(308f, 62f), "庭に入る", 24, () => ShowTitleCard(false));
+            _enterButton = MakeChip(opening.transform, new Vector2(0f, 1f), new Vector2(4f, -234f),
+                new Vector2(290f, 62f), "庭に入る", 24, () => ShowTitleCard(false));
+            Engrave(_enterButton, Symbol.Bottle, 39f, 19f);
             StylePrimary(_enterButton);
         }
 
@@ -772,10 +770,11 @@ namespace DestinyGarden.Presentation
             _openingCard.anchorMin = _openingCard.anchorMax = anchor;
             _openingCard.pivot = new Vector2(side ? 0f : 0.5f, side ? 0.5f : 0f);
             _openingCard.anchoredPosition = Vector2.zero;
-            _openingCard.sizeDelta = side ? new Vector2(545f, 280f) : new Vector2(545f, 230f);
+            _openingCard.sizeDelta = new Vector2(545f, side ? 370f : 310f);
             _openingHeading.alignment = side ? TextAnchor.MiddleLeft : TextAnchor.MiddleCenter;
             _openingTagline.alignment = side ? TextAnchor.UpperLeft : TextAnchor.UpperCenter;
-            ((RectTransform)_enterButton.transform).anchoredPosition = new Vector2(side ? 4f : 118.5f, -164f);
+            ((RectTransform)_enterButton.transform).anchoredPosition = new Vector2(side ? 4f : 127.5f, -234f);
+            LayoutOpeningDecorations(side);
         }
 
         public void ShowTitleCard(bool show, bool opening = false)
@@ -808,14 +807,12 @@ namespace DestinyGarden.Presentation
             _wishSummary = kind == "face" && value != null ? $"{value}の目に願いをかけています"
                 : kind == "family" && value != null ? (value == "water" ? "水" : value == "wind" ? "風" : value == "light" ? "光" : "種") + "の恵みを願っています"
                 : null;
-            SetLine(_wishButton, _wishSummary != null ? WishOutline : Hairline, 1f);
+            _wishButton.Engraving.color = _wishSummary != null ? PaleGold : WishInk;
             UpdateFacesLabel();
             foreach (var kv in _intentChips)
             {
                 bool active = (kind == "none" && kv.Key == "none") || (kind == "family" && kv.Key == value);
-                kv.Value.GetComponent<Image>().color = active ? ChipActive : ElementColor(kv.Key);
-                SetLine(kv.Value, active ? GoldLine : ElementLine(kv.Key), active ? 1.5f : 1f);
-                kv.Value.GetComponentInChildren<Text>().color = active ? GoldText : TextColor;
+                SetSurface(kv.Value, active ? Surface.Brass : BlessingSurface(kv.Key));
             }
         }
 
@@ -825,9 +822,7 @@ namespace DestinyGarden.Presentation
             foreach (var kv in _siteChips)
             {
                 bool active = (mode == "auto" && kv.Key == "auto") || (mode == "fixed" && kv.Key == siteId);
-                kv.Value.GetComponent<Image>().color = active ? ChipActive : ChipColor;
-                SetLine(kv.Value, active ? GoldLine : Hairline, active ? 1.5f : 1f);
-                kv.Value.GetComponentInChildren<Text>().color = active ? GoldText : TextColor;
+                SetSurface(kv.Value, active ? Surface.Brass : Surface.Enamel);
             }
         }
 
@@ -839,7 +834,7 @@ namespace DestinyGarden.Presentation
             _messageBacking.gameObject.SetActive(hasMessage);
             if (moment != null)
             {
-                _messageCard.text = moment.Headline + "\n<size=16>" + moment.Caption + "</size>";
+                _messageCard.text = "<b>" + moment.Headline + "</b>\n<size=17><color=#d2e8df>" + moment.Caption + "</color></size>";
                 return;
             }
             if (message == null) return;
@@ -997,28 +992,26 @@ namespace DestinyGarden.Presentation
             return text;
         }
 
-        private Button MakeChip(Transform parent, Vector2 anchor, Vector2 pos, Vector2 size, string label,
+        private GardenUiButton MakeChip(Transform parent, Vector2 anchor, Vector2 pos, Vector2 size, string label,
             int fontSize, Action onClick)
         {
             var obj = new GameObject("Chip_" + label);
             obj.transform.SetParent(parent, false);
-            var img = obj.AddComponent<Image>();
-            img.sprite = Rounded;
-            img.type = Image.Type.Sliced;
-            img.color = ChipColor;
+            obj.AddComponent<Image>();
             var rect = obj.GetComponent<RectTransform>();
             rect.anchorMin = rect.anchorMax = anchor;
             rect.pivot = anchor;
             rect.anchoredPosition = pos;
             rect.sizeDelta = size;
-            var hair = obj.AddComponent<Outline>();
-            hair.effectColor = Hairline;
-            hair.effectDistance = new Vector2(1f, -1f);
-            var button = obj.AddComponent<Button>();
-            button.targetGraphic = img;
+            var button = obj.AddComponent<GardenUiButton>();
+            FrameButton(button);
             button.onClick.AddListener(() => onClick?.Invoke());
-            var text = MakeText(obj.transform, new Vector2(0.5f, 0.5f), Vector2.zero, size, fontSize, TextAnchor.MiddleCenter);
+            var text = MakeText(button.Cap.transform, new Vector2(0.5f, 0.5f), Vector2.zero, size, fontSize, TextAnchor.MiddleCenter);
+            Stretch(text.rectTransform);
+            text.rectTransform.offsetMin = new Vector2(10f, 0f);
+            text.rectTransform.offsetMax = new Vector2(-10f, 0f);
             text.text = label;
+            button.Label = text;
             return button;
         }
     }

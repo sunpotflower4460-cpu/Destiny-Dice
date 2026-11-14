@@ -62,9 +62,51 @@ namespace DestinyGarden.Tests
                 Find("七つめの面を加える").onClick.Invoke();
                 Assert.AreEqual(1, offers);
                 ui.ShowLuckyOffer(false);
-                ui.ShowFaces(RecipeCatalog.Order.Take(7).ToArray(), 0);
-                Assert.That(controls.Find("PublishedFaces").GetComponentsInChildren<Text>().Length, Is.EqualTo(7));
+                var luckyFaces = faces.Concat(new[] { "light_soft" }).ToArray();
+                ui.ShowFaces(luckyFaces, 0, 7);
+                var published = controls.Find("PublishedFaces").GetComponentsInChildren<Text>();
+                Assert.That(published.Length, Is.EqualTo(7));
+                Assert.AreEqual("7  柔らかい光×2", published[6].text);
+                Assert.That(published[6].preferredWidth, Is.LessThanOrEqualTo(published[6].rectTransform.rect.width));
                 Assert.That(controls.GetComponentsInChildren<Button>().Length, Is.EqualTo(3));
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(root);
+                if (existingEventSystem == null && EventSystem.current != null)
+                    UnityEngine.Object.DestroyImmediate(EventSystem.current.gameObject);
+            }
+        }
+
+        [Test]
+        public void EngravedRollButtonPressesWithinAStationaryHitArea()
+        {
+            var root = new GameObject("Garden UI test");
+            var existingEventSystem = EventSystem.current;
+            try
+            {
+                var ui = root.AddComponent<GardenUi>();
+                ui.Build();
+                ui.ShowTitleCard(true, opening: true);
+                ui.ShowTitleCard(false);
+
+                var roll = root.transform.Find("Canvas/GardenControls/Chip_サイコロを振る").GetComponent<Button>();
+                var hitArea = roll.GetComponent<Image>();
+                var cap = roll.targetGraphic.rectTransform;
+                var rest = cap.offsetMin;
+                var area = hitArea.rectTransform.rect;
+                Assert.That(roll.GetComponentsInChildren<Graphic>(true).Where(graphic => graphic.raycastTarget),
+                    Is.EqualTo(new[] { hitArea }));
+
+                var pointer = new PointerEventData(EventSystem.current) { button = PointerEventData.InputButton.Left };
+                roll.OnPointerDown(pointer);
+                Assert.Less(cap.offsetMin.y, rest.y);
+                Assert.AreEqual(area, hitArea.rectTransform.rect);
+                ui.SetRollEnabled(false);
+                Assert.AreEqual(rest, cap.offsetMin);
+                roll.OnPointerUp(pointer);
+                ui.SetRollEnabled(true);
+                Assert.AreEqual(rest, cap.offsetMin);
             }
             finally
             {
