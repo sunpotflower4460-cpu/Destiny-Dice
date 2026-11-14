@@ -10,7 +10,7 @@ namespace DestinyGarden.Presentation
         private static readonly Color BrassInk = GardenUiArt.Pigment(0x231611);
         private static readonly Color PaleGold = GardenUiArt.Pigment(0xf5daa1);
         private static readonly Color WishInk = GardenUiArt.Pigment(0xe2d2ff);
-        private Image _openingCrest, _openingRule;
+        private Image _openingLettering, _openingRule;
         private readonly Image[] _faceAccents = new Image[7];
 
         private static Image Decoration(Transform parent, string name, Sprite sprite)
@@ -102,16 +102,23 @@ namespace DestinyGarden.Presentation
             Stretch(shade.rectTransform);
             shade.rectTransform.offsetMin = new Vector2(-170f, -74f);
             shade.rectTransform.offsetMax = new Vector2(170f, 74f);
-            _openingCrest = Decoration(parent, "Garden crest", GardenUiArt.Icon(Symbol.Bottle));
-            _openingCrest.color = PaleGold;
+            var lettering = GardenUiArt.TitleLettering;
+            if (lettering != null)
+            {
+                _openingLettering = Decoration(parent, "Destiny Garden", lettering);
+                _openingLettering.preserveAspect = true;
+            }
             _openingRule = Decoration(parent, "Opening rule", GardenUiArt.TitleRule);
         }
 
-        private void LayoutOpeningDecorations(bool side)
+        private void LayoutOpeningDecorations(bool side, bool portrait)
         {
             var anchor = new Vector2(side ? 0f : 0.5f, 1f);
-            PlaceDecoration(_openingCrest, anchor, new Vector2(side ? 3f : 0f, -4f), new Vector2(74f, 74f));
-            PlaceDecoration(_openingRule, anchor, new Vector2(side ? -7f : 0f, -153f), new Vector2(430f, 13f));
+            var letteringSize = side ? new Vector2(460f, 290f) : portrait ? new Vector2(410f, 258f) : new Vector2(270f, 170f);
+            if (_openingLettering != null)
+                PlaceDecoration(_openingLettering, anchor, new Vector2(0f, side ? 0f : -4f), letteringSize);
+            PlaceDecoration(_openingRule, anchor, new Vector2(side ? 5f : 0f, -letteringSize.y - (side ? 0f : 4f)),
+                new Vector2(Mathf.Min(430f, letteringSize.x), side ? 13f : 10f));
         }
 
         private static void DecoratePanelHeader(Transform panel)

@@ -15,14 +15,17 @@ namespace DestinyGarden.Presentation
 
         private static readonly Dictionary<Surface, Sprite> Surfaces = new Dictionary<Surface, Sprite>();
         private static readonly Dictionary<Symbol, Sprite> Symbols = new Dictionary<Symbol, Sprite>();
-        private static Sprite _well, _focus, _panel, _plaque, _rule, _titleRule, _veil;
+        private static Sprite _well, _focus, _panel, _plaque, _rule, _titleRule, _titleLettering, _veil;
+
+        internal static Sprite TitleLettering => _titleLettering != null ? _titleLettering :
+            _titleLettering = Resources.Load<Sprite>("StorybookLettering");
 
         internal static Sprite Button(Surface surface)
         {
             if (Surfaces.TryGetValue(surface, out var sprite) && sprite != null) return sprite;
             var (top, bottom, rim) = surface switch
             {
-                Surface.Brass   => (0xffedb9u, 0xd8a268u, 0xfbe0a5u),
+                Surface.Brass   => (0xffedc3u, 0xe2ae74u, 0xf1cf95u),
                 Surface.Amethyst => (0x684861u, 0x34213du, 0xd4a9c2u),
                 Surface.Water   => (0x245875u, 0x142e43u, 0x78b7d9u),
                 Surface.Wind    => (0x286454u, 0x142f32u, 0x87c4a5u),
@@ -30,7 +33,8 @@ namespace DestinyGarden.Presentation
                 Surface.Seed    => (0x62513du, 0x352c26u, 0xc5a57bu),
                 _               => (0x2f5359u, 0x172a3bu, 0x9cb3a8u)
             };
-            return Surfaces[surface] = Plate(surface.ToString(), 9f, 14, top, bottom, rim, 1f);
+            return Surfaces[surface] = Plate(surface.ToString(), 9f, 14, top, bottom, rim, 1f,
+                engraved: surface == Surface.Brass);
         }
 
         internal static Sprite Well => _well != null ? _well :

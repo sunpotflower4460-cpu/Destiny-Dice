@@ -84,13 +84,16 @@ namespace DestinyGarden.Presentation
             float daylight = Mathf.InverseLerp(0.02f, 0.81f, phase);
             sky.SunDirection = Direction(Mathf.Lerp(-29f, 17f, daylight), 0.5f + 10f * Mathf.Sin(daylight * Mathf.PI));
             float moonPhase = Mathf.InverseLerp(0.78f, 1.03f, phase < 0.5f ? phase + 1f : phase);
-            sky.MoonDirection = Direction(Mathf.Lerp(-22f, -9f, moonPhase), 1.1f + 2.8f * Mathf.Sin(moonPhase * Mathf.PI));
+            sky.MoonDirection = Direction(Mathf.Lerp(-17f, -8f, moonPhase), 7.7f + 2.7f * Mathf.Sin(moonPhase * Mathf.PI));
             sky.SunVisibility = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.02f, 0.09f, phase))
                 * Mathf.SmoothStep(1f, 0f, Mathf.InverseLerp(0.77f, 0.84f, phase)) * (1f - wet * 0.63f);
-            sky.MoonVisibility = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.27f, 0.95f, sky.Night)) * (1f - wet * 0.56f);
+            float nightMoon = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.24f, 0.93f, sky.Night));
+            float dawnMoon = Mathf.SmoothStep(1f, 0f, Mathf.InverseLerp(0.17f, 0.34f, phase));
+            float duskMoon = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.63f, 0.79f, phase));
+            sky.MoonVisibility = Mathf.Max(nightMoon, 0.42f * Mathf.Max(dawnMoon, duskMoon)) * (1f - wet * 0.66f);
 
             float noon = Mathf.Pow(Mathf.Max(0f, Mathf.Cos((phase - 0.39f) * Mathf.PI * 2f)), 4f);
-            var daylightHorizon = Color.Lerp(new Color(0.39f, 0.215f, 0.31f), new Color(0.32f, 0.44f, 0.59f), noon);
+            var daylightHorizon = Color.Lerp(new Color(0.39f, 0.215f, 0.31f), new Color(0.35f, 0.37f, 0.56f), noon);
             var daylightZenith = Color.Lerp(new Color(0.076f, 0.055f, 0.17f), new Color(0.092f, 0.19f, 0.37f), noon);
             var dayHorizon = Color.Lerp(daylightHorizon, new Color(0.18f, 0.20f, 0.29f), wet * 0.76f);
             var dayZenith = Color.Lerp(daylightZenith, new Color(0.058f, 0.077f, 0.16f), wet * 0.76f);

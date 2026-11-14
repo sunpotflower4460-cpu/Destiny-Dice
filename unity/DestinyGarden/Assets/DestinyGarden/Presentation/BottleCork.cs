@@ -8,8 +8,10 @@ namespace DestinyGarden.Presentation
         private const float TopRadius = 3.25f;
         private const float Bottom = BottleMesh.MouthHeight - 0.50f;
         private const float Top = BottleMesh.MouthHeight + 2.12f;
+        private const float CapTextureX = 0.86f;
         private const float CapTextureCenter = 0.79f;
-        private const float CapTextureRadius = 0.18f;
+        private const float CapTextureRadius = 0.11f;
+        private const float SideTextureWidth = 0.70f;
         private const float SideTextureHeight = 0.56f;
 
         internal static Mesh CreateMesh()
@@ -36,9 +38,9 @@ namespace DestinyGarden.Presentation
             {
                 var point = vertices[i];
                 uv[i] = normals[i].y > 0.99f
-                    ? new Vector2(0.5f + point.x / TopRadius * CapTextureRadius,
+                    ? new Vector2(CapTextureX + point.x / TopRadius * CapTextureRadius,
                         CapTextureCenter + point.z / TopRadius * CapTextureRadius)
-                    : new Vector2(uv[i].x, Mathf.InverseLerp(Bottom, Top, point.y) * SideTextureHeight);
+                    : new Vector2(uv[i].x * SideTextureWidth, Mathf.InverseLerp(Bottom, Top, point.y) * SideTextureHeight);
             }
             mesh.uv = uv;
             return mesh;
@@ -54,12 +56,13 @@ namespace DestinyGarden.Presentation
                 for (int x = 0; x < size; x++)
                 {
                     float u = (x + 0.5f) / size;
-                    pixels[y * size + x] = v < 0.59f ? Side(u, v) : Cap(u, v);
+                    pixels[y * size + x] = u < SideTextureWidth + 0.024f
+                        ? Side(Mathf.Clamp01(u / SideTextureWidth), v) : Cap(u, v);
                 }
             }
             var texture = new Texture2D(size, size, TextureFormat.RGBA32, true)
             {
-                name = "Cork grain", wrapMode = TextureWrapMode.Repeat, filterMode = FilterMode.Trilinear, anisoLevel = 2
+                name = "Cork grain and ribbon", wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Trilinear, anisoLevel = 2
             };
             texture.SetPixels32(pixels);
             texture.Apply(updateMipmaps: true, makeNoLongerReadable: true);
@@ -72,12 +75,26 @@ namespace DestinyGarden.Presentation
             float height = Mathf.Clamp01(v / SideTextureHeight);
             var grain = Color.Lerp(Grain(u * 4f, height), Grain((u - 1f) * 4f, height), Mathf.SmoothStep(0f, 1f, u));
             float compression = Mathf.SmoothStep(0.65f, 1f, Mathf.InverseLerp(0.10f, 0.30f, height));
-            return grain * compression;
+            float ribbonHeight = 0.53f + 0.026f * Mathf.Sin(u * 2f * Mathf.PI);
+            float distance = Mathf.Abs(height - ribbonHeight);
+            float ribbon = 1f - Mathf.SmoothStep(0.144f, 0.172f, distance);
+            var wine = new Color(0.48f, 0.13f, 0.28f) * (0.80f + 0.26f * grain.r);
+            var gold = new Color(1f, 0.78f, 0.43f);
+            float hem = 1f - Mathf.SmoothStep(0.010f, 0.030f, Mathf.Abs(distance - 0.114f));
+            var color = Color.Lerp(grain * compression, Color.Lerp(wine, gold, hem * 0.83f), ribbon);
+            // The stamped seal faces the garden's opening view.
+            var sealPoint = new Vector2((u - 0.75f) / 0.036f, (height - ribbonHeight) / 0.27f);
+            float sealEdge = sealPoint.magnitude;
+            float seal = 1f - Mathf.SmoothStep(0.92f, 1.06f, sealEdge);
+            float stamp = Mathf.Sqrt(Mathf.Abs(sealPoint.x)) + Mathf.Sqrt(Mathf.Abs(sealPoint.y));
+            float impression = 1f - Mathf.SmoothStep(0.88f, 1.02f, stamp);
+            var wax = Color.Lerp(new Color(0.59f, 0.22f, 0.30f), gold, impression * 0.87f);
+            return Color.Lerp(color, wax * (1f - sealEdge * seal * 0.20f), seal);
         }
 
         private static Color Cap(float u, float v)
         {
-            float x = (u - 0.5f) / CapTextureRadius, y = (v - CapTextureCenter) / CapTextureRadius;
+            float x = (u - CapTextureX) / CapTextureRadius, y = (v - CapTextureCenter) / CapTextureRadius;
             Color grain = Grain(x * 0.92f, y * 0.92f) * 1.04f;
             float radius = Mathf.Sqrt(x * x + y * y);
             float ring = 1f - Mathf.SmoothStep(0.010f, 0.027f, Mathf.Abs(radius - 0.49f));
