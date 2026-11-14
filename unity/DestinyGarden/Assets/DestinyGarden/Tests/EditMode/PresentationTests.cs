@@ -95,12 +95,14 @@ namespace DestinyGarden.Tests
                 Find("七つめの面を加える").onClick.Invoke();
                 Assert.AreEqual(1, offers);
                 ui.ShowLuckyOffer(false);
-                var luckyFaces = faces.Concat(new[] { "light_soft" }).ToArray();
+                var luckyFaces = faces.Concat(new[] { "water_drop" }).ToArray();
                 ui.ShowFaces(luckyFaces, 0, 7);
                 var published = strip.GetComponentsInChildren<Text>();
                 Assert.That(published.Length, Is.EqualTo(7));
-                Assert.AreEqual("7  柔らかい光×2", published[6].text);
-                Assert.That(published[6].preferredWidth, Is.LessThanOrEqualTo(published[6].rectTransform.rect.width));
+                CollectionAssert.AreEqual(new[] { "1 土に水を注ぐ", "2 雨を降らせる", "3 そよ風を送る", "4 強い風を送る",
+                    "5 周りを照らす", "6 一点を照らす", "7 土に水を注ぐ×2" }, published.Select(label => label.text));
+                foreach (var label in published)
+                    Assert.That(label.preferredWidth, Is.LessThanOrEqualTo(label.rectTransform.rect.width), label.text);
                 var wishBackings = strip.GetComponentsInChildren<Image>(true).Where(image => image.name == "Wished face").ToArray();
                 Assert.That(wishBackings.Where(image => image.gameObject.activeInHierarchy),
                     Is.EqualTo(new[] { wishBackings[6] }));
@@ -112,6 +114,18 @@ namespace DestinyGarden.Tests
                 ui.ShowFaces(faces, 0);
                 Assert.IsFalse(wishBackings.Any(image => image.gameObject.activeInHierarchy));
                 Assert.That(controls.GetComponentsInChildren<Button>().Length, Is.EqualTo(3));
+
+                ui.ShowFaces(new[] { "seed_single", "seed_scatter" }.Concat(faces.Skip(2)).ToArray(), 0);
+                Assert.AreEqual("1 種を1粒まく", strip.GetComponentsInChildren<Text>()[0].text);
+                Assert.AreEqual("2 種を2粒まく", strip.GetComponentsInChildren<Text>()[1].text);
+                Find("願いをかける").onClick.Invoke();
+                foreach (var label in strip.GetComponentsInChildren<Text>())
+                {
+                    var wishChoice = root.GetComponentsInChildren<Button>()
+                        .Select(button => button.GetComponentInChildren<Text>()).SingleOrDefault(text => text != null && text.text == label.text);
+                    Assert.IsNotNull(wishChoice, label.text);
+                    Assert.That(wishChoice.preferredWidth, Is.LessThanOrEqualTo(wishChoice.rectTransform.rect.width), label.text);
+                }
             }
             finally
             {

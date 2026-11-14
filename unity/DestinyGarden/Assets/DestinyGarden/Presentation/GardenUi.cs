@@ -476,9 +476,10 @@ namespace DestinyGarden.Presentation
                     continue;
                 }
 
-                string title = $"{i + 1}  {RecipeCatalog.LabelJa(faces[i])}" + (seventh ? "×2" : "");
+                string title = $"{i + 1} {RecipeCatalog.ActionLabelJa(faces[i])}" + (seventh ? "×2" : "");
+                int fontSize = seventh ? 15 : 18;
                 label.text = title;
-                label.fontSize = seventh ? 16 : 18;
+                label.fontSize = fontSize;
                 var position = new Vector2((i - (faceCount - 1) * 0.5f) * FaceSpacing, 2f);
                 label.rectTransform.anchoredPosition = position;
                 string element = ElementOfRecipe(faces[i]);
@@ -491,7 +492,7 @@ namespace DestinyGarden.Presentation
                 accent.color = rolled ? PaleGold : wished ? WishInk : ElementLine(element);
                 SetSurface(chip, wished ? Surface.Brass : BlessingSurface(element));
                 chip.Label.text = title;
-                chip.Label.fontSize = seventh ? 16 : 18;
+                chip.Label.fontSize = fontSize;
             }
         }
 
