@@ -421,8 +421,19 @@ namespace DestinyGarden.Presentation
         private IEnumerator RollFlow()
         {
             if (_busy || _ui.IsPanelOpen || _ui.IsOpening) yield break;
-            if (_coordinator.Phase == CoordinatorPhase.Prepared)
-                _coordinator.CommitIntent(_intentKind, _intentValue);
+            // A preparation or wish that could not be saved last time is tried again here (nothing is drawn twice:
+            // the coordinator resumes from what was saved).
+            if (!TrySave(() =>
+                {
+                    if (_coordinator.Phase == CoordinatorPhase.Ready || _coordinator.Phase == CoordinatorPhase.Resolved)
+                        _coordinator.Prepare();
+                    if (_coordinator.Phase == CoordinatorPhase.Prepared)
+                        _coordinator.CommitIntent(_intentKind, _intentValue);
+                }))
+            {
+                ShowPreparedFaces();
+                yield break;
+            }
             if (_coordinator.Phase != CoordinatorPhase.IntentCommitted) yield break;
             _busy = true;
             _ui.SetRollEnabled(false);
@@ -496,7 +507,8 @@ namespace DestinyGarden.Presentation
                 }
                 StartCoroutine(_wonders.PlayPrayerSpirits(tops));
             }
-            _coordinator.Prepare();
+            // The next round is prepared now; if it cannot be saved, the die stays usable and the next press retries.
+            TrySave(() => _coordinator.Prepare());
             // Publish the next faces only after the end state is on screen.
             ShowPreparedFaces();
             if (outcome.LuckySeven) _view.SetLuckyDice(true);
@@ -507,6 +519,18 @@ namespace DestinyGarden.Presentation
         }
 
         private List<RoundSummary> _history;
+
+        /// <summary>Runs a step that writes the journal; on failure the garden says so and play can go on.</summary>
+        private bool TrySave(Action step)
+        {
+            try { step(); return true; }
+            catch (Exception ex)
+            {
+                Debug.LogException(ex);
+                _ui.ShowStatus("記録を書けませんでした。もう一度振ると、保存済みのところから続きます。");
+                return false;
+            }
+        }
 
         /// <summary>The 48th roll (and every 48 after): the keepsake card follows once the roll has been seen.</summary>
         private IEnumerator KeepsakeAfterRoll()
