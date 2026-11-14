@@ -15,7 +15,7 @@ namespace DestinyGarden.Presentation
         private RectTransform _browserPrayerBounds;
         private Rect _browserPrayerRect;
         private readonly Vector3[] _browserPrayerCorners = new Vector3[4];
-        private bool _browserPrayerOpen, _captureKeyboard;
+        private bool _browserPrayerOpen;
 
         [DllImport("__Internal")] private static extern void GardenPrayerInputOpen(string value, string placeholder, int limit);
         [DllImport("__Internal")] private static extern void GardenPrayerInputPlace(float left, float top, float width, float height);
@@ -96,11 +96,10 @@ namespace DestinyGarden.Presentation
             if (!visible)
             {
                 GardenPrayerInputClose();
-                WebGLInput.captureAllKeyboardInput = _captureKeyboard;
                 return;
             }
-            _captureKeyboard = WebGLInput.captureAllKeyboardInput;
-            WebGLInput.captureAllKeyboardInput = false;
+            // The field keeps its own keys (the jslib stops them before the game sees them); WebGLInput is not
+            // available to scripts in this Unity version's WebGL player build.
             GardenPrayerInputOpen(_prayerDraft ?? "", PrayerPlaceholder, RollRecord.PrayerLimit * 2);
             _browserPrayerRect = default;
             Canvas.ForceUpdateCanvases();
