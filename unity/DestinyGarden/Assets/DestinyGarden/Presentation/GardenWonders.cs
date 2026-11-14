@@ -69,14 +69,12 @@ namespace DestinyGarden.Presentation
             {
                 (new Color(0.30f, 0.85f, 1.00f), new Color(0.12f, 0.25f, 0.85f)),
                 (new Color(1.00f, 0.90f, 0.40f), new Color(0.95f, 0.45f, 0.12f)),
-                (new Color(1.00f, 0.70f, 0.88f), new Color(0.62f, 0.30f, 0.85f)),
-                (new Color(0.92f, 1.00f, 0.96f), new Color(0.35f, 0.85f, 0.70f)),
-                (new Color(1.00f, 0.82f, 0.60f), new Color(0.85f, 0.25f, 0.35f))
+                (new Color(1.00f, 0.70f, 0.88f), new Color(0.62f, 0.30f, 0.85f))
             };
             for (int i = 0; i < palettes.Length; i++)
             {
                 var rig = _models.MakeInsect(transform, LifeModels.Insect.Butterfly, i, palettes[i].Item1, palettes[i].Item2);
-                rig.Root.localScale = Vector3.one * (0.86f + i % 3 * 0.10f);
+                rig.Root.localScale = Vector3.one * (0.66f + i * 0.07f);
                 rig.Flap(16f, 12f);
                 _butterflies.Add(new Butterfly { Rig = rig, Phase = i * 1.3f });
             }

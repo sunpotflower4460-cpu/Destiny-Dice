@@ -487,11 +487,13 @@ namespace DestinyGarden.Presentation
 
         public void SetRollEnabled(bool enabled)
         {
+            if (!enabled && _selectingPlot) SetPlotSelection(false);
             _rollEnabled = enabled;
             _rollButton.interactable = enabled;
             _menuButton.interactable = enabled;
             _wishButton.interactable = enabled && _wishEditable;
             _luckyOffer.interactable = enabled;
+            _magicDestination.interactable = enabled;
             if (!enabled) ShowMessage(null, null);
             if (enabled && _activePanel == null && !_titleCard.activeSelf) _rollButton.Select();
         }
@@ -899,7 +901,8 @@ namespace DestinyGarden.Presentation
             var star = outcome?.Ecology?.PrayerStar;
             LayoutRollResult(outcome?.FaceId ?? 0, outcome?.RecipeId, outcome?.LuckySeven == true,
                 RollRecord.WishComparison(outcome?.IntentKind, outcome?.IntentValue, outcome?.IntentMatched == true),
-                outcome?.PrayerText != null, star?.LuckyNumber == true ? RollRecord.LuckyLabel(outcome.FaceId, star.FaceSum - outcome.FaceId) : null);
+                outcome?.PrayerText != null, outcome == null ? null : GardenFortune.Primary(outcome.FaceId, star,
+                    outcome.IntentKind == "face" && outcome.IntentMatched));
             if (moment != null)
             {
                 PaintMoment(outcome?.RecipeId ?? moment.RecipeId, outcome?.LuckySeven == true, outcome != null,
@@ -967,7 +970,7 @@ namespace DestinyGarden.Presentation
                 string wish = RollRecord.WishComparison(r.IntentKind, r.IntentValue, r.IntentMatched);
                 if (wish != null) sb.AppendLine("　" + wish);
                 if (r.PrayerText != null) sb.AppendLine("　祈り「" + r.PrayerText + "」");
-                if (r.LuckyNumber) sb.AppendLine("　" + RollRecord.LuckyLabel(r.FaceId ?? 0, r.LuckySumFace));
+                if (r.FortuneReason != null) sb.AppendLine("　" + r.FortuneReason.Replace("\n", "\n　"));
                 if (_observationDetails) sb.AppendLine($"　{WeatherLabel(r.WeatherId)}　{SiteLabel(r.SiteId)}");
                 if (_observationDetails)
                 {

@@ -136,8 +136,9 @@ namespace DestinyGarden.Presentation
             };
             _ui.OnSiteSelected = (mode, siteId) =>
             {
-                _coordinator.SetCareFocus(mode, siteId);
+                if (_busy || !TrySave(() => _coordinator.SetCareFocus(mode, siteId))) return;
                 _ui.ShowSiteSelection(mode, siteId);
+                ShowMagicDestination();
             };
             _ui.OnSwitchVisitor = () =>
             {
@@ -285,9 +286,20 @@ namespace DestinyGarden.Presentation
             bool activePlan = prepared || _coordinator.Phase == CoordinatorPhase.IntentCommitted;
             _ui.ShowCarePlan(_coordinator.State, activePlan ? _coordinator.CurrentFaces : null, _coordinator.CurrentWeather);
             _view.ShowCareTarget(CareRules.Enabled(_coordinator.State) && activePlan && _coordinator.CurrentFaces != null ? CareTargets.Anchor(_coordinator.CurrentFaces) : -1);
+            ShowMagicDestination();
             bool sevenUp = prepared && _coordinator.LuckySevenAdded;
             _view.SetLuckyDice(sevenUp);
             _wonders.SetLuckyHalo(sevenUp || offered);
+        }
+
+        private void ShowMagicDestination()
+        {
+            bool enabled = CareRules.Enabled(_coordinator.State);
+            bool hasPlot = CareTargets.TryCell(_coordinator.PreferenceSiteId, out int cell);
+            bool hasPublishedRound = _coordinator.Phase == CoordinatorPhase.Prepared || _coordinator.Phase == CoordinatorPhase.IntentCommitted;
+            bool applied = hasPublishedRound && _coordinator.CurrentFaces?.ResolvedSiteId == _coordinator.PreferenceSiteId;
+            _view.ShowQueuedPlot(enabled && hasPlot && !applied ? cell : -1);
+            _ui.ShowMagicDestination(enabled, hasPlot ? cell : -1, applied);
         }
 
         /// <summary>
@@ -429,17 +441,15 @@ namespace DestinyGarden.Presentation
             var read = _journal.ReadAll();
             var history = HistoryProjector.Project(read.Entries, _coordinator.RunId);
             _history = history;
-            var moments = GardenMoments.Recent(read.Entries, _coordinator.RunId);
+            var moments = GardenMoments.Recent(read.Entries, _coordinator.RunId, 12, includeMilestones: true);
             _ui.RefreshHistory(history, moments);
-            if (rolledFaceId == 0)
+            var latest = history.FindLast(round => round.Resolved && round.WorldRevision > 0 && round.FaceId.HasValue);
+            if (rolledFaceId == 0 && latest != null)
             {
-                var last = history.FindLast(round => round.Resolved && round.WorldRevision > 0 && round.FaceId.HasValue);
-                if (last != null)
-                {
-                    _view.SetDiceFace(last.FaceId.Value);
-                    _ui.ShowSavedRoll(last, moments.Find(moment => moment.RoundId == last.RoundId));
-                }
+                _view.SetDiceFace(latest.FaceId.Value);
+                _ui.ShowSavedRoll(latest, moments.Find(moment => moment.RoundId == latest.RoundId));
             }
+            _ui.ShowMomentReview(moments, latest?.RoundId, latest?.FortuneReason);
             var house = CottageGrowth.Project(_coordinator.State.WorldRevision, history);
             _view.ShowHouse(house);
             _ui.ShowHouse(house.Label);
@@ -518,14 +528,14 @@ namespace DestinyGarden.Presentation
             RefreshAll(outcome.FaceId);
             _view.SetLuckyDice(outcome.LuckySeven);
             StartCoroutine(_islandHarmony.PlayBlessing(outcome));
-            StartCoroutine(_life.PlayGrowthMoments(outcome, _audio));
+            StartCoroutine(_life.PlayGrowthMoments(outcome, _audio, moment));
             StartCoroutine(_life.PlayRollEffects(outcome.Ecology));
             StartCoroutine(_islandHarmony.PlayPulses(outcome));
             var sown = new List<Vector3>();
             foreach (var ev in outcome.Simulation.Events)
                 if (ev.Kind == "SeedPlaced") sown.Add(_view.CellTop(ev.CellId) + Vector3.up * 0.05f);
             if (sown.Count > 0 && _view.DiceTransform != null)
-                StartCoroutine(_life.PlaySowing(_view.DiceTransform.position + Vector3.up * 0.4f, sown, () => _audio.PlayGrowthAccent()));
+                StartCoroutine(_life.PlaySowing(_view.DiceTransform.position + Vector3.up * 0.4f, sown, null));
             var spirit = outcome.Ecology != null ? outcome.Ecology.Visit(Ecology.Spirit) : null;
             if (spirit != null)
             {
@@ -544,7 +554,8 @@ namespace DestinyGarden.Presentation
             if (moment != null && moment.CellId >= 0 && moment.CellId < GardenMapData.CellCount)
             {
                 _view.FocusObservedCell(moment.CellId);
-                yield return _view.Rig.FocusOnRoll(_view.CellTop(moment.CellId), _view.ReducedMotion);
+                if (_view.ReducedMotion) yield return new WaitForSecondsRealtime(1.65f);
+                else yield return _view.Rig.FocusOnRoll(_view.CellTop(moment.CellId), false);
             }
             _sigil.Reveal(outcome, _coordinator.State);
             if (PrayerStar.IsRainbow(outcome.LuckySeven, outcome.Simulation, outcome.Ecology))

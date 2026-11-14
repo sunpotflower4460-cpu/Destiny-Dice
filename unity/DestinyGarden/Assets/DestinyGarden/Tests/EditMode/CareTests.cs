@@ -75,6 +75,34 @@ namespace DestinyGarden.Tests
             CollectionAssert.AreEqual(faces, c.CurrentFaces.Faces); var result = c.Roll(); Assert.AreEqual(anchor, result.Ecology.Care.AnchorCellId);
             c.Prepare(); Assert.AreEqual("花の草地", LivingEcosystem.Habitat(c.State, CareTargets.Anchor(c.CurrentFaces)));
         }
+
+        [Test]
+        public void PlottedMagic_UsesTheSelectedSoilFromTheNextPreparationAndAfterRestore()
+        {
+            var journal = new Memory();
+            var entropy = new FixedEntropy("plotted-magic");
+            var ids = new SequentialIds();
+            var garden = new GardenCoordinator(journal, entropy, ids);
+            garden.CreateRun();
+            var published = garden.Prepare();
+            int plot = Enumerable.Range(0, GardenMapData.CellCount).First(cell => cell != published.AnchorCellId && GardenMapData.Plantable[cell] == 1);
+            string destination = CareTargets.CellSiteId(plot);
+            Assert.Throws<ArgumentException>(() => garden.SetCareFocus(CareTargets.CellMode, "cell:0"));
+            garden.SetCareFocus(CareTargets.CellMode, destination);
+            Assert.AreSame(published, garden.CurrentFaces);
+            garden.CommitIntent("none", null);
+            Assert.AreEqual(published.AnchorCellId, garden.Roll().Ecology.Care.AnchorCellId);
+            garden = new GardenCoordinator(journal, entropy, ids);
+            garden.Restore(new JournalReadResult { ChainValid = true, Entries = Json(journal.Entries) });
+            Assert.AreEqual(destination, garden.PreferenceSiteId);
+            var prepared = garden.Prepare();
+            Assert.AreEqual(plot, prepared.AnchorCellId);
+            Assert.AreEqual(6, prepared.Faces.Length);
+            garden.CommitIntent("none", null);
+            var roll = garden.Roll();
+            Assert.AreEqual(plot, roll.Ecology.Care.AnchorCellId);
+            Assert.AreEqual(0, roll.Simulation.WaterBalanceResidual);
+        }
         [TestCase("水辺")][TestCase("岩陰")][TestCase("草木の陰")][TestCase("乾いた草地")][TestCase("花の草地")]
         public void EveryEligibleDiceRecipe_UsesItsRealFootprintAndWaterBalance_InEachHabitat(string label)
         {

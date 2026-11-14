@@ -15,16 +15,16 @@ namespace DestinyGarden.Tests
     public class PresentationTests
     {
         [Test]
-        public void SignLabels_AreNumbersAndNames()
+        public void SignLabels_ExplainTheRecordedRolls()
         {
             var triple = PrayerStar.Read(5, 5, "water_drop", "water_drop", false, 0, -1, 0, 0, 2, 72);
             var lines = PrayerStarSigil.SignLabels(triple, 5, false);
-            CollectionAssert.AreEqual(new[] { "555", "三つぞろい", "", "" }, lines[0]);
-            CollectionAssert.AreEqual(new[] { "77", "出目の合計", "", "" }, lines[1], "72 + 5 = 77");
+            CollectionAssert.AreEqual(new[] { "555", "三つぞろい", "5の目が3投続いた", "" }, lines[0]);
+            CollectionAssert.AreEqual(new[] { "77", "出目の合計", "これまでの72 ＋ 今回の5 ＝ 77", "" }, lines[1]);
             var zorome = PrayerStar.Read(2, 2, "water_drop", "water_drop", false, 0, -1, 0, 0, 1, 10);
-            CollectionAssert.AreEqual(new[] { "22", "ゾロ目", "", "" }, PrayerStarSigil.SignLabels(zorome, 2, false)[0]);
+            CollectionAssert.AreEqual(new[] { "22", "ゾロ目", "前回も今回も2の目", "" }, PrayerStarSigil.SignLabels(zorome, 2, false)[0]);
             var plain = PrayerStar.Read(4, 1, "water_drop", "water_drop", false, 0, -1, 0, 0, 1, 10);
-            CollectionAssert.AreEqual(new[] { "4", "願いの目", "", "" }, PrayerStarSigil.SignLabels(plain, 4, true)[0]);
+            CollectionAssert.AreEqual(new[] { "4", "願いの目", "願っていた4の目が出た", "" }, PrayerStarSigil.SignLabels(plain, 4, true)[0]);
             Assert.AreEqual(0, PrayerStarSigil.SignLabels(plain, 4, false).Count);
         }
 
