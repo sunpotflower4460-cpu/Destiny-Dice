@@ -245,7 +245,14 @@ namespace DestinyGarden.Presentation
             _ui.ShowLuckyOffer(offered);
             int wished = 0;
             if (_intentKind == "face" && int.TryParse(_intentValue, out int wf)) wished = wf;
-            _ui.ShowFaces(_coordinator.CurrentFaces != null ? _coordinator.CurrentFaces.Faces : null, rolledFaceId, wished);
+            // The faces that would make the lucky number or a ゾロ目 on this roll (prayer-star gardens, before the roll).
+            int last = _coordinator.RolledFaces.Count > 0 ? _coordinator.RolledFaces[_coordinator.RolledFaces.Count - 1] : 0;
+            bool marks = _coordinator.UsesPrayerStar && rolledFaceId == 0 &&
+                         (prepared || _coordinator.Phase == CoordinatorPhase.IntentCommitted);
+            int lucky = marks ? PrayerStar.FaceCompletingSeven(last) : 0;
+            int pair = marks && last >= 1 && last <= 6 ? last : 0;
+            _ui.ShowFaces(_coordinator.CurrentFaces != null ? _coordinator.CurrentFaces.Faces : null, rolledFaceId, wished, lucky, pair,
+                marks && _coordinator.LuckySevenAdded);
             bool activePlan = prepared || _coordinator.Phase == CoordinatorPhase.IntentCommitted;
             _ui.ShowCarePlan(_coordinator.State, activePlan ? _coordinator.CurrentFaces : null, _coordinator.CurrentWeather);
             _view.ShowCareTarget(CareRules.Enabled(_coordinator.State) && activePlan && _coordinator.CurrentFaces != null ? CareTargets.Anchor(_coordinator.CurrentFaces) : -1);

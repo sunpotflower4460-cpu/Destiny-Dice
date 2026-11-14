@@ -86,6 +86,8 @@ namespace DestinyGarden.Application
         private bool _useConnectedHabitats;
         public IReadOnlyList<string> RolledRecipes => _rolledRecipes;
         public IReadOnlyList<int> RolledFaces => _rolledFaces;
+        /// <summary>The run reads the prayer star (lucky numbers and signs count in this garden).</summary>
+        public bool UsesPrayerStar => _prayerStarEnabled;
         public int MatchingFaces { get; private set; }  // faces that would answer the committed wish
 
         // season.v1: the season's goal, chosen at its first roll and saved with every Resolved.
