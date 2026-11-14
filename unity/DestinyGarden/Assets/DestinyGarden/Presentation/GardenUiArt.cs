@@ -10,7 +10,7 @@ namespace DestinyGarden.Presentation
         internal enum Symbol
         {
             Bottle, Die, Star, Menu, Back, Observe, House, Journal, Leaf, Compass, Settings, Help,
-            Water, Wind, Seed
+            Water, Wind, Seed, Soil, Flower, Moon, Rainbow
         }
 
         private static readonly Dictionary<Surface, Sprite> Surfaces = new Dictionary<Surface, Sprite>();
@@ -272,6 +272,26 @@ namespace DestinyGarden.Presentation
                     ink.Stroke(3.4f, (31, 28), (22, 29), (15, 35), (12, 44), (24, 42), (30, 36), (31, 28));
                     ink.Stroke(3.4f, (33, 35), (36, 47), (45, 52), (55, 53), (51, 43), (44, 36), (33, 35));
                     ink.Stroke(3.2f, (18, 10), (45, 10));
+                    break;
+                case Symbol.Soil:
+                    ink.Stroke(3.7f, (7, 29), (15, 36), (24, 43), (32, 46), (41, 43), (49, 37), (57, 29), (7, 29));
+                    ink.Stroke(3.5f, (11, 20), (53, 20));
+                    ink.Stroke(3.2f, (20, 12), (44, 12));
+                    break;
+                case Symbol.Flower:
+                    ink.Stroke(3.6f, (32, 46), (26, 54), (19, 52), (15, 46), (19, 38), (10, 34), (8, 27),
+                        (13, 21), (24, 22), (26, 13), (32, 9), (38, 13), (40, 22), (51, 21), (56, 27),
+                        (54, 34), (45, 38), (49, 46), (45, 52), (38, 54), (32, 46));
+                    ink.Dot(32, 32, 4.6f);
+                    break;
+                case Symbol.Moon:
+                    ink.Stroke(3.6f, (40, 55), (29, 55), (19, 51), (12, 43), (9, 32), (11, 22), (18, 14),
+                        (28, 9), (39, 10), (48, 15), (55, 24), (46, 22), (36, 25), (29, 32), (27, 40),
+                        (31, 48), (40, 55));
+                    break;
+                case Symbol.Rainbow:
+                    ink.Stroke(3.8f, (7, 16), (9, 28), (15, 39), (23, 46), (32, 49), (41, 46), (49, 39), (55, 28), (57, 16));
+                    ink.Stroke(3.5f, (18, 16), (20, 27), (25, 34), (32, 38), (39, 34), (44, 27), (46, 16));
                     break;
             }
             return Symbols[symbol] = ink.ToSprite(symbol.ToString());

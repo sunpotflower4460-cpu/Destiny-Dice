@@ -32,14 +32,20 @@ namespace DestinyGarden.Tests
                 ui.ShowTitleCard(true, opening: true);
                 Button Find(string name) => root.GetComponentsInChildren<Button>().Single(button => button.name == "Chip_" + name);
                 var opening = root.transform.Find("Canvas/TitleCard/Opening");
+                var motifs = opening.Find("Opening blessings").GetComponentsInChildren<Image>();
+                CollectionAssert.AreEqual(new[] { "Water", "Wind", "Star", "Seed", "Soil", "Flower", "Moon", "Rainbow" },
+                    motifs.Select(image => image.sprite.name));
+                Assert.IsFalse(motifs.Any(image => image.raycastTarget));
                 var enter = opening.GetComponentsInChildren<Button>().Single();
                 var entryLabel = enter.GetComponentInChildren<Text>();
-                Assert.AreEqual("庭づくりを始める", entryLabel.text);
+                Assert.AreEqual("小さな庭をひらく", entryLabel.text);
                 Assert.That(entryLabel.preferredWidth, Is.LessThanOrEqualTo(entryLabel.rectTransform.rect.width));
-                ui.ShowHeader("晴れ", "草地", 4);
+                ui.ShowHeader("晴れ", "草地", 1);
+                Assert.AreEqual("小さな庭をひらく", entryLabel.text);
+                ui.ShowHeader("晴れ", "草地", 2);
                 Assert.AreEqual("庭のつづきへ", entryLabel.text);
                 ui.ShowHeader("晴れ", "草地", 0);
-                Assert.AreEqual("庭づくりを始める", entryLabel.text);
+                Assert.AreEqual("小さな庭をひらく", entryLabel.text);
                 enter.onClick.Invoke();
                 Assert.IsFalse(ui.TitleCardOpen);
                 Assert.AreEqual(0, rolls);

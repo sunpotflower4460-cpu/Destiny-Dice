@@ -41,7 +41,7 @@ namespace DestinyGarden.Presentation
         private int _publishedFaceCount;
         private const float FaceSpacing = 138f;
         private Text _facesLabel;
-        private const string StartGardenLabel = "庭づくりを始める";
+        private const string StartGardenLabel = "小さな庭をひらく";
         private const float OpeningWidth = 545f;
         private static readonly Vector2 OpeningEntrySize = new Vector2(394f, 86f);
         private GameObject _titleCard;
@@ -473,7 +473,7 @@ namespace DestinyGarden.Presentation
         {
             string progress = revision == 0 ? "最初の一投" : $"{revision}投";
             _header.text = $"{weatherLabel}  ·  届け先 {siteLabel}  ·  {progress}";
-            string entry = revision > 0 ? "庭のつづきへ" : StartGardenLabel;
+            string entry = revision >= 2 ? "庭のつづきへ" : StartGardenLabel;
             if (_enterButton.Label.text != entry) _enterButton.Label.text = entry;
         }
 
