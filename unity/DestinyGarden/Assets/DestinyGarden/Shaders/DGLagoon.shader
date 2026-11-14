@@ -96,7 +96,7 @@ Shader "DestinyGarden/Lagoon"
                 float broken = smoothstep(-0.52, 0.68, sin(swell) * 0.65 + sin(ripples) * 0.35);
                 float solar = pow(saturate(dot(reflected, _DGSkySun.xyz)), 25.0) * _DGSkyWarmth.w;
                 float lunar = pow(saturate(dot(reflected, _DGSkyMoon.xyz)), 42.0) * _DGSkyMoon.w;
-                water += (half3(0.31, 0.135, 0.073) * solar + half3(0.075, 0.091, 0.19) * lunar)
+                water += (half3(0.31, 0.135, 0.073) * solar + half3(0.22, 0.16, 0.21) * lunar)
                     * (0.34 + broken * 0.66) * lerp(0.52, 1.0, fresnel);
                 float highlight = saturate(dot(normal, SafeNormalize(sun.direction + view)));
                 float gloss = pow(highlight, 64.0) * 0.035 + pow(highlight, 156.0) * 0.073;

@@ -77,15 +77,21 @@ Shader "DestinyGarden/Glass"
                 half3 glassTint = lerp(half3(0.52, 0.51, 0.69), half3(0.18, 0.23, 0.43), night);
                 half3 pale = lerp(half3(0.96, 0.86, 0.92), half3(0.56, 0.64, 0.94), night);
                 half3 color = lerp(sky + glassTint * 0.22, glassTint, rim * 0.78);
+                // A tapered stroke follows the shoulder of the bottle like a brush highlight.
+                float shoulder = smoothstep(5.7, 10.6, input.height) * (1.0 - smoothstep(13.0, 15.1, input.height));
+                float strokeAngle = dot(reflected, float3(-0.67, 0.23, -0.705));
+                float brush = smoothstep(0.86, 0.982, strokeAngle) * shoulder * _NearWall;
+                half3 pearl = lerp(half3(1.0, 0.79, 0.64), half3(0.75, 0.72, 0.98), night);
                 float lipTop = smoothstep(16.62, 17.08, input.height);
                 color = lerp(color, pale, saturate(0.47 * edge + 0.55 * softLight + 0.17 * horizon + _Lip * lipTop * 0.38));
+                color = lerp(color, pearl, saturate(edge * 0.35 + brush * 0.84));
                 color += half3(0.71, 0.38, 0.23) * sun + half3(0.28, 0.38, 0.64) * moon;
                 color += pale * (softLight * (rim * 0.15 + _Lip * lipTop * 0.24));
 
                 // The thicker glass at the foot catches a narrow band of sea light.
                 float heel = 1.0 - smoothstep(0.05, 0.43, abs(input.height - 0.22));
                 color = lerp(color, glassTint * 0.72 + pale * 0.30, heel * (1.0 - edge) * 0.66);
-                float wallAlpha = rim * lerp(0.26, 0.105, _NearWall) + 0.039 * edge
+                float wallAlpha = rim * lerp(0.25, 0.16, _NearWall) + 0.079 * edge + 0.19 * brush
                     + lerp(0.012, 0.0, _NearWall) + softLight * lerp(0.065, 0.048, _NearWall)
                     + horizon * rim * 0.058 + direct * 0.17 + heel * lerp(0.021, 0.18, _NearWall);
                 float lipAlpha = (0.16 + rim * 0.36 + softLight * 0.27 + horizon * 0.11 + direct * 0.21) * lipTop;

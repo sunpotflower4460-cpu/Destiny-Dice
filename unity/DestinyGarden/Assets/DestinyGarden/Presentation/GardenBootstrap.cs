@@ -201,12 +201,15 @@ namespace DestinyGarden.Presentation
             bool side = GardenUi.UseSideTitle(cam.aspect);
             bool stacked = withTitle && !side;
             var center = IslandTerrain.Center;
-            float pullback = Mathf.Max(1f, 1.25f / cam.aspect);
+            float aspect = cam.aspect;
+            float pullback = Mathf.Max(1f, 1.25f / aspect);
             var position = stacked
-                ? new Vector3(center.x, 20f, center.y - 60f * pullback)
-                : new Vector3(center.x - 2.7f, 19.25f, center.y - 46f * pullback);
-            float shift = withTitle && side ? 10.2f * cam.aspect / (16f / 9f) : 0f;
-            var aim = new Vector3(center.x - shift, stacked ? -2f : 5.05f, center.y);
+                ? new Vector3(center.x, Mathf.Lerp(12.6f, 22f, Mathf.InverseLerp(1.0f, 0.55f, aspect)),
+                    center.y - 63f * pullback)
+                : new Vector3(center.x - 2.7f, withTitle ? 12.1f : 19.25f, center.y - (withTitle ? 50f : 46f) * pullback);
+            float shift = withTitle && side ? 12f * aspect / (16f / 9f) : 0f;
+            float aimHeight = stacked ? 1.8f - Mathf.Max(0f, 1.15f - aspect) * 16f : withTitle ? 7.9f : 5.05f;
+            var aim = new Vector3(center.x - shift, aimHeight, center.y);
             cam.transform.SetPositionAndRotation(position, Quaternion.LookRotation(aim - position, Vector3.up));
         }
 

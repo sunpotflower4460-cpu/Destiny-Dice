@@ -66,12 +66,12 @@ namespace DestinyGarden.Presentation
             _pathStone = Lit("Worn grey stepping stone", new Color(0.61f, 0.62f, 0.56f), 0.19f, plasterGrain);
             _wood = Lit("Cedar boards", new Color(1.20f, 1.05f, 0.88f), 0.23f, woodGrain);
             _trim = Lit("Warm oak", new Color(0.40f, 0.247f, 0.145f), 0.27f);
-            _door = Lit("Painted door", new Color(0.19f, 0.39f, 0.37f), 0.29f);
+            _door = Lit("Painted door", new Color(0.21f, 0.43f, 0.37f), 0.29f);
             var tile = new[]
             {
-                new Color(0.55f, 0.28f, 0.28f),
-                new Color(0.25f, 0.42f, 0.44f),
-                new Color(0.40f, 0.32f, 0.38f)
+                new Color(0.65f, 0.31f, 0.32f),
+                new Color(0.24f, 0.48f, 0.50f),
+                new Color(0.51f, 0.34f, 0.47f)
             }[(seed & int.MaxValue) % 3];
             _roof = Lit("Roof tiles", tile, 0.25f, tileTexture);
             _roofShade = Lit("Weathered roof tiles", tile * 0.77f, 0.20f, tileTexture);
@@ -276,8 +276,7 @@ namespace DestinyGarden.Presentation
             model.Gable(_plaster, new Vector3(0f, Eave - 0.009f, 0f),
                 new Vector3(CabinWidth - 0.027f, Ridge - Eave + 0.013f, CabinDepth - 0.012f));
             Roof(model, 0f, 0f, CabinWidth + 0.29f, CabinDepth + 0.26f, Eave, Ridge);
-            model.Box(_trim, new Vector3(0f, 1.14f, front - 0.018f), new Vector3(0.20f, 0.15f, 0.065f));
-            model.Box(_glow, new Vector3(0f, 1.14f, front - 0.057f), new Vector3(0.13f, 0.085f, 0.019f));
+            RoundWindow(model, new Vector3(0f, 1.15f, front), 0.21f);
             model.Box(_wood, new Vector3(0f, Eave + 0.012f, front - 0.016f), new Vector3(CabinWidth - 0.07f, 0.055f, 0.052f));
             for (int side = -1; side <= 1; side += 2)
                 model.Post(_trim, new Vector3(side * 0.65f, Eave + 0.04f, front - 0.016f),

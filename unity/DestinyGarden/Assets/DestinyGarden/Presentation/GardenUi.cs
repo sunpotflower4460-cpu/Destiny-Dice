@@ -728,7 +728,7 @@ namespace DestinyGarden.Presentation
             _titleCard = new GameObject("TitleCard");
             _titleCard.transform.SetParent(canvas, false);
             var dim = _titleCard.AddComponent<Image>();
-            dim.color = new Color(0.01f, 0.02f, 0.05f, 0.12f);
+            dim.color = new Color(0.035f, 0.016f, 0.055f, 0.07f);
             Stretch(_titleCard.GetComponent<RectTransform>());
 
             var opening = new GameObject("Opening", typeof(RectTransform));
@@ -752,6 +752,7 @@ namespace DestinyGarden.Presentation
                 new Vector2(290f, 62f), "庭に入る", 24, () => ShowTitleCard(false));
             Engrave(_enterButton, Symbol.Bottle, 39f, 19f);
             StylePrimary(_enterButton);
+            _openingHeading.gameObject.SetActive(_openingLettering == null);
         }
 
         public Action OnTitleClosed;
@@ -761,17 +762,23 @@ namespace DestinyGarden.Presentation
         private void LayoutOpeningCard()
         {
             var rect = _titleCard.GetComponent<RectTransform>();
-            bool side = UseSideTitle(rect.rect.width / Mathf.Max(1f, rect.rect.height));
-            var anchor = new Vector2(side ? 0.07f : 0.5f, side ? 0.50f : 0.075f);
+            float aspect = rect.rect.width / Mathf.Max(1f, rect.rect.height);
+            bool side = UseSideTitle(aspect);
+            bool portrait = aspect < 0.90f;
+            var anchor = new Vector2(side ? 0.084f : 0.5f, side ? 0.47f : portrait ? 0.25f : 0.059f);
             if (_openingCard.anchorMin == anchor) return;
             _openingCard.anchorMin = _openingCard.anchorMax = anchor;
             _openingCard.pivot = new Vector2(side ? 0f : 0.5f, side ? 0.5f : 0f);
             _openingCard.anchoredPosition = Vector2.zero;
-            _openingCard.sizeDelta = new Vector2(545f, side ? 400f : 330f);
+            _openingCard.sizeDelta = new Vector2(545f, side ? 520f : portrait ? 436f : 346f);
             _openingHeading.alignment = side ? TextAnchor.MiddleLeft : TextAnchor.MiddleCenter;
             _openingTagline.alignment = _openingDescription.alignment = side ? TextAnchor.UpperLeft : TextAnchor.UpperCenter;
-            ((RectTransform)_enterButton.transform).anchoredPosition = new Vector2(side ? 4f : 127.5f, -260f);
-            LayoutOpeningDecorations(side);
+            _openingHeading.rectTransform.anchoredPosition = new Vector2(0f, side ? -104f : -58f);
+            float portraitOffset = portrait ? 88f : 0f;
+            _openingTagline.rectTransform.anchoredPosition = new Vector2(4f, side ? -315f : -193f - portraitOffset);
+            _openingDescription.rectTransform.anchoredPosition = new Vector2(4f, side ? -354f : -229f - portraitOffset);
+            ((RectTransform)_enterButton.transform).anchoredPosition = new Vector2(side ? 4f : 127.5f, side ? -404f : -273f - portraitOffset);
+            LayoutOpeningDecorations(side, portrait);
         }
 
         /// <summary>Whether the title card is up (overlays of other components stay hidden under it).</summary>
