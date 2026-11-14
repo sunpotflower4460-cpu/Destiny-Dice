@@ -41,6 +41,7 @@ namespace DestinyGarden.Application
         /// <summary>The rainbow eight rose this roll: an eight-pointed star (rainbow.v3); older records keep their old rule.</summary>
         public bool Rainbow => PrayerStar > 0 ? PrayerStar >= 8 : LuckySeven && Bloomed;
         public List<string> Germinated = new List<string>(); // species that took root this roll (ecology.v3)
+        public string FortuneReason;
     }
 
     /// <summary>Projects verified journal entries of one run into display summaries.</summary>
@@ -115,6 +116,8 @@ namespace DestinyGarden.Application
                             Totals((Dictionary<string, object>)e.Payload["postState"], s);
                             if (e.Payload.TryGetValue("ecology", out object eco) && eco is IDictionary<string, object> ecod)
                             {
+                                if (ecod.TryGetValue("prayerStar", out object fortune) && fortune is IDictionary<string, object> fortuneFields)
+                                    s.FortuneReason = GardenFortune.FromRecord(s.FaceId, s.IntentKind, s.IntentValue, fortuneFields);
                                 if (ecod.TryGetValue("care", out object cr) && cr is IDictionary<string, object> care) s.Care = CareReport.FromPayload(care);
                                 if (ecod.TryGetValue("harmony", out object hv)) s.Harmony = WorldStateSerializer.ToInt(hv);
                                 if (ecod.TryGetValue("star", out object sv)) s.Star = WorldStateSerializer.ToInt(sv);

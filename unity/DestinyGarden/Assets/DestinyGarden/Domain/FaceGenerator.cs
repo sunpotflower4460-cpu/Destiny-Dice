@@ -52,6 +52,13 @@ namespace DestinyGarden.Domain
                 if (preferenceMode == "habitat") CareTargets.ResolveHabitat(stateBefore, preferenceSiteId, prepared);
                 anchor = prepared.AnchorCellId;
             }
+            if (preferenceMode == CareTargets.CellMode)
+            {
+                if (!CareRules.Enabled(stateBefore) || !CareTargets.TryCell(preferenceSiteId, out anchor))
+                    throw new ArgumentException("Plot focus is unavailable.", nameof(preferenceSiteId));
+                prepared.ResolvedSiteId = preferenceSiteId;
+                prepared.AnchorCellId = anchor;
+            }
 
             foreach (string recipeId in RecipeCatalog.Order)
             {

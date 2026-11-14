@@ -396,6 +396,8 @@ namespace DestinyGarden.Presentation
         public void BeginRoll()
         {
             _standingFrozenUntil = Time.time + 12f; // at most; the reveal releases it
+            if (_labelRoutine != null) { StopCoroutine(_labelRoutine); _labelRoutine = null; }
+            if (_labelGroup != null) _labelGroup.alpha = 0f;
             if (_causeGroup == null || _causeGroup.alpha <= 0f) return;
             if (_causeRoutine != null) StopCoroutine(_causeRoutine);
             _causeRoutine = StartCoroutine(FadeOutCause());
@@ -521,7 +523,7 @@ namespace DestinyGarden.Presentation
             if (points >= 7) ShowLabel(points, LuckyLabelLines(star, points, faceId, previousFaceId, faceCount), false);
             // prayer-star.v5: the other lucky signs, each with its number, name, sound and light (after the lucky number).
             var signs = SignLabels(star, faceId, _wishFace);
-            if (signs.Count > 0) Track(StartCoroutine(PlaySigns(signs, points >= 7 ? 2.6f : 0f)));
+            if (signs.Count > 0) Track(StartCoroutine(PlaySigns(signs, points >= 7 ? LabelHold : 0f)));
             LightBeads();
             yield return new WaitForSeconds(0.5f);
             int perPlant = points >= 8 ? 14 : points == 7 ? 10 : points == 6 ? 5 : 3;
@@ -548,20 +550,13 @@ namespace DestinyGarden.Presentation
 
         /// <summary>
         /// prayer-star.v5: the lucky signs of a roll besides the lucky number, most special first: 三つぞろい, a total
-        /// of 77 (or 154, 231 ...), ゾロ目, and a face wished for coming up. Each is [number, name, "", ""] and a sound.
+        /// of 77 (or 154, 231 ...), ゾロ目, and a face wished for coming up.
         /// </summary>
         public static List<string[]> SignLabels(PrayerStarReading star, int faceId, bool wishFace)
         {
             var list = new List<string[]>();
-            if (star == null) return list;
-            if (star.Triple) list.Add(new[] { $"{faceId}{faceId}{faceId}", "三つぞろい", "", "" });
-            if (star.Total77)
-            {
-                int total = star.FaceTotal / PrayerStar.LuckyTotal * PrayerStar.LuckyTotal;
-                list.Add(new[] { total.ToString(System.Globalization.CultureInfo.InvariantCulture), "出目の合計", "", "" });
-            }
-            if (star.Zorome && !star.Triple && !star.LuckyNumber) list.Add(new[] { $"{faceId}{faceId}", "ゾロ目", "", "" });
-            if (wishFace && !star.LuckyNumber && list.Count == 0) list.Add(new[] { faceId.ToString(System.Globalization.CultureInfo.InvariantCulture), "願いの目", "", "" });
+            foreach (var sign in GardenFortune.OtherSigns(star, faceId, wishFace))
+                list.Add(new[] { sign.Number, sign.Name, sign.Reason, "" });
             return list;
         }
 
@@ -580,7 +575,7 @@ namespace DestinyGarden.Presentation
                 _flash = big ? 1f : 0.6f;
                 EmitBurst(big ? 7 : 6);
                 ShowLabel(7, lines, false);
-                yield return new WaitForSeconds(2.6f);
+                yield return new WaitForSeconds(LabelHold);
             }
         }
 
@@ -758,13 +753,13 @@ namespace DestinyGarden.Presentation
             _labelGroup.alpha = 0f;
             _labelGroup.blocksRaycasts = false;
             _labelGroup.interactable = false;
-            // The lucky label: a large numeral, the title, the honest odds and the garden's count, popping in together.
+            // The lucky label pairs the number with the rolls or milestone that produced it.
             var rootObj = new GameObject("LuckyLabelRoot");
             rootObj.transform.SetParent(canvasObj.transform, false);
             _labelRoot = rootObj.AddComponent<RectTransform>();
             _labelRoot.anchorMin = Vector2.zero; _labelRoot.anchorMax = Vector2.one;
             _labelRoot.offsetMin = Vector2.zero; _labelRoot.offsetMax = Vector2.zero;
-            // A soft dark panel behind the two small lines (odds and count) keeps them readable over bright ground.
+            // A soft plate keeps the reason readable over bright ground.
             var luckyBackObj = new GameObject("LuckyLabelBacking");
             luckyBackObj.transform.SetParent(_labelRoot, false);
             _labelBacking = luckyBackObj.AddComponent<Image>();
@@ -772,7 +767,7 @@ namespace DestinyGarden.Presentation
             _labelBacking.raycastTarget = false;
             var lbRect = luckyBackObj.GetComponent<RectTransform>();
             lbRect.anchorMin = lbRect.anchorMax = new Vector2(0.5f, 0.5f);
-            lbRect.anchoredPosition = new Vector2(0f, 89f);
+            lbRect.anchoredPosition = new Vector2(0f, 104f);
             _labelNumeral = LabelText(_labelRoot, new Vector2(0f, 222f), 112);
             _labelNumeral.GetComponent<RectTransform>().sizeDelta = new Vector2(400f, 140f);
             _labelTitle = LabelText(_labelRoot, new Vector2(0f, 146f), 42);
@@ -992,17 +987,17 @@ namespace DestinyGarden.Presentation
         }
 
         /// <summary>
-        /// The lucky label's four lines [numeral, title, odds, the garden's count] (lucky.v1), from the saved reading.
-        /// Seven: "ラッキーナンバー" (or "ダブル ラッキーナンバー" for two in a row) with the honest odds and k/7.
-        /// Eight: "七つの幸運・八の虹" when it is the seventh lucky number, otherwise "八芒星・八の虹".
+        /// Number, title, preceding and current rolls, and the condition that raised the rainbow when present.
         /// </summary>
         public static string[] LuckyLabelLines(PrayerStarReading star, int points, int faceId, int previousFaceId, int faceCount)
         {
-            // The event itself: the number, its name, and the two faces that made it (no explanation; the beads on the
-            // star's ring keep the count, the light on the plants shows the gift).
-            string faces = faceId == LuckySeven.FaceId ? "七の目" : previousFaceId > 0 ? $"{previousFaceId} ＋ {faceId}" : "";
+            string faces = GardenFortune.SevenReason(faceId, previousFaceId) ?? "";
             if (points >= 8)
-                return new[] { "8", star != null && star.SevenLuckies ? "七つの幸運" : "八の虹", faces, "" };
+            {
+                bool seventh = star?.SevenLuckies == true && star.Wished;
+                string rainbow = seventh ? "願いをかけた投で、7つめの幸運が灯った" : star?.WishAnswered == true ? "庭の調和が満ち、願いが叶った" : "";
+                return new[] { "8", seventh ? "七つの幸運" : "八の虹", faces, rainbow };
+            }
             bool dbl = star != null && star.LuckyStreak >= 2;
             return new[] { "7", dbl ? "ダブル　ラッキーナンバー" : "ラッキーナンバー", faces, "" };
         }
@@ -1030,16 +1025,19 @@ namespace DestinyGarden.Presentation
             _labelCounter.color = new Color(1f, 0.88f, 0.62f, 0.92f);
             if (_labelBacking != null)
             {
-                // A plate only when there are small lines to read; the number and the two faces stand on their own.
-                _labelBacking.gameObject.SetActive(!string.IsNullOrEmpty(lines[3]));
+                bool extra = !string.IsNullOrEmpty(lines[3]);
+                _labelBacking.gameObject.SetActive(!string.IsNullOrEmpty(lines[2]) || extra);
+                _labelBacking.rectTransform.anchoredPosition = new Vector2(0f, extra ? 89f : 104f);
                 _labelBacking.rectTransform.sizeDelta = new Vector2(
-                    Mathf.Min(1440f, Mathf.Max(_labelSub.preferredWidth, _labelCounter.preferredWidth) + 56f), 66f);
+                    Mathf.Min(1440f, Mathf.Max(_labelSub.preferredWidth, _labelCounter.preferredWidth) + 56f), extra ? 66f : 42f);
             }
             if (_labelRoutine != null) StopCoroutine(_labelRoutine);
             _labelRoutine = StartCoroutine(FadeLabel(points, hold));
         }
 
-        /// <summary>The label pops in (a little larger, then settling), its numeral shimmering gold and white.</summary>
+        private const float LabelHold = 4.8f;
+
+        /// <summary>The label pops in, settles and holds while the player reads the reason.</summary>
         private IEnumerator FadeLabel(int points, bool hold)
         {
             var gold = new Color(1f, 0.82f, 0.42f);
@@ -1062,7 +1060,7 @@ namespace DestinyGarden.Presentation
             }
             _labelGroup.alpha = 1f;
             _labelRoot.localScale = Vector3.one;
-            for (float t = 0f; hold || t < 3.4f; t += Time.deltaTime, time += Time.deltaTime) { Shimmer(time); yield return null; }
+            for (float t = 0f; hold || t < LabelHold - 0.8f; t += Time.deltaTime, time += Time.deltaTime) { Shimmer(time); yield return null; }
             for (float t = 0f; t < 1.4f; t += Time.deltaTime, time += Time.deltaTime)
             {
                 _labelGroup.alpha = 1f - t / 1.4f;

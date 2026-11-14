@@ -67,7 +67,8 @@ namespace DestinyGarden.Application
             Read(state, links, events, recipeId, roundId, care, diceWater, null);
 
         private static List<GardenMoment> Read(WorldState state, IList<EcologicalLink> links, IList<GardenEvent> events,
-            string recipeId, string roundId, CareReport care, long diceWater, IEnumerable<EcologyEffect> effects)
+            string recipeId, string roundId, CareReport care, long diceWater, IEnumerable<EcologyEffect> effects,
+            bool includeMilestones = false)
         {
             var candidates = new List<GardenMoment>(); if (state == null) return candidates;
             recipeId = recipeId ?? care?.RecipeId;
@@ -205,11 +206,16 @@ namespace DestinyGarden.Application
                     b.Kind + ":" + b.Actor + ":" + b.Species + ":" + b.FromCell);
             });
             var result = new List<GardenMoment>(); var cells = new HashSet<int>();
+            var milestones = new HashSet<(int Cell, string Kind, string Actor, string Species)>();
             bool giftShown = false;
             foreach (var moment in candidates)
             {
                 bool isGift = moment.Kind == StarGift;
-                if ((isGift && giftShown) || !cells.Add(moment.CellId)) continue;
+                if (isGift && giftShown) continue;
+                bool firstAtCell = cells.Add(moment.CellId);
+                bool distinctMilestone = includeMilestones && IsReviewMilestone(moment.Kind) &&
+                    milestones.Add((moment.CellId, moment.Kind, moment.Actor, moment.Species));
+                if (!firstAtCell && !distinctMilestone) continue;
                 result.Add(moment);
                 giftShown |= isGift;
             }
@@ -226,6 +232,11 @@ namespace DestinyGarden.Application
         }
 
         internal static bool IsPlantReturn(string kind) => kind == "ReturnedToSoil" || kind == Lifecycle.ReturnedEvent;
+
+        private static bool IsReviewMilestone(string kind) => kind is
+            "Bloomed" or "seed-awakened" or "clonal-rooted" or "fruited" or "recovered" or
+            "resident-emerged" or "resident-settled" or "resident-left" or "resident-dispersed" or
+            "brood-laid" or "brood-lost" or "returned-to-soil" or "resident-returned";
 
         // Lead with visible growth and new life. Quiet rolls and setbacks keep their usual order.
         private static int MilestonePriority(string kind) => kind switch
@@ -299,7 +310,10 @@ namespace DestinyGarden.Application
                 default: return null;
             }
         }
-        public static List<GardenMoment> Recent(IList<JournalEntry> entries, string runId, int maxRounds = 12)
+        public static List<GardenMoment> Recent(IList<JournalEntry> entries, string runId, int maxRounds = 12) =>
+            Recent(entries, runId, maxRounds, false);
+
+        public static List<GardenMoment> Recent(IList<JournalEntry> entries, string runId, int maxRounds, bool includeMilestones)
         {
             var recipes = new Dictionary<string, string>(); var resolved = new List<JournalEntry>();
             foreach (var e in entries)
@@ -331,7 +345,7 @@ namespace DestinyGarden.Application
                             CellId = WorldStateSerializer.ToInt(item["cellId"]), Tick = WorldStateSerializer.ToInt(item["tick"]) });
                 recipes.TryGetValue(e.RoundId, out string recipe);
                 var moments = Read(state, links, events, recipe ?? care?.RecipeId, e.RoundId, care,
-                    e.Payload.TryGetValue("diceWaterInjected", out object dw) ? Convert.ToInt64(dw) : 0, effects);
+                    e.Payload.TryGetValue("diceWaterInjected", out object dw) ? Convert.ToInt64(dw) : 0, effects, includeMilestones);
                 if (moments.Count == 1 && moments[0].Kind == "recorded-roll" &&
                     e.Payload.TryGetValue("momentHeadline", out object headline) && headline is string text &&
                     e.Payload.TryGetValue("momentCellId", out object focus))

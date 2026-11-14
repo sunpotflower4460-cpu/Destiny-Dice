@@ -203,15 +203,20 @@ namespace DestinyGarden.Application
             {
                 if (!CareRules.Enabled(State) || Array.IndexOf(HabitatRules.Labels, siteId) < 0) throw new ArgumentException("Habitat focus is unavailable.");
             }
+            else if (mode == CareTargets.CellMode)
+            {
+                if (!CareRules.Enabled(State) || !CareTargets.TryCell(siteId, out _))
+                    throw new ArgumentException("Plot focus is unavailable.", nameof(siteId));
+            }
             else if (mode != "auto" || siteId != null) throw new ArgumentException("Unknown care focus.");
             if (mode == PreferenceMode && siteId == PreferenceSiteId) return;
-            PreferenceMode = mode; PreferenceSiteId = siteId;
             _writer.Append("CareFocusChanged", RunId, null, new Dictionary<string, object>
             {
                 ["mode"] = mode,
                 ["siteId"] = siteId,
                 ["targetPolicyVersion"] = CareRules.Enabled(State) ? CareRules.TargetVersion : RuleVersions.TargetPolicy
             });
+            PreferenceMode = mode; PreferenceSiteId = siteId;
         }
 
         public PreparedFaces Prepare()
