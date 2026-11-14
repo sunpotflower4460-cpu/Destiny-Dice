@@ -38,26 +38,26 @@ namespace DestinyGarden.Presentation
         private static readonly Key[] Keys =
         {
             // dawn
-            K(0.00f, new Color(1.00f, 0.68f, 0.54f), 1.70f, 15f, -75f, new Color(0.45f, 0.40f, 0.62f), 0.55f,
-                new Color(0.62f, 0.57f, 0.68f), new Color(0.56f, 0.46f, 0.54f), new Color(0.80f, 0.70f, 0.78f), 0.15f, 0.95f),
+            K(0.00f, new Color(1.00f, 0.77f, 0.61f), 1.70f, 15f, -75f, new Color(0.54f, 0.42f, 0.70f), 0.58f,
+                new Color(0.68f, 0.61f, 0.72f), new Color(0.59f, 0.46f, 0.61f), new Color(0.82f, 0.69f, 0.87f), 0.15f, 0.95f),
             // morning
-            K(0.16f, new Color(1.00f, 0.86f, 0.66f), 2.40f, 35f, -58f, new Color(0.21f, 0.45f, 0.60f), 0.45f,
-                new Color(0.58f, 0.62f, 0.72f), new Color(0.30f, 0.40f, 0.52f), new Color(0.55f, 0.75f, 0.85f), 0.00f, 0.85f),
+            K(0.16f, new Color(1.00f, 0.82f, 0.68f), 2.12f, 35f, -58f, new Color(0.55f, 0.48f, 0.73f), 0.57f,
+                new Color(0.70f, 0.65f, 0.76f), new Color(0.53f, 0.47f, 0.62f), new Color(0.71f, 0.80f, 0.91f), 0.00f, 0.89f),
             // noon
-            K(0.38f, new Color(1.00f, 0.97f, 0.88f), 2.60f, 62f, -42f, new Color(0.25f, 0.46f, 0.62f), 0.40f,
-                new Color(0.62f, 0.67f, 0.76f), new Color(0.34f, 0.46f, 0.58f), new Color(0.56f, 0.80f, 0.90f), 0.00f, 0.80f),
+            K(0.38f, new Color(1.00f, 0.95f, 0.82f), 2.45f, 62f, -42f, new Color(0.39f, 0.53f, 0.69f), 0.49f,
+                new Color(0.68f, 0.69f, 0.78f), new Color(0.44f, 0.52f, 0.67f), new Color(0.61f, 0.86f, 0.91f), 0.00f, 0.80f),
             // golden afternoon
-            K(0.60f, new Color(1.00f, 0.82f, 0.55f), 2.30f, 30f, -25f, new Color(0.30f, 0.36f, 0.55f), 0.50f,
-                new Color(0.62f, 0.58f, 0.62f), new Color(0.42f, 0.42f, 0.50f), new Color(0.72f, 0.74f, 0.74f), 0.00f, 0.95f),
+            K(0.60f, new Color(1.00f, 0.79f, 0.59f), 2.23f, 30f, -25f, new Color(0.50f, 0.39f, 0.67f), 0.57f,
+                new Color(0.67f, 0.60f, 0.72f), new Color(0.56f, 0.45f, 0.60f), new Color(0.83f, 0.74f, 0.87f), 0.00f, 0.95f),
             // sunset
-            K(0.76f, new Color(1.00f, 0.68f, 0.50f), 2.0f, 17f, -8f, new Color(0.40f, 0.32f, 0.60f), 0.60f,
-                new Color(0.62f, 0.52f, 0.62f), new Color(0.52f, 0.36f, 0.46f), new Color(0.82f, 0.66f, 0.68f), 0.35f, 1.05f),
-            // moonlit night (kept bright enough to read: a luminous blue)
-            K(0.88f, new Color(0.62f, 0.72f, 1.00f), 1.10f, 40f, -30f, new Color(0.22f, 0.30f, 0.55f), 0.55f,
-                new Color(0.36f, 0.43f, 0.64f), new Color(0.13f, 0.18f, 0.34f), new Color(0.34f, 0.46f, 0.74f), 1.00f, 1.20f),
+            K(0.76f, new Color(1.00f, 0.71f, 0.55f), 1.90f, 17f, -8f, new Color(0.54f, 0.35f, 0.72f), 0.63f,
+                new Color(0.63f, 0.54f, 0.71f), new Color(0.58f, 0.38f, 0.56f), new Color(0.86f, 0.67f, 0.85f), 0.35f, 1.05f),
+            // moonlit ink and lavender shadows
+            K(0.88f, new Color(0.68f, 0.73f, 1.00f), 1.10f, 40f, -30f, new Color(0.39f, 0.31f, 0.67f), 0.58f,
+                new Color(0.43f, 0.44f, 0.68f), new Color(0.24f, 0.22f, 0.43f), new Color(0.54f, 0.55f, 0.80f), 1.00f, 1.20f),
             // back to dawn
-            K(1.00f, new Color(1.00f, 0.68f, 0.54f), 1.70f, 15f, -75f, new Color(0.45f, 0.40f, 0.62f), 0.55f,
-                new Color(0.62f, 0.57f, 0.68f), new Color(0.56f, 0.46f, 0.54f), new Color(0.80f, 0.70f, 0.78f), 0.15f, 0.95f),
+            K(1.00f, new Color(1.00f, 0.77f, 0.61f), 1.70f, 15f, -75f, new Color(0.54f, 0.42f, 0.70f), 0.58f,
+                new Color(0.68f, 0.61f, 0.72f), new Color(0.59f, 0.46f, 0.61f), new Color(0.82f, 0.69f, 0.87f), 0.15f, 0.95f),
         };
 
         public static SkyState Evaluate(float phase, WeatherId weather = WeatherId.Clear)
@@ -89,12 +89,15 @@ namespace DestinyGarden.Presentation
                 * Mathf.SmoothStep(1f, 0f, Mathf.InverseLerp(0.77f, 0.84f, phase)) * (1f - wet * 0.63f);
             sky.MoonVisibility = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.27f, 0.95f, sky.Night)) * (1f - wet * 0.56f);
 
-            var dayHorizon = Color.Lerp(new Color(0.24f, 0.41f, 0.56f), new Color(0.17f, 0.265f, 0.38f), wet);
-            var dayZenith = Color.Lerp(new Color(0.037f, 0.135f, 0.33f), new Color(0.065f, 0.112f, 0.23f), wet);
-            sky.Horizon = Color.Lerp(dayHorizon, new Color(0.022f, 0.045f, 0.103f), sky.Night);
-            sky.Zenith = Color.Lerp(dayZenith, new Color(0.005f, 0.013f, 0.037f), sky.Night);
-            sky.Horizon = Color.Lerp(sky.Horizon, new Color(0.35f, 0.14f, 0.13f), sky.Twilight * 0.84f);
-            sky.Zenith = Color.Lerp(sky.Zenith, new Color(0.061f, 0.037f, 0.100f), sky.Twilight * 0.63f);
+            float noon = Mathf.Pow(Mathf.Max(0f, Mathf.Cos((phase - 0.39f) * Mathf.PI * 2f)), 4f);
+            var daylightHorizon = Color.Lerp(new Color(0.39f, 0.215f, 0.31f), new Color(0.32f, 0.44f, 0.59f), noon);
+            var daylightZenith = Color.Lerp(new Color(0.076f, 0.055f, 0.17f), new Color(0.092f, 0.19f, 0.37f), noon);
+            var dayHorizon = Color.Lerp(daylightHorizon, new Color(0.18f, 0.20f, 0.29f), wet * 0.76f);
+            var dayZenith = Color.Lerp(daylightZenith, new Color(0.058f, 0.077f, 0.16f), wet * 0.76f);
+            sky.Horizon = Color.Lerp(dayHorizon, new Color(0.041f, 0.046f, 0.113f), sky.Night);
+            sky.Zenith = Color.Lerp(dayZenith, new Color(0.009f, 0.011f, 0.043f), sky.Night);
+            sky.Horizon = Color.Lerp(sky.Horizon, new Color(0.49f, 0.215f, 0.22f), sky.Twilight * 0.84f);
+            sky.Zenith = Color.Lerp(sky.Zenith, new Color(0.10f, 0.052f, 0.18f), sky.Twilight * 0.63f);
             return sky;
         }
 

@@ -74,12 +74,12 @@ Shader "DestinyGarden/Glass"
                 float night = _DGSkyWeather.y;
                 float softLight = skyPatch * lerp(1.0, 0.56, _DGSkyWeather.x);
                 half3 sky = GardenSkyGradient(reflected);
-                half3 glassTint = lerp(half3(0.33, 0.63, 0.66), half3(0.10, 0.26, 0.41), night);
-                half3 pale = lerp(half3(0.80, 0.95, 0.94), half3(0.44, 0.66, 0.91), night);
+                half3 glassTint = lerp(half3(0.52, 0.51, 0.69), half3(0.18, 0.23, 0.43), night);
+                half3 pale = lerp(half3(0.96, 0.86, 0.92), half3(0.56, 0.64, 0.94), night);
                 half3 color = lerp(sky + glassTint * 0.22, glassTint, rim * 0.78);
                 float lipTop = smoothstep(16.62, 17.08, input.height);
                 color = lerp(color, pale, saturate(0.47 * edge + 0.55 * softLight + 0.17 * horizon + _Lip * lipTop * 0.38));
-                color += half3(0.71, 0.32, 0.13) * sun + half3(0.22, 0.39, 0.63) * moon;
+                color += half3(0.71, 0.38, 0.23) * sun + half3(0.28, 0.38, 0.64) * moon;
                 color += pale * (softLight * (rim * 0.15 + _Lip * lipTop * 0.24));
 
                 // The thicker glass at the foot catches a narrow band of sea light.

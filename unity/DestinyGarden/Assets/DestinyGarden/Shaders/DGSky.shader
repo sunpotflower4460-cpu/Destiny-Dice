@@ -55,7 +55,7 @@ Shader "DestinyGarden/Sky"
                 half haze = smoothstep(-0.06, 0.06, ray.y) * (1.0 - smoothstep(0.07, 0.21, ray.y));
                 half light = pow(saturate(dot(ray, _DGSkySun.xyz)), 6.0) * _DGSkySun.w;
                 half silver = pow(saturate(dot(ray, _DGSkyMoon.xyz)), 7.0) * _DGSkyMoon.w;
-                half3 cloud = lerp(half3(0.23, 0.30, 0.39), half3(0.023, 0.036, 0.067), night);
+                half3 cloud = lerp(half3(0.26, 0.23, 0.36), half3(0.023, 0.026, 0.061), night);
                 half edges = smoothstep(edge + 0.08, edge + 0.28, density);
                 cloud = lerp(cloud, half3(0.70, 0.73, 0.77), edges * (0.66 - night * 0.64));
                 cloud = lerp(cloud, half3(0.88, 0.43, 0.24), (0.32 + 0.48 * light) * _DGSkyWarmth.w * (0.44 + edges * 0.56));
@@ -92,8 +92,13 @@ Shader "DestinyGarden/Sky"
             {
                 float3 ray = normalize(input.ray);
                 half3 sky = GardenSkyGradient(ray);
-                sky += Sun(ray) + Moon(ray);
-                return half4(Clouds(ray, sky), 1.0);
+                half3 movingClouds = Clouds(ray, sky);
+                half paint = _DGPaintedSkyWeight * smoothstep(0.002, 0.045, ray.y)
+                    * (1.0 - smoothstep(0.38, 0.70, ray.y));
+                paint *= lerp(0.94, 0.60, _DGSkyWeather.w);
+                sky = lerp(movingClouds, GardenPaintedClouds(ray), paint);
+                sky += (Sun(ray) + Moon(ray)) * lerp(1.0, 0.68, _DGSkyWeather.x);
+                return half4(sky, 1.0);
             }
             ENDHLSL
         }

@@ -104,14 +104,14 @@ namespace DestinyGarden.Presentation
             shade.rectTransform.offsetMax = new Vector2(170f, 74f);
             _openingCrest = Decoration(parent, "Garden crest", GardenUiArt.Icon(Symbol.Bottle));
             _openingCrest.color = PaleGold;
-            _openingRule = Decoration(parent, "Opening rule", GardenUiArt.Rule);
+            _openingRule = Decoration(parent, "Opening rule", GardenUiArt.TitleRule);
         }
 
         private void LayoutOpeningDecorations(bool side)
         {
             var anchor = new Vector2(side ? 0f : 0.5f, 1f);
             PlaceDecoration(_openingCrest, anchor, new Vector2(side ? 3f : 0f, -4f), new Vector2(74f, 74f));
-            PlaceDecoration(_openingRule, anchor, new Vector2(side ? -7f : 0f, -153f), new Vector2(430f, 2f));
+            PlaceDecoration(_openingRule, anchor, new Vector2(side ? -7f : 0f, -153f), new Vector2(430f, 13f));
         }
 
         private static void DecoratePanelHeader(Transform panel)
