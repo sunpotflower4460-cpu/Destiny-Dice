@@ -95,11 +95,28 @@ namespace DestinyGarden.Domain
         }
 
         /// <summary>The largest group of flowers of this kind joined side by side (0 when none).</summary>
-        public static int LargestCluster(WorldState s, ElementId e)
+        public static int LargestCluster(WorldState s, ElementId e) => LargestCluster(s, e, false);
+
+        /// <summary>
+        /// The largest group of this kind joined side by side, flowers only or (season.v3) buds and flowers: a stand in
+        /// the making, which is what a season's wish asks the garden to grow.
+        /// </summary>
+        public static int LargestCluster(WorldState s, ElementId e, bool withBuds) => LargestCluster(s, e, withBuds, Reach);
+
+        /// <summary>season.v3: a stand as a season's wish sees it — buds and flowers within <paramref name="reach"/> cells.</summary>
+        public static int LargestCluster(WorldState s, ElementId e, bool withBuds, int reach)
         {
             int best = 0;
             var cells = new List<int>();
-            foreach (var p in s.Plants) if (IsMember(p, e)) cells.Add(p.CellId);
+            foreach (var p in s.Plants)
+            {
+                if (withBuds)
+                {
+                    // season.v3: a stand of the blessing's own family (as the star and the seeds lean), in bud or flower.
+                    if ((p.Stage == PlantStage.Bud || p.Stage == PlantStage.Flower) && Flora.Suits(Flora.Get(p.Species), e)) cells.Add(p.CellId);
+                }
+                else if (IsMember(p, e)) cells.Add(p.CellId);
+            }
             var seen = new HashSet<int>();
             foreach (int start in cells)
             {
@@ -110,7 +127,7 @@ namespace DestinyGarden.Domain
                 while (stack.Count > 0)
                 {
                     int c = stack.Pop(); size++;
-                    foreach (int o in cells) if (!seen.Contains(o) && Dist(c, o) <= Reach) { seen.Add(o); stack.Push(o); }
+                    foreach (int o in cells) if (!seen.Contains(o) && Dist(c, o) <= reach) { seen.Add(o); stack.Push(o); }
                 }
                 best = Math.Max(best, size);
             }
@@ -122,10 +139,10 @@ namespace DestinyGarden.Domain
         {
             var cells = new List<int>();
             foreach (var p in s.Plants)
-                if ((p.Stage == PlantStage.Bud || p.Stage == PlantStage.Flower) && Belongs(Flora.Get(p.Species), e)) cells.Add(p.CellId);
+                if ((p.Stage == PlantStage.Bud || p.Stage == PlantStage.Flower) && Flora.Suits(Flora.Get(p.Species), e)) cells.Add(p.CellId); // season.v3
             for (int i = 0; i < cells.Count; i++)
                 for (int j = i + 1; j < cells.Count; j++)
-                    if (Dist(cells[i], cells[j]) <= Reach) return true;
+                    if (Dist(cells[i], cells[j]) <= Seasons.StandReach) return true; // season.v3: as the stand is judged
             return false;
         }
 

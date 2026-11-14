@@ -115,7 +115,11 @@ namespace DestinyGarden.Tests
             var five = PrayerStar.Recipients(s, PrayerStar.Read(1, 0, "seed_single", null, false, 0));
             CollectionAssert.AreEqual(new[] { 105 }, five, "five: the youngest one");
             var seven = PrayerStar.Recipients(s, PrayerStar.Read(3, 4, "seed_single", "seed_single", false, 0));
-            CollectionAssert.AreEqual(new[] { 105, 101, 103, 104, 102, 107, 106 }, seven, "growth order, then cell order");
+            // prayer-star.v4: on a lucky number the buds come first (they open), then growth order, then cell order.
+            CollectionAssert.AreEqual(new[] { 106, 105, 101, 103, 104, 102, 107 }, seven, "buds first, then growth order, then cell order");
+            var luckyStar = PrayerStar.Read(3, 4, "seed_single", "seed_single", false, 0);
+            Assert.AreEqual(900, PrayerStar.GiftFor(luckyStar, 1600), "a bud opens on a lucky number (a full stage to bloom)");
+            Assert.AreEqual(150, PrayerStar.GiftFor(luckyStar, 1200), "other plants: half a stage, as before");
             // The blessing's site comes first: with the site at cell 106, the plants within three cells lead.
             var near = PrayerStar.Recipients(s, PrayerStar.Read(1, 0, "seed_single", null, false, 0, 106));
             Assert.LessOrEqual(PrayerStar.Dist(near[0], 106), PrayerStar.SiteReach);
@@ -188,8 +192,10 @@ namespace DestinyGarden.Tests
                 foreach (var g in gifts)
                 {
                     Assert.Greater(g.Amount, 0);
-                    Assert.LessOrEqual(g.Amount, star.GiftGrowth > 0 ? star.GiftGrowth : star.Points == 7 && star.LuckyStreak < 2 ? 500 : 1000,
-                        "five: +60; seven half a stage (a double lucky number a full one); otherwise one stage");
+                    // A bud on a lucky number opens (a full stage, up to 1000); otherwise seven is half a stage.
+                    bool opened = o.Ecology.PostState.PlantAt(g.CellId)?.Stage == PlantStage.Flower;
+                    Assert.LessOrEqual(g.Amount, star.GiftGrowth > 0 ? star.GiftGrowth : star.Points == 7 && star.LuckyStreak < 2 && !opened ? 500 : 1000,
+                        "five: +60; seven half a stage (a bud opens; a double lucky number a full one); otherwise one stage");
                 }
                 Assert.AreEqual(o.Simulation.PostState.TotalWater(), o.Ecology.PostState.TotalWater(), "the star never moves water");
                 Assert.AreEqual(star.Points >= 8, PrayerStar.IsRainbow(o.LuckySeven, o.Simulation, o.Ecology),

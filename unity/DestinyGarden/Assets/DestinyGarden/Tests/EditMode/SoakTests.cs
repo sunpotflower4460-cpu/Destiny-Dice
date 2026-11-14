@@ -172,7 +172,7 @@ namespace DestinyGarden.Tests
                     proj.Stop();
                     Assert.IsTrue(again.ChainValid);
                     Assert.Less(read.Entries.Count, again.Entries.Count);
-                    lines.Add($"{i} rolls: journal {new FileInfo(path).Length / 1024} KiB, cold read+verify+project {sw.ElapsedMilliseconds} ms, " +
+                    lines.Add($"{i} rolls: journal {Directory.GetFiles(dir).Where(f => !Path.GetFileName(f).Contains("-")).Sum(f => new FileInfo(f).Length) / 1024} KiB in {journal.SegmentCount()} segments, cold read+verify+project {sw.ElapsedMilliseconds} ms, " +
                               $"warm read {warm.Elapsed.TotalMilliseconds:F1} ms + project {proj.Elapsed.TotalMilliseconds:F1} ms, history {history2.Count}");
                 }
             }
