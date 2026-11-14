@@ -148,6 +148,46 @@ namespace DestinyGarden.Tests
         }
 
         [Test]
+        public void MissingMiddleSegment_IsDetectedAndLaterSegmentsAreKeptIntact()
+        {
+            string dir = NewDir();
+            try
+            {
+                string path = Path.Combine(dir, "journal.v1.bin");
+                var split = new FileJournal(path, new FixedClock(), 1);
+                var entries = new List<JournalEntry>();
+                for (int i = 0; i < 5; i++)
+                    entries.Add(split.Append("test", "run", null, new Dictionary<string, object> { ["value"] = i }));
+                Assert.IsTrue(split.ReadAll().ChainValid, "also populate the incremental cache");
+                string missing = split.SegmentPath(1);
+                string later = split.SegmentPath(3);
+                string last = split.SegmentPath(4);
+                byte[] laterBytes = File.ReadAllBytes(later);
+                byte[] lastBytes = File.ReadAllBytes(last);
+                File.Move(missing, missing + ".external-backup");
+                File.Move(split.SegmentPath(2), split.SegmentPath(2) + ".external-backup");
+
+                var broken = split.ReadAll();
+                Assert.IsFalse(broken.ChainValid);
+                StringAssert.Contains("Missing segment 1", broken.Error);
+                Assert.AreEqual(1, broken.Entries.Count);
+                var payload = new Dictionary<string, object> { ["value"] = 5 };
+                Assert.Throws<IOException>(() => split.Append("test", "run", null, payload));
+                Assert.IsFalse(File.Exists(missing));
+
+                var restored = new FileJournal(path, new FixedClock(), 1);
+                StringAssert.Contains("Missing segment 1", restored.Recovery);
+                Assert.AreEqual(entries[0].EntryHash, restored.HeadHash);
+                CollectionAssert.AreEqual(laterBytes, File.ReadAllBytes(Directory.GetFiles(dir, Path.GetFileName(later) + ".corrupt-*").Single()));
+                CollectionAssert.AreEqual(lastBytes, File.ReadAllBytes(Directory.GetFiles(dir, Path.GetFileName(last) + ".corrupt-*").Single()));
+                var appended = restored.Append("test", "run", null, payload);
+                Assert.AreEqual(2, appended.Seq);
+                Assert.IsTrue(new FileJournal(path, new FixedClock(), 1).ReadAll().ChainValid);
+            }
+            finally { Directory.Delete(dir, true); }
+        }
+
+        [Test]
         public void CutOffFirstWriteOfANewSegment_IsSetAside()
         {
             string dir = NewDir();

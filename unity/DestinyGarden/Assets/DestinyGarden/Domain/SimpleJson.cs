@@ -132,11 +132,11 @@ namespace DestinyGarden.Domain
             int digits = 0;
             while (_i < _s.Length && _s[_i] >= '0' && _s[_i] <= '9')
             {
-                value = checked(value * 10 + (_s[_i] - '0'));
+                int digit = _s[_i] - '0';
+                value = checked(value * 10 + (negative ? -digit : digit));
                 _i++; digits++;
             }
             if (digits == 0) throw new FormatException("Bad number at " + start);
-            if (negative) value = -value;
             return value >= SmallMin && value <= SmallMax ? Small[value - SmallMin] : value;
         }
 

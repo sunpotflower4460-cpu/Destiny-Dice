@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text;
@@ -21,7 +22,7 @@ namespace DestinyGarden.Infrastructure
     /// Recovery when opened (nothing is discarded): an incomplete last frame (a write cut off by the process
     /// ending) is moved to a "torn" side file before new frames are added, so later frames stay readable. A
     /// journal whose chain is broken has the damaged segment copied whole to a "corrupt" side file (and any later
-    /// segments moved aside) and continues from its verified prefix. Either is reported in <see cref="Recovery"/>.
+    /// segments moved aside) and continues from its verified prefix. Both are reported in <see cref="Recovery"/>.
     /// </summary>
     public sealed class FileJournal : IJournalWriter, IJournalReader
     {
@@ -42,8 +43,6 @@ namespace DestinyGarden.Infrastructure
         private int _verifiedSegment;
         private long _verifiedOffset;
         private byte[] _verifiedTailDigest;
-        private int _goodSegment;      // where the last whole, verified frame ends (segment, offset)
-        private long _goodOffset;
 
         /// <summary>What was set aside when the journal was opened (null when nothing needed recovery).</summary>
         public string Recovery { get; private set; }
@@ -56,10 +55,10 @@ namespace DestinyGarden.Infrastructure
         public FileJournal(string path, IClock clock, long segmentBytes)
         {
             _path = path; _clock = clock; _segmentBytes = Math.Max(1, segmentBytes);
-            var existing = ReadAll();
+            var existing = ReadIncremental(out int? damagedSegment, out long verifiedBytes);
             if (!existing.ChainValid || existing.HasIncompleteTail)
             {
-                existing = SetAsideDamage(existing);
+                existing = SetAsideDamage(existing, damagedSegment.Value, verifiedBytes);
             }
             if (existing.Entries.Count > 0)
             {
@@ -70,14 +69,31 @@ namespace DestinyGarden.Infrastructure
         }
 
         /// <summary>The path of segment <paramref name="index"/> (0 is the journal's own path).</summary>
-        public string SegmentPath(int index) => index == 0 ? _path : _path + "." + index.ToString("D4", System.Globalization.CultureInfo.InvariantCulture);
+        public string SegmentPath(int index) => index == 0 ? _path : _path + "." + index.ToString("D4", CultureInfo.InvariantCulture);
 
         /// <summary>How many segment files the journal has (at least 1 once anything was written).</summary>
         public int SegmentCount()
         {
-            int n = 0;
-            while (File.Exists(SegmentPath(n))) n++;
-            return n;
+            return SegmentsOnDisk().Count;
+        }
+
+        private List<int> SegmentsOnDisk()
+        {
+            var segments = new List<int>();
+            if (File.Exists(_path)) segments.Add(0);
+            string dir = Path.GetDirectoryName(_path);
+            if (string.IsNullOrEmpty(dir)) dir = ".";
+            if (!Directory.Exists(dir)) return segments;
+            string prefix = Path.GetFileName(_path) + ".";
+            foreach (string file in Directory.EnumerateFiles(dir, prefix + "*"))
+            {
+                string name = Path.GetFileName(file);
+                if (!name.StartsWith(prefix, StringComparison.Ordinal)) continue;
+                if (int.TryParse(name.Substring(prefix.Length), NumberStyles.None, CultureInfo.InvariantCulture, out int index) &&
+                    index > 0 && name == Path.GetFileName(SegmentPath(index))) segments.Add(index);
+            }
+            segments.Sort();
+            return segments;
         }
 
         public JournalEntry Append(string kind, string runId, string roundId, Dictionary<string, object> payload)
@@ -109,7 +125,10 @@ namespace DestinyGarden.Infrastructure
 
                 string dir = Path.GetDirectoryName(_path);
                 if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
-                int segment = Math.Max(0, SegmentCount() - 1);
+                var segments = SegmentsOnDisk();
+                if (segments.Count > 0 && segments[segments.Count - 1] != segments.Count - 1)
+                    throw new IOException("Cannot append while a journal segment is missing.");
+                int segment = Math.Max(0, segments.Count - 1);
                 string target = SegmentPath(segment);
                 if (File.Exists(target) && new FileInfo(target).Length >= _segmentBytes) target = SegmentPath(segment + 1);
                 using (var fs = new FileStream(target, FileMode.Append, FileAccess.Write, FileShare.Read))
@@ -144,7 +163,7 @@ namespace DestinyGarden.Infrastructure
 
         public JournalReadResult ReadAll()
         {
-            lock (_gate) return ReadIncremental();
+            lock (_gate) return ReadIncremental(out _, out _);
         }
 
         private string SideName(string of, string kind, string stamp)
@@ -159,43 +178,46 @@ namespace DestinyGarden.Infrastructure
         /// whole damaged segment, and any segments after it) go to side files first, then the journal ends at its last
         /// whole, verified frame.
         /// </summary>
-        private JournalReadResult SetAsideDamage(JournalReadResult read)
+        private JournalReadResult SetAsideDamage(JournalReadResult read, int damaged, long good)
         {
             lock (_gate)
             {
-                int seg = _goodSegment;
-                long good = _goodOffset;
-                string stamp = DateTime.UtcNow.ToString("yyyyMMdd'T'HHmmss'Z'", System.Globalization.CultureInfo.InvariantCulture);
+                string stamp = DateTime.UtcNow.ToString("yyyyMMdd'T'HHmmss'Z'", CultureInfo.InvariantCulture);
                 string kind = read.ChainValid ? "torn" : "corrupt";
-                // The damage is in the segment after the last good frame's, when that one ended exactly at its end.
-                int damaged = seg;
-                if (File.Exists(SegmentPath(seg)) && new FileInfo(SegmentPath(seg)).Length == good && File.Exists(SegmentPath(seg + 1)))
-                { damaged = seg + 1; good = 0; }
-                string first = SideName(SegmentPath(damaged), kind, stamp);
-                using (var src = new FileStream(SegmentPath(damaged), FileMode.Open, FileAccess.ReadWrite, FileShare.Read))
+                string damagedPath = SegmentPath(damaged);
+                string first = null;
+                if (File.Exists(damagedPath))
                 {
-                    using (var dst = new FileStream(first, FileMode.CreateNew, FileAccess.Write))
+                    first = SideName(damagedPath, kind, stamp);
+                    using (var src = new FileStream(damagedPath, FileMode.Open, FileAccess.ReadWrite, FileShare.Read))
                     {
-                        // A torn tail keeps its own bytes; a broken chain keeps the whole segment as it was found.
-                        src.Seek(read.ChainValid ? good : 0, SeekOrigin.Begin);
-                        src.CopyTo(dst);
-                        dst.Flush(true);
+                        using (var dst = new FileStream(first, FileMode.CreateNew, FileAccess.Write))
+                        {
+                            // A torn tail keeps its own bytes. A broken chain keeps the whole damaged segment.
+                            src.Seek(read.ChainValid ? good : 0, SeekOrigin.Begin);
+                            src.CopyTo(dst);
+                            dst.Flush(true);
+                        }
+                        src.SetLength(good);
+                        src.Flush(true);
                     }
-                    src.SetLength(good);
-                    src.Flush(true);
                 }
-                // Segments after the damaged one cannot continue its chain: they are moved aside whole.
-                int moved = 0;
-                for (int k = damaged + 1; File.Exists(SegmentPath(k)); k++)
+                // Preserve later segments, including any beyond a second gap, from highest to lowest.
+                var segments = SegmentsOnDisk();
+                int later = 0;
+                for (int i = segments.Count - 1; i >= 0 && segments[i] > damaged; i--)
                 {
-                    File.Move(SegmentPath(k), SideName(SegmentPath(k), kind, stamp));
-                    moved++;
+                    string path = SegmentPath(segments[i]);
+                    string side = SideName(path, kind, stamp);
+                    File.Move(path, side);
+                    if (first == null) first = side;
+                    else later++;
                 }
                 Recovery = (read.ChainValid ? "incomplete last frame" : "broken chain (" + read.Error + ")") +
-                    " set aside to " + Path.GetFileName(first) + (moved > 0 ? " (and " + moved + " later segment(s))" : "") +
-                    "; continuing from segment " + damaged + " at " + good + " bytes";
+                    " set aside to " + Path.GetFileName(first) + (later > 0 ? " (and " + later + " more segment(s))" : "") +
+                    ". Continuing from the verified prefix.";
                 ResetVerified();
-                return ReadIncremental();
+                return ReadIncremental(out _, out _);
             }
         }
 
@@ -207,11 +229,16 @@ namespace DestinyGarden.Infrastructure
             _verifiedTailDigest = null;
         }
 
-        private JournalReadResult ReadIncremental()
+        private JournalReadResult ReadIncremental(out int? damagedSegment, out long verifiedBytes)
         {
             var result = new JournalReadResult { ChainValid = true };
-            int segments = SegmentCount();
-            if (segments == 0) { ResetVerified(); return result; }
+            damagedSegment = null;
+            verifiedBytes = 0;
+            var paths = SegmentsOnDisk();
+            int segments = 0;
+            while (segments < paths.Count && paths[segments] == segments) segments++;
+            bool hasGap = segments < paths.Count;
+            if (paths.Count == 0) { ResetVerified(); return result; }
             // Is what was verified still there? (The last verified frame's digest must still be where it was.)
             bool usable = _verifiedTailDigest != null && _verifiedSegment < segments;
             if (usable)
@@ -234,18 +261,23 @@ namespace DestinyGarden.Infrastructure
             int lastSeg = _verifiedSegment;
             long lastOffset = _verifiedOffset;
             byte[] lastDigest = _verifiedTailDigest;
-            _goodSegment = _verifiedSegment; _goodOffset = _verifiedOffset;
-
             for (int seg = _verifiedSegment; seg < segments; seg++)
             {
                 long from = seg == _verifiedSegment ? _verifiedOffset : 0;
+                damagedSegment = seg;
+                verifiedBytes = from;
                 byte[] all;
                 using (var fs = new FileStream(SegmentPath(seg), FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
                 {
                     long length = fs.Length;
                     all = new byte[Math.Max(0, length - from)];
                     fs.Seek(from, SeekOrigin.Begin);
-                    if (!ReadFully(fs, all, all.Length)) { result.HasIncompleteTail = true; break; }
+                    if (!ReadFully(fs, all, all.Length))
+                    {
+                        if (seg < segments - 1 || hasGap) return Broken(result, fresh, "Segment " + seg + " changed during read");
+                        result.HasIncompleteTail = true;
+                        break;
+                    }
                 }
                 int pos = 0;
                 while (pos < all.Length)
@@ -294,12 +326,16 @@ namespace DestinyGarden.Infrastructure
                     fresh.Add(entry);
                     pos += 4 + len + 32;
                     lastSeg = seg; lastOffset = from + pos; lastDigest = storedDigest;
-                    _goodSegment = seg; _goodOffset = from + pos;
+                    verifiedBytes = from + pos;
                 }
                 if (result.HasIncompleteTail)
                 {
                     // Only the last segment can end mid-frame (a write cut off); anywhere else the chain is broken.
-                    if (seg < segments - 1) { result.HasIncompleteTail = false; return Broken(result, fresh, "Segment " + seg + " ends mid-frame"); }
+                    if (seg < segments - 1 || hasGap)
+                    {
+                        result.HasIncompleteTail = false;
+                        return Broken(result, fresh, "Segment " + seg + " ends mid-frame");
+                    }
                     break;
                 }
             }
@@ -307,6 +343,13 @@ namespace DestinyGarden.Infrastructure
             _verified.AddRange(fresh);
             _verifiedSegment = lastSeg; _verifiedOffset = lastOffset; _verifiedTailDigest = lastDigest;
             result.Entries.AddRange(_verified);
+            if (hasGap)
+            {
+                damagedSegment = segments;
+                verifiedBytes = 0;
+                result.ChainValid = false;
+                result.Error = "Missing segment " + segments + " before segment " + paths[segments];
+            }
             return result;
         }
 
