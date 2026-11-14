@@ -66,7 +66,7 @@ namespace DestinyGarden.Presentation
             if (card.LuckyPlants > 0) counts.Add("幸運の株 " + Gold(card.LuckyPlants));
             counts.Add("叶った願い " + Gold(card.Wishes));
             _keepsakeCounts.text = string.Join("　", counts);
-            string flowers = GardenKeepsake.NameList(card.Flowers), creatures = GardenKeepsake.NameList(card.Creatures);
+            string flowers = GardenKeepsake.NameList(card.Flowers, GardenKeepsake.CardFlowerNames), creatures = GardenKeepsake.NameList(card.Creatures);
             _keepsakeFlowers.text = flowers != null ? "<color=#cdbfa8>咲いた花</color>　" + flowers : "";
             _keepsakeCreatures.text = creatures != null ? "<color=#cdbfa8>出会った生き物</color>　" + creatures : "";
             if (_activePanel != null && _activePanel != _menuPanel) return false;
