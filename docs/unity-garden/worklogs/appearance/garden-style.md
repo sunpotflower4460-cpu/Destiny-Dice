@@ -10,13 +10,14 @@
 ## 作業範囲
 
 - PR #33 のナビゲーションに重ねた専用 worktree。変更は GardenUi 関連の表示と表示テスト。既存のコールバック、抽選、保存形式を維持。
-- Claude Code の作業先とは分離。共通祖先以降の Claude 側の作業と GardenUi 関連ファイルに重複がないことを確認。
+- Claude Code の作業先とは分離。作業中に Claude 側でも `GardenUi.cs` の履歴表示が更新された。両方の `GardenUi.cs` を一時ディレクトリで三方向マージし、外観と `r.Rainbow` の履歴表示が競合せず共存することを確認した。
+- Claude 側のブランチ全体との試行では、生態・起動処理・共有文書などに競合があった。試行は worktree に適用せず、今回の PR は #33 に対する外観差分を提出した。
 - プレビューの macOS アプリは専用の保存先を使う。
 
 ## 検証結果
 
 - Unity 6000.3.23f1 の EditMode は `total=283 passed=283 failed=0`。タイトルの背景と七つめの面の文字幅の最終調整後は、UI の2件を再実行し `total=2 passed=2 failed=0`。初回の三操作、パネル内からの誤投擲防止、押したときの固定ヒット領域、最長の七つめの面の名前を確認した。
-- macOS と WebGL の最終ビルドは両方 `Succeeded (0 errors)`。macOS プレビューで庭を描画し、Chrome の WebGL 版でタイトル、一投目、願い、届け先、メニュー、記録、観察、家と庭の視点切替を操作した。
+- macOS と WebGL の最終ビルドは両方 `Succeeded (0 errors)`。macOS プレビューで庭を描画し、Chrome の WebGL 版でタイトル、一投目、願い、届け先、メニュー、記録、観察、家と庭の視点切替を操作した。最終版で16:9と4:3のタイトルと庭の画面も確認した。
 - Chrome で9投と24投の保存を読み込み、元のバイト列を確認した。横長844×390のタッチ再現では、メニューを閉じたタップでは投が増えず、続けて振ると一投だけ記録された。既存の macOS の保存ファイル21件の SHA-256 は作業前後で一致した。
 - `dotnet test tools/ecology-check/Ecology.Check.csproj --configuration Release` は `241/241` 件成功。`pnpm typecheck` は終了コード0、`pnpm test` は `183 passed (183)`、`pnpm build` は `✓ built in 801ms`。
 
