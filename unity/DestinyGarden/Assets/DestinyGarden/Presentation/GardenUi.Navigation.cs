@@ -63,7 +63,7 @@ namespace DestinyGarden.Presentation
             _luckyOffer.gameObject.SetActive(false);
         }
 
-        private void BuildNavigation(Transform canvas)
+        private Transform BuildNavigation(Transform canvas)
         {
             var parent = _gardenControls.transform;
             _menuButton = MakeChip(parent, Vector2.one, new Vector2(-34f, -21f),
@@ -87,7 +87,10 @@ namespace DestinyGarden.Presentation
             dismiss.transition = Selectable.Transition.None;
             dismiss.navigation = new Navigation { mode = Navigation.Mode.None };
             dismiss.onClick.AddListener(GoBack);
-            var panels = _panelLayer.transform;
+            var panelContent = new GameObject("PanelSafeArea", typeof(RectTransform));
+            panelContent.transform.SetParent(_panelLayer.transform, false);
+            panelContent.AddComponent<GardenSafeArea>();
+            var panels = panelContent.transform;
 
             _menuPanel = MakePanel(panels, new Vector2(720f, 482f));
             AddPanelHeader(_menuPanel, "メニュー");
@@ -123,6 +126,7 @@ namespace DestinyGarden.Presentation
                 "「庭を観察」では、どこで何が起きたかを振り返れます。";
             _helpPanel.SetActive(false);
             _panelLayer.SetActive(false);
+            return panels;
         }
 
         private static void Stretch(RectTransform rect)

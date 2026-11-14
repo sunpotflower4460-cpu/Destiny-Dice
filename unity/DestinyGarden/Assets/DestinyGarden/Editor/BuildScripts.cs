@@ -1,4 +1,6 @@
+using System;
 using System.IO;
+using System.Runtime.InteropServices;
 using DestinyGarden.Presentation;
 using UnityEditor;
 using UnityEditor.Build;
@@ -20,7 +22,7 @@ namespace DestinyGarden.EditorTools
         {
             PlayerSettings.companyName = "Destiny Garden";
             PlayerSettings.productName = "Destiny Garden";
-            PlayerSettings.defaultInterfaceOrientation = UIOrientation.LandscapeLeft;
+            PlayerSettings.defaultInterfaceOrientation = UIOrientation.AutoRotation;
             PlayerSettings.allowedAutorotateToPortrait = false;
             PlayerSettings.allowedAutorotateToPortraitUpsideDown = false;
             PlayerSettings.allowedAutorotateToLandscapeLeft = true;
@@ -123,14 +125,32 @@ namespace DestinyGarden.EditorTools
         public static void BuildAndroid()
         {
             ConfigureProject();
-            PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARM64;
-            string outDir = "Builds/Android";
-            Directory.CreateDirectory(outDir);
-            var report = BuildPipeline.BuildPlayer(new[] { ScenePath },
-                Path.Combine(outDir, "DestinyGarden.apk"), BuildTarget.Android, BuildOptions.None);
-            Debug.Log("DestinyGarden Android build: " + report.summary.result);
-            if (report.summary.result != UnityEditor.Build.Reporting.BuildResult.Succeeded)
-                EditorApplication.Exit(1);
+            bool wasBundle = EditorUserBuildSettings.buildAppBundle;
+            bool wasGradleProject = EditorUserBuildSettings.exportAsGoogleAndroidProject;
+            var oldArchitecture = PlayerSettings.Android.targetArchitectures;
+            var oldTargetSdk = PlayerSettings.Android.targetSdkVersion;
+            try
+            {
+                PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARM64;
+                // Pin the test package to a stable SDK supported by this Unity version.
+                PlayerSettings.Android.targetSdkVersion = AndroidSdkVersions.AndroidApiLevel36;
+                EditorUserBuildSettings.buildAppBundle = false;
+                EditorUserBuildSettings.exportAsGoogleAndroidProject = false;
+                string outDir = "Builds/Android";
+                Directory.CreateDirectory(outDir);
+                var report = BuildPipeline.BuildPlayer(new[] { ScenePath },
+                    Path.Combine(outDir, "DestinyGarden.apk"), BuildTarget.Android, BuildOptions.None);
+                Debug.Log("DestinyGarden Android build: " + report.summary.result);
+                if (report.summary.result != UnityEditor.Build.Reporting.BuildResult.Succeeded)
+                    throw new InvalidOperationException($"Android APK build failed with {report.summary.totalErrors} errors.");
+            }
+            finally
+            {
+                EditorUserBuildSettings.buildAppBundle = wasBundle;
+                EditorUserBuildSettings.exportAsGoogleAndroidProject = wasGradleProject;
+                PlayerSettings.Android.targetArchitectures = oldArchitecture;
+                PlayerSettings.Android.targetSdkVersion = oldTargetSdk;
+            }
         }
 
         public static void BuildWindows()
@@ -174,16 +194,42 @@ namespace DestinyGarden.EditorTools
                 EditorApplication.Exit(1);
         }
 
-        public static void BuildIosXcodeProject()
+        public static void BuildIosXcodeProject() =>
+            BuildIos(iOSSdkVersion.DeviceSDK, "Builds/iOS", BuildOptions.None);
+
+        public static void BuildIosSimulator()
+        {
+            var oldArchitecture = PlayerSettings.iOS.simulatorSdkArchitecture;
+            try
+            {
+                PlayerSettings.iOS.simulatorSdkArchitecture = RuntimeInformation.ProcessArchitecture == Architecture.X64
+                    ? AppleMobileArchitectureSimulator.X86_64
+                    : AppleMobileArchitectureSimulator.ARM64;
+                BuildIos(iOSSdkVersion.SimulatorSDK, "Builds/iOS-Simulator", BuildOptions.Development);
+            }
+            finally
+            {
+                PlayerSettings.iOS.simulatorSdkArchitecture = oldArchitecture;
+            }
+        }
+
+        private static void BuildIos(iOSSdkVersion sdk, string outDir, BuildOptions options)
         {
             ConfigureProject();
-            string outDir = "Builds/iOS";
-            Directory.CreateDirectory(outDir);
-            var report = BuildPipeline.BuildPlayer(new[] { ScenePath },
-                outDir, BuildTarget.iOS, BuildOptions.None);
-            Debug.Log("DestinyGarden iOS Xcode project build: " + report.summary.result);
-            if (report.summary.result != UnityEditor.Build.Reporting.BuildResult.Succeeded)
-                EditorApplication.Exit(1);
+            var oldSdk = PlayerSettings.iOS.sdkVersion;
+            try
+            {
+                PlayerSettings.iOS.sdkVersion = sdk;
+                Directory.CreateDirectory(outDir);
+                var report = BuildPipeline.BuildPlayer(new[] { ScenePath }, outDir, BuildTarget.iOS, options);
+                Debug.Log($"DestinyGarden iOS {sdk} Xcode project build: {report.summary.result}");
+                if (report.summary.result != UnityEditor.Build.Reporting.BuildResult.Succeeded)
+                    throw new InvalidOperationException($"iOS {sdk} export failed with {report.summary.totalErrors} errors.");
+            }
+            finally
+            {
+                PlayerSettings.iOS.sdkVersion = oldSdk;
+            }
         }
     }
 }
