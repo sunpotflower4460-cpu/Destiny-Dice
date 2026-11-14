@@ -51,6 +51,9 @@ mergeInto(LibraryManager.library, {
         input.blur();
       }
     });
+    // Typing belongs to the field: the game's keyboard handlers never see these keys.
+    input.addEventListener("keyup", function (event) { event.stopPropagation(); });
+    input.addEventListener("keypress", function (event) { event.stopPropagation(); });
     input.addEventListener("focus", GardenPrayerField.place);
     input.addEventListener("blur", GardenPrayerField.place);
     GardenPrayerField.input = input;
