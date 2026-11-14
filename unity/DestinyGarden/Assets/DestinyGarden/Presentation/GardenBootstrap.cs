@@ -31,7 +31,8 @@ namespace DestinyGarden.Presentation
         private Quaternion _homeRot;
         private static bool s_skipTitle; // set when a new visitor reloads the scene: start straight on the new island
         private float? _qaYaw, _qaPitch, _qaDist;
-        private bool _captureNoUi;
+        private bool _captureNoUi, _captureTitle;
+        private int _captureW = 1600, _captureH = 900;
         private string _intentKind = "none";
         private string _intentValue;
         private bool _busy;
@@ -205,10 +206,17 @@ namespace DestinyGarden.Presentation
             int autoRolls = 0;
             bool wonders = Array.IndexOf(args, "-dgWonders") >= 0;
             _captureNoUi = Array.IndexOf(args, "-dgNoUi") >= 0; // QA capture only: hide the canvas
+            _captureTitle = Array.IndexOf(args, "-dgTitle") >= 0;
             for (int i = 0; i + 1 < args.Length; i++)
             {
                 if (args[i] == "-dgCapture") capturePath = args[i + 1];
                 if (args[i] == "-dgAutoRolls") int.TryParse(args[i + 1], out autoRolls);
+                // QA capture only: -dgCaptureSize WxH (default 1600x900), -dgTitle keeps the opening title card.
+                if (args[i] == "-dgCaptureSize")
+                {
+                    var wh = args[i + 1].Split('x');
+                    if (wh.Length == 2 && int.TryParse(wh[0], out int cw) && int.TryParse(wh[1], out int ch)) { _captureW = cw; _captureH = ch; }
+                }
             }
             if (capturePath != null) StartCoroutine(CaptureRoutine(capturePath, autoRolls, wonders));
         }
@@ -350,9 +358,12 @@ namespace DestinyGarden.Presentation
         {
             _view.ReducedMotion = true;
             _ui.OnTitleClosed = null;
-            _ui.ShowTitleCard(false);
-            _view.ViewCamera.transform.SetPositionAndRotation(_homePos, _homeRot);
-            _view.Rig.Unlock();
+            if (!_captureTitle)
+            {
+                _ui.ShowTitleCard(false);
+                _view.ViewCamera.transform.SetPositionAndRotation(_homePos, _homeRot);
+                _view.Rig.Unlock();
+            }
             if (_qaYaw.HasValue || _qaPitch.HasValue || _qaDist.HasValue)
                 _view.Rig.SetView(_qaYaw ?? _view.Rig.HomeYaw, _qaPitch ?? _view.Rig.HomePitch, _qaDist ?? _view.Rig.HomeDist);
             RollOutcome last = null;
@@ -394,14 +405,16 @@ namespace DestinyGarden.Presentation
                 canvas.planeDistance = 5f;
             }
             yield return null;
-            var rt = new RenderTexture(1600, 900, 24);
+            var rt = new RenderTexture(_captureW, _captureH, 24);
+            cam.aspect = _captureW / (float)_captureH;
+            if (_captureTitle) FrameOpening(cam);
             var prevTarget = cam.targetTexture;
             cam.targetTexture = rt;
             cam.Render();
             cam.targetTexture = prevTarget;
             RenderTexture.active = rt;
-            var tex = new Texture2D(1600, 900, TextureFormat.RGB24, false);
-            tex.ReadPixels(new Rect(0, 0, 1600, 900), 0, 0);
+            var tex = new Texture2D(_captureW, _captureH, TextureFormat.RGB24, false);
+            tex.ReadPixels(new Rect(0, 0, _captureW, _captureH), 0, 0);
             tex.Apply();
             RenderTexture.active = null;
             File.WriteAllBytes(path, tex.EncodeToPNG());

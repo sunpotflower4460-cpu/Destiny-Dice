@@ -183,6 +183,11 @@ namespace DestinyGarden.EditorTools
             PlayerSettings.WebGL.nameFilesAsHashes = false;
             PlayerSettings.WebGL.exceptionSupport = WebGLExceptionSupport.ExplicitlyThrownExceptionsOnly;
             PlayerSettings.WebGL.showDiagnostics = false;
+            // Jam requirement: runs in the browser on itch.io. WebGL 2 only (OpenGLES3 is WebGL 2 on the Web), never
+            // WebGPU first, so Safari and every current browser get the same renderer.
+            PlayerSettings.SetUseDefaultGraphicsAPIs(BuildTarget.WebGL, false);
+            PlayerSettings.SetGraphicsAPIs(BuildTarget.WebGL, new[] { UnityEngine.Rendering.GraphicsDeviceType.OpenGLES3 });
+            Debug.Log("DestinyGarden WebGL graphics APIs: " + string.Join(",", PlayerSettings.GetGraphicsAPIs(BuildTarget.WebGL)));
             string outDir = "Builds/WebGL";
             if (Directory.Exists(outDir)) Directory.Delete(outDir, true);
             Directory.CreateDirectory(outDir);
