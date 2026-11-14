@@ -538,5 +538,50 @@ namespace DestinyGarden.Presentation
             if (points == 7) for (int k = 0; k < 3; k++) Glass(d, t0 + 0.5 + k * 0.16, SolfegeNote(7, 2), 0.10, 0.4);
             return Finish(Reverb(d, 0.6, 3.0), 0.45, 0.6);
         }
+
+        /// <summary>
+        /// lucky.v1: the lucky scale. One bright, soft note for each lantern as it lights, 0.14 s apart: do re mi fa
+        /// sol la si for a lucky number (seven), and the upper do as well for the eight.
+        /// </summary>
+        public static float[] LuckyScale(int points)
+        {
+            int n = points >= 8 ? 8 : 7;
+            var d = new double[(int)((0.14 * n + 2.6) * Rate)];
+            for (int k = 0; k < n; k++)
+            {
+                double f = SolfegeNote(k + 1, 1);
+                Glass(d, k * 0.14, f, 0.62 + 0.04 * k, 0.55, 0.006);
+                Glass(d, k * 0.14 + 0.02, f * 2, 0.10, 0.25, 0.006);   // a little sparkle an octave above
+            }
+            return Finish(Reverb(d, 0.55, 2.4), 0.42, 0.6);
+        }
+
+        /// <summary>
+        /// The garden's cycle (lifecycle): "return" a flower goes back to the soil (sol -> do, falling a fifth),
+        /// "fruit" it leaves its seed (sol -> do, then the upper do: the line goes on), "wither" a seedling ends
+        /// (a low open fifth, do-sol). Soft attacks and a long tail, meant to sit under everything else.
+        /// </summary>
+        public static float[] CycleTone(string kind)
+        {
+            var d = new double[(int)(3.4 * Rate)];
+            switch (kind)
+            {
+                case "fruit":
+                    Glass(d, 0.00, SolfegeNote(5), 0.75, 0.70, 0.03);
+                    Glass(d, 0.26, SolfegeNote(1), 0.80, 0.85, 0.03);
+                    Glass(d, 0.62, SolfegeNote(1, 1), 0.55, 0.90, 0.03);
+                    break;
+                case "wither":
+                    // A hollow open fifth, low and brief: a quiet ending.
+                    Glass(d, 0.00, SolfegeNote(1, -1), 0.9, 1.1, 0.05);
+                    Glass(d, 0.04, SolfegeNote(5, -1), 0.7, 1.0, 0.05);
+                    break;
+                default:
+                    Glass(d, 0.00, SolfegeNote(5), 0.75, 0.70, 0.03);
+                    Glass(d, 0.30, SolfegeNote(1), 0.85, 0.95, 0.03);
+                    break;
+            }
+            return Finish(Reverb(d, 0.6, 2.6), 0.40, 0.5);
+        }
     }
 }

@@ -16,6 +16,9 @@ namespace DestinyGarden.Tests
             var d = new Dictionary<string, float[]>();
             for (int f = 1; f <= 7; f++) d["face" + f] = AudioSynth.FaceNote(f);
             for (int p = 5; p <= 8; p++) d["chord" + p] = AudioSynth.StarChord(p);
+            foreach (var k in new[] { "return", "fruit", "wither" }) d["cycle-" + k] = AudioSynth.CycleTone(k);
+            d["lucky-scale7"] = AudioSynth.LuckyScale(7);
+            d["lucky-scale8"] = AudioSynth.LuckyScale(8);
             return d;
         }
 
@@ -140,12 +143,63 @@ namespace DestinyGarden.Tests
             };
             eco.Effects.Add(new DestinyGarden.Domain.EcologyEffect { Kind = DestinyGarden.Domain.PrayerStar.GiftKind, CellId = 10, Amount = 16 });
             eco.Effects.Add(new DestinyGarden.Domain.EcologyEffect { Kind = DestinyGarden.Domain.PrayerStar.GiftKind, CellId = 11, Amount = 16 });
-            Assert.AreEqual("星の恵み 2株　水の恵み → 乾いた土の株へ", PrayerStarSigil.CauseLine(eco));
+            Assert.AreEqual("星の恵みで 2株が一段育った　水の恵み → 乾いた土の株へ", PrayerStarSigil.CauseLine(eco));
+            var atSite = new DestinyGarden.Domain.EcologyResult
+            {
+                PrayerStar = DestinyGarden.Domain.PrayerStar.Read(1, 0, "light_soft", null, false, 3, DestinyGarden.Domain.Sites.ById("inlet").CenterCellId)
+            };
+            atSite.Effects.Add(new DestinyGarden.Domain.EcologyEffect { Kind = DestinyGarden.Domain.PrayerStar.GiftKind, CellId = 10, Amount = 60 });
+            Assert.AreEqual("星の恵み 1株に ＋60（入口のあたりから）　光の恵み → 日向を好む株へ", PrayerStarSigil.CauseLine(atSite));
             eco.Effects.Add(new DestinyGarden.Domain.EcologyEffect { Kind = DestinyGarden.Domain.Lifecycle.ReturnKind, CellId = 20 });
             StringAssert.EndsWith("花がひとつ土に還り、となりを養った", PrayerStarSigil.CauseLine(eco));
             eco.Effects.Add(new DestinyGarden.Domain.EcologyEffect { Kind = DestinyGarden.Domain.Lifecycle.FruitKind, CellId = 20, Seed = true });
-            StringAssert.EndsWith("蜂や蝶の訪れた花が土に還り、実りを落とした", PrayerStarSigil.CauseLine(eco));
+            StringAssert.EndsWith("受粉した花が土に還り、実りを落とした", PrayerStarSigil.CauseLine(eco));
             Assert.IsNull(PrayerStarSigil.CauseLine(new DestinyGarden.Domain.EcologyResult()), "no star, no line");
+        }
+
+        [Test]
+        public void LuckyOdds_FollowTheFacesOnTheDie()
+        {
+            // The chance of any lucky number this round: the face that makes seven, and the 7 on a seven-face die.
+            Assert.AreEqual("前の目 3 と今の目 4 で七　・　偶然なら 1/6（4 の目）", PrayerStarSigil.LuckyOddsLine(4, 3, 6));
+            Assert.AreEqual("前の目 3 と今の目 4 で七　・　偶然なら 2/7（4 と 7 の目）", PrayerStarSigil.LuckyOddsLine(4, 3, 7),
+                "a seventh face: two of seven faces are lucky");
+            Assert.AreEqual("七の目　・　偶然なら 2/7（5 と 7 の目）", PrayerStarSigil.LuckyOddsLine(7, 2, 7));
+            Assert.AreEqual("七の目　・　偶然なら 1/7（7 の目）", PrayerStarSigil.LuckyOddsLine(7, 7, 7), "after a seven only the 7 is lucky");
+        }
+
+        [Test]
+        public void LuckyWords_AreGold_AndCountTowardSeven()
+        {
+            string hint = PrayerStarSigil.HintLine(3, 9);
+            StringAssert.Contains("<color=" + PrayerStarSigil.Gold + ">4</color>", hint, "the face that makes seven shines");
+            StringAssert.Contains("<color=" + PrayerStarSigil.Gold + ">ラッキーナンバー</color>", hint);
+            StringAssert.Contains("いま 2/7", hint, "nine lucky numbers: two toward the next seven");
+            Assert.IsNull(PrayerStarSigil.HintLine(7, 3), "nothing makes seven after a seven");
+
+            var seventh = DestinyGarden.Domain.PrayerStar.Read(4, 3, "water_drop", "seed_single", false, 0, -1, 6, 0);
+            var lines = PrayerStarSigil.LuckyLabelLines(seventh, seventh.Points, 4, 3, 6);
+            Assert.AreEqual("8", lines[0]);
+            Assert.AreEqual("七つの幸運　・　八の虹", lines[1]);
+            var dbl = DestinyGarden.Domain.PrayerStar.Read(4, 3, "water_drop", "seed_single", false, 0, -1, 2, 1);
+            lines = PrayerStarSigil.LuckyLabelLines(dbl, dbl.Points, 4, 3, 7);
+            Assert.AreEqual("7", lines[0]);
+            Assert.AreEqual("ダブル　ラッキーナンバー", lines[1]);
+            StringAssert.Contains("2/7", lines[2], "honest odds in a seven-face round (the 4 and the 7)");
+            StringAssert.StartsWith("ラッキーナンバー 3/7", lines[3]);
+        }
+
+        [Test]
+        public void CycleTone_OneAtMost_FruitFirst()
+        {
+            var eco = new DestinyGarden.Domain.EcologyResult();
+            Assert.IsNull(PrayerStarSigil.CycleToneFor(eco));
+            eco.Effects.Add(new DestinyGarden.Domain.EcologyEffect { Kind = DestinyGarden.Domain.Lifecycle.WitherKind, CellId = 3 });
+            Assert.AreEqual("wither", PrayerStarSigil.CycleToneFor(eco));
+            eco.Effects.Add(new DestinyGarden.Domain.EcologyEffect { Kind = DestinyGarden.Domain.Lifecycle.ReturnKind, CellId = 4 });
+            Assert.AreEqual("return", PrayerStarSigil.CycleToneFor(eco));
+            eco.Effects.Add(new DestinyGarden.Domain.EcologyEffect { Kind = DestinyGarden.Domain.Lifecycle.FruitKind, CellId = 4, Seed = true });
+            Assert.AreEqual("fruit", PrayerStarSigil.CycleToneFor(eco));
         }
 
         [Test]

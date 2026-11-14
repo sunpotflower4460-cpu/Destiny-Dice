@@ -66,7 +66,7 @@ namespace DestinyGarden.Tests
                 if (seeds.Count > 0) seededRolls++;
                 Assert.AreEqual(after.Plants.Count, after.Plants.Select(p => p.CellId).Distinct().Count(), "one plant per cell");
                 foreach (var p in after.Plants) Assert.LessOrEqual(p.Growth, 2500);
-                foreach (var e in o.Ecology.Effects.Where(e => !e.Seed && e.Kind != Ecology.Germinate && e.Kind != Lifecycle.ReturnKind)) Assert.Greater(e.Amount, 0);
+                foreach (var e in o.Ecology.Effects.Where(e => !e.Seed && e.Kind != Ecology.Germinate && e.Kind != Lifecycle.ReturnKind && e.Kind != Lifecycle.WitherKind)) Assert.Greater(e.Amount, 0);
             }
             Assert.Greater(seededRolls, 0, "residents should carry some seeds over 120 rolls");
         }
