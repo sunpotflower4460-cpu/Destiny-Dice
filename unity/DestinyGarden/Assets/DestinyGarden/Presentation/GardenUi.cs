@@ -41,8 +41,12 @@ namespace DestinyGarden.Presentation
         private int _publishedFaceCount;
         private const float FaceSpacing = 138f;
         private Text _facesLabel;
+        private const string StartGardenLabel = "庭づくりを始める";
+        private const float OpeningWidth = 545f;
+        private static readonly Vector2 OpeningEntrySize = new Vector2(394f, 86f);
         private GameObject _titleCard;
         private RectTransform _openingCard;
+        private float _openingScale;
         private Text _openingHeading, _openingTagline, _openingDescription;
         private GardenUiButton _enterButton;
         private CanvasGroup _gardenControls;
@@ -469,6 +473,8 @@ namespace DestinyGarden.Presentation
         {
             string progress = revision == 0 ? "最初の一投" : $"{revision}投";
             _header.text = $"{weatherLabel}  ·  届け先 {siteLabel}  ·  {progress}";
+            string entry = revision > 0 ? "庭のつづきへ" : StartGardenLabel;
+            if (_enterButton.Label.text != entry) _enterButton.Label.text = entry;
         }
 
         public void ShowFaces(string[] faces, int rolledFaceId, int wishedFaceId = 0)
@@ -728,26 +734,23 @@ namespace DestinyGarden.Presentation
             opening.transform.SetParent(_titleCard.transform, false);
             _openingCard = opening.GetComponent<RectTransform>();
             DecorateOpening(opening.transform);
-            _openingHeading = MakeText(opening.transform, new Vector2(0f, 1f), new Vector2(0f, -74f), new Vector2(545f, 76f),
-                64, TextAnchor.MiddleLeft);
+            var topLeft = new Vector2(0f, 1f);
+            _openingHeading = MakeText(opening.transform, topLeft, Vector2.zero, Vector2.zero, 64, TextAnchor.MiddleLeft);
             _openingHeading.text = "Destiny Garden";
             GardenType.MakeDisplay(_openingHeading);
             _openingHeading.color = GardenUiArt.Pigment(0xffedc6);
-            _openingTagline = MakeText(opening.transform, new Vector2(0f, 1f), new Vector2(4f, -169f), new Vector2(537f, 34f),
-                27, TextAnchor.UpperLeft);
-            _openingTagline.text = "瓶の中で、あなただけの庭を育てよう。";
+            _openingTagline = MakeText(opening.transform, topLeft, Vector2.zero, Vector2.zero, 30, TextAnchor.UpperLeft);
+            _openingTagline.text = "ひと振りから、庭の物語がはじまる。";
             GardenType.MakeStrong(_openingTagline);
             _openingTagline.color = GardenUiArt.Pigment(0xffedc6);
-            _openingDescription = MakeText(opening.transform, new Vector2(0f, 1f), new Vector2(4f, -212f), new Vector2(537f, 52f),
-                21, TextAnchor.UpperLeft);
-            _openingDescription.text = "サイコロを振ると、水・風・光・種が庭に届きます。";
-            _openingDescription.lineSpacing = 1.2f;
-            _openingDescription.color = GardenUiArt.Pigment(0xdcecf2);
-            _enterButton = MakeChip(opening.transform, new Vector2(0f, 1f), new Vector2(4f, -260f),
-                new Vector2(290f, 62f), "庭に入る", 24, () => ShowTitleCard(false));
-            Engrave(_enterButton, Symbol.Bottle, 39f, 19f);
-            StylePrimary(_enterButton);
+            _openingDescription = MakeText(opening.transform, topLeft, Vector2.zero, Vector2.zero, 23, TextAnchor.UpperLeft);
+            _openingDescription.text = "サイコロで恵みを届け、瓶の庭を育てよう。";
+            _openingDescription.color = GardenUiArt.Pigment(0xf1e5ed);
+            _enterButton = MakeChip(opening.transform, topLeft, Vector2.zero,
+                OpeningEntrySize, StartGardenLabel, 30, () => ShowTitleCard(false));
+            DecorateOpeningEntry(_enterButton);
             _openingHeading.gameObject.SetActive(_openingLettering == null);
+            LayoutOpeningCard();
         }
 
         public Action OnTitleClosed;
@@ -760,24 +763,27 @@ namespace DestinyGarden.Presentation
             float aspect = rect.rect.width / Mathf.Max(1f, rect.rect.height);
             bool side = UseSideTitle(aspect);
             bool portrait = aspect < 0.90f;
-            var anchor = new Vector2(side ? 0.084f : 0.5f, side ? 0.47f : portrait ? 0.19f : 0.059f);
-            // CanvasScaler scales by width on tall screens. Bring the copy back up to a readable size.
+            var anchor = new Vector2(side ? 0.084f : 0.5f, side ? 0.47f : portrait ? 0.151f : 0.036f);
+            // Resize the text and artwork with the layout so the font is rasterized at its displayed size.
             float scale = portrait ? Mathf.Min(2.1f, 1.08f / Mathf.Max(0.01f, aspect)) : 1f;
-            if (!Mathf.Approximately(_openingCard.localScale.x, scale))
-                _openingCard.localScale = Vector3.one * scale;
-            if (_openingCard.anchorMin == anchor) return;
+            if (_openingCard.anchorMin == anchor && Mathf.Approximately(_openingScale, scale)) return;
+            _openingScale = scale;
             _openingCard.anchorMin = _openingCard.anchorMax = anchor;
             _openingCard.pivot = new Vector2(side ? 0f : 0.5f, side ? 0.5f : 0f);
             _openingCard.anchoredPosition = Vector2.zero;
-            _openingCard.sizeDelta = new Vector2(545f, side ? 520f : portrait ? 436f : 346f);
+            _openingCard.sizeDelta = new Vector2(OpeningWidth, side ? 556f : portrait ? 491f : 403f) * scale;
             _openingHeading.alignment = side ? TextAnchor.MiddleLeft : TextAnchor.MiddleCenter;
             _openingTagline.alignment = _openingDescription.alignment = side ? TextAnchor.UpperLeft : TextAnchor.UpperCenter;
-            _openingHeading.rectTransform.anchoredPosition = new Vector2(0f, side ? -104f : -58f);
             float portraitOffset = portrait ? 88f : 0f;
-            _openingTagline.rectTransform.anchoredPosition = new Vector2(4f, side ? -315f : -193f - portraitOffset);
-            _openingDescription.rectTransform.anchoredPosition = new Vector2(4f, side ? -354f : -229f - portraitOffset);
-            ((RectTransform)_enterButton.transform).anchoredPosition = new Vector2(side ? 4f : 127.5f, side ? -404f : -273f - portraitOffset);
-            LayoutOpeningDecorations(side, portrait);
+            PlaceOpeningText(_openingHeading, 0f, side ? -104f : -58f, OpeningWidth, 76f, 64, scale);
+            PlaceOpeningText(_openingTagline, 4f, side ? -313f : -191f - portraitOffset, 537f, 40f, 30, scale);
+            PlaceOpeningText(_openingDescription, 4f, side ? -357f : -229f - portraitOffset, 537f, 32f, 23, scale);
+            var entry = (RectTransform)_enterButton.transform;
+            entry.sizeDelta = OpeningEntrySize * scale;
+            entry.anchoredPosition = new Vector2(side ? 4f : (OpeningWidth - OpeningEntrySize.x) * 0.5f,
+                side ? -449f : -308f - portraitOffset) * scale;
+            LayoutOpeningEntry(scale);
+            LayoutOpeningDecorations(side, portrait, scale);
         }
 
         /// <summary>Whether the title card is up (overlays of other components stay hidden under it).</summary>

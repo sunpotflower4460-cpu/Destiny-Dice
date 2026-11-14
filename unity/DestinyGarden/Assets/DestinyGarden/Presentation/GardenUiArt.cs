@@ -16,6 +16,7 @@ namespace DestinyGarden.Presentation
         private static readonly Dictionary<Surface, Sprite> Surfaces = new Dictionary<Surface, Sprite>();
         private static readonly Dictionary<Symbol, Sprite> Symbols = new Dictionary<Symbol, Sprite>();
         private static Sprite _well, _focus, _panel, _plaque, _rule, _titleRule, _titleLettering, _veil;
+        private static Sprite _openingButton, _openingSeal;
 
         internal static Sprite TitleLettering => _titleLettering != null ? _titleLettering :
             _titleLettering = Resources.Load<Sprite>("StorybookLettering");
@@ -39,6 +40,22 @@ namespace DestinyGarden.Presentation
 
         internal static Sprite Well => _well != null ? _well :
             _well = Plate("Button base", 9f, 14, 0x25253b, 0x121428, 0x61566f, 1f);
+
+        internal static Sprite OpeningButton => _openingButton != null ? _openingButton :
+            _openingButton = Plate("Opening button", 9f, 14, 0x884357, 0x462036, 0xf2c77d, 1f, engraved: true);
+
+        internal static Sprite OpeningSeal => _openingSeal != null ? _openingSeal :
+            _openingSeal = Bake("Opening die seal", 64, 64, 0, (x, y) =>
+            {
+                float depth = 30f - new Vector2(x - 32f, y - 32f).magnitude;
+                float height = y / 64f;
+                Color well = Color.Lerp(Pigment(0x642e42), Pigment(0x3f233d), height);
+                Color gold = Color.Lerp(Pigment(0xb98258), Pigment(0xffdf9d), height);
+                float rim = Mathf.Max(Band(depth, 1.8f, 1.1f), Band(depth, 4.6f, 0.45f) * 0.55f);
+                Color seal = Color.Lerp(well, gold, rim);
+                seal.a = Mathf.Clamp01(depth + 0.5f);
+                return seal;
+            });
 
         internal static Sprite Panel => _panel != null ? _panel :
             _panel = Plate("Garden panel", 17f, 32, 0x33304d, 0x18182d, 0xcfaa75, 0.96f, engraved: true);

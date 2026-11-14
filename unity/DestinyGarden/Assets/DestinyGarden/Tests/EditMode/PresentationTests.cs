@@ -31,7 +31,18 @@ namespace DestinyGarden.Tests
                 ui.ShowFaces(faces, 0);
                 ui.ShowTitleCard(true, opening: true);
                 Button Find(string name) => root.GetComponentsInChildren<Button>().Single(button => button.name == "Chip_" + name);
-                Find("庭に入る").onClick.Invoke();
+                var opening = root.transform.Find("Canvas/TitleCard/Opening");
+                var enter = opening.GetComponentsInChildren<Button>().Single();
+                var entryLabel = enter.GetComponentInChildren<Text>();
+                Assert.AreEqual("庭づくりを始める", entryLabel.text);
+                Assert.That(entryLabel.preferredWidth, Is.LessThanOrEqualTo(entryLabel.rectTransform.rect.width));
+                ui.ShowHeader("晴れ", "草地", 4);
+                Assert.AreEqual("庭のつづきへ", entryLabel.text);
+                ui.ShowHeader("晴れ", "草地", 0);
+                Assert.AreEqual("庭づくりを始める", entryLabel.text);
+                enter.onClick.Invoke();
+                Assert.IsFalse(ui.TitleCardOpen);
+                Assert.AreEqual(0, rolls);
 
                 var controls = root.transform.Find("Canvas/GardenControls");
                 Assert.That(controls.GetComponentsInChildren<Button>().Length, Is.EqualTo(3));
