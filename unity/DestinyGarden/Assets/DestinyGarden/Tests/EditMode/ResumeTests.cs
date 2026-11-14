@@ -84,6 +84,8 @@ namespace DestinyGarden.Tests
             Assert.AreEqual(original.IntentMatched, o.IntentMatched);
             Assert.AreEqual(original.Ecology.PrayerStar.Points, o.Ecology.PrayerStar.Points);
             Assert.AreEqual(Garden(original.Ecology.PostState), Garden(o.Ecology.PostState), "same garden from the same saved material");
+            CollectionAssert.AreEqual(original.Ecology.FinalPresence.Select(v => v.Kind + ":" + string.Join(",", v.Cells)),
+                o.Ecology.FinalPresence.Select(v => v.Kind + ":" + string.Join(",", v.Cells)));
             Assert.IsFalse(writer.Entries.Any(e => e.Kind == "AcquisitionStarted" || e.Kind == "DrawEntropyCommitted"), "no new draw");
             Assert.AreEqual(cut == "OutcomeCommitted" ? 0 : 1, writer.Entries.Count(e => e.Kind == "OutcomeCommitted"));
             Assert.AreEqual(1, writer.Entries.Count(e => e.Kind == "Resolved"));
@@ -260,6 +262,37 @@ namespace DestinyGarden.Tests
             var o = resumed.Roll();
             string Ids(WorldState s) => string.Join(",", s.Plants.OrderBy(p => p.CellId).Select(p => p.PlantId));
             Assert.AreEqual(Ids(original.Ecology.PostState), Ids(o.Ecology.PostState), "ids come from the saved round, not a new id source");
+        }
+
+        [TestCase("MappingEntropyCommitted")]
+        [TestCase("Prepared")]
+        [TestCase("DrawEntropyCommitted")]
+        public void OldPreparedRoundsFinishWithTheirOwnEcologyBeforeTheNextRoundUpgrades(string cut)
+        {
+            var (journal, _, _, _) = PlayWithWishes(2);
+            foreach (var entry in journal.Entries)
+            {
+                if (entry.Kind == "RunStarted") entry.Payload["ecologyPolicyVersion"] = CareRules.RulesVersion;
+                else if (entry.Kind == "PreparationStarted" || entry.Kind == "Prepared")
+                    entry.Payload.Remove("ecologyPolicyVersion");
+            }
+            var writer = new Memory();
+            var resumed = new GardenCoordinator(writer, new FixedEntropy("old-prepared"), new SequentialIds());
+            resumed.Restore(CutAfter(journal, cut));
+            Assert.IsFalse(resumed.UsesConnectedHabitats);
+            if (cut == "MappingEntropyCommitted") resumed.Prepare();
+            if (resumed.Phase == CoordinatorPhase.Prepared) resumed.CommitIntent("none", null);
+            var legacy = resumed.Roll();
+            Assert.IsNull(legacy.Ecology.FinalPresence);
+            Assert.AreEqual(CareRules.RulesVersion, Ecology.ToPayload(legacy.Ecology)["rulesVersion"]);
+
+            resumed.Prepare();
+            Assert.IsTrue(resumed.UsesConnectedHabitats);
+            Assert.AreEqual(LivingEcosystem.ConnectedHabitatsVersion, writer.Entries.Last().Payload["ecologyPolicyVersion"]);
+            resumed.CommitIntent("none", null);
+            var next = resumed.Roll();
+            Assert.IsNotNull(next.Ecology.FinalPresence);
+            Assert.AreEqual(LivingEcosystem.ConnectedHabitatsVersion, Ecology.ToPayload(next.Ecology)["rulesVersion"]);
         }
 
         [Test]

@@ -85,14 +85,20 @@ namespace DestinyGarden.Domain
         /// The goal of a season: the goals the garden does not yet meet (judged on the state before the season's
         /// first roll), turned by the season index. If it already meets all of them, the list turns the same way.
         /// </summary>
-        public static SeasonGoal Pick(int seasonIndex, WorldState before, IList<string> recentRecipeIds, WeatherDefinition weather)
+        public static SeasonGoal Pick(int seasonIndex, WorldState before, IList<string> recentRecipeIds, WeatherDefinition weather) =>
+            Pick(seasonIndex, before, recentRecipeIds, weather, false);
+
+        public static SeasonGoal Pick(int seasonIndex, WorldState before, IList<string> recentRecipeIds,
+            WeatherDefinition weather, bool connectedHabitats)
         {
             var communities = Communities.Find(before);
-            var presence = Ecology.Presence(before, weather, recentRecipeIds, null);
+            var presence = before.Ecosystem == null ? Ecology.Presence(before, weather, recentRecipeIds, null)
+                : connectedHabitats ? LivingEcosystem.IslandPresence(before, weather) : LivingEcosystem.Presence(before, weather, null);
             bool butterflies = presence.Exists(v => v.Kind == Ecology.Butterfly);
             var kinds = new HashSet<string>();
             foreach (var v in presence) kinds.Add(v.Kind);
-            int harmony = Harmony.Read(recentRecipeIds, kinds.Count, Flora.BloomingSpecies(before)).Value;
+            int residentCount = connectedHabitats ? CommunityRules.ResidentKinds(presence) : kinds.Count;
+            int harmony = Harmony.Read(recentRecipeIds, residentCount, Flora.BloomingSpecies(before)).Value;
             var open = new List<SeasonGoal>();
             foreach (var g in All)
             {

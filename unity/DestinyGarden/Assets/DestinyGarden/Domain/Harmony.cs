@@ -29,6 +29,12 @@ namespace DestinyGarden.Domain
 
         public static int StarFor(int value) => value >= 8 ? 8 : value >= 7 ? 7 : value >= 5 ? 5 : 0;
 
+        public static HarmonyReading ReadIsland(WorldState state, WeatherDefinition weather, IList<string> recipes) =>
+            ReadIsland(state, recipes, LivingEcosystem.IslandPresence(state, weather));
+
+        internal static HarmonyReading ReadIsland(WorldState state, IList<string> recipes, IEnumerable<EcologyVisit> presence) =>
+            Read(recipes, CommunityRules.ResidentKinds(presence), Flora.BloomingSpecies(state));
+
         public static HarmonyReading Read(IList<string> rolledRecipeIdsOldestFirst, int residentKinds, int bloomingSpecies)
         {
             var r = new HarmonyReading();

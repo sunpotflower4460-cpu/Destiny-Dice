@@ -69,7 +69,8 @@ namespace DestinyGarden.Application
                         headline = visitor != null ? "蜜を補った" + plant + "に、" + (EcologyObservations.ResidentLabel(visitor.Actor) ?? "小さな命") + "が訪れた。" : "光を受けた" + plant + "が、蜜を補った。";
                         detail = "花は、根元の養分を蜜に使った。"; rank = 95; break;
                     case "algae-eaten":
-                        headline = At("algae-grew", e) != null ? "藻の育った水辺で、" + actor + "が食べた。" : actor + "が、水辺の藻を食べた。";
+                        headline = e.FromCell != e.ToCell ? actor + "が、隣の水辺で藻を食べた。"
+                            : At("algae-grew", e) != null ? "藻の育った水辺で、" + actor + "が食べた。" : actor + "が、水辺の藻を食べた。";
                         detail = At("care-algae", e) != null ? "この水辺には、ダイスの光も届いていた。" : null; rank = 94; break;
                     case "recovered":
                         var predator = At("predation", e);
@@ -114,7 +115,11 @@ namespace DestinyGarden.Application
                     case "decomposed": headline = actor + "が落ち葉をほどき、養分が土に戻った。"; rank = 65; break;
                     case "humus-mineralised": headline = "土に残った腐植から、養分が戻った。"; rank = 61; break;
                     case "care-algae": case "algae-grew": headline = "水辺に、藻が育った。"; rank = 60; break;
-                    case "pond-prey-eaten": headline = actor + "が、水辺の小さな餌を食べた。"; rank = 68; break;
+                    case "pond-prey-eaten":
+                        bool nearbyNursery = e.Actor == CommunityRules.Nymph && e.FromCell != e.ToCell;
+                        headline = nearbyNursery ? "ヤゴが、隣の水辺で餌を見つけた。" : actor + "が、水辺の小さな餌を食べた。";
+                        rank = nearbyNursery ? 94 : 68;
+                        break;
                     case "seed-expired": headline = "土に眠っていた" + plant + "の種が、土へ還った。"; rank = 75; break;
                     case "resident-returned": headline = actor + "の命がひとつ、土へ還った。"; rank = 83; break;
                     case "resident-dispersed": headline = "育った" + actor + "が、庭の外へ旅立った。"; rank = 102; break;

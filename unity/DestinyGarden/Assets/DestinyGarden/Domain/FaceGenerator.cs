@@ -19,6 +19,7 @@ namespace DestinyGarden.Domain
         public string ResolvedSiteId;
         public int AnchorCellId = -1; // v8 pins the resolved cell before faces are published
         public string TargetNote;
+        public bool ConnectedHabitats; // resolution policy pinned by the coordinator
         public string[] Faces; // length 6, index+1 = faceId
         public List<FaceCandidate> Candidates = new List<FaceCandidate>();
         public List<ResolvedRecipe> Resolved = new List<ResolvedRecipe>();

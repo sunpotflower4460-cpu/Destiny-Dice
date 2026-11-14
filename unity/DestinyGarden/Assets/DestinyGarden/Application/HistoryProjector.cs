@@ -131,8 +131,11 @@ namespace DestinyGarden.Application
                                             ToHabitat = link.TryGetValue("toHabitat", out object th) ? th as string : null
                                         });
                                     }
-                                foreach (var v in (IEnumerable)ecod["visits"])
-                                    if (v is IDictionary<string, object> vd && vd["kind"] is string vk) s.EcologyKinds.Add(vk);
+                                foreach (string key in new[] { "visits", "presence" })
+                                    if (ecod.TryGetValue(key, out object recorded) && recorded is IEnumerable residents)
+                                        foreach (var v in residents)
+                                            if (v is IDictionary<string, object> vd && vd["kind"] is string vk && !s.EcologyKinds.Contains(vk))
+                                                s.EcologyKinds.Add(vk);
                                 foreach (var ef in (IEnumerable)ecod["effects"])
                                     if (ef is IDictionary<string, object> efd)
                                     {

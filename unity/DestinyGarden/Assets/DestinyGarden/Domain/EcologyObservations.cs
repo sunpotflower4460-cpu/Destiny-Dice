@@ -98,7 +98,7 @@ namespace DestinyGarden.Domain
                 case "resident-left": return $"居場所を失った{actor}が、庭を離れていった。";
                 case "host-leaf-eaten": return "蝶の幼虫が食草の葉を食べ、根を残して育っている。";
                 case "algae-grew": return "続いた湿りと養分から、水辺に藻が育った。";
-                case "algae-eaten": return "オタマジャクシが、水辺の藻を食べて育っている。";
+                case "algae-eaten": return e.FromCell != e.ToCell ? "オタマジャクシが、隣の水辺で藻を食べた。" : "オタマジャクシが、水辺の藻を食べた。";
                 case "pond-prey-eaten": return $"{actor}が、水辺の小さな餌を食べた。";
                 case "pond-dried": return "乾いた水辺で、小さな命の蓄えが土へ還った。";
                 case "seed-buried": return e.Actor == Ecology.Bird ? $"小鳥が運んだ{plant}の種が、土の中で時を待つ。"
