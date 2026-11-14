@@ -774,6 +774,9 @@ namespace DestinyGarden.Presentation
             LayoutOpeningDecorations(side);
         }
 
+        /// <summary>Whether the title card is up (overlays of other components stay hidden under it).</summary>
+        public bool TitleCardOpen => _titleCard != null && _titleCard.activeSelf;
+
         public void ShowTitleCard(bool show, bool opening = false)
         {
             if (_titleCard == null) return;
@@ -893,7 +896,7 @@ namespace DestinyGarden.Presentation
                 sb.AppendLine($"{r.WorldRevision}投目 {WeatherLabel(r.WeatherId)} {SiteLabel(r.SiteId)} " +
                     $"{(r.FaceId.HasValue ? r.FaceId.Value + "の目" : "")} {RecipeLabel(r.RecipeId)}" +
                     (r.LuckySeven ? " ★幸運の七" : r.FaceCount == 7 ? "（7面）" : "") +
-                    (r.LuckySeven && r.Bloomed ? " ∞虹" : ""));
+                    (r.Rainbow ? " ∞虹" : ""));
                 var lives = new List<string>();
                 foreach (var k in r.EcologyKinds) { string n = ResidentLabelJa(k); if (n != null && !lives.Contains(n)) lives.Add(n); }
                 if (_observationDetails && (lives.Count > 0 || r.EcologySeeds > 0 || r.SeedBankDeposits > 0 || r.Harmony >= 0))

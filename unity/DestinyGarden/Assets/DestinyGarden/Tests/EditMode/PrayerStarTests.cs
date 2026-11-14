@@ -56,9 +56,54 @@ namespace DestinyGarden.Tests
         }
 
         [Test]
+        public void LuckyNumbers_AreCounted_SeventhIsTheEight_DoubleGrowsAFullStage()
+        {
+            // Faces 3,4 (lucky), 3 (lucky again: 3+4), 1, 6 (lucky), 7 (lucky).
+            var faces = new List<int> { 3, 4, 3, 1, 6, 7 };
+            Assert.AreEqual(4, PrayerStar.CountLuckies(faces));
+            Assert.AreEqual(2, PrayerStar.TrailingStreak(faces), "6 then 7: two in a row");
+            Assert.AreEqual(0, PrayerStar.TrailingStreak(new List<int> { 3, 4, 2 }));
+
+            // The seventh lucky number is the eight, even with little harmony and no yin/yang change.
+            var seventh = PrayerStar.Read(4, 3, "water_drop", "seed_single", false, 0, -1, 6, 0);
+            Assert.AreEqual(8, seventh.Points);
+            Assert.IsTrue(seventh.SevenLuckies);
+            Assert.AreEqual(7, seventh.LuckyCount);
+            var sixth = PrayerStar.Read(4, 3, "water_drop", "seed_single", false, 0, -1, 5, 0);
+            Assert.AreEqual(7, sixth.Points);
+            Assert.IsFalse(sixth.SevenLuckies);
+            Assert.AreEqual(0, PrayerStar.Read(2, 3, "water_drop", "seed_single", false, 0, -1, 6, 1).LuckyStreak, "not lucky: no streak");
+
+            // Two in a row: a double lucky number lifts its seven plants a full stage instead of half.
+            var single = PrayerStar.Read(4, 3, "water_drop", "seed_single", false, 0, -1, 1, 0);
+            var dbl = PrayerStar.Read(4, 3, "water_drop", "seed_single", false, 0, -1, 1, 1);
+            Assert.AreEqual(1, single.LuckyStreak); Assert.AreEqual(2, dbl.LuckyStreak);
+            Assert.AreEqual(250, PrayerStar.GiftFor(single, 0) * 2, "half a stage");
+            Assert.AreEqual(250, PrayerStar.GiftFor(dbl, 0), "a full stage");
+        }
+
+        [Test]
+        public void InPlay_LuckyCountFollowsTheSavedFaces()
+        {
+            var faces = new List<int>();
+            int sevens = 0;
+            foreach (var o in Play(new Memory(), "lucky-count", 200))
+            {
+                faces.Add(o.FaceId);
+                var star = o.Ecology.PrayerStar;
+                Assert.AreEqual(PrayerStar.CountLuckies(faces), star.LuckyCount);
+                Assert.AreEqual(PrayerStar.TrailingStreak(faces), star.LuckyStreak);
+                if (star.SevenLuckies) { sevens++; Assert.AreEqual(8, star.Points); Assert.AreEqual(0, star.LuckyCount % 7); }
+            }
+            Assert.Greater(sevens, 0, "200 rolls reach seven lucky numbers");
+        }
+
+        [Test]
         public void Gift_GoesToTheYoungestNonFloweringPlants()
         {
-            Assert.AreEqual(new[] { 5, 16, 77, 88 }, new[] { 5, 6, 7, 8 }.Select(PrayerStar.GiftGrowthFor).ToArray());
+            Assert.AreEqual(new[] { 60, 0, 0, 0 }, new[] { 5, 6, 7, 8 }.Select(PrayerStar.GiftGrowthFor).ToArray(), "0 = one full stage");
+            Assert.AreEqual(new[] { 1, 1, 7, int.MaxValue }, new[] { 5, 6, 7, 8 }.Select(PrayerStar.GiftRecipientsFor).ToArray());
+            Assert.AreEqual(new[] { 250, 240, 350, 750, 1000, 0 }, new[] { 0, 10, 400, 750, 1500, 2500 }.Select(PrayerStar.ToNextStage).ToArray());
             var s = new WorldState();
             int[] growth = { 2500, 10, 900, 10, 400, 0, 1600, 1200 };
             for (int i = 0; i < growth.Length; i++)
@@ -68,7 +113,12 @@ namespace DestinyGarden.Tests
                     Stage = growth[i] >= 2500 ? PlantStage.Flower : growth[i] >= 1500 ? PlantStage.Bud : PlantStage.Leaf
                 });
             var five = PrayerStar.Recipients(s, PrayerStar.Read(1, 0, "seed_single", null, false, 0));
-            CollectionAssert.AreEqual(new[] { 105, 101, 103, 104, 102 }, five, "growth order, then cell order");
+            CollectionAssert.AreEqual(new[] { 105 }, five, "five: the youngest one");
+            var seven = PrayerStar.Recipients(s, PrayerStar.Read(3, 4, "seed_single", "seed_single", false, 0));
+            CollectionAssert.AreEqual(new[] { 105, 101, 103, 104, 102, 107, 106 }, seven, "growth order, then cell order");
+            // The blessing's site comes first: with the site at cell 106, the plants within three cells lead.
+            var near = PrayerStar.Recipients(s, PrayerStar.Read(1, 0, "seed_single", null, false, 0, 106));
+            Assert.LessOrEqual(PrayerStar.Dist(near[0], 106), PrayerStar.SiteReach);
             var eight = PrayerStar.Recipients(s, new PrayerStarReading { Points = 8, GiftRecipients = PrayerStar.GiftRecipientsFor(8) });
             Assert.AreEqual(7, eight.Count, "the eight reaches every plant not yet in flower");
             Assert.IsFalse(eight.Contains(100));
@@ -127,7 +177,9 @@ namespace DestinyGarden.Tests
                 Assert.NotNull(star, "every roll reads the star");
                 int prevFace = i > 0 ? outcomes[i - 1].FaceId : 0;
                 string prevRecipe = i > 0 ? outcomes[i - 1].RecipeId : null;
-                var expect = PrayerStar.Read(o.FaceId, prevFace, o.RecipeId, prevRecipe, o.IntentMatched, o.Ecology.Harmony.Value);
+                var facesBefore = outcomes.Take(i).Select(x => x.FaceId).ToList();
+                var expect = PrayerStar.Read(o.FaceId, prevFace, o.RecipeId, prevRecipe, o.IntentMatched, o.Ecology.Harmony.Value, -1,
+                    PrayerStar.CountLuckies(facesBefore), PrayerStar.TrailingStreak(facesBefore));
                 Assert.AreEqual(expect.Points, star.Points, "roll " + i);
                 points.Add(star.Points);
 
@@ -136,7 +188,8 @@ namespace DestinyGarden.Tests
                 foreach (var g in gifts)
                 {
                     Assert.Greater(g.Amount, 0);
-                    Assert.LessOrEqual(g.Amount, star.GiftGrowth);
+                    Assert.LessOrEqual(g.Amount, star.GiftGrowth > 0 ? star.GiftGrowth : star.Points == 7 && star.LuckyStreak < 2 ? 500 : 1000,
+                        "five: +60; seven half a stage (a double lucky number a full one); otherwise one stage");
                 }
                 Assert.AreEqual(o.Simulation.PostState.TotalWater(), o.Ecology.PostState.TotalWater(), "the star never moves water");
                 Assert.AreEqual(star.Points >= 8, PrayerStar.IsRainbow(o.LuckySeven, o.Simulation, o.Ecology),
@@ -144,6 +197,23 @@ namespace DestinyGarden.Tests
             }
             Assert.IsTrue(points.Contains(5) && points.Contains(6) && points.Contains(7),
                 "160 rolls should show the five-, six- and seven-pointed stars: " + string.Join(",", points));
+        }
+
+        [Test]
+        public void RainbowEight_LetsEveryFlowerSetSeed()
+        {
+            int eights = 0;
+            for (int run = 0; run < 8 && eights == 0; run++)
+                foreach (var o in Play(new Memory(), "rainbow-seed-" + run, 160))
+                {
+                    if (o.Ecology.PrayerStar.Points < 8) continue;
+                    eights++;
+                    // Flowers counted this roll (BloomRolls > 0) were in bloom under the rainbow; one opened later by the
+                    // returning plants' nourishment has not been counted yet.
+                    foreach (var p in o.Ecology.PostState.Plants.Where(p => p.Stage == PlantStage.Flower && p.BloomRolls > 0))
+                        Assert.IsTrue(p.Pollinated, "every flower under the rainbow sets seed");
+                }
+            Assert.Greater(eights, 0, "fixtures should reach an eight-pointed star");
         }
 
         [Test]
@@ -228,7 +298,7 @@ namespace DestinyGarden.Tests
         {
             const int runs = 6, rollsPerRun = 120;
             var counts = new Dictionary<int, int>();
-            int rolls = 0, rainbows = 0, rainbowsV2 = 0, gift = 0;
+            int rolls = 0, rainbows = 0, rainbowsV2 = 0, gift = 0, sevenLuckies = 0, doubles = 0;
             for (int run = 0; run < runs; run++)
             {
                 var coord = new GardenCoordinator(new Memory(), new FixedEntropy("star-measure-" + run), new SequentialIds());
@@ -250,13 +320,17 @@ namespace DestinyGarden.Tests
                     if (PrayerStar.IsRainbow(o.LuckySeven, o.Simulation, o.Ecology)) rainbows++;
                     if (LuckySeven.IsRainbow(o.LuckySeven, o.Simulation, o.Ecology)) rainbowsV2++;
                     gift += o.Ecology.Effects.Where(e => e.Kind == PrayerStar.GiftKind).Sum(e => e.Amount);
+                    if (o.Ecology.PrayerStar.SevenLuckies) sevenLuckies++;
+                    if (o.Ecology.PrayerStar.LuckyStreak >= 2) doubles++;
                 }
             }
             string report = $"rolls={rolls} stars " +
                             string.Join(", ", counts.OrderBy(k => k.Key).Select(k => $"{k.Key}:{100.0 * k.Value / rolls:0.0}%")) +
                             $" | rainbow v3 1 per {(rainbows > 0 ? rolls / (double)rainbows : double.PositiveInfinity):0} rolls" +
                             $" (v2 alone 1 per {(rainbowsV2 > 0 ? rolls / (double)rainbowsV2 : double.PositiveInfinity):0})" +
-                            $" | star gift growth/roll {gift / (double)rolls:0.0}";
+                            $" | star gift growth/roll {gift / (double)rolls:0.0}" +
+                            $" | seven luckies {sevenLuckies} (1 per {(sevenLuckies > 0 ? rolls / (double)sevenLuckies : double.PositiveInfinity):0} rolls)," +
+                            $" double lucky {doubles} (1 per {(doubles > 0 ? rolls / (double)doubles : double.PositiveInfinity):0})";
             TestContext.WriteLine(report);
             UnityEngine.Debug.Log("DG-STAR " + report);
             Assert.Greater(rolls, 0);
