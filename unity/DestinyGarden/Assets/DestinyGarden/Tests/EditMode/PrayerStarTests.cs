@@ -444,5 +444,44 @@ namespace DestinyGarden.Tests
             }
             Assert.Greater(eights, 0);
         }
+
+        [Test]
+        public void V6_LuckyPlantsKeepTheirFlowersLonger()
+        {
+            Assert.AreEqual(0, LivingEcosystem.LuckyBloom(new PlantState()));
+            Assert.AreEqual(8, LivingEcosystem.LuckyBloom(new PlantState { LuckyMarks = 2 }));
+            Assert.AreEqual(12, LivingEcosystem.LuckyBloom(new PlantState { LuckyMarks = 9 }));
+
+            int lateRests = 0, rests = 0;
+            for (int g = 0; g < 4; g++)
+            {
+                var coord = new GardenCoordinator(new Memory(), new FixedEntropy("lucky-bloom-" + g), new SequentialIds());
+                coord.CreateRun();
+                coord.Prepare();
+                WorldState before = coord.State;
+                for (int i = 0; i < 120; i++)
+                {
+                    if (coord.LuckySevenOffered) coord.AddLuckySeven();
+                    int last = coord.RolledFaces.Count > 0 ? coord.RolledFaces[coord.RolledFaces.Count - 1] : 0;
+                    int lucky = PrayerStar.FaceCompletingSeven(last);
+                    if (lucky >= 1 && lucky <= coord.CurrentFaces.Faces.Length) coord.CommitIntent("face", lucky.ToString());
+                    else coord.CommitIntent("family", "water");
+                    var o = coord.Roll();
+                    coord.Prepare();
+                    foreach (var link in o.Ecology.Relations.Where(l => l.Kind == "flower-rest"))
+                    {
+                        var was = before.PlantAt(link.ToCell);
+                        if (was == null || was.Stage != PlantStage.Flower || !before.Ecosystem.Cycles.TryGetValue(was.PlantId, out var life)) continue;
+                        rests++;
+                        int needed = PlantStrategies.Get(was.Species).BloomRounds + LivingEcosystem.LuckyBloom(was);
+                        Assert.GreaterOrEqual(life.BloomAge + 1, needed, was.Species + " marks " + was.LuckyMarks);
+                        if (was.LuckyMarks > 0) lateRests++;
+                    }
+                    before = o.Ecology.PostState;
+                }
+            }
+            Assert.Greater(rests, 0);
+            Assert.Greater(lateRests, 0, "a lucky plant rested only after its longer bloom");
+        }
     }
 }
