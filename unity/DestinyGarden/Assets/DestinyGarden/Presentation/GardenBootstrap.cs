@@ -110,6 +110,8 @@ namespace DestinyGarden.Presentation
             _ui.OnRoll = () => StartCoroutine(RollFlow());
             _ui.OnIntentSelected = (kind, value) =>
             {
+                // A wish made (not withdrawn) is heard as a quiet prayer tone.
+                if (kind != "none" && (kind != _intentKind || value != _intentValue) && _audio != null) _audio.PlayPrayer();
                 _intentKind = kind; _intentValue = value;
                 _ui.ShowIntentSelection(kind, value);
                 ShowPreparedFaces();

@@ -433,6 +433,10 @@ namespace DestinyGarden.Presentation
                 var cp = state != null ? state.PlantAt(e.CellId) : null;
                 _communityTops.Add(View.CellTop(e.CellId) + Vector3.up * (cp != null ? 0.12f + 0.75f * cp.Growth / 2500f : 0.15f));
             }
+            // prayer-star.v4: the lucky plant receives its light last and brightest.
+            _luckyTop = null;
+            if (star.LuckyPlantCellId >= 0 && state != null && state.PlantAt(star.LuckyPlantCellId) is PlantState lp && View != null)
+                _luckyTop = View.PlantTip(lp);
             // The gift: light falls on each plant that the star actually nourished.
             var tops = new List<Vector3>();
             foreach (var e in outcome.Ecology.Effects)
@@ -461,7 +465,7 @@ namespace DestinyGarden.Presentation
                 }
             var lines = new List<string>();
             foreach (var l in new[] { CauseLine(outcome.Ecology), WishLine(outcome), HintLine(outcome.FaceId, star.LuckyCount),
-                         SeasonLine(outcome), YearLine(outcome, star.LuckyCount), FirstTimeTip(outcome) })
+                         SeasonLine(outcome), KeepsakeLine(outcome, star.LuckyCount), YearLine(outcome, star.LuckyCount), FirstTimeTip(outcome) })
                 if (!string.IsNullOrEmpty(l)) lines.Add(l);
             Track(StartCoroutine(ShowCauseLater(lines.Count > 0 ? string.Join("\n", lines) : null)));
             Track(StartCoroutine(CycleToneLater(CycleToneFor(outcome.Ecology))));
@@ -525,6 +529,12 @@ namespace DestinyGarden.Presentation
             {
                 Shower(tops[i], points, perPlant);
                 if (!ReducedMotion) yield return new WaitForSeconds(points >= 8 ? 0.05f : 0.09f);
+            }
+            if (_luckyTop.HasValue)
+            {
+                if (!ReducedMotion) yield return new WaitForSeconds(0.25f);
+                Shower(_luckyTop.Value, 7, 26); // the lucky plant: the last and brightest light
+                _luckyTop = null;
             }
             yield return new WaitForSeconds(0.4f);
             SetHint(faceId); // lights for the face that would complete seven next time
@@ -853,6 +863,15 @@ namespace DestinyGarden.Presentation
                     : "種の恵み → いちばん若い芽へ";
                 parts.Add(what + (site != null ? $"（{site}のあたりから）" : "") + "　" + where);
             }
+            if (eco.PrayerStar.LuckyNumber && eco.PrayerStar.LuckyPlantCellId >= 0 && eco.PostState != null)
+            {
+                var lucky = eco.PostState.PlantAt(eco.PrayerStar.LuckyPlantCellId);
+                var lt = lucky != null ? Flora.Get(lucky.Species) : null;
+                if (lucky != null)
+                    parts.Add(lucky.LuckyMarks > 1
+                        ? $"{(lt != null ? lt.LabelJa : "芽")}に<color={Gold}>ラッキーナンバー</color>の光がまた宿った（幸運の株・{lucky.LuckyMarks}度目）"
+                        : $"{(lt != null ? lt.LabelJa : "芽")}に<color={Gold}>ラッキーナンバー</color>の光が宿った（幸運の株）");
+            }
             foreach (var c in eco.Answered)
             {
                 string blessing = c.Element == ElementId.Water ? "水" : c.Element == ElementId.Light ? "光" : c.Element == ElementId.Wind ? "風" : "種";
@@ -879,6 +898,7 @@ namespace DestinyGarden.Presentation
             var (index, goalId) = c.UpcomingSeason();
             var g = Seasons.Get(goalId);
             var rows = new List<string>();
+            if (c.State.WorldRevision > 0) rows.Add($"<color=#f5daa1>〈{CurrentName(c)}〉</color>");
             if (g != null)
             {
                 var recent = new List<string>(c.RolledRecipes);
@@ -898,6 +918,8 @@ namespace DestinyGarden.Presentation
             int k = PrayerStar.FaceCompletingSeven(last);
             string next = k > 0 ? $"・次は <color={Gold}>{k}</color>" : "";
             rows.Add($"<color={Gold}>ラッキーナンバー</color> {count % PrayerStar.LuckiesForRainbow}/{PrayerStar.LuckiesForRainbow}{next}");
+            int luckyPlants = LuckyPlants(c.State);
+            if (luckyPlants > 0) rows.Add($"<color={Gold}>幸運の株</color> {luckyPlants}");
             return string.Join("\n", rows);
         }
 
@@ -944,7 +966,7 @@ namespace DestinyGarden.Presentation
                 return text;
             }
             if (star.LuckyNumber)
-                return Once("dg.tip.lucky", $"ヒント：前の目と今の目を足して 7 になると <color={Gold}>ラッキーナンバー</color>。七つ集めると八の虹。");
+                return Once("dg.tip.lucky", $"ヒント：前の目と今の目を足して 7 になると <color={Gold}>ラッキーナンバー</color>。七つ集めるか、願いが叶った回に重なると八の虹。");
             if (o.EarnedSeventh)
                 return Once("dg.tip.seventh", "ヒント：七つめの面を足すと、7 の目もラッキーナンバーになる。どの面も 1/7。");
             if (o.Ecology.Effects.Exists(e => e.Kind == Lifecycle.ReturnKind))
@@ -972,6 +994,14 @@ namespace DestinyGarden.Presentation
             bool longShot = LuckySeven.WishEarnsSeventh(true, o.MatchingFaces, o.FaceCount);
             return longShot ? $"願い：叶った（{odds}）　・　次の回に七つめの面を足せる"
                 : $"願い：叶った（{odds}）";
+        }
+
+        /// <summary>At each season's end (every 12 rolls): the garden's name and what its luck has brought so far.</summary>
+        private string KeepsakeLine(RollOutcome o, int luckyCount)
+        {
+            if (o == null || o.SeasonRollsLeft != 0 || Coordinator == null || Coordinator.State == null) return null;
+            return "季節の終わりの庭：" + GardenKeepsake.SeasonKeepsake(CurrentName(Coordinator), Coordinator.State.WorldRevision,
+                luckyCount, LuckyPlants(Coordinator.State), o.RainbowCount, o.SeasonsMetCount);
         }
 
         /// <summary>Every fourth season: a look back over the year (48 rolls).</summary>
@@ -1070,8 +1100,8 @@ namespace DestinyGarden.Presentation
             {
                 if (star != null && star.SevenLuckies)
                     return new[] { "8", "七つの幸運　・　八の虹", "ラッキーナンバーが七つそろった", $"この庭のラッキーナンバー {count} 回目" };
-                string why = star != null && star.WishAnswered && !star.YinYangUnion ? "叶った願いと島の調和" : "陰陽の結びと島の調和";
-                return new[] { "8", "八芒星　・　八の虹", $"ラッキーナンバーに、{why}が重なった", progress };
+                // prayer-star.v4: the eight is a lucky number met by an answered prayer (in a harmonious garden).
+                return new[] { "8", "八芒星　・　八の虹", "ラッキーナンバーに、叶った祈りと島の調和が重なった", progress };
             }
             bool dbl = star != null && star.LuckyStreak >= 2;
             return new[]
@@ -1300,6 +1330,55 @@ namespace DestinyGarden.Presentation
             return Mathf.Atan2(f.x, f.z) * Mathf.Rad2Deg;
         }
 
+        private float _luckyGlowTimer;
+        private Vector3? _luckyTop;
+
+        /// <summary>
+        /// prayer-star.v4: the lucky plants (marked by a lucky number's gift) keep a soft golden light — the garden's
+        /// own history of luck, visible in the garden. More marks, a little more light. Presentation of saved state only.
+        /// </summary>
+        private void GlowLuckyPlants(float dt)
+        {
+            if (_glints == null || View == null || Coordinator == null || Coordinator.State == null) return;
+            _luckyGlowTimer -= dt;
+            if (_luckyGlowTimer > 0f) return;
+            _luckyGlowTimer = 0.5f;
+            int shown = 0;
+            foreach (var p in Coordinator.State.Plants)
+            {
+                if (p.LuckyMarks <= 0) continue;
+                if (++shown > 16) break;
+                var tip = View.PlantTip(p);
+                int n = 1 + Mathf.Min(2, p.LuckyMarks);
+                for (int i = 0; i < n; i++)
+                    _glints.Emit(new ParticleSystem.EmitParams
+                    {
+                        position = tip + new Vector3(UnityEngine.Random.Range(-0.12f, 0.12f), UnityEngine.Random.Range(0.02f, 0.18f), UnityEngine.Random.Range(-0.12f, 0.12f)),
+                        velocity = ReducedMotion ? Vector3.zero : Vector3.up * UnityEngine.Random.Range(0.05f, 0.16f),
+                        startColor = new Color(1f, 0.84f, 0.42f, 0.8f),
+                        startSize = UnityEngine.Random.Range(0.13f, 0.22f), // seen from the garden's usual distance
+                        startLifetime = UnityEngine.Random.Range(1.4f, 2.0f)
+                    }, 1);
+            }
+        }
+
+        /// <summary>The garden's own name as it is now (GardenKeepsake; from the saved garden, never saved itself).</summary>
+        public static string CurrentName(GardenCoordinator c)
+        {
+            if (c == null || c.State == null) return null;
+            var kinds = new HashSet<string>();
+            foreach (var v in Ecology.Presence(c.State, c.CurrentWeather, new List<string>(c.RolledRecipes), null)) kinds.Add(v.Kind);
+            return GardenKeepsake.Name(c.State, kinds, c.RainbowCount, LuckyPlants(c.State));
+        }
+
+        /// <summary>How many plants in the garden carry the light of a lucky number now.</summary>
+        public static int LuckyPlants(WorldState s)
+        {
+            int n = 0;
+            if (s != null) foreach (var p in s.Plants) if (p.LuckyMarks > 0) n++;
+            return n;
+        }
+
         private void Update()
         {
             if (_root == null || _current == null) return;
@@ -1320,6 +1399,7 @@ namespace DestinyGarden.Presentation
                     ShowLabel(_qaStar, LuckyLabelLines(QaReading(4, 3), _qaStar, 4, 3, 6), true);
             }
             float dt = Time.deltaTime;
+            GlowLuckyPlants(dt);
             _sinceChange += dt;
             _boost *= Mathf.Exp(-dt * 1.8f);
             _flash = Mathf.MoveTowards(_flash, 0f, dt * 0.45f);

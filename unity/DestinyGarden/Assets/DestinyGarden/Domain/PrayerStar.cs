@@ -17,6 +17,7 @@ namespace DestinyGarden.Domain
         public int LuckyCount;        // lucky.v1: lucky numbers in this garden so far, this one included
         public int LuckyStreak;       // lucky.v1: lucky numbers in a row ending with this roll (0 when not lucky)
         public bool SevenLuckies;     // lucky.v1: this lucky number is the 7th, 14th, ... of the garden: the eight
+        public int LuckyPlantCellId = -1; // prayer-star.v4: the plant this lucky number marked (-1 when none)
         public bool HasElement;     // prayer-star.v2: the rolled blessing steers where the gift goes
         public ElementId Element;
     }
@@ -41,10 +42,12 @@ namespace DestinyGarden.Domain
     /// </summary>
     public static class PrayerStar
     {
-        public const string RulesVersion = "prayer-star.v3";   // v3 (lucky.v1): seven luckies, double lucky
+        // v3 (lucky.v1): seven luckies, double lucky. v4: the eight is luck met by prayer — a lucky number on a roll whose
+        // wish came true (in a harmonious garden), or the garden's seventh lucky number; a yin-yang turn alone stays six.
+        public const string RulesVersion = "prayer-star.v4";
         public const string GiftKind = "star";          // EcologyEffect.Kind for the star's gift
         public const int LuckySum = 7;
-        public const int OctagramHarmony = 7;
+        public const int OctagramHarmony = 8;  // v4: the island in full harmony (7 in v1–v3)
 
         public const int SiteReach = 3;               // plants within this distance of the blessing's site come first
         public const int FiveGift = 60;
@@ -125,7 +128,7 @@ namespace DestinyGarden.Domain
             r.LuckyCount = luckyCountBefore + (r.LuckyNumber ? 1 : 0);
             r.LuckyStreak = r.LuckyNumber ? luckyStreakBefore + 1 : 0;
             r.SevenLuckies = r.LuckyNumber && r.LuckyCount % LuckiesForRainbow == 0;
-            r.Points = r.LuckyNumber && (r.SevenLuckies || (joined && harmonyValue >= OctagramHarmony)) ? 8
+            r.Points = r.LuckyNumber && (r.SevenLuckies || (r.WishAnswered && harmonyValue >= OctagramHarmony)) ? 8
                 : r.LuckyNumber ? 7
                 : joined ? 6
                 : 5;
@@ -193,8 +196,15 @@ namespace DestinyGarden.Domain
                 previous, context.PrayerAnswered, result.Harmony.Value, context.AnchorCellId,
                 context.LuckyCountBefore, context.LuckyStreakBefore);
             result.PrayerStar = star;
-            foreach (int cell in Recipients(result.PostState, star))
+            var recipients = Recipients(result.PostState, star);
+            foreach (int cell in recipients)
                 nourish(cell, GiftFor(star, result.PostState.PlantAt(cell).Growth));
+            // prayer-star.v4: a lucky number leaves its mark on the plant its gift reached first (the lucky plant).
+            if (star.LuckyNumber && recipients.Count > 0)
+            {
+                var first = result.PostState.PlantAt(recipients[0]);
+                if (first != null) { first.LuckyMarks++; star.LuckyPlantCellId = first.CellId; }
+            }
         }
 
         /// <summary>
@@ -219,7 +229,8 @@ namespace DestinyGarden.Domain
             ["luckyStreak"] = (long)r.LuckyStreak,
             ["sevenLuckies"] = r.SevenLuckies,
             ["anchorCellId"] = (long)r.AnchorCellId,
-            ["giftElement"] = r.HasElement ? r.Element.ToString().ToLowerInvariant() : null
+            ["giftElement"] = r.HasElement ? r.Element.ToString().ToLowerInvariant() : null,
+            ["luckyPlantCellId"] = (long)r.LuckyPlantCellId
         };
     }
 }

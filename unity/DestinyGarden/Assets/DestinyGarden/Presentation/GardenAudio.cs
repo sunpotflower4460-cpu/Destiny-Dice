@@ -71,7 +71,7 @@ namespace DestinyGarden.Presentation
             for (int i = 0; i < 4; i++) names.Add("chirp" + i);
             for (int i = 1; i <= 7; i++) names.Add("face" + i);
             for (int i = 5; i <= 8; i++) names.Add("chord" + i);
-            names.Add("cycle-return"); names.Add("cycle-fruit"); names.Add("cycle-wither");
+            names.Add("cycle-return"); names.Add("cycle-fruit"); names.Add("cycle-wither"); names.Add("prayer");
             names.Add("lucky-scale7"); names.Add("lucky-scale8");
             foreach (string n in names)
             {
@@ -96,6 +96,7 @@ namespace DestinyGarden.Presentation
             else if (name.StartsWith("face")) s = AudioSynth.FaceNote(int.Parse(name.Substring(4)));
             else if (name.StartsWith("chord")) s = AudioSynth.StarChord(int.Parse(name.Substring(5)));
             else if (name.StartsWith("cycle-")) s = AudioSynth.CycleTone(name.Substring(6));
+            else if (name == "prayer") s = AudioSynth.Prayer();
             else if (name.StartsWith("lucky-scale")) s = AudioSynth.LuckyScale(int.Parse(name.Substring(11)));
             else if (name.StartsWith("star")) s = AudioSynth.StarUp(int.Parse(name.Substring(4)));
             else if (name.StartsWith("bloom")) s = AudioSynth.Bloom(int.Parse(name.Substring(5)));
@@ -196,6 +197,9 @@ namespace DestinyGarden.Presentation
 
         /// <summary>The garden's cycle: "return", "fruit" or "wither" (one per roll), quieter than the face note.</summary>
         public void PlayCycleTone(string kind) => Shot(_fx, "cycle-" + kind, CycleToneVolume);
+
+        /// <summary>A wish is made: a held open fifth, below the die's note.</summary>
+        public void PlayPrayer() => Shot(_fx, "prayer", 0.5f); // measured: ≈ −27.9 LUFS, as the star chord; below the die note (−24.6)
 
         public const float CycleToneVolume = 0.36f;
 

@@ -19,6 +19,7 @@ namespace DestinyGarden.Tests
             foreach (var k in new[] { "return", "fruit", "wither" }) d["cycle-" + k] = AudioSynth.CycleTone(k);
             d["lucky-scale7"] = AudioSynth.LuckyScale(7);
             d["lucky-scale8"] = AudioSynth.LuckyScale(8);
+            d["prayer"] = AudioSynth.Prayer();
             return d;
         }
 

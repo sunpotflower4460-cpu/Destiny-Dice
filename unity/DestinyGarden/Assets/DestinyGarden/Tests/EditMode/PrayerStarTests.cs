@@ -43,11 +43,11 @@ namespace DestinyGarden.Tests
             Assert.AreEqual(7, seven.Points);
             Assert.IsTrue(seven.LuckyNumber);
             Assert.AreEqual(7, seven.FaceSum);
-            // Lucky number + yin/yang joined + harmony >= 7: the eight.
-            Assert.AreEqual(8, PrayerStar.Read(6, 1, "wind_breeze", "water_drop", false, 7).Points);
-            Assert.AreEqual(8, PrayerStar.Read(6, 1, "water_drop", "seed_single", true, 8).Points, "a wish also joins");
-            Assert.AreEqual(7, PrayerStar.Read(6, 1, "wind_breeze", "water_drop", false, 6).Points, "harmony below seven stays seven");
-            Assert.AreEqual(7, PrayerStar.Read(6, 1, "water_drop", "seed_single", false, 8).Points, "the eight needs yin and yang joined");
+            // prayer-star.v4: the eight is luck met by prayer — a lucky number whose wish came true, harmony >= 7.
+            Assert.AreEqual(8, PrayerStar.Read(6, 1, "water_drop", "seed_single", true, 8).Points, "lucky + answered wish + full harmony");
+            Assert.AreEqual(7, PrayerStar.Read(6, 1, "water_drop", "seed_single", true, 7).Points, "harmony below eight stays seven");
+            Assert.AreEqual(7, PrayerStar.Read(6, 1, "wind_breeze", "water_drop", false, 8).Points, "yin and yang alone do not make the eight");
+            Assert.AreEqual(7, PrayerStar.Read(6, 1, "water_drop", "seed_single", false, 8).Points, "no wish, no eight");
             // The Lucky Seven face is always a lucky number; 7 + anything is never the opposite-face sum.
             Assert.IsTrue(PrayerStar.IsLuckyNumber(7, 0));
             Assert.IsTrue(PrayerStar.IsLuckyNumber(7, 3));

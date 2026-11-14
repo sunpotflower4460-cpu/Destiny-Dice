@@ -136,6 +136,7 @@ namespace DestinyGarden.Domain
                 if (p.BloomRolls > 0) plant["bloomRolls"] = p.BloomRolls; // lifecycle.v1, same rule
                 if (p.Pollinated) plant["pollinated"] = true;              // lifecycle.v2, same rule
                 if (p.IdleRolls > 0) plant["idleRolls"] = p.IdleRolls;     // lifecycle.v3, same rule
+                if (p.LuckyMarks > 0) plant["luckyMarks"] = p.LuckyMarks;  // prayer-star.v4, same rule
                 plants.Add(plant);
             }
             var payload = new Dictionary<string, object>
@@ -171,7 +172,8 @@ namespace DestinyGarden.Domain
                     Species = d.TryGetValue("species", out object sp) ? sp as string : null,
                     BloomRolls = d.TryGetValue("bloomRolls", out object br) ? ToInt(br) : 0,
                     Pollinated = d.TryGetValue("pollinated", out object pl) && pl is bool pb && pb,
-                    IdleRolls = d.TryGetValue("idleRolls", out object ir) ? ToInt(ir) : 0
+                    IdleRolls = d.TryGetValue("idleRolls", out object ir) ? ToInt(ir) : 0,
+                    LuckyMarks = d.TryGetValue("luckyMarks", out object lm) ? ToInt(lm) : 0
                 });
             }
             if (p.TryGetValue("ecosystem", out object eco) && eco is IDictionary<string, object> ed)
