@@ -2,15 +2,165 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using DestinyGarden.Application;
 using DestinyGarden.Domain;
 using DestinyGarden.Presentation;
 using UnityEngine;
+using UnityEngine.EventSystems;
+using UnityEngine.UI;
 using NUnit.Framework;
 
 namespace DestinyGarden.Tests
 {
     public class PresentationTests
     {
+        [Test]
+        public void GardenStartsWithThreeActions_AndPanelsDoNotSendARoll()
+        {
+            var root = new GameObject("Garden UI test");
+            var existingEventSystem = EventSystem.current;
+            try
+            {
+                var ui = root.AddComponent<GardenUi>();
+                int rolls = 0, wishes = 0, offers = 0;
+                ui.OnRoll = () => rolls++;
+                ui.OnIntentSelected = (_, _) => wishes++;
+                ui.OnAddLuckySeven = () => offers++;
+                ui.Build();
+                var faces = RecipeCatalog.Order.Take(6).ToArray();
+                ui.ShowFaces(faces, 0);
+                ui.ShowTitleCard(true, opening: true);
+                Button Find(string name) => root.GetComponentsInChildren<Button>().Single(button => button.name == "Chip_" + name);
+                Find("庭に入る").onClick.Invoke();
+
+                var controls = root.transform.Find("Canvas/GardenControls");
+                Assert.That(controls.GetComponentsInChildren<Button>().Length, Is.EqualTo(3));
+                Assert.IsEmpty(controls.Find("PublishedFaces").GetComponentsInChildren<Button>());
+                var roll = Find("サイコロを振る");
+                roll.onClick.Invoke();
+                Assert.AreEqual(1, rolls);
+                Assert.AreEqual(0, wishes);
+
+                Find("メニュー").onClick.Invoke();
+                Assert.IsFalse(controls.GetComponent<CanvasGroup>().blocksRaycasts);
+                roll.onClick.Invoke();
+                Find("庭の記録").onClick.Invoke();
+                Find("投ごとの記録").onClick.Invoke();
+                root.GetComponentsInChildren<Button>().Single(button => button.name == "PanelBack").onClick.Invoke();
+                Assert.IsTrue(Find("投ごとの記録").gameObject.activeInHierarchy);
+                roll.onClick.Invoke();
+                Assert.AreEqual(1, rolls);
+
+                for (int i = 0; i < 2; i++)
+                    root.GetComponentsInChildren<Button>().Single(button => button.name == "PanelBack").onClick.Invoke();
+                Find("願いをかける").onClick.Invoke();
+                Find("水").onClick.Invoke();
+                Assert.AreEqual(1, wishes);
+                Assert.AreEqual(1, rolls);
+                Assert.IsTrue(controls.GetComponent<CanvasGroup>().blocksRaycasts);
+
+                ui.ShowLuckyOffer(true);
+                Find("七つめの面を加える").onClick.Invoke();
+                Assert.AreEqual(1, offers);
+                ui.ShowLuckyOffer(false);
+                var luckyFaces = faces.Concat(new[] { "light_soft" }).ToArray();
+                ui.ShowFaces(luckyFaces, 0, 7);
+                var published = controls.Find("PublishedFaces").GetComponentsInChildren<Text>();
+                Assert.That(published.Length, Is.EqualTo(7));
+                Assert.AreEqual("7  柔らかい光×2", published[6].text);
+                Assert.That(published[6].preferredWidth, Is.LessThanOrEqualTo(published[6].rectTransform.rect.width));
+                Assert.That(controls.GetComponentsInChildren<Button>().Length, Is.EqualTo(3));
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(root);
+                if (existingEventSystem == null && EventSystem.current != null)
+                    UnityEngine.Object.DestroyImmediate(EventSystem.current.gameObject);
+            }
+        }
+
+        [Test]
+        public void EngravedRollButtonPressesWithinAStationaryHitArea()
+        {
+            var root = new GameObject("Garden UI test");
+            var existingEventSystem = EventSystem.current;
+            try
+            {
+                var ui = root.AddComponent<GardenUi>();
+                ui.Build();
+                ui.ShowTitleCard(true, opening: true);
+                ui.ShowTitleCard(false);
+
+                var roll = root.transform.Find("Canvas/GardenControls/Chip_サイコロを振る").GetComponent<Button>();
+                var hitArea = roll.GetComponent<Image>();
+                var cap = roll.targetGraphic.rectTransform;
+                var rest = cap.offsetMin;
+                var area = hitArea.rectTransform.rect;
+                Assert.That(roll.GetComponentsInChildren<Graphic>(true).Where(graphic => graphic.raycastTarget),
+                    Is.EqualTo(new[] { hitArea }));
+
+                var pointer = new PointerEventData(EventSystem.current) { button = PointerEventData.InputButton.Left };
+                roll.OnPointerDown(pointer);
+                Assert.Less(cap.offsetMin.y, rest.y);
+                Assert.AreEqual(area, hitArea.rectTransform.rect);
+                ui.SetRollEnabled(false);
+                Assert.AreEqual(rest, cap.offsetMin);
+                roll.OnPointerUp(pointer);
+                ui.SetRollEnabled(true);
+                Assert.AreEqual(rest, cap.offsetMin);
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(root);
+                if (existingEventSystem == null && EventSystem.current != null)
+                    UnityEngine.Object.DestroyImmediate(EventSystem.current.gameObject);
+            }
+        }
+
+        [Test]
+        public void MomentCardKeepsTheCommittedBlessingAcrossPreparationAndClearsOnNextRoll()
+        {
+            var root = new GameObject("Garden UI test");
+            var existingEventSystem = EventSystem.current;
+            try
+            {
+                var ui = root.AddComponent<GardenUi>();
+                ui.View = root.AddComponent<GardenView>();
+                ui.View.ReducedMotion = true;
+                ui.Build();
+                ui.ShowTitleCard(false);
+                var card = root.transform.Find("Canvas/GardenControls/Garden moment");
+                Assert.IsFalse(card.gameObject.activeSelf);
+
+                var outcome = new RollOutcome { FaceId = 2, RecipeId = "water_drop" };
+                var moment = new GardenMoment
+                {
+                    Revision = 1, RecipeId = outcome.RecipeId, Headline = "小さな芽が、土から顔を出しました。",
+                    Habitat = "水辺"
+                };
+                ui.ShowMessage(null, outcome, moment);
+                var caption = card.Find("Moment caption").GetComponent<Text>();
+                var mark = card.Find("Blessing seal/Blessing mark").GetComponent<Image>();
+                Assert.AreEqual("1投目　·　2の目「しずく」　/　水辺", caption.text);
+                Assert.AreEqual("Water", mark.sprite.name);
+                Assert.AreEqual(1f, card.GetComponent<CanvasGroup>().alpha);
+                Assert.IsFalse(card.GetComponent<CanvasGroup>().blocksRaycasts);
+
+                ui.ShowFaces(RecipeCatalog.Order.Skip(2).Take(6).ToArray(), 0);
+                Assert.AreEqual("Water", mark.sprite.name);
+                ui.SetRollEnabled(false);
+                Assert.IsFalse(card.gameObject.activeSelf);
+                ui.ShowMessage(null, null, moment);
+                Assert.AreEqual(moment.Caption, caption.text);
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(root);
+                if (existingEventSystem == null && EventSystem.current != null)
+                    UnityEngine.Object.DestroyImmediate(EventSystem.current.gameObject);
+            }
+        }
+
         private static Dictionary<string, float[]> AllSounds()
         {
             var d = new Dictionary<string, float[]>

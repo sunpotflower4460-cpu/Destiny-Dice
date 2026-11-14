@@ -133,27 +133,42 @@ namespace DestinyGarden.Application
                 }
                 if (!seedQuery)
                 {
+                    var events = Rows(s.Payload, "events");
                     bool returnedHere = false;
+                    foreach (var ev in events)
+                        if (GardenMoments.IsPlantReturn(Text(ev, "kind")) && Number(ev, "cellId", -1) == memory.CellId)
+                        { returnedHere = true; break; }
+                    var ecology = s.Payload != null && s.Payload.TryGetValue("ecology", out object eco)
+                        ? eco as IDictionary<string, object> : null;
+                    int starGrowth = 0;
+                    if (subject != null && !returnedHere && s.State.ContainsKey("ecosystem") && ecology != null)
+                        foreach (var effect in GardenMoments.ReadStarEffects(ecology))
+                            if (effect.CellId == memory.CellId && effect.Amount > 0) starGrowth = effect.Amount;
+                    int finalGrowth = Number(subject, "growth");
+
                     foreach (var a in Rows(Succession(s), "ancestry"))
                         if (Text(a, "plantId") == id)
                         { parent = Text(a, "parentPlantId"); sourceSeed = Text(a, "seedId"); carrier = Text(a, "carrier"); born = Number(a, "bornRevision", -1); }
-                    foreach (var ev in Rows(s.Payload, "events"))
+                    foreach (var ev in events)
                     {
-                        if (Text(ev, "kind") == "ReturnedToSoil" && Number(ev, "cellId", -1) == memory.CellId) returnedHere = true;
                         if (Text(ev, "plantId") != id) continue;
                         string kind = Text(ev, "kind"); int cell = Number(ev, "cellId", -1);
                         if (kind == "SeedPlaced") { origin = new Step { Kind = kind, Revision = s.Revision, Cell = cell, Snapshot = s, Text = "ダイスが届けた種が、この土に入った。" }; continue; }
+                        bool returned = GardenMoments.IsPlantReturn(kind);
                         string text = kind == "Germinated" ? "芽を出した。" : kind == "LeafOpened" ? "葉を開いた。" : kind == "BudFormed" ? "蕾ができた。"
-                            : kind == "Bloomed" ? "花を開いた。" : kind == "ReturnedToSoil" ? "この株が、土へ還った。" : null;
+                            : kind == "Bloomed" ? "花を開いた。" : returned ? "この株が、土へ還った。" : null;
                         if (text == null) continue;
                         found = true; first = first ?? s;
                         if (memory.CellId < 0) memory.CellId = cell;
-                        if (kind == "ReturnedToSoil") { memory.Returned = true; returnedHere = true; }
-                        AddStep(new Step { Kind = kind, Revision = s.Revision, Cell = cell, Snapshot = s, Tick = Number(ev, "tick"), Text = text });
+                        if (returned) memory.Returned = true;
+                        int tick = Number(ev, "tick");
+                        if (cell == memory.CellId && GardenMoments.StarCrossedStage(kind, finalGrowth, starGrowth, tick))
+                            text = "星の恵みで、" + text;
+                        AddStep(new Step { Kind = kind, Revision = s.Revision, Cell = cell, Snapshot = s, Tick = tick, Text = text });
                     }
                     // Relations have no individual ID. Bind only to the recorded individual in this snapshot,
                     // and skip the retiring/replacement roll where cell and species alone are ambiguous.
-                    if (subject != null && !returnedHere && s.Payload != null && s.Payload.TryGetValue("ecology", out object eco) && eco is IDictionary<string, object> ecology)
+                    if (subject != null && !returnedHere && ecology != null)
                         foreach (var link in Rows(ecology, "relations"))
                         {
                             if (Number(link, "toCell", -1) != memory.CellId || Text(link, "species") != memory.Species || Number(link, "amount") <= 0) continue;

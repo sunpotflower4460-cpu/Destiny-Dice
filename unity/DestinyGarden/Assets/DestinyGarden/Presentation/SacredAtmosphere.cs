@@ -21,6 +21,10 @@ namespace DestinyGarden.Presentation
         private const float RingRadius = 13.4f;
         private Material _farGlass, _nearGlass, _lipGlass;
         private MeshRenderer _bottle;
+        private MeshRenderer _cork;
+        private Material _corkMat;
+        private Texture2D _corkTexture;
+        private Mesh _corkMesh;
         private Material _orbMat;
         private ParticleSystem _motes;
         private Material _starsMat, _skyMat, _haloMat, _wakeMat, _ringMat, _harmonyMat, _motesMat;
@@ -133,7 +137,7 @@ namespace DestinyGarden.Presentation
             BuildSevenLights(lit);
             BuildMotes(sprite);
             BuildStar();
-            BuildBottle();
+            BuildBottle(lit);
             SetSky(View.Sky, View.ReducedMotion);
         }
 
@@ -281,7 +285,7 @@ namespace DestinyGarden.Presentation
         }
 
         /// <summary>A thin glass bottle around the island and its water, floating on the sea.</summary>
-        private void BuildBottle()
+        private void BuildBottle(Shader lit)
         {
             var glass = Shader.Find("DestinyGarden/Glass");
             if (glass == null) return;
@@ -300,6 +304,17 @@ namespace DestinyGarden.Presentation
             _bottle.sharedMaterials = new[] { _farGlass, _nearGlass, _lipGlass };
             _bottle.shadowCastingMode = ShadowCastingMode.Off;
             _bottle.receiveShadows = false;
+
+            var stopper = new GameObject("Cork stopper");
+            stopper.transform.SetParent(obj.transform, false);
+            _corkMesh = BottleCork.CreateMesh();
+            _corkTexture = BottleCork.CreateTexture();
+            _corkMat = BottleCork.CreateMaterial(lit, _corkTexture);
+            stopper.AddComponent<MeshFilter>().sharedMesh = _corkMesh;
+            _cork = stopper.AddComponent<MeshRenderer>();
+            _cork.sharedMaterial = _corkMat;
+            _cork.shadowCastingMode = ShadowCastingMode.Off;
+            _cork.receiveShadows = false;
 
             Material GlassMaterial(string name, CullMode cull, int queue)
             {
@@ -332,6 +347,8 @@ namespace DestinyGarden.Presentation
                 _farGlass.SetFloat(GlassVisibilityId, visible * Mathf.Lerp(0.20f, 1f, wide));
                 _nearGlass.SetFloat(GlassVisibilityId, detail);
                 _lipGlass.SetFloat(GlassVisibilityId, detail);
+                _cork.enabled = detail > 0.003f;
+                if (_cork.enabled) _corkMat.color = new Color(1f, 1f, 1f, detail);
                 _seaMat.SetVector(BottleWaterlineId, new Vector4(BottleMesh.WaterlineRadius, detail, 0f, 0f));
             }
             if (_star != null)
@@ -367,6 +384,9 @@ namespace DestinyGarden.Presentation
             Destroy(_nearGlass);
             Destroy(_lipGlass);
             Destroy(_bottleMesh);
+            Destroy(_corkMat);
+            Destroy(_corkMesh);
+            Destroy(_corkTexture);
             Destroy(_orbMat);
             Destroy(_haloMat);
             Destroy(_ringMat);

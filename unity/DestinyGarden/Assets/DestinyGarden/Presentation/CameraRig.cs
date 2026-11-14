@@ -28,6 +28,10 @@ namespace DestinyGarden.Presentation
         public float HomeYaw => _homeYaw;
         public float HomePitch => _homePitch;
         public float HomeDist => _homeDist;
+        internal bool IsHouseFocused => _houseFocus;
+        internal bool CanResetView => _lock == 0 && (_houseFocus ||
+            Mathf.Abs(Mathf.DeltaAngle(_homeYaw, _tYaw)) > 0.8f ||
+            Mathf.Abs(_homePitch - _tPitch) > 0.6f || Mathf.Abs(_homeDist - _tDist) > 0.25f);
 
         public const float MinPitch = 16f, MaxPitch = 74f, MinDist = 12f, MaxDist = 46f;
         private float Closest => _houseFocus ? 3.1f : MinDist;

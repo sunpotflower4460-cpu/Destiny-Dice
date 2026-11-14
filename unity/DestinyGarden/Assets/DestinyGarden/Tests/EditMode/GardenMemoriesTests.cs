@@ -129,6 +129,36 @@ namespace DestinyGarden.Tests
             s.WorldRevision = 2; s.Plants.Clear(); Plant(s, "replacement"); j.Resolve(s, "parent", "ReturnedToSoil", links: new[] { Link("fruited") });
             Assert.IsEmpty(j.Read("p:replacement").Steps); Assert.AreEqual("ReturnedToSoil", j.Read("p:parent").Steps.Single().Kind);
         }
+
+        [Test]
+        public void TheStarMarksOnlyTheStageItAdvanced_WithoutFillingTheMemoryWithSmallGifts()
+        {
+            var j = new Journal();
+            var s = Soil();
+            var p = Plant(s);
+            p.Growth = 749;
+            j.Start(s);
+            void RecordGift(int revision, int growth, string kind, int amount)
+            {
+                s.WorldRevision = revision;
+                p.Growth = growth;
+                p.Stage = PlantStage.Leaf;
+                j.Resolve(s, p.PlantId, kind);
+                var ecology = (Dictionary<string, object>)j.Entries.Last().Payload["ecology"];
+                ecology["effects"] = new object[]
+                {
+                    new Dictionary<string, object> { ["kind"] = PrayerStar.GiftKind, ["cellId"] = p.CellId, ["amount"] = amount }
+                };
+            }
+            RecordGift(1, 754, "LeafOpened", 5);
+            for (int revision = 2; revision <= 12; revision++) RecordGift(revision, 754 + revision * 5, null, 5);
+            RecordGift(13, 1505, "BudFormed", 5);
+
+            var memory = j.Read("p:" + p.PlantId);
+
+            CollectionAssert.AreEqual(new[] { "星の恵みで、葉を開いた。", "蕾ができた。" }, memory.Steps.Select(step => step.Headline));
+            CollectionAssert.AreEqual(new[] { 1, 13 }, memory.Steps.Select(step => step.Revision));
+        }
         [Test]
         public void MomentMemoryKeys_UseGrowthAndReturnIds_IncludingAReplacementAtTheSameCell()
         {

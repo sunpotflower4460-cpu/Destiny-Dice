@@ -54,6 +54,15 @@ namespace DestinyGarden.Domain
         private const int SpillDepth = 150;
         private const int OutletCapacityPerTick = 100;
 
+        public static int GrowthThreshold(PlantStage stage) => stage switch
+        {
+            PlantStage.Sprout => 250,
+            PlantStage.Leaf => 750,
+            PlantStage.Bud => 1500,
+            PlantStage.Flower => 2500,
+            _ => 0
+        };
+
         public static SimulationResult Resolve(WorldState before, ResolvedRecipe dice,
             WeatherDefinition weather, Func<int, string> newPlantId) =>
             Resolve(before, dice, weather, newPlantId, null);
@@ -264,15 +273,16 @@ namespace DestinyGarden.Domain
         // internal: the ecology step (ECOLOGY.md) reuses the same stage thresholds and events.
         internal static void EmitStageEvents(SimulationResult result, PlantState plant, int oldGrowth, int tick)
         {
-            CheckThreshold(result, plant, oldGrowth, 250, PlantStage.Sprout, "Germinated", tick);
-            CheckThreshold(result, plant, oldGrowth, 750, PlantStage.Leaf, "LeafOpened", tick);
-            CheckThreshold(result, plant, oldGrowth, 1500, PlantStage.Bud, "BudFormed", tick);
-            CheckThreshold(result, plant, oldGrowth, 2500, PlantStage.Flower, "Bloomed", tick);
+            CheckThreshold(result, plant, oldGrowth, PlantStage.Sprout, "Germinated", tick);
+            CheckThreshold(result, plant, oldGrowth, PlantStage.Leaf, "LeafOpened", tick);
+            CheckThreshold(result, plant, oldGrowth, PlantStage.Bud, "BudFormed", tick);
+            CheckThreshold(result, plant, oldGrowth, PlantStage.Flower, "Bloomed", tick);
         }
 
         private static void CheckThreshold(SimulationResult result, PlantState plant, int oldGrowth,
-            int threshold, PlantStage stage, string kind, int tick)
+            PlantStage stage, string kind, int tick)
         {
+            int threshold = GrowthThreshold(stage);
             if (oldGrowth < threshold && plant.Growth >= threshold)
             {
                 plant.Stage = stage;
