@@ -51,10 +51,11 @@ namespace DestinyGarden.Presentation
             var place = Decoration(_momentHabitat.transform, "Habitat mark", GardenUiArt.Icon(Symbol.Compass));
             place.color = PaleGold;
             PlaceDecoration(place, new Vector2(0f, 0.5f), new Vector2(-25f, 0f), Vector2.one * 18f);
+            BuildRollResult(plate.transform);
             ShowMessage(null, null);
         }
 
-        private void PaintMoment(string recipeId, bool lucky, bool live, string headline, string habitat, int faceId = 0)
+        private void PaintMoment(string recipeId, bool lucky, bool live, string headline, string habitat)
         {
             string element = Array.IndexOf(RecipeCatalog.Order, recipeId) >= 0 ? ElementOfRecipe(recipeId) : null;
             var symbol = ElementSymbol(element);
@@ -64,9 +65,6 @@ namespace DestinyGarden.Presentation
             _momentIcon.sprite = GardenUiArt.Icon(lucky ? Symbol.Die : symbol);
             _momentIcon.color = lucky ? BrassInk : ink;
 
-            // A live roll begins with the face that came up, in its blessing's colour, so the strip and the event meet.
-            if (live && faceId > 0 && element != null)
-                headline = $"<color=#{ColorUtility.ToHtmlStringRGB(lucky ? PaleGold : ink)}>{faceId} {FaceName(recipeId)}</color>　{headline}";
             _momentHeadline.supportRichText = true;
             _momentHeadline.text = headline;
             bool hasHabitat = !string.IsNullOrEmpty(habitat);

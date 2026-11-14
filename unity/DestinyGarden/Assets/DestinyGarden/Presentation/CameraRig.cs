@@ -1,3 +1,4 @@
+using System.Collections;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
@@ -82,6 +83,45 @@ namespace DestinyGarden.Presentation
                 _dist = _tDist;
                 Apply();
             }
+        }
+
+        /// <summary>Briefly frame the saved event and return to the player's view.</summary>
+        internal IEnumerator FocusOnRoll(Vector3 cell, bool reducedMotion)
+        {
+            if (reducedMotion || _lock > 0 || Cam == null) yield break;
+            Vector3 start = Cam.transform.position;
+            Quaternion startRotation = Cam.transform.rotation;
+            Vector3 target = cell + Vector3.up * 0.45f;
+            Vector3 viewDirection = -Cam.transform.forward;
+            float distance = Mathf.Clamp(_dist * 0.58f, 9.5f, 17f);
+            Vector3 near = target + viewDirection * distance;
+            Quaternion nearRotation = Quaternion.LookRotation(target - near, Vector3.up);
+            _mouseDrag = _touchDrag = false;
+            _lastPinch = _spin = 0f;
+            Lock();
+            try
+            {
+                yield return Move(start, startRotation, near, nearRotation, 0.42f);
+                yield return new WaitForSecondsRealtime(0.72f);
+                yield return Move(near, nearRotation, start, startRotation, 0.44f);
+            }
+            finally
+            {
+                if (Cam != null) Cam.transform.SetPositionAndRotation(start, startRotation);
+                // Restore the orbit's existing state. The camera itself was only moved for the reveal.
+                _lock = Mathf.Max(0, _lock - 1);
+            }
+        }
+
+        private IEnumerator Move(Vector3 from, Quaternion fromRotation, Vector3 to, Quaternion toRotation, float duration)
+        {
+            for (float elapsed = 0f; elapsed < duration; elapsed += Time.unscaledDeltaTime)
+            {
+                float fraction = Mathf.SmoothStep(0f, 1f, elapsed / duration);
+                Cam.transform.SetPositionAndRotation(Vector3.Lerp(from, to, fraction), Quaternion.Slerp(fromRotation, toRotation, fraction));
+                yield return null;
+            }
+            Cam.transform.SetPositionAndRotation(to, toRotation);
         }
 
         private void Aim(Vector3 target, float yaw, float pitch, float distance)

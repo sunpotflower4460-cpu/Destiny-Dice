@@ -291,7 +291,7 @@ namespace DestinyGarden.Tests
                 var card = root.transform.Find("Canvas/GardenControls/Garden moment");
                 Assert.IsFalse(card.gameObject.activeSelf);
 
-                var outcome = new RollOutcome { FaceId = 2, RecipeId = "water_drop" };
+                var outcome = new RollOutcome { FaceId = 2, RecipeId = "water_drop", IntentKind = "face", IntentValue = "3" };
                 var moment = new GardenMoment
                 {
                     Revision = 1, RecipeId = outcome.RecipeId, Headline = "小さな芽が、土から顔を出しました。",
@@ -300,13 +300,14 @@ namespace DestinyGarden.Tests
                 ui.ShowMessage(null, outcome, moment);
                 var headline = card.Find("Moment headline").GetComponent<Text>();
                 var habitat = card.Find("Moment habitat").GetComponent<Text>();
+                var result = card.Find("Rolled face and blessing").GetComponent<Text>();
+                var wish = card.Find("Wish and lucky number").GetComponent<Text>();
                 var mark = card.Find("Blessing seal/Blessing mark").GetComponent<Image>();
-                // A live roll names the face that came up first, so the strip and the event meet.
-                StringAssert.StartsWith("<color=#", headline.text);
-                StringAssert.Contains(">2 たっぷり水</color>　", headline.text);
-                StringAssert.EndsWith(moment.Headline, headline.text);
+                Assert.AreEqual("2の目  ·  たっぷり水", result.text);
+                Assert.AreEqual("願い 3の目  ·  別の目", wish.text);
+                Assert.AreEqual(moment.Headline, headline.text);
                 Assert.AreEqual("水辺", habitat.text);
-                Assert.That(card.GetComponentsInChildren<Text>(), Is.EquivalentTo(new[] { headline, habitat }));
+                Assert.That(card.GetComponentsInChildren<Text>(), Is.EquivalentTo(new[] { headline, habitat, result, wish }));
                 Assert.That(800f - ((RectTransform)card).rect.width * 0.5f, Is.GreaterThanOrEqualTo(360f));
                 Assert.AreEqual("Water", mark.sprite.name);
                 Assert.AreEqual(1f, card.GetComponent<CanvasGroup>().alpha);
@@ -318,6 +319,8 @@ namespace DestinyGarden.Tests
                 Assert.IsFalse(card.gameObject.activeSelf);
                 ui.ShowMessage(null, null, moment);
                 Assert.AreEqual(moment.Headline, headline.text);
+                Assert.IsFalse(result.gameObject.activeSelf);
+                Assert.IsFalse(wish.gameObject.activeSelf);
                 moment.Habitat = null;
                 ui.ShowMessage(null, null, moment);
                 Assert.IsFalse(habitat.gameObject.activeSelf);
